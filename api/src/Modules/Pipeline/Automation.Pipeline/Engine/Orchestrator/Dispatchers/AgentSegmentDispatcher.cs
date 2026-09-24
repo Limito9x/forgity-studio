@@ -6,7 +6,7 @@ using Automation.Pipeline.Engine.DataResolver;
 using Automation.Pipeline.Engine.Messages;
 using Automation.Pipeline.Engine.Models;
 using Automation.Pipeline.Hubs;
-using Automation.Projects.Contracts;
+using Automation.Studio.Contracts;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -15,7 +15,7 @@ namespace Automation.Pipeline.Engine.Orchestrator.Dispatchers;
 
 public class AgentSegmentDispatcher(
     IMessageBus messageBus,
-    IProjectsApi projectsApi,
+    IStudioApi studioApi,
     IAssetApi assetApi,
     IConfiguration configuration,
     ILogger<AgentSegmentDispatcher> logger,
@@ -151,7 +151,7 @@ public class AgentSegmentDispatcher(
 
         // Fetch Environment Config for Executor (e.g. blender executable path, unreal engine port)
         var envConfig = new Dictionary<string, object?>();
-        var configResult = await projectsApi.GetExecutorConfigAsync(
+        var configResult = await studioApi.GetExecutorConfigAsync(
             execution.Pipeline.ProjectId,
             execution.AgentId,
             segment.Executor,

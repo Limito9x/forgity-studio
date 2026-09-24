@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Automation.Runner.Domain.Entities;
 using Automation.Runner.Infrastructure.Persistence;
 using Automation.Runner.Shared.Dtos;
 using Automation.SharedKernel.Abstractions.Caching;
@@ -46,19 +47,28 @@ public class RegisterRunnerWithTokenHandler(RunnerDbContext db, ICacheService ca
 {
     public async Task<Result<RegisterRunnerResultDto>> HandleAsync(RegisterRunnerWithTokenCommand command, CancellationToken ct)
     {
-        var cacheKey = $"agent_setup_token:{command.SetupToken}";
-        var isValidToken = await cache.GetAsync<bool>(cacheKey, ct);
+        var runnerCacheKey = $"runner_setup_token:{command.SetupToken}";
+        var legacyCacheKey = $"agent_setup_token:{command.SetupToken}";
 
-        if (!isValidToken)
+        var metadata = await cache.GetAsync<RunnerSetupTokenMetadata>(runnerCacheKey, ct);
+        var isValidLegacy = metadata is null && await cache.GetAsync<bool>(legacyCacheKey, ct);
+
+        if (metadata is null && !isValidLegacy)
         {
             return Result.Fail("Invalid or expired setup token");
         }
 
         // Consume the token (single use)
-        await cache.RemoveAsync(cacheKey, ct);
+        await cache.RemoveAsync(runnerCacheKey, ct);
+        await cache.RemoveAsync(legacyCacheKey, ct);
 
         var existingRunner = await db.Runners
             .FirstOrDefaultAsync(x => x.MachineKey == command.MachineKey, ct);
+
+        Guid runnerId;
+        string runnerName;
+        string machineKey;
+        string registrationToken;
 
         if (existingRunner is not null)
         {
@@ -68,35 +78,58 @@ public class RegisterRunnerWithTokenHandler(RunnerDbContext db, ICacheService ca
                 await db.SaveChangesAsync(ct);
             }
 
-            return Result.Ok(new RegisterRunnerResultDto(
-                existingRunner.Id,
-                existingRunner.Name,
-                existingRunner.MachineKey,
-                existingRunner.RegistrationToken
-            ));
+            runnerId = existingRunner.Id;
+            runnerName = existingRunner.Name;
+            machineKey = existingRunner.MachineKey;
+            registrationToken = existingRunner.RegistrationToken;
+        }
+        else
+        {
+            var tokenBytes = new byte[32];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(tokenBytes);
+            registrationToken = Convert.ToBase64String(tokenBytes);
+
+            var runner = new Domain.Entities.Runner
+            {
+                Name = command.Name,
+                MachineKey = command.MachineKey,
+                RegistrationToken = registrationToken,
+                IsActive = true
+            };
+
+            db.Runners.Add(runner);
+            await db.SaveChangesAsync(ct);
+
+            runnerId = runner.Id;
+            runnerName = runner.Name;
+            machineKey = runner.MachineKey;
         }
 
-        var tokenBytes = new byte[32];
-        using var rng = RandomNumberGenerator.Create();
-        rng.GetBytes(tokenBytes);
-        var registrationToken = Convert.ToBase64String(tokenBytes);
-
-        var runner = new Domain.Entities.Runner
+        // Auto-link to Studio if token has StudioId
+        if (metadata?.StudioId.HasValue == true)
         {
-            Name = command.Name,
-            MachineKey = command.MachineKey,
-            RegistrationToken = registrationToken,
-            IsActive = true
-        };
+            var studioId = metadata.StudioId.Value;
+            var existingLink = await db.RunnerStudios
+                .FirstOrDefaultAsync(rs => rs.RunnerId == runnerId && rs.StudioId == studioId, ct);
 
-        db.Runners.Add(runner);
-        await db.SaveChangesAsync(ct);
+            if (existingLink is null)
+            {
+                db.RunnerStudios.Add(new RunnerStudio
+                {
+                    RunnerId = runnerId,
+                    StudioId = studioId,
+                    IsApproved = true
+                });
+                await db.SaveChangesAsync(ct);
+            }
+        }
 
         return Result.Ok(new RegisterRunnerResultDto(
-            runner.Id,
-            runner.Name,
-            runner.MachineKey,
-            runner.RegistrationToken
+            runnerId,
+            runnerName,
+            machineKey,
+            registrationToken
         ));
     }
 }

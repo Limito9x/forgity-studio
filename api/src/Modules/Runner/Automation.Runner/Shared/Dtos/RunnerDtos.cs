@@ -26,6 +26,16 @@ public record RunnerExecutorConfigDto(
     DateTimeOffset CreatedAt
 );
 
+public record RunnerStudioDto(
+    Guid Id,
+    Guid RunnerId,
+    Guid StudioId,
+    string? Alias,
+    bool IsApproved,
+    DateTimeOffset CreatedAt,
+    RunnerDto? Runner = null
+);
+
 // Backward-compatibility aliases
 public record AgentDto(
     Guid Id,

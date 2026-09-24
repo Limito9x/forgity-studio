@@ -12,6 +12,7 @@ public class RunnerDbContext : DbContext
 
     public DbSet<Domain.Entities.Runner> Runners => Set<Domain.Entities.Runner>();
     public DbSet<RunnerExecutorConfig> RunnerExecutorConfigs => Set<RunnerExecutorConfig>();
+    public DbSet<RunnerStudio> RunnerStudios => Set<RunnerStudio>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

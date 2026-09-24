@@ -11,4 +11,5 @@ public class Runner : BaseEntity
     public DateTimeOffset? LastSeenAt { get; set; }
 
     public ICollection<RunnerExecutorConfig> ExecutorConfigs { get; set; } = new List<RunnerExecutorConfig>();
+    public ICollection<RunnerStudio> Studios { get; set; } = new List<RunnerStudio>();
 }
