@@ -14,7 +14,7 @@ using Automation.Pipeline.Engine.Orchestrator.Dispatchers;
 using Automation.Pipeline.Infrastructure.Persistence;
 using Automation.Pipeline.Infrastructure.Redis;
 using Automation.Pipeline.Tools;
-using Automation.Projects.Contracts;
+using Automation.Studio.Contracts;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -32,7 +32,7 @@ public class PipelineOrchestratorTests
     private readonly IExecPlanner _execPlanner = new ExecPlanner();
     private readonly FakeToolRegistry _toolRegistry = new();
     private readonly IMessageBus _messageBus = Substitute.For<IMessageBus>();
-    private readonly IProjectsApi _projectsApi = Substitute.For<IProjectsApi>();
+    private readonly IStudioApi _studioApi = Substitute.For<IStudioApi>();
     private readonly IAssetApi _assetApi = Substitute.For<IAssetApi>();
     private readonly PipelineOrchestrator _orchestrator;
 
@@ -64,7 +64,7 @@ public class PipelineOrchestratorTests
 
         var config = Substitute.For<IConfiguration>();
         var dotNetDispatcher = new DotNetSegmentDispatcher(_db, _toolRegistry, pinResolver, _memoryStore, NullLogger<DotNetSegmentDispatcher>.Instance);
-        var agentDispatcher = new AgentSegmentDispatcher(_messageBus, _projectsApi, _assetApi, config, NullLogger<AgentSegmentDispatcher>.Instance);
+        var agentDispatcher = new AgentSegmentDispatcher(_messageBus, _studioApi, _assetApi, config, NullLogger<AgentSegmentDispatcher>.Instance);
         var forEachDispatcher = new ForEachDispatcher(_db, pinResolver, _memoryStore, dotNetDispatcher, NullLogger<ForEachDispatcher>.Instance);
 
         _orchestrator = new PipelineOrchestrator(

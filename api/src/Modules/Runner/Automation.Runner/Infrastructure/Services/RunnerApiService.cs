@@ -332,6 +332,23 @@ public class RunnerApiService(
 
         return Result.Ok(result);
     }
+
+    public async Task<Result<IReadOnlyList<RunnerDto>>> GetRunnersByStudioIdAsync(
+        Guid studioId,
+        CancellationToken ct = default
+    )
+    {
+        var runnerIds = await db.RunnerStudios
+            .AsNoTracking()
+            .Where(rs => rs.StudioId == studioId && rs.IsApproved)
+            .Select(rs => rs.RunnerId)
+            .ToListAsync(ct);
+
+        if (runnerIds.Count == 0)
+            return Result.Ok<IReadOnlyList<RunnerDto>>([]);
+
+        return await GetRunnersByIdsAsync(runnerIds, ct);
+    }
 }
 
 // Backward-compatibility alias

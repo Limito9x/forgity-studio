@@ -37,6 +37,10 @@ public interface IRunnerApi
         Guid userId,
         CancellationToken ct = default
     );
+    Task<Result<IReadOnlyList<RunnerDto>>> GetRunnersByStudioIdAsync(
+        Guid studioId,
+        CancellationToken ct = default
+    );
 
     // Compatibility methods for previous IAgentApi callers
     Task<Result<RunnerDto>> GetAgentByIdAsync(Guid agentId, CancellationToken ct = default)

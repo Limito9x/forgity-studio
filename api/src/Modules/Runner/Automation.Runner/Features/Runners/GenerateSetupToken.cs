@@ -4,11 +4,15 @@ using Wolverine.Attributes;
 
 namespace Automation.Runner.Features.Runners;
 
-public record GenerateSetupTokenCommand();
+public record GenerateSetupTokenRequest(Guid? StudioId = null);
 
-public record SetupTokenDto(string Token, DateTimeOffset ExpiresAt);
+public record GenerateSetupTokenCommand(Guid? StudioId = null);
 
-public class GenerateSetupTokenEndpoint(IMessageBus bus) : EndpointWithoutRequest<SetupTokenDto>
+public record SetupTokenDto(string Token, DateTimeOffset ExpiresAt, Guid? StudioId = null);
+
+public record RunnerSetupTokenMetadata(Guid? StudioId, string? CreatedBy);
+
+public class GenerateSetupTokenEndpoint(IMessageBus bus) : Endpoint<GenerateSetupTokenRequest, SetupTokenDto>
 {
     public override void Configure()
     {
@@ -17,9 +21,9 @@ public class GenerateSetupTokenEndpoint(IMessageBus bus) : EndpointWithoutReques
         Permissions(P.Runner.Create);
     }
 
-    public override async Task HandleAsync(CancellationToken ct)
+    public override async Task HandleAsync(GenerateSetupTokenRequest req, CancellationToken ct)
     {
-        var result = await bus.InvokeAsync<Result<SetupTokenDto>>(new GenerateSetupTokenCommand(), ct);
+        var result = await bus.InvokeAsync<Result<SetupTokenDto>>(new GenerateSetupTokenCommand(req.StudioId), ct);
         await this.SendResultAsync(result, ct);
     }
 }
@@ -35,10 +39,14 @@ public class GenerateSetupTokenHandler(ICacheService cache)
         var token = "AGT-" + Convert.ToHexString(tokenBytes);
 
         var expiresAt = DateTimeOffset.UtcNow.AddMinutes(30);
-        var cacheKey = $"agent_setup_token:{token}";
+        var cacheKey = $"runner_setup_token:{token}";
 
-        await cache.SetAsync(cacheKey, true, TimeSpan.FromMinutes(30), ct);
+        var metadata = new RunnerSetupTokenMetadata(command.StudioId, null);
+        await cache.SetAsync(cacheKey, metadata, TimeSpan.FromMinutes(30), ct);
 
-        return Result.Ok(new SetupTokenDto(token, expiresAt));
+        // Also set legacy key for backwards compatibility
+        await cache.SetAsync($"agent_setup_token:{token}", true, TimeSpan.FromMinutes(30), ct);
+
+        return Result.Ok(new SetupTokenDto(token, expiresAt, command.StudioId));
     }
 }

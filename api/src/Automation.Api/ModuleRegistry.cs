@@ -3,7 +3,7 @@ using Automation.Identity;
 using Automation.Files;
 using Automation.Notifications;
 using Automation.Platform;
-using Automation.Projects;
+using Automation.Studio;
 using Automation.Content;
 using Automation.Tag;
 using Automation.Workspace;
@@ -22,7 +22,7 @@ public static class ModuleRegistry
         new FilesModule(),
         new NotificationsModule(),
         new PlatformModule(),
-        new ProjectsModule(),
+        new StudioModule(),
         new ContentModule(),
         new TagModule(),
         new WorkspaceModule(),
