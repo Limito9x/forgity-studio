@@ -5,8 +5,8 @@ public class ResourceVersionLocation : AuditableEntity
     public Guid ResourceVersionId { get; set; }
     public ResourceVersion ResourceVersion { get; set; } = null!;
 
-    public Guid WorkspaceAgentId { get; set; }
-    public WorkspaceAgent WorkspaceAgent { get; set; } = null!;
+    public Guid RepositoryRunnerId { get; set; }
+    public RepositoryRunner RepositoryRunner { get; set; } = null!;
     public bool IsOrigin { get; set; }
     public DateTimeOffset DiscoveredAt { get; set; }
 
@@ -14,13 +14,13 @@ public class ResourceVersionLocation : AuditableEntity
 
     public ResourceVersionLocation(
         Guid resourceVersionId,
-        Guid workspaceAgentId,
+        Guid repositoryRunnerId,
         bool isOrigin = false,
         DateTimeOffset? discoveredAt = null
     )
     {
         ResourceVersionId = resourceVersionId;
-        WorkspaceAgentId = workspaceAgentId;
+        RepositoryRunnerId = repositoryRunnerId;
         IsOrigin = isOrigin;
         DiscoveredAt = discoveredAt ?? DateTimeOffset.UtcNow;
     }

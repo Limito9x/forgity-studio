@@ -1,6 +1,6 @@
 using Automation.SharedKernel.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
-using Automation.Workspace.Domain;
+using Automation.Workspace.Domain.Entities;
 
 namespace Automation.Workspace.Infrastructure.Persistence;
 
@@ -10,12 +10,11 @@ public class WorkspaceDbContext : DbContext
     {
     }
 
-    public DbSet<Domain.Entities.Workspace> Workspaces => Set<Domain.Entities.Workspace>();
-    public DbSet<Domain.Entities.WorkspaceAgent> WorkspaceAgents => Set<Domain.Entities.WorkspaceAgent>();
-    public DbSet<Domain.Entities.ResourceItem> ResourceItems => Set<Domain.Entities.ResourceItem>();
-    public DbSet<Domain.Entities.ResourceVersion> ResourceVersions => Set<Domain.Entities.ResourceVersion>();
-    public DbSet<Domain.Entities.ResourceVersionLocation> ResourceVersionLocations => Set<Domain.Entities.ResourceVersionLocation>();
-    public DbSet<Domain.Entities.WorkspacePlatform> WorkspacePlatforms => Set<Domain.Entities.WorkspacePlatform>();
+    public DbSet<Repository> Repositories => Set<Repository>();
+    public DbSet<RepositoryRunner> RepositoryRunners => Set<RepositoryRunner>();
+    public DbSet<ResourceItem> ResourceItems => Set<ResourceItem>();
+    public DbSet<ResourceVersion> ResourceVersions => Set<ResourceVersion>();
+    public DbSet<ResourceVersionLocation> ResourceVersionLocations => Set<ResourceVersionLocation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -25,4 +24,3 @@ public class WorkspaceDbContext : DbContext
         base.OnModelCreating(modelBuilder);
     }
 }
-

@@ -17,11 +17,11 @@ public class ResourceVersionLocationConfiguration
             .OnDelete(DeleteBehavior.Cascade);
 
         builder
-            .HasOne(x => x.WorkspaceAgent)
+            .HasOne(x => x.RepositoryRunner)
             .WithMany(x => x.Locations)
-            .HasForeignKey(x => x.WorkspaceAgentId)
+            .HasForeignKey(x => x.RepositoryRunnerId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasIndex(x => new { x.ResourceVersionId, x.WorkspaceAgentId }).IsUnique();
+        builder.HasIndex(x => new { x.ResourceVersionId, x.RepositoryRunnerId }).IsUnique();
     }
 }

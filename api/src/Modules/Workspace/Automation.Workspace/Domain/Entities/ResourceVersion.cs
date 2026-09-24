@@ -30,16 +30,16 @@ public class ResourceVersion : AuditableEntity
     }
 
     internal ResourceVersionLocation AddLocation(
-        Guid workspaceAgentId,
+        Guid repositoryRunnerId,
         bool isOrigin = false,
         DateTimeOffset? discoveredAt = null
     )
     {
-        var existing = _locations.FirstOrDefault(x => x.WorkspaceAgentId == workspaceAgentId);
+        var existing = _locations.FirstOrDefault(x => x.RepositoryRunnerId == repositoryRunnerId);
         if (existing != null)
         {
             if (isOrigin)
-                MarkLocationAsOrigin(workspaceAgentId);
+                MarkLocationAsOrigin(repositoryRunnerId);
             return existing;
         }
 
@@ -57,15 +57,15 @@ public class ResourceVersion : AuditableEntity
             }
         }
 
-        var location = new ResourceVersionLocation(Id, workspaceAgentId, isOrigin, discoveredAt);
+        var location = new ResourceVersionLocation(Id, repositoryRunnerId, isOrigin, discoveredAt);
         _locations.Add(location);
         return location;
     }
 
-    public void MarkLocationAsOrigin(Guid workspaceAgentId)
+    public void MarkLocationAsOrigin(Guid repositoryRunnerId)
     {
         var location =
-            _locations.FirstOrDefault(x => x.WorkspaceAgentId == workspaceAgentId)
+            _locations.FirstOrDefault(x => x.RepositoryRunnerId == repositoryRunnerId)
             ?? throw new InvalidOperationException("Location not found");
 
         foreach (var loc in _locations)
@@ -74,11 +74,14 @@ public class ResourceVersion : AuditableEntity
         }
 
         location.SetOrigin(true);
+        UpdatedAt = DateTimeOffset.UtcNow;
     }
 
-    public void SetMetadata(System.Text.Json.JsonDocument? metadata)
+    public void UpdateMetadata(System.Text.Json.JsonDocument? metadata)
     {
         Metadata = metadata;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
+
+    public void SetMetadata(System.Text.Json.JsonDocument? metadata) => UpdateMetadata(metadata);
 }
