@@ -2,6 +2,25 @@ using Automation.Runner.Contracts;
 
 namespace Automation.Workspace.Shared.Dtos;
 
+public record RepositoryDto(
+    Guid Id,
+    Guid ProjectId,
+    string Name,
+    string? Description,
+    int RunnerCount,
+    int ResourceCount,
+    DateTimeOffset CreatedAt
+);
+
+public record RepositoryRunnerDto(
+    Guid Id,
+    Guid RunnerId,
+    string RootPath,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? LastSyncAt,
+    RunnerDto? Runner = null
+);
+
 public record WorkspaceDto(
     Guid Id,
     Guid ProjectId,
@@ -15,14 +34,17 @@ public record WorkspaceDto(
 public record ResourceItemDto(
     Guid Id,
     Guid ProjectId,
-    Guid WorkspaceId,
+    Guid RepositoryId,
     string Name,
     string? FilePath,
     Guid? PlatformExtensionId,
     Guid? ContentId,
     DateTimeOffset CreatedAt,
     IReadOnlyList<ResourceVersionDto>? Versions = null
-);
+)
+{
+    public Guid WorkspaceId => RepositoryId;
+}
 
 public record WorkspaceAgentDto(
     Guid Id,
@@ -36,12 +58,15 @@ public record WorkspaceAgentDto(
 public record ResourceVersionLocationDto(
     Guid Id,
     Guid ResourceVersionId,
-    Guid WorkspaceAgentId,
+    Guid RepositoryRunnerId,
     string RelativePath,
     bool IsOrigin,
     DateTimeOffset DiscoveredAt,
     DateTimeOffset CreatedAt
-);
+)
+{
+    public Guid WorkspaceAgentId => RepositoryRunnerId;
+}
 
 public record ScannedFileItemDto(string RelativePath, string Hash, long SizeBytes);
 
@@ -118,12 +143,15 @@ public record ResourceDiffItem(
 );
 
 public record DiffResult(
-    Guid WorkspaceAgentId,
+    Guid RepositoryRunnerId,
     List<ResourceDiffItem> Added,
     List<ResourceDiffItem> Modified,
     List<ResourceDiffItem> Deleted,
     List<ResourceDiffItem> Missing
-);
+)
+{
+    public Guid WorkspaceAgentId => RepositoryRunnerId;
+}
 
 public record ContentResourceDto(
     Guid Id,

@@ -14,14 +14,14 @@ public class ResourceItemConfiguration : IEntityTypeConfiguration<Domain.Entitie
         builder.Property(x => x.RelativePath).HasMaxLength(500);
 
         builder
-            .HasOne(x => x.Workspace)
+            .HasOne(x => x.Repository)
             .WithMany(x => x.Resources)
-            .HasForeignKey(x => x.WorkspaceId)
+            .HasForeignKey(x => x.RepositoryId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(x => x.PlatformExtensionId);
         builder.HasIndex(x => x.ContentId);
-        builder.HasIndex(x => new { x.WorkspaceId, x.RelativePath }).IsUnique();
-        builder.HasIndex(x => new { x.WorkspaceId, x.DisplayName });
+        builder.HasIndex(x => new { x.RepositoryId, x.RelativePath }).IsUnique();
+        builder.HasIndex(x => new { x.RepositoryId, x.DisplayName });
     }
 }

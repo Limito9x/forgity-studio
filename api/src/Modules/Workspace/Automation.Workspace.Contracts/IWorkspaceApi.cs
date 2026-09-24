@@ -2,7 +2,7 @@ using FluentResults;
 
 namespace Automation.Workspace.Contracts;
 
-public interface IWorkspaceApi
+public interface IRepositoryApi
 {
     Task<Result<ResourceLocationInfoDto>> GetResourceLocationAsync(
         Guid resourceVersionId,
@@ -11,32 +11,32 @@ public interface IWorkspaceApi
 
     Task<Result<Dictionary<string, ResourceLocationInfoDto>>> GetResourceLocationsAsync(
         IEnumerable<Guid> resourceVersionIds,
-        Guid agentId, // Chỉ định rõ máy nào để lấy tài nguyên, tránh mơ hồ
+        Guid runnerId,
         CancellationToken ct = default
     );
 
     Task<Result<SyncLocalChangesResultDto>> SyncLocalChangesAsync(
-        Guid workspaceId,
-        Guid agentId,
+        Guid repositoryId,
+        Guid runnerId,
         List<string> targetPaths,
         string? notes = null,
         CancellationToken ct = default
     );
 
-    Task<Result<List<Guid>>> GetUncoveredWorkspacesAsync(
-        Guid agentId,
-        IEnumerable<Guid> requiredWorkspaceIds,
+    Task<Result<List<Guid>>> GetUncoveredRepositoriesAsync(
+        Guid runnerId,
+        IEnumerable<Guid> requiredRepositoryIds,
         CancellationToken ct = default
     );
 
-    Task<Result<Dictionary<Guid, string>>> GetWorkspaceNamesAsync(
-        IEnumerable<Guid> workspaceIds,
+    Task<Result<Dictionary<Guid, string>>> GetRepositoryNamesAsync(
+        IEnumerable<Guid> repositoryIds,
         CancellationToken ct = default
     );
 
-    Task<Result<string>> GetWorkspaceRootPathAsync(
-        Guid workspaceId,
-        Guid agentId,
+    Task<Result<string>> GetRepositoryRootPathAsync(
+        Guid repositoryId,
+        Guid runnerId,
         CancellationToken ct = default
     );
 
@@ -68,26 +68,53 @@ public interface IWorkspaceApi
     );
 }
 
+public interface IWorkspaceApi : IRepositoryApi
+{
+    Task<Result<List<Guid>>> GetUncoveredWorkspacesAsync(
+        Guid agentId,
+        IEnumerable<Guid> requiredWorkspaceIds,
+        CancellationToken ct = default
+    ) => GetUncoveredRepositoriesAsync(agentId, requiredWorkspaceIds, ct);
+
+    Task<Result<Dictionary<Guid, string>>> GetWorkspaceNamesAsync(
+        IEnumerable<Guid> workspaceIds,
+        CancellationToken ct = default
+    ) => GetRepositoryNamesAsync(workspaceIds, ct);
+
+    Task<Result<string>> GetWorkspaceRootPathAsync(
+        Guid workspaceId,
+        Guid agentId,
+        CancellationToken ct = default
+    ) => GetRepositoryRootPathAsync(workspaceId, agentId, ct);
+}
+
 public record SyncLocalChangesResultDto(
-    Guid WorkspaceId,
-    Guid AgentId,
+    Guid RepositoryId,
+    Guid RunnerId,
     int AddedCount,
     int ModifiedCount,
     int LocationRemoved,
     List<Guid> ResourceVersionIds,
     Dictionary<string, Guid> SyncedResources
-);
+)
+{
+    public Guid WorkspaceId => RepositoryId;
+    public Guid AgentId => RunnerId;
+}
 
 public record ResourceLocationInfoDto(
     Guid ResourceVersionId,
     Guid ResourceId,
     string RelativePath,
     string? FileHash,
-    Guid? AgentId,
-    string? AgentRootPath,
+    Guid? RunnerId,
+    string? RunnerRootPath,
     Guid? ContentId = null
 )
 {
+    public Guid? AgentId => RunnerId;
+    public string? AgentRootPath => RunnerRootPath;
+
     public string? FullLocalPath
     {
         get
@@ -95,10 +122,10 @@ public record ResourceLocationInfoDto(
             if (string.IsNullOrWhiteSpace(RelativePath))
                 return null;
 
-            if (!string.IsNullOrWhiteSpace(AgentRootPath))
+            if (!string.IsNullOrWhiteSpace(RunnerRootPath))
             {
                 var cleanRel = RelativePath.TrimStart('/', '\\');
-                return Path.Combine(AgentRootPath, cleanRel).Replace('\\', '/');
+                return Path.Combine(RunnerRootPath, cleanRel).Replace('\\', '/');
             }
 
             return RelativePath;

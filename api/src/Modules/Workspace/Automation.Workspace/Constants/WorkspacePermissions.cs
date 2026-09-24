@@ -4,19 +4,22 @@ namespace Automation.Workspace.Constants;
 
 public class WorkspacePermissions
 {
-    public static WorkspaceFeature Workspace { get; } = new();
-    public static WorkspaceAgentFeature WorkspaceAgent { get; } = new();
+    public static RepositoryFeature Repository { get; } = new();
+    public static RepositoryRunnerFeature RepositoryRunner { get; } = new();
     public static ResourceFeature Resource { get; } = new();
+
+    // Backward-compatible aliases
+    public static RepositoryFeature Workspace => Repository;
+    public static RepositoryRunnerFeature WorkspaceAgent => RepositoryRunner;
 
     public Dictionary<string, IReadOnlyList<string>> GetPermissions() => new()
     {
-        { "Workspace", Workspace.All },
-        { "WorkspaceAgent", WorkspaceAgent.All },
+        { "Repository", Repository.All },
+        { "RepositoryRunner", RepositoryRunner.All },
         { "Resource", Resource.All }
     };
 
-    public class WorkspaceFeature() : BaseCrudPermission("workspace") { }
-    public class WorkspaceAgentFeature() : BaseCrudPermission("workspace_agent") { }
+    public class RepositoryFeature() : BaseCrudPermission("repositories") { }
+    public class RepositoryRunnerFeature() : BaseCrudPermission("repository_runners") { }
     public class ResourceFeature() : BaseCrudPermission("resource") { }
 }
-

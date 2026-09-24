@@ -10,10 +10,12 @@ public record ResourceVersionCreatedInfo(
 
 public record ResourcesCreatedEvent(
     Guid ProjectId,
-    Guid WorkspaceId,
-    Guid AgentId,
+    Guid RepositoryId,
+    Guid RunnerId,
     List<ResourceVersionCreatedInfo> ResourceVersions
 )
 {
+    public Guid WorkspaceId => RepositoryId;
+    public Guid AgentId => RunnerId;
     public List<Guid> ResourceVersionIds => ResourceVersions.Select(r => r.ResourceVersionId).ToList();
 }

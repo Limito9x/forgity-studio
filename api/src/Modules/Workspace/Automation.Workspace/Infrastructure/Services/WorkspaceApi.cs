@@ -9,7 +9,7 @@ using Wolverine;
 
 namespace Automation.Workspace.Infrastructure.Services;
 
-public class WorkspaceApi(WorkspaceDbContext db, IMessageBus bus, ITagApi tagApi) : IWorkspaceApi
+public class WorkspaceApi(WorkspaceDbContext db, IMessageBus bus, ITagApi tagApi) : IWorkspaceApi, IRepositoryApi
 {
     public async Task<Result<ResourceLocationInfoDto>> GetResourceLocationAsync(
         Guid resourceVersionId,
@@ -38,7 +38,7 @@ public class WorkspaceApi(WorkspaceDbContext db, IMessageBus bus, ITagApi tagApi
         if (version == null)
             return Result.Fail("Resource version not found.");
 
-        Guid? agentId = null;
+        Guid? runnerId = null;
         string? rootPath = null;
 
         var originLocation =
@@ -46,14 +46,14 @@ public class WorkspaceApi(WorkspaceDbContext db, IMessageBus bus, ITagApi tagApi
             ?? (version.Locations.Count > 0 ? version.Locations[0] : null);
         if (originLocation != null)
         {
-            var wsAgent = await db
-                .WorkspaceAgents.AsNoTracking()
-                .FirstOrDefaultAsync(w => w.Id == originLocation.WorkspaceAgentId, ct);
+            var repoRunner = await db
+                .RepositoryRunners.AsNoTracking()
+                .FirstOrDefaultAsync(w => w.Id == originLocation.RepositoryRunnerId, ct);
 
-            if (wsAgent != null)
+            if (repoRunner != null)
             {
-                agentId = wsAgent.AgentId;
-                rootPath = wsAgent.RootPath;
+                runnerId = repoRunner.RunnerId;
+                rootPath = repoRunner.RootPath;
             }
         }
 
@@ -63,7 +63,7 @@ public class WorkspaceApi(WorkspaceDbContext db, IMessageBus bus, ITagApi tagApi
                 version.ResourceId,
                 version.Resource?.RelativePath ?? string.Empty,
                 version.FileHash,
-                agentId,
+                runnerId,
                 rootPath,
                 version.Resource?.ContentId
             )
@@ -74,16 +74,16 @@ public class WorkspaceApi(WorkspaceDbContext db, IMessageBus bus, ITagApi tagApi
         Result<Dictionary<string, ResourceLocationInfoDto>>
     > GetResourceLocationsAsync(
         IEnumerable<Guid> resourceVersionIds,
-        Guid agentId,
+        Guid runnerId,
         CancellationToken ct = default
     )
     {
         var idsList = resourceVersionIds.ToList();
         var resourceLocations = await db
             .ResourceVersionLocations.Where(l =>
-                idsList.Contains(l.ResourceVersionId) && l.WorkspaceAgent.AgentId == agentId
+                idsList.Contains(l.ResourceVersionId) && l.RepositoryRunner.RunnerId == runnerId
             )
-            .Include(l => l.WorkspaceAgent)
+            .Include(l => l.RepositoryRunner)
             .Include(l => l.ResourceVersion)
                 .ThenInclude(v => v.Resource)
             .ToDictionaryAsync(k => k.ResourceVersion.Id.ToString(), ct);
@@ -96,8 +96,8 @@ public class WorkspaceApi(WorkspaceDbContext db, IMessageBus bus, ITagApi tagApi
                 loc.Value.ResourceVersion.ResourceId,
                 loc.Value.ResourceVersion.Resource?.RelativePath ?? string.Empty,
                 loc.Value.ResourceVersion.FileHash,
-                loc.Value.WorkspaceAgent.AgentId,
-                loc.Value.WorkspaceAgent.RootPath,
+                loc.Value.RepositoryRunner.RunnerId,
+                loc.Value.RepositoryRunner.RootPath,
                 loc.Value.ResourceVersion.Resource?.ContentId
             );
             result[loc.Key] = dto;
@@ -113,7 +113,7 @@ public class WorkspaceApi(WorkspaceDbContext db, IMessageBus bus, ITagApi tagApi
                 .Where(v => missingIds.Contains(v.ResourceId))
                 .Include(v => v.Resource)
                 .Include(v => v.Locations)
-                    .ThenInclude(l => l.WorkspaceAgent)
+                    .ThenInclude(l => l.RepositoryRunner)
                 .OrderByDescending(v => v.VersionNo)
                 .ToListAsync(ct);
 
@@ -121,7 +121,7 @@ public class WorkspaceApi(WorkspaceDbContext db, IMessageBus bus, ITagApi tagApi
             {
                 var latest = group.First();
                 var loc =
-                    latest.Locations.FirstOrDefault(l => l.WorkspaceAgent?.AgentId == agentId)
+                    latest.Locations.FirstOrDefault(l => l.RepositoryRunner?.RunnerId == runnerId)
                     ?? latest.Locations.FirstOrDefault(l => l.IsOrigin)
                     ?? latest.Locations.FirstOrDefault();
 
@@ -130,8 +130,8 @@ public class WorkspaceApi(WorkspaceDbContext db, IMessageBus bus, ITagApi tagApi
                     latest.ResourceId,
                     latest.Resource?.RelativePath ?? string.Empty,
                     latest.FileHash,
-                    loc?.WorkspaceAgent?.AgentId,
-                    loc?.WorkspaceAgent?.RootPath,
+                    loc?.RepositoryRunner?.RunnerId,
+                    loc?.RepositoryRunner?.RootPath,
                     latest.Resource?.ContentId
                 );
                 result[group.Key.ToString()] = dto;
@@ -146,94 +146,82 @@ public class WorkspaceApi(WorkspaceDbContext db, IMessageBus bus, ITagApi tagApi
     }
 
     public async Task<Result<SyncLocalChangesResultDto>> SyncLocalChangesAsync(
-        Guid workspaceId,
-        Guid agentId,
+        Guid repositoryId,
+        Guid runnerId,
         List<string> targetPaths,
         string? notes = null,
         CancellationToken ct = default
     )
     {
-        var cmd = new Features.WorkspaceAgents.SyncLocalChanges.SyncLocalChangesCommand(
-            workspaceId,
-            agentId,
+        var cmd = new Features.RepositoryRunners.SyncLocalChangesCommand(
+            repositoryId,
+            runnerId,
             notes,
             targetPaths,
             null
         );
 
-        var result = await bus.InvokeAsync<
-            Result<Features.WorkspaceAgents.SyncLocalChanges.SyncLocalChangesResult>
-        >(cmd, ct);
+        var result = await bus.InvokeAsync<Result<SyncLocalChangesResultDto>>(cmd, ct);
         if (result.IsFailed)
             return Result.Fail(result.Errors);
 
-        return Result.Ok(
-            new SyncLocalChangesResultDto(
-                result.Value.WorkspaceId,
-                result.Value.AgentId,
-                result.Value.AddedCount,
-                result.Value.ModifiedCount,
-                result.Value.LocationRemove,
-                result.Value.ResourceVersionIds ?? [],
-                result.Value.SyncedResources ?? []
-            )
-        );
+        return result;
     }
 
-    public async Task<Result<List<Guid>>> GetUncoveredWorkspacesAsync(
-        Guid agentId,
-        IEnumerable<Guid> requiredWorkspaceIds,
+    public async Task<Result<List<Guid>>> GetUncoveredRepositoriesAsync(
+        Guid runnerId,
+        IEnumerable<Guid> requiredRepositoryIds,
         CancellationToken ct = default
     )
     {
-        var requiredList = requiredWorkspaceIds.Distinct().ToList();
+        var requiredList = requiredRepositoryIds.Distinct().ToList();
         if (requiredList.Count == 0)
             return Result.Ok(new List<Guid>());
 
-        var coveredWorkspaceIds = await db
-            .WorkspaceAgents.AsNoTracking()
-            .Where(w => w.AgentId == agentId && requiredList.Contains(w.WorkspaceId))
-            .Select(w => w.WorkspaceId)
+        var coveredRepositoryIds = await db
+            .RepositoryRunners.AsNoTracking()
+            .Where(w => w.RunnerId == runnerId && requiredList.Contains(w.RepositoryId))
+            .Select(w => w.RepositoryId)
             .Distinct()
             .ToListAsync(ct);
 
-        var uncovered = requiredList.Except(coveredWorkspaceIds).ToList();
+        var uncovered = requiredList.Except(coveredRepositoryIds).ToList();
         return Result.Ok(uncovered);
     }
 
-    public async Task<Result<Dictionary<Guid, string>>> GetWorkspaceNamesAsync(
-        IEnumerable<Guid> workspaceIds,
+    public async Task<Result<Dictionary<Guid, string>>> GetRepositoryNamesAsync(
+        IEnumerable<Guid> repositoryIds,
         CancellationToken ct = default
     )
     {
-        var idList = workspaceIds.Distinct().ToList();
+        var idList = repositoryIds.Distinct().ToList();
         if (idList.Count == 0)
             return Result.Ok(new Dictionary<Guid, string>());
 
         var dict = await db
-            .Workspaces.AsNoTracking()
+            .Repositories.AsNoTracking()
             .Where(w => idList.Contains(w.Id))
             .ToDictionaryAsync(w => w.Id, w => w.Name, ct);
 
         return Result.Ok(dict);
     }
 
-    public async Task<Result<string>> GetWorkspaceRootPathAsync(
-        Guid workspaceId,
-        Guid agentId,
+    public async Task<Result<string>> GetRepositoryRootPathAsync(
+        Guid repositoryId,
+        Guid runnerId,
         CancellationToken ct = default
     )
     {
-        var wsAgent = await db
-            .WorkspaceAgents.AsNoTracking()
-            .FirstOrDefaultAsync(w => w.WorkspaceId == workspaceId && w.AgentId == agentId, ct);
+        var repoRunner = await db
+            .RepositoryRunners.AsNoTracking()
+            .FirstOrDefaultAsync(w => w.RepositoryId == repositoryId && w.RunnerId == runnerId, ct);
 
-        if (wsAgent == null)
+        if (repoRunner == null)
             return Result.Fail<string>(
-                $"Workspace '{workspaceId}' is not assigned to Agent '{agentId}'."
+                $"Repository '{repositoryId}' is not assigned to Runner '{runnerId}'."
             );
 
-        return Result.Ok(wsAgent.RootPath);
+        return Result.Ok(repoRunner.RootPath);
     }
 
     public async Task<Result> UpdateMetadataAsync(
@@ -250,7 +238,7 @@ public class WorkspaceApi(WorkspaceDbContext db, IMessageBus bus, ITagApi tagApi
         if (version == null)
             return Result.Fail($"ResourceVersion with ID '{resourceVersionId}' not found.");
 
-        version.SetMetadata(metadata);
+        version.UpdateMetadata(metadata);
         await db.SaveChangesAsync(ct);
         return Result.Ok();
     }
@@ -344,7 +332,7 @@ public class WorkspaceApi(WorkspaceDbContext db, IMessageBus bus, ITagApi tagApi
             .Where(v => idList.Contains(v.Id))
             .Include(v => v.Resource)
             .Include(v => v.Locations)
-                .ThenInclude(l => l.WorkspaceAgent)
+                .ThenInclude(l => l.RepositoryRunner)
             .ToListAsync(ct);
 
         // 2. For remaining IDs, check if they are ResourceIds and pick their latest version
@@ -361,7 +349,7 @@ public class WorkspaceApi(WorkspaceDbContext db, IMessageBus bus, ITagApi tagApi
                 .Where(v => remainingIds.Contains(v.ResourceId))
                 .Include(v => v.Resource)
                 .Include(v => v.Locations)
-                    .ThenInclude(l => l.WorkspaceAgent)
+                    .ThenInclude(l => l.RepositoryRunner)
                 .OrderByDescending(v => v.VersionNo)
                 .ToListAsync(ct);
 
@@ -419,12 +407,12 @@ public class WorkspaceApi(WorkspaceDbContext db, IMessageBus bus, ITagApi tagApi
                 ?? (v.Locations.Count > 0 ? v.Locations[0] : null);
             if (
                 originLoc != null
-                && !string.IsNullOrWhiteSpace(originLoc.WorkspaceAgent?.RootPath)
+                && !string.IsNullOrWhiteSpace(originLoc.RepositoryRunner?.RootPath)
                 && !string.IsNullOrWhiteSpace(relPath)
             )
             {
                 var cleanRel = relPath.TrimStart('/', '\\');
-                fullPath = Path.Combine(originLoc.WorkspaceAgent.RootPath, cleanRel)
+                fullPath = Path.Combine(originLoc.RepositoryRunner.RootPath, cleanRel)
                     .Replace('\\', '/');
             }
             else
@@ -486,13 +474,11 @@ public class WorkspaceApi(WorkspaceDbContext db, IMessageBus bus, ITagApi tagApi
         if (resourceIds.Count == 0)
             return Result.Ok();
 
-        // 1. Tìm các ResourceId trực tiếp khớp với ResourceItem.Id
         var directIds = await db
             .ResourceItems.Where(r => resourceIds.Contains(r.Id))
             .Select(r => r.Id)
             .ToListAsync(ct);
 
-        // 2. Với các ID còn lại, kiểm tra nếu là ResourceVersionId để lấy ResourceId tương ứng
         var remainingIds = resourceIds.Except(directIds).ToList();
         if (remainingIds.Count > 0)
         {
@@ -519,4 +505,3 @@ public class WorkspaceApi(WorkspaceDbContext db, IMessageBus bus, ITagApi tagApi
         return Result.Ok();
     }
 }
-
