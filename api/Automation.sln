@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Automation.Api", "src\Automation.Api\Automation.Api.csproj", "{FFCD3477-C395-4107-BD6D-5636DAF637B0}"
 EndProject
@@ -36,9 +36,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Platform", "Platform", "{9A
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Automation.Platform.Contracts", "src\Modules\Platform\Automation.Platform.Contracts\Automation.Platform.Contracts.csproj", "{CDE27BFB-47A3-4288-833C-C39027F215D4}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Agent", "Agent", "{49ED1F4F-4257-7E82-63BF-E43B0BA50696}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Runner", "Runner", "{49ED1F4F-4257-7E82-63BF-E43B0BA50696}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Automation.Agent.Contracts", "src\Modules\Agent\Automation.Agent.Contracts\Automation.Agent.Contracts.csproj", "{8B5F58E6-7A88-4C72-A992-1B1C0B2F2774}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Automation.Runner.Contracts", "src\Modules\Runner\Automation.Runner.Contracts\Automation.Runner.Contracts.csproj", "{8B5F58E6-7A88-4C72-A992-1B1C0B2F2774}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tag", "Tag", "{7D3A1B2C-4E5F-6A7B-8C9D-0E1F2A3B4C5D}"
 EndProject

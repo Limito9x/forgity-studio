@@ -9,7 +9,7 @@ using Automation.Tag;
 using Automation.Workspace;
 using Automation.Pipeline;
 using Automation.DynamicForms;
-using Automation.Agent;
+using Automation.Runner;
 
 namespace Automation.Api;
 
@@ -28,7 +28,7 @@ public static class ModuleRegistry
         new WorkspaceModule(),
         new PipelineModule(),
         new DynamicFormsModule(),
-        new AgentModule()
+        new RunnerModule()
     ];
 
     public static List<Type> AllEndpoints

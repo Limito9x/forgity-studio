@@ -19,15 +19,15 @@ Dự án áp dụng **Modular Monolith** trên nền tảng .NET 10:
 
 ---
 
-## 2. Kiến Trúc Lát Cắt Dọc (Vertical Slice Architecture - VSA)
+## 2. Kiến Trúc Lát Cắt Dọc Thực Dụng (Pragmatic Single-File VSA)
+*(Chi tiết xem tại [ADR-005: Pragmatic Single-File VSA](file:///d:/FullStack/Automation/docs/backend/ADR_PRAGMATIC_SINGLE_FILE_VSA.md))*
 
-Mọi tính năng được tổ chức theo chiều dọc tại `Features/<FeatureGroup>/<FeatureName>/`:
-- `*Command.cs` hoặc `*Query.cs`: Request model đầu vào.
-- `*Endpoint.cs`: API Endpoint kế thừa FastEndpoints `Endpoint<TRequest, TResponse>`.
-  - **Endpoint Return Type:** Luôn trả trực tiếp Raw DTO (như `AgentDto`, `CursorPage<T>`), không bọc trong `Result<T>` để OpenAPI Spec và Orval sinh code Frontend chuẩn xác nhất.
-- `*Handler.cs`: Xử lý nghiệp vụ chính nhận Command/Query từ Wolverine.
-- `*Validator.cs`: Khai báo FluentValidation.
-- **Data Mapping:** Luôn sử dụng thư viện **Mapster** (`.Adapt<TDto>()`, `.ProjectToType<TDto>()`), không map thủ công từng trường.
+Mọi tính năng được tổ chức theo chiều dọc gói gọn trong **1 FILE C# DUY NHẤT** tại `Features/<FeatureGroup>/<FeatureName>.cs` (không tạo thư mục con lồng nhau):
+- **Command / Query Record:** Khai báo dữ liệu đầu vào.
+- **Validator:** Khai báo FluentValidation trực tiếp bên dưới Request.
+- **FastEndpoints Endpoint:** Kế thừa `Endpoint<TRequest, TResponse>`, khai báo `Group<FeatureGroup>()`. Luôn unwrap kết quả trả về bằng `await this.SendResultAsync(result, ct)` để Orval sinh TypeScript types chuẩn xác.
+- **Wolverine Handler:** Kế thừa hoặc đánh dấu `[Transactional(typeof(<Module>DbContext))]` (ghi dữ liệu) hoặc `[NonTransactional]` (đọc dữ liệu).
+- **Data Mapping & Entities:** Entity là Pure POCO `{ get; set; }`. Toàn bộ dữ liệu được ánh xạ bằng **Mapster** (`.Adapt<TDto>()`, `.ProjectToType<TDto>()`), nói KHÔNG với constructor giáo điều và mapping thủ công lặp lại.
 
 ---
 

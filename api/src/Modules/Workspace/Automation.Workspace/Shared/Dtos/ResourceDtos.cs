@@ -1,4 +1,4 @@
-using Automation.Agent.Contracts;
+using Automation.Runner.Contracts;
 
 namespace Automation.Workspace.Shared.Dtos;
 
@@ -30,7 +30,7 @@ public record WorkspaceAgentDto(
     string RootPath,
     DateTimeOffset CreatedAt,
     DateTimeOffset? LastSyncAt,
-    AgentDto? Agent = null
+    RunnerDto? Agent = null
 );
 
 public record ResourceVersionLocationDto(

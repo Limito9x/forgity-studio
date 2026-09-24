@@ -1,4 +1,4 @@
-using Automation.Agent.Contracts;
+using Automation.Runner.Contracts;
 using Automation.Workspace.Infrastructure.Persistence;
 using Automation.Workspace.Shared.Dtos;
 using Microsoft.EntityFrameworkCore;
@@ -7,7 +7,7 @@ using Wolverine.Attributes;
 namespace Automation.Workspace.Features.Resources.GetAvailableAgents;
 
 [NonTransactional]
-public class GetAvailableAgentsHandler(WorkspaceDbContext db, IAgentApi agentApi)
+public class GetAvailableAgentsHandler(WorkspaceDbContext db, IRunnerApi agentApi)
 {
     public async Task<Result<List<AvailableAgentDto>>> HandleAsync(
         GetAvailableAgentsQuery query,

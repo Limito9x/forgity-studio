@@ -42,6 +42,7 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 | :--- | :--- | :--- |
 | **Tổng quan** | [docs/architecture/system_overview.md](file:///d:/FullStack/Automation/docs/architecture/system_overview.md) | Kiến trúc tổng thể liên thông Web <-> API <-> Workers. |
 | **Backend** | [docs/backend/ARCHITECTURE.md](file:///d:/FullStack/Automation/docs/backend/ARCHITECTURE.md) | Triết lý kiến trúc Modular Monolith & VSA của Backend. |
+| **Backend** | [docs/backend/ADR_PRAGMATIC_SINGLE_FILE_VSA.md](file:///d:/FullStack/Automation/docs/backend/ADR_PRAGMATIC_SINGLE_FILE_VSA.md) | Quyết định kiến trúc: Pragmatic Single-File VSA & Mapster-First POCO. |
 | **Backend** | [docs/backend/PIPELINE_ENGINE_ARCHITECTURE.md](file:///d:/FullStack/Automation/docs/backend/PIPELINE_ENGINE_ARCHITECTURE.md) | Thiết kế Pipeline Engine, DAG, Stages, Steps trong Backend. |
 | **Backend** | [docs/backend/PIPELINE_PIN_SYSTEM.md](file:///d:/FullStack/Automation/docs/backend/PIPELINE_PIN_SYSTEM.md) | Hệ thống Pin, Data Types, Dynamic Forms của Pipeline. |
 | **Frontend** | [docs/frontend/architecture.md](file:///d:/FullStack/Automation/docs/frontend/architecture.md) | Kiến trúc Frontend, luồng dữ liệu Orval -> Hooks -> Components. |

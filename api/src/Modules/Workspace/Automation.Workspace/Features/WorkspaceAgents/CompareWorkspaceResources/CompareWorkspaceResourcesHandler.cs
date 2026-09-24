@@ -1,5 +1,5 @@
-using Automation.Agent.Contracts;
 using Automation.Platform.Contracts;
+using Automation.Runner.Contracts;
 using Automation.Workspace.Infrastructure.Persistence;
 using Automation.Workspace.Shared.Dtos;
 using Automation.Workspace.Shared.Helpers;
@@ -11,7 +11,7 @@ namespace Automation.Workspace.Features.WorkspaceAgents.CompareWorkspaceResource
 [NonTransactional]
 public class CompareWorkspaceResourcesHandler(
     WorkspaceDbContext dbContext,
-    IAgentApi agentApi,
+    IRunnerApi agentApi,
     IPlatformApi platformApi
 )
 {

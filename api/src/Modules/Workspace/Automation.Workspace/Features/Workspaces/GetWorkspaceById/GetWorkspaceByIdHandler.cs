@@ -1,4 +1,4 @@
-using Automation.Agent.Contracts;
+using Automation.Runner.Contracts;
 using Automation.Workspace.Infrastructure.Persistence;
 using Automation.Workspace.Shared.Dtos;
 using Microsoft.EntityFrameworkCore;
@@ -7,7 +7,7 @@ using Wolverine.Attributes;
 namespace Automation.Workspace.Features.Workspaces.GetWorkspaceById;
 
 [NonTransactional]
-public class GetWorkspaceByIdHandler(WorkspaceDbContext db, IAgentApi agentApi)
+public class GetWorkspaceByIdHandler(WorkspaceDbContext db, IRunnerApi agentApi)
 {
     public async Task<Result<WorkspaceDetailDto>> HandleAsync(
         GetWorkspaceByIdQuery query,
@@ -26,7 +26,7 @@ public class GetWorkspaceByIdHandler(WorkspaceDbContext db, IAgentApi agentApi)
 
         var agentIds = workspaceData.WorkspaceAgents.Select(x => x.AgentId).Distinct().ToList();
 
-        IReadOnlyDictionary<Guid, AgentDto> agentMap = new Dictionary<Guid, AgentDto>();
+        IReadOnlyDictionary<Guid, RunnerDto> agentMap = new Dictionary<Guid, RunnerDto>();
         if (agentIds.Count > 0)
         {
             var agentMapResult = await agentApi.GetAgentsMapByIdsAsync(agentIds, ct);

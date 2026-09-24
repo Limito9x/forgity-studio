@@ -1,6 +1,6 @@
 using Automation.SharedKernel.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
-using Automation.Projects.Domain;
+using Automation.Projects.Domain.Entities;
 
 namespace Automation.Projects.Infrastructure.Persistence;
 
@@ -10,9 +10,11 @@ public class ProjectsDbContext : DbContext
     {
     }
 
-    public DbSet<Domain.Entities.Project> Projects => Set<Domain.Entities.Project>();
-    public DbSet<Domain.Entities.ProjectMember> ProjectMembers => Set<Domain.Entities.ProjectMember>();
-    public DbSet<Domain.Entities.ProjectExecutorConfig> ProjectExecutorConfigs => Set<Domain.Entities.ProjectExecutorConfig>();
+    public DbSet<Studio> Studios => Set<Studio>();
+    public DbSet<StudioRunner> StudioRunners => Set<StudioRunner>();
+    public DbSet<Project> Projects => Set<Project>();
+    public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
+    public DbSet<ProjectExecutorConfig> ProjectExecutorConfigs => Set<ProjectExecutorConfig>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -22,4 +24,3 @@ public class ProjectsDbContext : DbContext
         base.OnModelCreating(modelBuilder);
     }
 }
-

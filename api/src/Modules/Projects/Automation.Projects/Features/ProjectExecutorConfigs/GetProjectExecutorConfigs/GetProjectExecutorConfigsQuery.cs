@@ -1,3 +1,0 @@
-namespace Automation.Projects.Features.ProjectExecutorConfigs.GetProjectExecutorConfigs;
-
-public record GetProjectExecutorConfigsQuery(Guid ProjectId);

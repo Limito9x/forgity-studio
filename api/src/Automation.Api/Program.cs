@@ -1,6 +1,6 @@
 using Automation.Api;
 using FastEndpoints;
-using Automation.Agent.Infrastructure.Auth;
+using Automation.Runner.Infrastructure.Auth;
 using Automation.SharedKernel.Extensions.Modules;
 using Automation.SharedKernel.Extensions.Auth;
 using Automation.SharedKernel.Extensions.Caching;
@@ -11,7 +11,7 @@ using FastEndpoints.OpenApi;
 using Scalar.AspNetCore;
 using Automation.SharedKernel.Extensions.ExceptionHandling;
 
-using Automation.Agent.Extensions;
+using Automation.Runner.Extensions;
 using Automation.Pipeline.Extensions;
 
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -81,7 +81,7 @@ app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseAgentAuthentication();
+app.UseRunnerAuthentication();
 
 app.UseJobMiddleware();
 
@@ -93,7 +93,7 @@ app.UseFastEndpoints(c =>
 
 app.MapHub<Automation.Notifications.Features.Notifications.NotificationHub>("/hubs/notifications");
 app.MapHub<Automation.Pipeline.Hubs.PipelineExecutionHub>("/hubs/pipeline-executions");
-app.MapAgentGrpcServices();
+app.MapRunnerGrpcServices();
 app.MapPipelineGrpcServices();
 
 if (app.Environment.IsDevelopment())
