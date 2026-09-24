@@ -1,8 +1,8 @@
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Tools.Attributes;
-using Automation.Workspace.Contracts;
-using Automation.Workspace.Contracts.Extensions;
+using Automation.Repository.Contracts;
+using Automation.Repository.Contracts.Extensions;
 using Microsoft.Extensions.Logging;
 
 namespace Automation.Pipeline.Tools.Tags;
@@ -61,7 +61,7 @@ public class GetTagValueFromResourceOutputs
 }
 
 public class GetTagValueFromResourceTool(
-    IWorkspaceApi workspaceApi,
+    IRepositoryApi workspaceApi,
     ILogger<GetTagValueFromResourceTool> logger
 ) : BaseResolverTool<GetTagValueFromResourceInputs, GetTagValueFromResourceOutputs>
 {
@@ -90,7 +90,7 @@ public class GetTagValueFromResourceTool(
         var tGuid = targetGuid.Value;
         var tagValues = new List<string>();
 
-        // Query Resource metadata with TagMap from WorkspaceApi
+        // Query Resource metadata with TagMap from RepositoryApi
         var metaResult = await workspaceApi.GetMetadataDetailWithTagsAsync(tGuid, ct);
         if (metaResult.IsSuccess && metaResult.Value != null)
         {

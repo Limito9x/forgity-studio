@@ -3,7 +3,7 @@ import { FormPageShell } from "@/components/layout/shells/FormPageShell";
 import { ContentItemForm, type ContentItemFormValues } from "./components/ContentItemForm";
 import { ContentResourcesTab } from "./components/ContentResourcesTab";
 import { useGetContentItemById, useUpdateContentItem } from "./hooks/useContentItems";
-import { useGetResourcesByContent } from "@/features/workspaces/hooks/useWorkspaceResources";
+import { useGetResourcesByContent } from "@/gen/endpoints/resources/resources";
 import { useLoaderData, useNavigate, useParams } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";

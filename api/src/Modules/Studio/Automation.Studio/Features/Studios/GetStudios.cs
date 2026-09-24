@@ -1,14 +1,13 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Wolverine.Attributes;
-using Automation.Studio.Infrastructure.Persistence;
+﻿using Automation.Studio.Infrastructure.Persistence;
 using Automation.Studio.Shared.Dtos;
+using Microsoft.EntityFrameworkCore;
+using Wolverine.Attributes;
 
 namespace Automation.Studio.Features.Studios;
 
 public record GetStudiosQuery();
 
-public class GetStudiosEndpoint(IMessageBus bus)
-    : Endpoint<GetStudiosQuery, IReadOnlyList<StudioDto>>
+public class GetStudiosEndpoint(IMessageBus bus) : EndpointWithoutRequest<IReadOnlyList<StudioDto>>
 {
     public override void Configure()
     {
@@ -18,9 +17,12 @@ public class GetStudiosEndpoint(IMessageBus bus)
         Description(x => x.WithName("GetStudios"));
     }
 
-    public override async Task HandleAsync(GetStudiosQuery req, CancellationToken ct)
+    public override async Task HandleAsync(CancellationToken ct)
     {
-        var result = await bus.InvokeAsync<Result<IReadOnlyList<StudioDto>>>(req, ct);
+        var result = await bus.InvokeAsync<Result<IReadOnlyList<StudioDto>>>(
+            new GetStudiosQuery(),
+            ct
+        );
         await this.SendResultAsync(result, ct);
     }
 }
@@ -30,10 +32,11 @@ public class GetStudiosHandler(StudioDbContext db)
 {
     public async Task<Result<IReadOnlyList<StudioDto>>> HandleAsync(
         GetStudiosQuery query,
-        CancellationToken ct)
+        CancellationToken ct
+    )
     {
-        var studios = await db.Studios
-            .AsNoTracking()
+        var studios = await db
+            .Studios.AsNoTracking()
             .OrderBy(x => x.Name)
             .ProjectToType<StudioDto>()
             .ToListAsync(ct);

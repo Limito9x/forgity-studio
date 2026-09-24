@@ -53,12 +53,12 @@ export const GetUsersResponse = /*#__PURE__*/ zod.object({
 
 
 
-export const AutomationIdentityFeaturesUsersBulkUpdateStatusBulkUpdateUserStatusBody = /*#__PURE__*/ zod.object({
+export const BulkUpdateUserStatusBody = /*#__PURE__*/ zod.object({
   "userIds": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.uuid()).check(/*#__PURE__*/ zod.minLength(1)),
   "targetStatus": /*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2),/*#__PURE__*/ zod.literal(3)])
 })
 
-export const AutomationIdentityFeaturesUsersBulkUpdateStatusBulkUpdateUserStatusResponse = /*#__PURE__*/ zod.string()
+export const BulkUpdateUserStatusResponse = /*#__PURE__*/ zod.string()
 
 export const DeleteUserParams = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.string()

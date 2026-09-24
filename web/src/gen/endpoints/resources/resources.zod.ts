@@ -7,9 +7,20 @@
 import * as zod from 'zod/mini';
 
 
+
+
+
+export const AssignResourcesContentBody = /*#__PURE__*/ zod.object({
+  "resourceIds": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.uuid()).check(/*#__PURE__*/ zod.minLength(1)),
+  "contentId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid())
+})
+
+export const AssignResourcesContentResponse = /*#__PURE__*/ zod.void()
+
 export const GetAvailableAgentsBody = /*#__PURE__*/ zod.object({
-  "resourceIds": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.uuid()),
-  "workspaceId": /*#__PURE__*/ zod.uuid()
+  "resourceIds": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.uuid())),
+  "repositoryId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid()),
+  "workspaceId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid())
 })
 
 export const GetAvailableAgentsResponseItem = /*#__PURE__*/ zod.object({
@@ -42,16 +53,6 @@ export const GetAvailableAgentsResponseItem = /*#__PURE__*/ zod.object({
 })
 export const GetAvailableAgentsResponse = /*#__PURE__*/ zod.array(GetAvailableAgentsResponseItem)
 
-
-
-
-export const AssignResourcesContentBody = /*#__PURE__*/ zod.object({
-  "resourceIds": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.uuid()).check(/*#__PURE__*/ zod.minLength(1)),
-  "contentId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid())
-})
-
-export const AssignResourcesContentResponse = /*#__PURE__*/ zod.void()
-
 export const GetResourcesByContentParams = /*#__PURE__*/ zod.object({
   "contentId": /*#__PURE__*/ zod.uuid()
 })
@@ -83,7 +84,7 @@ export const GetResourceByIdParams = /*#__PURE__*/ zod.object({
 export const GetResourceByIdResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "projectId": /*#__PURE__*/ zod.uuid(),
-  "workspaceId": /*#__PURE__*/ zod.uuid(),
+  "repositoryId": /*#__PURE__*/ zod.uuid(),
   "name": /*#__PURE__*/ zod.string(),
   "filePath": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "platformExtensionId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
@@ -107,6 +108,7 @@ export const GetResourceByIdResponse = /*#__PURE__*/ zod.object({
   "targetSubPath": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "metadataJson": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
 }))))
-})))
+}))),
+  "workspaceId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid())
 })
 

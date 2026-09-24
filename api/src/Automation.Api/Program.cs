@@ -89,6 +89,13 @@ app.UseFastEndpoints(c =>
 {
     c.Endpoints.RoutePrefix = "api";
     c.Security.PermissionsClaimType = "Permission";
+    c.Endpoints.Configurator = ep =>
+    {
+        var name = ep.EndpointType.Name;
+        if (name.EndsWith("Endpoint"))
+            name = name[..^8];
+        ep.Description(b => b.WithName(name), clearDefaults: false);
+    };
 });
 
 app.MapHub<Automation.Notifications.Features.Notifications.NotificationHub>("/hubs/notifications");

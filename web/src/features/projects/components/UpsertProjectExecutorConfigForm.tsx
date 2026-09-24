@@ -5,7 +5,7 @@ import {
     type ProjectExecutorConfigInput,
     type ProjectExecutorConfigOutput
 } from "../schemas/projectExecutorConfigSchema";
-import { useAgents } from "@/features/agents/hooks/useAgents";
+import { useRunners, type RunnerDto } from "@/features/runners/hooks/useRunners";
 import { useTranslation } from "react-i18next";
 
 const EXECUTOR_OPTIONS = [
@@ -26,11 +26,11 @@ export function UpsertProjectExecutorConfigForm({
     defaultValues,
 }: UpsertProjectExecutorConfigFormProps) {
     const { t } = useTranslation("projects");
-    const { data: agentsData } = useAgents();
+    const { data: runnersData } = useRunners();
 
-    const agentOptions = (agentsData || []).map((a) => ({
-        label: `${a.name} (${a.machineKey})`,
-        value: a.id,
+    const agentOptions = (runnersData || []).map((r: RunnerDto) => ({
+        label: `${r.name} (${r.machineKey})`,
+        value: r.id,
     }));
 
     const form = useForm<ProjectExecutorConfigInput, any, ProjectExecutorConfigOutput>({

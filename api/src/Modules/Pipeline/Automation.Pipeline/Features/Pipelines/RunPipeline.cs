@@ -9,7 +9,7 @@ using Automation.Pipeline.Engine.Models;
 using Automation.Pipeline.Engine;
 using Automation.Pipeline.Features.Pipelines.Dtos;
 using Automation.Pipeline.Infrastructure.Persistence;
-using Automation.Workspace.Contracts;
+using Automation.Repository.Contracts;
 
 namespace Automation.Pipeline.Features.Pipelines;
 
@@ -62,7 +62,7 @@ public class RunPipelineEndpoint(IMessageBus bus) : Endpoint<RunPipelineRequest,
 public class RunPipelineHandler(
     PipelineDbContext db,
     IMessageBus messageBus,
-    IWorkspaceApi workspaceApi,
+    IRepositoryApi workspaceApi,
     IAssetApi assetApi
 )
 {

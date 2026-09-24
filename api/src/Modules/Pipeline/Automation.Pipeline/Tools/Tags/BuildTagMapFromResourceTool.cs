@@ -3,9 +3,9 @@ using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Tools.Attributes;
 using Automation.Tag.Contracts.Dtos;
-using Automation.Workspace.Contracts;
-using Automation.Workspace.Contracts.Dtos;
-using Automation.Workspace.Contracts.Extensions;
+using Automation.Repository.Contracts;
+using Automation.Repository.Contracts.Dtos;
+using Automation.Repository.Contracts.Extensions;
 using Microsoft.Extensions.Logging;
 
 namespace Automation.Pipeline.Tools.Tags;
@@ -76,7 +76,7 @@ public class BuildTagMapFromResourceOutputs
 }
 
 public class BuildTagMapFromResourceTool(
-    IWorkspaceApi workspaceApi,
+    IRepositoryApi workspaceApi,
     ILogger<BuildTagMapFromResourceTool> logger
 ) : BaseResolverTool<BuildTagMapFromResourceInputs, BuildTagMapFromResourceOutputs>
 {

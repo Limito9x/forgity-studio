@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Automation.Workspace.Contracts.Extensions;
+using Automation.Repository.Contracts.Extensions;
 using FluentAssertions;
 using Xunit;
 

@@ -49,6 +49,86 @@ const withQueryKey = <T extends object, K>(
   return result;
 };
 
+export const assignResourcesContent = (
+  assignResourcesContentCommand: AssignResourcesContentCommand,
+  signal?: AbortSignal,
+) => {
+  return customInstance<void>({
+    url: `/api/resources/assign-content`,
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    data: assignResourcesContentCommand,
+    signal,
+  });
+};
+
+export const getAssignResourcesContentMutationOptions = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof assignResourcesContent>>,
+    TError,
+    { data: AssignResourcesContentCommand },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof assignResourcesContent>>,
+  TError,
+  { data: AssignResourcesContentCommand },
+  TContext
+> => {
+  const mutationKey = ["assignResourcesContent"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof assignResourcesContent>>,
+    { data: AssignResourcesContentCommand }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return assignResourcesContent(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AssignResourcesContentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof assignResourcesContent>>
+>;
+export type AssignResourcesContentMutationBody = AssignResourcesContentCommand;
+export type AssignResourcesContentMutationError = ErrorResponse | void;
+
+export const useAssignResourcesContent = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof assignResourcesContent>>,
+      TError,
+      { data: AssignResourcesContentCommand },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof assignResourcesContent>>,
+  TError,
+  { data: AssignResourcesContentCommand },
+  TContext
+> => {
+  return useMutation(
+    getAssignResourcesContentMutationOptions(options),
+    queryClient,
+  );
+};
 export const getAvailableAgents = (
   getAvailableAgentsQuery: GetAvailableAgentsQuery,
   signal?: AbortSignal,
@@ -126,101 +206,19 @@ export const useGetAvailableAgents = <TError = void, TContext = unknown>(
     queryClient,
   );
 };
-export const assignResourcesContent = (
-  assignResourcesContentCommand: AssignResourcesContentCommand,
-  signal?: AbortSignal,
-) => {
-  return customInstance<void>({
-    url: `/api/resources/workspaces/resources/assign-content`,
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    data: assignResourcesContentCommand,
-    signal,
-  });
-};
-
-export const getAssignResourcesContentMutationOptions = <
-  TError = ErrorResponse | void,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof assignResourcesContent>>,
-    TError,
-    { data: AssignResourcesContentCommand },
-    TContext
-  >;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof assignResourcesContent>>,
-  TError,
-  { data: AssignResourcesContentCommand },
-  TContext
-> => {
-  const mutationKey = ["assignResourcesContent"];
-  const { mutation: mutationOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof assignResourcesContent>>,
-    { data: AssignResourcesContentCommand }
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return assignResourcesContent(data);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type AssignResourcesContentMutationResult = NonNullable<
-  Awaited<ReturnType<typeof assignResourcesContent>>
->;
-export type AssignResourcesContentMutationBody = AssignResourcesContentCommand;
-export type AssignResourcesContentMutationError = ErrorResponse | void;
-
-export const useAssignResourcesContent = <
-  TError = ErrorResponse | void,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof assignResourcesContent>>,
-      TError,
-      { data: AssignResourcesContentCommand },
-      TContext
-    >;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<ReturnType<typeof assignResourcesContent>>,
-  TError,
-  { data: AssignResourcesContentCommand },
-  TContext
-> => {
-  return useMutation(
-    getAssignResourcesContentMutationOptions(options),
-    queryClient,
-  );
-};
 export const getResourcesByContent = (
   contentId: string,
   signal?: AbortSignal,
 ) => {
   return customInstance<ListOfContentResourceDto>({
-    url: `/api/resources/workspaces/resources/by-content/${contentId}`,
+    url: `/api/resources/by-content/${contentId}`,
     method: "GET",
     signal,
   });
 };
 
 export const getGetResourcesByContentQueryKey = (contentId: string) => {
-  return [
-    `/api/resources/workspaces/resources/by-content/${contentId}`,
-  ] as const;
+  return [`/api/resources/by-content/${contentId}`] as const;
 };
 
 export const getGetResourcesByContentQueryOptions = <

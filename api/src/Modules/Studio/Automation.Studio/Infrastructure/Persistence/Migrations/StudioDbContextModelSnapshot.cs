@@ -18,7 +18,7 @@ namespace Automation.Studio.Infrastructure.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasDefaultSchema("projects")
+                .HasDefaultSchema("studio")
                 .UseCollation("case_insensitive")
                 .HasAnnotation("Npgsql:CollationDefinition:case_insensitive", "und-u-ks-level2,und-u-ks-level2,icu,False")
                 .HasAnnotation("ProductVersion", "10.0.10")
@@ -54,6 +54,9 @@ namespace Automation.Studio.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("StudioId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -62,7 +65,9 @@ namespace Automation.Studio.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Projects", "projects");
+                    b.HasIndex("StudioId");
+
+                    b.ToTable("Projects", "studio");
                 });
 
             modelBuilder.Entity("Automation.Studio.Domain.Entities.ProjectExecutorConfig", b =>
@@ -102,7 +107,7 @@ namespace Automation.Studio.Infrastructure.Persistence.Migrations
                     b.HasIndex("ProjectId", "AgentId", "ExecutorKey")
                         .IsUnique();
 
-                    b.ToTable("ProjectExecutorConfigs", "projects");
+                    b.ToTable("ProjectExecutorConfigs", "studio");
                 });
 
             modelBuilder.Entity("Automation.Studio.Domain.Entities.ProjectMember", b =>
@@ -139,7 +144,52 @@ namespace Automation.Studio.Infrastructure.Persistence.Migrations
                     b.HasIndex("ProjectId", "UserId")
                         .IsUnique();
 
-                    b.ToTable("ProjectMembers", "projects");
+                    b.ToTable("ProjectMembers", "studio");
+                });
+
+            modelBuilder.Entity("Automation.Studio.Domain.Entities.Studio", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("Studios", "studio");
                 });
 
             modelBuilder.Entity("Wolverine.EntityFrameworkCore.Internals.IncomingMessage", b =>
@@ -234,6 +284,17 @@ namespace Automation.Studio.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Automation.Studio.Domain.Entities.Project", b =>
+                {
+                    b.HasOne("Automation.Studio.Domain.Entities.Studio", "Studio")
+                        .WithMany("Projects")
+                        .HasForeignKey("StudioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Studio");
+                });
+
             modelBuilder.Entity("Automation.Studio.Domain.Entities.ProjectExecutorConfig", b =>
                 {
                     b.HasOne("Automation.Studio.Domain.Entities.Project", "Project")
@@ -254,6 +315,11 @@ namespace Automation.Studio.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("Automation.Studio.Domain.Entities.Studio", b =>
+                {
+                    b.Navigation("Projects");
                 });
 #pragma warning restore 612, 618
         }

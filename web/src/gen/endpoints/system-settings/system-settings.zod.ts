@@ -34,6 +34,18 @@ export const GetSystemSettingsResponse = /*#__PURE__*/ zod.object({
   "hasNextPage": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean())
 })
 
+export const GetSystemSettingByIdParams = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid()
+})
+
+export const GetSystemSettingByIdResponse = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "key": /*#__PURE__*/ zod.string(),
+  "value": /*#__PURE__*/ zod.string(),
+  "valueType": /*#__PURE__*/ zod.string(),
+  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+})
+
 export const UpdateSystemSettingParams = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid()
 })
@@ -43,18 +55,6 @@ export const UpdateSystemSettingBody = /*#__PURE__*/ zod.object({
 })
 
 export const UpdateSystemSettingResponse = /*#__PURE__*/ zod.object({
-  "id": /*#__PURE__*/ zod.uuid(),
-  "key": /*#__PURE__*/ zod.string(),
-  "value": /*#__PURE__*/ zod.string(),
-  "valueType": /*#__PURE__*/ zod.string(),
-  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
-})
-
-export const GetSystemSettingByIdParams = /*#__PURE__*/ zod.object({
-  "id": /*#__PURE__*/ zod.uuid()
-})
-
-export const GetSystemSettingByIdResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "key": /*#__PURE__*/ zod.string(),
   "value": /*#__PURE__*/ zod.string(),

@@ -56,7 +56,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Automation.Pipeline", "src\
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Workspace", "Workspace", "{60E86E71-C0FB-EB8C-7761-71EDD8B40B3C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Automation.Workspace.Contracts", "src\Modules\Workspace\Automation.Workspace.Contracts\Automation.Workspace.Contracts.csproj", "{043211F7-C5AC-4A2D-B947-0BAB1C83186B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Automation.Repository.Contracts", "src\Modules\Repository\Automation.Repository.Contracts\Automation.Repository.Contracts.csproj", "{043211F7-C5AC-4A2D-B947-0BAB1C83186B}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Content", "Content", "{D2F8383C-F49B-E551-32D9-8814458A6CFF}"
 EndProject

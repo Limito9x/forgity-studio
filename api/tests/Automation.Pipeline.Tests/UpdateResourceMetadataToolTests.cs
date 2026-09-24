@@ -2,7 +2,7 @@ using System.Text.Json;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Tools;
 using Automation.Pipeline.Tools.Workspaces;
-using Automation.Workspace.Contracts;
+using Automation.Repository.Contracts;
 using FluentAssertions;
 using FluentResults;
 using NSubstitute;
@@ -12,7 +12,7 @@ namespace Automation.Pipeline.Tests;
 
 public class UpdateResourceMetadataToolTests
 {
-    private readonly IWorkspaceApi _workspaceApi = Substitute.For<IWorkspaceApi>();
+    private readonly IRepositoryApi _workspaceApi = Substitute.For<IRepositoryApi>();
     private readonly ToolExecutionContext _context = new(Guid.NewGuid(), Guid.NewGuid(), Guid.Empty, CancellationToken.None);
 
     [Fact]

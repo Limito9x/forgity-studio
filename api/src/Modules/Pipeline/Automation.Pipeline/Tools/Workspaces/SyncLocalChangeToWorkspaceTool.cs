@@ -2,11 +2,11 @@ using System.Collections;
 using System.Text.Json;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
-using Automation.Workspace.Contracts;
+using Automation.Repository.Contracts;
 
 namespace Automation.Pipeline.Tools.Workspaces;
 
-public class SyncLocalChangeToWorkspaceTool(IWorkspaceApi workspaceApi) : IResolverTool
+public class SyncLocalChangeToWorkspaceTool(IRepositoryApi workspaceApi) : IResolverTool
 {
     public string Key => "SyncLocalChangeToWorkspace";
     public string Label => "Sync Local Change To Workspace";

@@ -4,6 +4,7 @@
  * Automation.Api | v1
  * OpenAPI spec version: 1.0.0
  */
+import type { DictionaryOfGuidAndSchemaVersionDto } from "./dictionaryOfGuidAndSchemaVersionDto";
 import type { JsonDocument } from "./jsonDocument";
 
 export interface ContentTypeDto {
@@ -21,4 +22,5 @@ export interface ContentTypeDto {
   sortOrder?: number;
   fieldsConfig?: JsonDocument;
   displayConfig?: JsonDocument;
+  dependencies?: DictionaryOfGuidAndSchemaVersionDto;
 }

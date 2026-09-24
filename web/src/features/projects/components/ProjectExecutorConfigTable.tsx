@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useProjectExecutorConfigs, type ProjectExecutorConfigDto } from "../hooks/useProjectExecutorConfigs";
-import { useAgents } from "@/features/agents/hooks/useAgents";
+import { useRunners, type RunnerDto } from "@/features/runners/hooks/useRunners";
 import { useDialogStore } from "@/stores/dialogStore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,11 +15,11 @@ interface ProjectExecutorConfigTableProps {
 export function ProjectExecutorConfigTable({ projectId }: ProjectExecutorConfigTableProps) {
     const { t } = useTranslation("projects");
     const { data: configs, isLoading } = useProjectExecutorConfigs(projectId);
-    const { data: agents } = useAgents();
+    const { data: runners } = useRunners();
     const openDialog = useDialogStore((state) => state.openDialog);
     const [copiedId, setCopiedId] = useState<string | null>(null);
 
-    const agentMap = new Map((agents || []).map((a) => [a.id, a]));
+    const runnerMap = new Map<string, RunnerDto>((runners || []).map((r: RunnerDto) => [r.id, r]));
 
     const handleCopyPath = (path: string, id: string) => {
         navigator.clipboard.writeText(path);
@@ -100,7 +100,7 @@ export function ProjectExecutorConfigTable({ projectId }: ProjectExecutorConfigT
                 <div className="overflow-hidden rounded-xl border border-border bg-card">
                     <div className="divide-y divide-border">
                         {configs.map((cfg: ProjectExecutorConfigDto) => {
-                            const agent = agentMap.get(cfg.agentId);
+                            const runner = runnerMap.get(cfg.agentId);
                             const settings = parseSettings(cfg.settings);
                             const fullPath = settings.fullPathProject || settings.project_path || "(No path set)";
                             const engineVersion = settings.engineVersion;
@@ -113,11 +113,11 @@ export function ProjectExecutorConfigTable({ projectId }: ProjectExecutorConfigT
                                     <div className="space-y-1.5 min-w-0 flex-1">
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <span className="font-medium text-foreground">
-                                                {agent ? agent.name : `Agent [${cfg.agentId.slice(0, 8)}]`}
+                                                {runner ? runner.name : `Runner [${cfg.agentId.slice(0, 8)}]`}
                                             </span>
-                                            {agent && (
+                                            {runner && (
                                                 <span className="text-xs text-muted-foreground">
-                                                    ({agent.machineKey})
+                                                    ({runner.machineKey})
                                                 </span>
                                             )}
                                             <Badge variant="secondary" className="capitalize text-xs font-semibold">

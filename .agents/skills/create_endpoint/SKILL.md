@@ -38,3 +38,4 @@ public class GetUserByIdEndpoint(IMessageBus bus) : EndpointWithoutRequest<UserD
 3. **Unwrap với SendResultAsync**: Gọi `await this.SendResultAsync(result, ct);` để tự động unwrap `Result<T>` thành HTTP Response tương ứng.
 4. **Phân quyền**: Cấu hình `Permissions(P.<Feature>.<Action>)` cho endpoint yêu cầu quyền, hoặc `AllowAnonymous()` nếu là API công khai.
 5. **Khởi tạo DI**: Sử dụng Primary Constructor (`public class MyEndpoint(IMessageBus bus) : ...`).
+6. **Đặt tên Endpoint & OpenAPI OperationId**: Tên class luôn theo chuẩn `<Action>Endpoint` (vd: `CreateInvoiceEndpoint`). Hệ thống tại `Program.cs` đã cấu hình `Configurator` tự động lấy tên action làm `OperationId` cho OpenAPI. Tuy nhiên, khuyến khích viết tường minh `Description(b => b.WithName("<Action>"))` để đảm bảo Orval sinh code Frontend ngắn gọn và rõ nghĩa nhất.

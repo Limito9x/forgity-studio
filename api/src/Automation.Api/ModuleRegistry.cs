@@ -6,7 +6,7 @@ using Automation.Platform;
 using Automation.Studio;
 using Automation.Content;
 using Automation.Tag;
-using Automation.Workspace;
+using Automation.Repository;
 using Automation.Pipeline;
 using Automation.DynamicForms;
 using Automation.Runner;
@@ -25,7 +25,7 @@ public static class ModuleRegistry
         new StudioModule(),
         new ContentModule(),
         new TagModule(),
-        new WorkspaceModule(),
+        new RepositoryModule(),
         new PipelineModule(),
         new DynamicFormsModule(),
         new RunnerModule()

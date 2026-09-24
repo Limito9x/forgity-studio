@@ -2,7 +2,7 @@ using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Tools.Attributes;
 using Automation.Tag.Contracts;
-using Automation.Workspace.Contracts;
+using Automation.Repository.Contracts;
 using Microsoft.Extensions.Logging;
 
 namespace Automation.Pipeline.Tools.Tags;
@@ -62,7 +62,7 @@ public class AssignTagOutputs
 
 public class AssignTagTool(
     ITagApi tagApi,
-    IWorkspaceApi workspaceApi,
+    IRepositoryApi workspaceApi,
     ILogger<AssignTagTool> logger
 ) : BaseResolverTool<AssignTagInputs, AssignTagOutputs>
 {

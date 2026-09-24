@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ResourceDetailPage } from "@/features/workspaces/pages/ResourceDetailPage";
+import { ResourceDetailPage } from "@/features/repositories/pages/ResourceDetailPage";
 import { z } from "zod";
 
 const resourceDetailSearchSchema = z.object({

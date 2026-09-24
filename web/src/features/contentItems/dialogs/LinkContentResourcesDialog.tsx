@@ -1,7 +1,9 @@
 import { useState, useMemo } from "react";
 import { BaseDialog } from "@/components/custom-ui/overlays/dialog/BaseDialog";
-import { useWorkspaces } from "@/features/workspaces/hooks/useWorkspaces";
-import { useWorkspaceResources, useAssignResourcesContent } from "@/features/workspaces/hooks/useWorkspaceResources";
+import { useRepositories } from "@/features/repositories/hooks/useRepositories";
+import { useGetRepositoryResources } from "@/gen/endpoints/repositories/repositories";
+import { useAssignResourcesContent } from "@/gen/endpoints/resources/resources";
+import type { WorkspaceResourceDto, RepositoryDto } from "@/gen/model";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -26,36 +28,42 @@ export function LinkContentResourcesDialog({
 }: LinkContentResourcesDialogProps) {
   const { contentId, contentName, projectId } = data || {};
 
-  // Fetch workspaces for current project
-  const { data: workspaces = [], isLoading: isWorkspacesLoading } = useWorkspaces(projectId);
+  // Fetch repositories for current project
+  const { data: repositories = [], isLoading: isRepositoriesLoading } = useRepositories(projectId);
 
-  // Selected workspace state (default to first workspace)
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>("");
-  const activeWorkspaceId = selectedWorkspaceId || (workspaces[0]?.id ? String(workspaces[0].id) : "");
+  // Selected repository state (default to first repository)
+  const [selectedRepoId, setSelectedRepoId] = useState<string>("");
+  const activeRepoId = selectedRepoId || (repositories[0]?.id ? String(repositories[0].id) : "");
 
   const [keyword, setKeyword] = useState("");
   const [selectedResourceIds, setSelectedResourceIds] = useState<string[]>([]);
   const [hideAlreadyAssigned, setHideAlreadyAssigned] = useState(true);
 
-  // Fetch resources for selected workspace
-  const { data: resourcesData, isLoading: isResourcesLoading, refetch } = useWorkspaceResources(
-    activeWorkspaceId,
+  // Fetch resources for selected repository
+  const { data: resourcesData, isLoading: isResourcesLoading, refetch } = useGetRepositoryResources(
+    activeRepoId,
     {
       projectId,
+      workspaceId: activeRepoId,
       page: 1,
       pageSize: 50,
       globalKeyword: keyword.trim() || undefined,
+    },
+    {
+      query: {
+        enabled: !!activeRepoId,
+      },
     }
   );
 
-  const assignMutation = useAssignResourcesContent(activeWorkspaceId);
+  const assignMutation = useAssignResourcesContent();
 
-  const rawResources = resourcesData?.items || [];
+  const rawResources: WorkspaceResourceDto[] = (resourcesData?.items || []) as WorkspaceResourceDto[];
 
   // Filter items based on already assigned toggle
   const filteredResources = useMemo(() => {
     if (!hideAlreadyAssigned) return rawResources;
-    return rawResources.filter((item) => !item.contentId || item.contentId === contentId);
+    return rawResources.filter((item: WorkspaceResourceDto) => !item.contentId || item.contentId === contentId);
   }, [rawResources, hideAlreadyAssigned, contentId]);
 
   const handleToggleSelect = (resourceId: string) => {
@@ -130,24 +138,24 @@ export function LinkContentResourcesDialog({
       }
     >
       <div className="space-y-4 py-2">
-        {/* Workspace selector tabs / pills */}
+        {/* Repository selector tabs / pills */}
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Select Workspace
+            Select Repository
           </label>
-          {isWorkspacesLoading ? (
+          {isRepositoriesLoading ? (
             <div className="h-8 rounded bg-muted animate-pulse" />
-          ) : workspaces.length > 0 ? (
+          ) : repositories.length > 0 ? (
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-              {workspaces.map((ws) => {
-                const isSelected = (activeWorkspaceId || workspaces[0]?.id) === ws.id;
+              {repositories.map((repo: RepositoryDto) => {
+                const isSelected = (activeRepoId || repositories[0]?.id) === repo.id;
                 return (
                   <Button
-                    key={ws.id}
+                    key={repo.id}
                     size="sm"
                     variant={isSelected ? "default" : "outline"}
                     onClick={() => {
-                      setSelectedWorkspaceId(ws.id);
+                      setSelectedRepoId(repo.id);
                       setSelectedResourceIds([]);
                     }}
                     className={cn(
@@ -156,16 +164,16 @@ export function LinkContentResourcesDialog({
                     )}
                   >
                     <FolderTree className="size-3.5" />
-                    {ws.name}
+                    {repo.name}
                     <span className="ml-1 text-[10px] opacity-75 font-mono">
-                      ({ws.resourceCount ?? 0})
+                      ({repo.resourceCount ?? 0})
                     </span>
                   </Button>
                 );
               })}
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground italic">No workspaces found in this project.</p>
+            <p className="text-xs text-muted-foreground italic">No repositories found in this project.</p>
           )}
         </div>
 

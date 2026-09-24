@@ -2,11 +2,11 @@ using System.Collections;
 using System.Text.Json;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
-using Automation.Workspace.Contracts;
+using Automation.Repository.Contracts;
 
 namespace Automation.Pipeline.Tools.Workspaces;
 
-public class UpdateResourceMetadataTool(IWorkspaceApi workspaceApi) : IResolverTool
+public class UpdateResourceMetadataTool(IRepositoryApi workspaceApi) : IResolverTool
 {
     public string Key => "UpdateResourceMetadata";
     public string Label => "Update Resource Metadata";

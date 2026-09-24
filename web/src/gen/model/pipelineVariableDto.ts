@@ -13,4 +13,6 @@ export interface PipelineVariableDto {
   cardinality?: PinCardinality;
   /** @nullable */
   description?: string | null;
+  /** @nullable */
+  structType?: string | null;
 }

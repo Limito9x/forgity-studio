@@ -16,13 +16,11 @@ import {
   SidebarMenuSubItem,
   SidebarGroupAction,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, Users, Settings2, Shield, Settings, MonitorCog, Logs, Plus, Layers, Puzzle, Cpu, Server, FolderKanban, FolderGit2 } from "lucide-react";
+import { LayoutDashboard, Users, Settings2, Shield, Settings, MonitorCog, Logs, Layers, Puzzle, Cpu, Plus, FolderKanban, FolderGit2, Workflow } from "lucide-react";
 import { NavUser } from "./NavUser";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useProjects } from "@/features/projects/hooks/useProjects";
 import { useDialogStore } from "@/stores/dialogStore";
-
-const projectName = import.meta.env.VITE_PROJECT_NAME;
 
 const navItems = [
   {
@@ -31,10 +29,10 @@ const navItems = [
     icon: LayoutDashboard
   },
   {
-    title: "Agents",
-    url: "/agents",
-    icon: Server,
-    featurePrefix: "agent:"
+    title: "Runners",
+    url: "/runners",
+    icon: Cpu,
+    featurePrefix: "runner:"
   },
   {
     title: "Platforms",
@@ -77,19 +75,20 @@ export function GlobalSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <span className="font-bold">{projectName[0]}</span>
-              </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">{projectName}</span>
-              </div>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+      <SidebarHeader className="border-b border-sidebar-border/40 pb-3">
+        <div className="flex items-center gap-3 px-2 py-1">
+          <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold shadow-sm">
+            <Workflow className="size-4" />
+          </div>
+          <div className="flex flex-col min-w-0">
+            <span className="truncate text-sm font-semibold tracking-tight text-sidebar-foreground">
+              Automation Studio
+            </span>
+            <span className="truncate text-[10px] uppercase font-mono tracking-wider text-muted-foreground">
+              Pipeline Engine
+            </span>
+          </div>
+        </div>
       </SidebarHeader>
       <SidebarContent>
         {/* Projects Group */}

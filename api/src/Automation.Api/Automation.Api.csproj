@@ -37,7 +37,7 @@
       <ProjectReference Include="..\Modules\Studio\Automation.Studio.Contracts\Automation.Studio.Contracts.csproj" />
       <ProjectReference Include="..\Modules\Content\Automation.Content\Automation.Content.csproj" />
       <ProjectReference Include="..\Modules\Tag\Automation.Tag\Automation.Tag.csproj" />
-      <ProjectReference Include="..\Modules\Workspace\Automation.Workspace\Automation.Workspace.csproj" />
+      <ProjectReference Include="..\Modules\Repository\Automation.Repository\Automation.Repository.csproj" />
       <ProjectReference Include="..\Modules\Pipeline\Automation.Pipeline\Automation.Pipeline.csproj" />
       <ProjectReference Include="..\Modules\DynamicForms\Automation.DynamicForms\Automation.DynamicForms.csproj" />
       <ProjectReference Include="..\Modules\DynamicForms\Automation.DynamicForms.Contracts\Automation.DynamicForms.Contracts.csproj" />

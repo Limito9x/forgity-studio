@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useDiscoverAgentFolder } from "@/features/agents/hooks/useAgents";
+import { useDiscoverRunnerFolder } from "@/features/runners/hooks/useRunners";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -22,7 +22,7 @@ export interface FolderItem {
 }
 
 interface FolderBrowserProps {
-  agentId: string;
+  runnerId: string;
   initialPath?: string;
   selectedPath?: string;
   onSelectPath?: (path: string) => void;
@@ -31,7 +31,7 @@ interface FolderBrowserProps {
 }
 
 export function FolderBrowser({
-  agentId,
+  runnerId,
   initialPath = "",
   selectedPath,
   onSelectPath,
@@ -41,8 +41,8 @@ export function FolderBrowser({
   const [currentPath, setCurrentPath] = useState<string>(initialPath);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const { data, isLoading, isFetching, error, refetch } = useDiscoverAgentFolder(
-    agentId,
+  const { data, isLoading, isFetching, error, refetch } = useDiscoverRunnerFolder(
+    runnerId,
     currentPath
   );
 

@@ -2,13 +2,13 @@ using System.Collections;
 using System.Text.Json;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
-using Automation.Workspace.Contracts;
+using Automation.Repository.Contracts;
 using Microsoft.Extensions.Logging;
 
 namespace Automation.Pipeline.Tools.Workspaces;
 
 public class AssignResourcesToContentTool(
-    IWorkspaceApi workspaceApi,
+    IRepositoryApi workspaceApi,
     ILogger<AssignResourcesToContentTool> logger
 ) : IResolverTool
 {
@@ -108,7 +108,7 @@ public class AssignResourcesToContentTool(
             };
         }
 
-        // 3. Assign via WorkspaceApi
+        // 3. Assign via RepositoryApi
         var assignResult = await workspaceApi.AssignResourceToContentAsync(
             contentGuid.Value,
             resourceGuids,

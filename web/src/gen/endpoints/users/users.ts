@@ -253,116 +253,86 @@ export function useGetUsers<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-export const automationIdentityFeaturesUsersBulkUpdateStatusBulkUpdateUserStatus =
-  (
-    bulkUpdateUserStatusCommand: BulkUpdateUserStatusCommand,
-    signal?: AbortSignal,
-  ) => {
-    return customInstance<string>({
-      url: `/api/users/bulk-status`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: bulkUpdateUserStatusCommand,
-      signal,
-    });
+export const bulkUpdateUserStatus = (
+  bulkUpdateUserStatusCommand: BulkUpdateUserStatusCommand,
+  signal?: AbortSignal,
+) => {
+  return customInstance<string>({
+    url: `/api/users/bulk-status`,
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    data: bulkUpdateUserStatusCommand,
+    signal,
+  });
+};
+
+export const getBulkUpdateUserStatusMutationOptions = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkUpdateUserStatus>>,
+    TError,
+    { data: BulkUpdateUserStatusCommand },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bulkUpdateUserStatus>>,
+  TError,
+  { data: BulkUpdateUserStatusCommand },
+  TContext
+> => {
+  const mutationKey = ["bulkUpdateUserStatus"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bulkUpdateUserStatus>>,
+    { data: BulkUpdateUserStatusCommand }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return bulkUpdateUserStatus(data);
   };
 
-export const getAutomationIdentityFeaturesUsersBulkUpdateStatusBulkUpdateUserStatusMutationOptions =
-  <TError = ErrorResponse | void, TContext = unknown>(options?: {
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BulkUpdateUserStatusMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bulkUpdateUserStatus>>
+>;
+export type BulkUpdateUserStatusMutationBody = BulkUpdateUserStatusCommand;
+export type BulkUpdateUserStatusMutationError = ErrorResponse | void;
+
+export const useBulkUpdateUserStatus = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(
+  options?: {
     mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof automationIdentityFeaturesUsersBulkUpdateStatusBulkUpdateUserStatus
-        >
-      >,
+      Awaited<ReturnType<typeof bulkUpdateUserStatus>>,
       TError,
       { data: BulkUpdateUserStatusCommand },
       TContext
     >;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<
-        typeof automationIdentityFeaturesUsersBulkUpdateStatusBulkUpdateUserStatus
-      >
-    >,
-    TError,
-    { data: BulkUpdateUserStatusCommand },
-    TContext
-  > => {
-    const mutationKey = [
-      "automationIdentityFeaturesUsersBulkUpdateStatusBulkUpdateUserStatus",
-    ];
-    const { mutation: mutationOptions } = options
-      ? options.mutation &&
-        "mutationKey" in options.mutation &&
-        options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey } };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof automationIdentityFeaturesUsersBulkUpdateStatusBulkUpdateUserStatus
-        >
-      >,
-      { data: BulkUpdateUserStatusCommand }
-    > = (props) => {
-      const { data } = props ?? {};
-
-      return automationIdentityFeaturesUsersBulkUpdateStatusBulkUpdateUserStatus(
-        data,
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type AutomationIdentityFeaturesUsersBulkUpdateStatusBulkUpdateUserStatusMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof automationIdentityFeaturesUsersBulkUpdateStatusBulkUpdateUserStatus
-      >
-    >
-  >;
-export type AutomationIdentityFeaturesUsersBulkUpdateStatusBulkUpdateUserStatusMutationBody =
-  BulkUpdateUserStatusCommand;
-export type AutomationIdentityFeaturesUsersBulkUpdateStatusBulkUpdateUserStatusMutationError =
-  ErrorResponse | void;
-
-export const useAutomationIdentityFeaturesUsersBulkUpdateStatusBulkUpdateUserStatus =
-  <TError = ErrorResponse | void, TContext = unknown>(
-    options?: {
-      mutation?: UseMutationOptions<
-        Awaited<
-          ReturnType<
-            typeof automationIdentityFeaturesUsersBulkUpdateStatusBulkUpdateUserStatus
-          >
-        >,
-        TError,
-        { data: BulkUpdateUserStatusCommand },
-        TContext
-      >;
-    },
-    queryClient?: QueryClient,
-  ): UseMutationResult<
-    Awaited<
-      ReturnType<
-        typeof automationIdentityFeaturesUsersBulkUpdateStatusBulkUpdateUserStatus
-      >
-    >,
-    TError,
-    { data: BulkUpdateUserStatusCommand },
-    TContext
-  > => {
-    return useMutation(
-      getAutomationIdentityFeaturesUsersBulkUpdateStatusBulkUpdateUserStatusMutationOptions(
-        options,
-      ),
-      queryClient,
-    );
-  };
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof bulkUpdateUserStatus>>,
+  TError,
+  { data: BulkUpdateUserStatusCommand },
+  TContext
+> => {
+  return useMutation(
+    getBulkUpdateUserStatusMutationOptions(options),
+    queryClient,
+  );
+};
 export const deleteUser = (id: string, signal?: AbortSignal) => {
   return customInstance<void>({
     url: `/api/users/${id}`,

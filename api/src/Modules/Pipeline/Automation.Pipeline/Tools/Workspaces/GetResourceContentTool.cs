@@ -1,7 +1,7 @@
 using Automation.Content.Contracts;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
-using Automation.Workspace.Contracts;
+using Automation.Repository.Contracts;
 
 namespace Automation.Pipeline.Tools.Workspaces;
 
@@ -10,7 +10,7 @@ namespace Automation.Pipeline.Tools.Workspaces;
 /// Nếu Resource chưa gán Content, tự động fallback ContentName về BaseName của file.
 /// </summary>
 public class GetResourceContentTool(
-    IWorkspaceApi workspaceApi,
+    IRepositoryApi workspaceApi,
     IContentApi contentApi
 ) : IResolverTool
 {

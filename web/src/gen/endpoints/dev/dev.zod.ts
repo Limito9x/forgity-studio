@@ -7,5 +7,5 @@
 import * as zod from 'zod/mini';
 
 
-export const AutomationApiDevTestNotificationResponse = /*#__PURE__*/ zod.void()
+export const TestNotificationResponse = /*#__PURE__*/ zod.void()
 

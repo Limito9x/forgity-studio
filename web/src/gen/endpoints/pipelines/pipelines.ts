@@ -27,8 +27,10 @@ import type {
   AddPipelineOutputCommand,
   CreatePipelineCommand,
   GetPipelinesParams,
+  GetStructCatalogueParams,
   IReadOnlyListOfPinTypeMetadataDto,
   IReadOnlyListOfPipelineInputDto,
+  IReadOnlyListOfStructDefinitionDto,
   ListOfNodeExecutionDto,
   ListOfPipelineExecutionDto,
   ListOfPipelineSummaryDto,
@@ -705,6 +707,162 @@ export function useGetPinCatalogue<
   queryKey: DataTag<QueryKey, TData, TError>;
 } {
   const queryOptions = getGetPinCatalogueQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getStructCatalogue = (
+  params?: GetStructCatalogueParams,
+  signal?: AbortSignal,
+) => {
+  return customInstance<IReadOnlyListOfStructDefinitionDto>({
+    url: `/api/pipelines/structs/catalogue`,
+    method: "GET",
+    params,
+    signal,
+  });
+};
+
+export const getGetStructCatalogueQueryKey = (
+  params?: GetStructCatalogueParams,
+) => {
+  return [
+    `/api/pipelines/structs/catalogue`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetStructCatalogueQueryOptions = <
+  TData = Awaited<ReturnType<typeof getStructCatalogue>>,
+  TError = void,
+>(
+  params?: GetStructCatalogueParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getStructCatalogue>>,
+        TError,
+        TData
+      >
+    >;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetStructCatalogueQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getStructCatalogue>>
+  > = ({ signal }) => getStructCatalogue(params, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getStructCatalogue>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetStructCatalogueQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getStructCatalogue>>
+>;
+export type GetStructCatalogueQueryError = void;
+
+export function useGetStructCatalogue<
+  TData = Awaited<ReturnType<typeof getStructCatalogue>>,
+  TError = void,
+>(
+  params: undefined | GetStructCatalogueParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getStructCatalogue>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getStructCatalogue>>,
+          TError,
+          Awaited<ReturnType<typeof getStructCatalogue>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetStructCatalogue<
+  TData = Awaited<ReturnType<typeof getStructCatalogue>>,
+  TError = void,
+>(
+  params?: GetStructCatalogueParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getStructCatalogue>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getStructCatalogue>>,
+          TError,
+          Awaited<ReturnType<typeof getStructCatalogue>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetStructCatalogue<
+  TData = Awaited<ReturnType<typeof getStructCatalogue>>,
+  TError = void,
+>(
+  params?: GetStructCatalogueParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getStructCatalogue>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useGetStructCatalogue<
+  TData = Awaited<ReturnType<typeof getStructCatalogue>>,
+  TError = void,
+>(
+  params?: GetStructCatalogueParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getStructCatalogue>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetStructCatalogueQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<
     TData,
