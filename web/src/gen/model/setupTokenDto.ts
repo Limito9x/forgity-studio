@@ -8,4 +8,6 @@
 export interface SetupTokenDto {
   token: string;
   expiresAt: string;
+  /** @nullable */
+  studioId?: string | null;
 }

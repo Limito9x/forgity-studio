@@ -1,7 +1,7 @@
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Features.Pipelines.Dtos;
 using Automation.Pipeline.Infrastructure.Persistence;
-using Automation.Workspace.Contracts;
+using Automation.Repository.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Wolverine;

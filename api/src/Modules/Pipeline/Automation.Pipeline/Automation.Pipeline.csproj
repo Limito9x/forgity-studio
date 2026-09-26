@@ -4,8 +4,8 @@
       <ProjectReference Include="..\..\..\SharedKernel\Automation.SharedKernel\Automation.SharedKernel.csproj" />
       <ProjectReference Include="..\..\Files\Automation.Files.Contracts\Automation.Files.Contracts.csproj" />
       <ProjectReference Include="..\..\Tag\Automation.Tag.Contracts\Automation.Tag.Contracts.csproj" />
-      <ProjectReference Include="..\..\Workspace\Automation.Workspace.Contracts\Automation.Workspace.Contracts.csproj" />
-      <ProjectReference Include="..\..\Projects\Automation.Projects.Contracts\Automation.Projects.Contracts.csproj" />
+      <ProjectReference Include="..\..\Repository\Automation.Repository.Contracts\Automation.Repository.Contracts.csproj" />
+      <ProjectReference Include="..\..\Studio\Automation.Studio.Contracts\Automation.Studio.Contracts.csproj" />
       <ProjectReference Include="..\..\Content\Automation.Content.Contracts\Automation.Content.Contracts.csproj" />
       <ProjectReference Include="..\..\DynamicForms\Automation.DynamicForms.Contracts\Automation.DynamicForms.Contracts.csproj" />
     </ItemGroup>

@@ -8,7 +8,7 @@
 export interface ResourceItemDto {
   id: string;
   projectId: string;
-  workspaceId: string;
+  repositoryId: string;
   name: string;
   /** @nullable */
   filePath: string | null;
@@ -19,4 +19,5 @@ export interface ResourceItemDto {
   createdAt: string;
   /** @nullable */
   versions?: unknown[] | null;
+  workspaceId?: string;
 }

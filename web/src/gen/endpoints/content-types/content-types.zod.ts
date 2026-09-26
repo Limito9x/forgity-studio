@@ -65,7 +65,15 @@ export const CreateContentTypeResponse = /*#__PURE__*/ zod.object({
   "color": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "sortOrder": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
   "fieldsConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
-  "displayConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
+  "displayConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "dependencies": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid()),
+  "schemaDefinitionId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid()),
+  "fields": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "version": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "isActive": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean()),
+  "dependencySchemaIds": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.uuid()))
+})))
 })
 
 export const GetContentTypesParams = /*#__PURE__*/ zod.object({
@@ -95,7 +103,15 @@ export const GetContentTypesResponse = /*#__PURE__*/ zod.object({
   "color": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "sortOrder": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
   "fieldsConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
-  "displayConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
+  "displayConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "dependencies": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid()),
+  "schemaDefinitionId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid()),
+  "fields": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "version": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "isActive": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean()),
+  "dependencySchemaIds": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.uuid()))
+})))
 }))),
   "totalCount": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
   "page": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
@@ -121,7 +137,15 @@ export const GetContentTypeResponse = /*#__PURE__*/ zod.object({
   "color": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "sortOrder": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
   "fieldsConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
-  "displayConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
+  "displayConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "dependencies": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid()),
+  "schemaDefinitionId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid()),
+  "fields": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "version": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "isActive": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean()),
+  "dependencySchemaIds": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.uuid()))
+})))
 })
 
 export const UpdateContentTypeParams = /*#__PURE__*/ zod.object({
@@ -166,6 +190,14 @@ export const UpdateContentTypeResponse = /*#__PURE__*/ zod.object({
   "color": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "sortOrder": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
   "fieldsConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
-  "displayConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
+  "displayConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "dependencies": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid()),
+  "schemaDefinitionId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid()),
+  "fields": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "version": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "isActive": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean()),
+  "dependencySchemaIds": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.uuid()))
+})))
 })
 

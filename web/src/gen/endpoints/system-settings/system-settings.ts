@@ -201,87 +201,6 @@ export function useGetSystemSettings<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-export const updateSystemSetting = (
-  id: string,
-  updateSystemSettingCommand: UpdateSystemSettingCommand,
-  signal?: AbortSignal,
-) => {
-  return customInstance<SystemSettingDto>({
-    url: `/api/systemsettings/${id}`,
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    data: updateSystemSettingCommand,
-    signal,
-  });
-};
-
-export const getUpdateSystemSettingMutationOptions = <
-  TError = ErrorResponse | void,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateSystemSetting>>,
-    TError,
-    { id: string; data: UpdateSystemSettingCommand },
-    TContext
-  >;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof updateSystemSetting>>,
-  TError,
-  { id: string; data: UpdateSystemSettingCommand },
-  TContext
-> => {
-  const mutationKey = ["updateSystemSetting"];
-  const { mutation: mutationOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateSystemSetting>>,
-    { id: string; data: UpdateSystemSettingCommand }
-  > = (props) => {
-    const { id, data } = props ?? {};
-
-    return updateSystemSetting(id, data);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UpdateSystemSettingMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateSystemSetting>>
->;
-export type UpdateSystemSettingMutationBody = UpdateSystemSettingCommand;
-export type UpdateSystemSettingMutationError = ErrorResponse | void;
-
-export const useUpdateSystemSetting = <
-  TError = ErrorResponse | void,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateSystemSetting>>,
-      TError,
-      { id: string; data: UpdateSystemSettingCommand },
-      TContext
-    >;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<ReturnType<typeof updateSystemSetting>>,
-  TError,
-  { id: string; data: UpdateSystemSettingCommand },
-  TContext
-> => {
-  return useMutation(
-    getUpdateSystemSettingMutationOptions(options),
-    queryClient,
-  );
-};
 export const getSystemSettingById = (id: string, signal?: AbortSignal) => {
   return customInstance<SystemSettingDto>({
     url: `/api/systemsettings/${id}`,
@@ -433,3 +352,85 @@ export function useGetSystemSettingById<
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+export const updateSystemSetting = (
+  id: string,
+  updateSystemSettingCommand: UpdateSystemSettingCommand,
+  signal?: AbortSignal,
+) => {
+  return customInstance<SystemSettingDto>({
+    url: `/api/systemsettings/${id}`,
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    data: updateSystemSettingCommand,
+    signal,
+  });
+};
+
+export const getUpdateSystemSettingMutationOptions = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateSystemSetting>>,
+    TError,
+    { id: string; data: UpdateSystemSettingCommand },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateSystemSetting>>,
+  TError,
+  { id: string; data: UpdateSystemSettingCommand },
+  TContext
+> => {
+  const mutationKey = ["updateSystemSetting"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateSystemSetting>>,
+    { id: string; data: UpdateSystemSettingCommand }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateSystemSetting(id, data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateSystemSettingMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSystemSetting>>
+>;
+export type UpdateSystemSettingMutationBody = UpdateSystemSettingCommand;
+export type UpdateSystemSettingMutationError = ErrorResponse | void;
+
+export const useUpdateSystemSetting = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateSystemSetting>>,
+      TError,
+      { id: string; data: UpdateSystemSettingCommand },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateSystemSetting>>,
+  TError,
+  { id: string; data: UpdateSystemSettingCommand },
+  TContext
+> => {
+  return useMutation(
+    getUpdateSystemSettingMutationOptions(options),
+    queryClient,
+  );
+};

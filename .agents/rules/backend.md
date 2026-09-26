@@ -18,14 +18,15 @@ Quy tắc áp dụng bắt buộc khi xây dựng hoặc sửa đổi mã nguồ
    - `Features/`: Các tính năng tổ chức theo chiều dọc (Vertical Slices).
    - `Shared/`: DTOs dùng chung nội bộ module.
 
-3. **Kiến trúc tính năng theo chiều dọc (Vertical Slice - VSA):**
-   - Đặt tính năng trong thư mục: `Features/<FeatureGroup>/<FeatureName>/` (VD: `Features/Orders/CreateOrder/`).
+3. **Kiến trúc tính năng theo chiều dọc (Single-File Pragmatic VSA):**
+   - Đặt tính năng trực tiếp trong thư mục: `Features/<FeatureGroup>/<FeatureName>.cs` (VD: `Features/Orders/CreateOrder.cs`). **TUYỆT ĐỐI KHÔNG TẠO THƯ MỤC CON LỒNG NHAU CHO TỪNG SLICE**!
    - Tại `Features/<FeatureGroup>/`, bắt buộc có một file Endpoint Group (VD: `OrdersGroup.cs`) kế thừa `Group` của FastEndpoints. Luôn thêm `.WithTags("<Tên_Group>")` để Swagger hiển thị nhóm.
-   - Một slice tính năng hoàn chỉnh nằm CÙNG một thư mục:
-     - `*Command.cs` hoặc `*Query.cs`: Request model đầu vào.
-     - `*Endpoint.cs`: API Endpoint kế thừa từ `Endpoint` của FastEndpoints, khai báo `Group<FeatureGroup>()`.
-     - `*Handler.cs`: Xử lý nghiệp vụ chính bằng Wolverine handler.
-     - `*Validator.cs`: Khai báo FluentValidation cho request.
+   - Một file slice tính năng hoàn chỉnh (`<FeatureName>.cs`) bao gồm đầy đủ theo thứ tự:
+     - `Command` hoặc `Query` record: Dữ liệu đầu vào.
+     - `Validator` (nếu cần): Kế thừa `AbstractValidator<TCommand>`.
+     - `Endpoint`: Kế thừa từ `Endpoint<TRequest, TResponse>` của FastEndpoints, khai báo `Group<FeatureGroup>()`. Trả về trực tiếp DTO không bọc `Result<T>` để Orval sinh code frontend chuẩn xác nhất (dùng `await this.SendResultAsync(result, ct)`).
+     - `Handler`: Wolverine handler xử lý nghiệp vụ với `[Transactional(typeof(ModuleDbContext))]` (Mutation) hoặc `[NonTransactional]` (Query).
+   - Chi tiết xem tại [ADR-005: Pragmatic Single-File VSA](file:///d:/FullStack/Automation/docs/backend/ADR_PRAGMATIC_SINGLE_FILE_VSA.md).
 
 ---
 
@@ -41,10 +42,11 @@ Quy tắc áp dụng bắt buộc khi xây dựng hoặc sửa đổi mã nguồ
    - Trước khi viết code, LUÔN kiểm tra `GlobalUsing.cs` ở module (vd: `api/src/Modules/<ModuleName>/GlobalUsing.cs`) để xem những namespace đã import sẵn. Tránh `using` thừa.
 
 6. **Tôn trọng Triết Lý Kiến Trúc:**
-   - Đọc và tuân thủ tài liệu [docs/backend/ARCHITECTURE.md](file:///d:/FullStack/Automation/docs/backend/ARCHITECTURE.md). Tránh rườm rà (Ceremony), đề cao Use Case (VSA).
+   - Đọc và tuân thủ tài liệu [docs/backend/ARCHITECTURE.md](file:///d:/FullStack/Automation/docs/backend/ARCHITECTURE.md) và [docs/backend/ADR_PRAGMATIC_SINGLE_FILE_VSA.md](file:///d:/FullStack/Automation/docs/backend/ADR_PRAGMATIC_SINGLE_FILE_VSA.md). Tránh rườm rà (Ceremony), đề cao tính thực dụng (Pragmatic VSA).
 
-7. **Sử dụng Mapster cho Data Mapping:**
-   - LUÔN dùng Mapster (`.Adapt<TDto>()`, `.ProjectToType<TDto>()`) để ánh xạ Entities và DTOs. Không map tay từng trường trừ khi bắt buộc.
+7. **Sử dụng Mapster & Pragmatic POCO Entities:**
+   - Entities được viết dưới dạng Pure POCO với public `{ get; set; }`. KHÔNG viết constructor có tham số cồng kềnh, KHÔNG viết hàm `Update()` giả cầy kiểu DDD giáo điều.
+   - LUÔN dùng Mapster (`.Adapt<TDto>()`, `.Adapt<TEntity>()`, `.ProjectToType<TDto>()`) để ánh xạ Entities và DTOs. Không map tay từng trường trừ khi bắt buộc.
 
 8. **Quy định về Access Modifiers (Sử dụng public):**
    - Mọi class, interface, enum, struct trong Backend (Wolverine Handlers, Endpoints, DbContexts, Configurations, Validators, DTOs, Commands, Queries, Entities) BẮT BUỘC để ở mức `public` để tránh lỗi Assembly Scanning và DI registration.

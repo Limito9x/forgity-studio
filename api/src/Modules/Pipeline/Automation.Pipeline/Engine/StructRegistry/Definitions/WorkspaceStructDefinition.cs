@@ -1,11 +1,11 @@
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Tools;
-using Automation.Workspace.Contracts;
+using Automation.Repository.Contracts;
 
 namespace Automation.Pipeline.Engine.StructRegistry.Definitions;
 
-public class WorkspaceStructDefinition(IWorkspaceApi workspaceApi) : IEntityStructDefinition
+public class WorkspaceStructDefinition(IRepositoryApi workspaceApi) : IEntityStructDefinition
 {
     public string StructType => "Workspace";
     public string Label => "Workspace";

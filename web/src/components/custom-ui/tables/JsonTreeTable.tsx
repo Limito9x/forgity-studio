@@ -204,7 +204,7 @@ function renderNode(
         return null;
     }
 
-    const existingTags = ctx.tagsByPath[nodePath] || [];
+    const existingTags = getTagsForPath(nodePath, ctx.tagsByPath);
 
     return (
         <div
@@ -222,6 +222,40 @@ function renderNode(
             />
         </div>
     );
+}
+
+function stripObjectPrefix(path: string): string {
+    if (!path) return "";
+    return path.replace(/^(?:objects\.[^.]+\.)?/, "");
+}
+
+function getTagsForPath(
+    targetPath: string,
+    tagsByPath: Record<string, TagLinkDetailDto[]>,
+    fallbackPath: string = ""
+): TagLinkDetailDto[] {
+    // 1. Direct exact match
+    if (tagsByPath[targetPath]?.length) {
+        return tagsByPath[targetPath];
+    }
+    if (fallbackPath && tagsByPath[fallbackPath]?.length) {
+        return tagsByPath[fallbackPath];
+    }
+
+    // 2. Semantic matching: Strip object namespace prefix (e.g. "objects.Genesis 9 Mouth Mesh.slots" -> "slots")
+    // This ensures tags assigned on v1 remain visible on v2, v3, v4 even if Blender object name changed!
+    const cleanTarget = stripObjectPrefix(targetPath);
+    const cleanFallback = fallbackPath ? stripObjectPrefix(fallbackPath) : "";
+
+    for (const [registeredPath, tags] of Object.entries(tagsByPath)) {
+        if (!tags?.length) continue;
+        const cleanReg = stripObjectPrefix(registeredPath);
+        if (cleanReg === cleanTarget || (cleanFallback && cleanReg === cleanFallback)) {
+            return tags;
+        }
+    }
+
+    return [];
 }
 
 function renderValueBadge(value: any) {
@@ -265,7 +299,7 @@ function renderCellContent(
             <div className="flex flex-wrap gap-1 items-center">
                 {cellVal.map((item: any, idx: number) => {
                     const itemPath = `${cellPath}[${idx}]`;
-                    const itemTags = ctx.tagsByPath[itemPath] || [];
+                    const itemTags = getTagsForPath(itemPath, ctx.tagsByPath);
                     return (
                         <TagDroppableCell
                             key={itemPath}
@@ -296,7 +330,7 @@ function renderCellContent(
             <div className="flex flex-wrap gap-1.5 items-center">
                 {entries.map(([subK, subV]) => {
                     const subPath = `${cellPath}.${subK}`;
-                    const subTags = ctx.tagsByPath[subPath] || [];
+                    const subTags = getTagsForPath(subPath, ctx.tagsByPath);
                     return (
                         <TagDroppableCell
                             key={subPath}
@@ -433,6 +467,19 @@ function ArrayOfObjectsTable({
     );
 }
 
+function getSemanticRowPath(basePath: string, row: any, rowIdx: number): string {
+    if (typeof row === "object" && row !== null) {
+        const identityKeys = ["name", "slot", "id", "key", "type", "label"];
+        for (const k of identityKeys) {
+            const val = row[k];
+            if (val !== undefined && val !== null && String(val).trim().length > 0) {
+                return `${basePath}[${k}='${String(val).trim()}']`;
+            }
+        }
+    }
+    return `${basePath}[${rowIdx}]`;
+}
+
 function ArrayOfObjectsTableRow({
     row,
     rowIdx,
@@ -451,7 +498,8 @@ function ArrayOfObjectsTableRow({
     ctx: RenderContext;
 }) {
     const [isExpanded, setIsExpanded] = useState(true);
-    const rowPath = `${basePath}[${rowIdx}]`;
+    const rowPath = getSemanticRowPath(basePath, row, rowIdx);
+    const legacyRowPath = `${basePath}[${rowIdx}]`;
     const hasNested = nestedCols.length > 0;
     const hasActiveNestedData = nestedCols.some((k) => {
         const v = row[k];
@@ -488,7 +536,8 @@ function ArrayOfObjectsTableRow({
                 {scalarCols.map((col) => {
                     const cellVal = row[col];
                     const cellPath = `${rowPath}.${col}`;
-                    const existingTags = ctx.tagsByPath[cellPath] || [];
+                    const legacyCellPath = `${legacyRowPath}.${col}`;
+                    const existingTags = getTagsForPath(cellPath, ctx.tagsByPath, legacyCellPath);
 
                     return (
                         <td

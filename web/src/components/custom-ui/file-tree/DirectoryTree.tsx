@@ -3,11 +3,11 @@ import { Tree, type TreeApi } from "react-arborist";
 import type { FileTreeNodeData } from "./directory-tree-types";
 import { DirectoryTreeNode } from "./DirectoryTreeNode";
 import { DirectoryTreeToolbar } from "./DirectoryTreeToolbar";
-import * as AgentsApi from "@/gen/endpoints/agents/agents";
+import * as RunnersApi from "@/gen/endpoints/runners/runners";
 import { AlertCircle, HardDrive } from "lucide-react";
 
 interface DirectoryTreeProps {
-  agentId: string;
+  runnerId: string;
   initialPath?: string;
   onSelectNode?: (node: FileTreeNodeData) => void;
   className?: string;
@@ -15,7 +15,7 @@ interface DirectoryTreeProps {
 }
 
 export function DirectoryTree({
-  agentId,
+  runnerId,
   initialPath = "",
   onSelectNode,
   className = "",
@@ -70,12 +70,12 @@ export function DirectoryTree({
 
   // Load directory contents for given path
   const loadDirectory = useCallback(async (path: string) => {
-    if (!agentId) return;
+    if (!runnerId) return;
     setIsLoading(true);
     setErrorMessage(null);
 
     try {
-      const res = await AgentsApi.discoverAgentFolders(agentId, { path });
+      const res = await RunnersApi.discoverRunnerFolders(runnerId, { path });
 
       const items = res?.items || [];
       const nodes = mapDtosToNodes(items);
@@ -93,7 +93,7 @@ export function DirectoryTree({
     } finally {
       setIsLoading(false);
     }
-  }, [agentId]);
+  }, [runnerId]);
 
   useEffect(() => {
     loadDirectory(initialPath);
@@ -115,7 +115,7 @@ export function DirectoryTree({
     const targetNode = findNodeByPath(treeData, id);
     if (targetNode && targetNode.isDirectory && !targetNode.isLoaded) {
       try {
-        const res = await AgentsApi.discoverAgentFolders(agentId, { path: targetNode.path });
+        const res = await RunnersApi.discoverRunnerFolders(runnerId, { path: targetNode.path });
         const items = res?.items || [];
         const childNodes = mapDtosToNodes(items);
         setTreeData((prev) => updateNodeChildren(prev, id, childNodes));

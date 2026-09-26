@@ -7,6 +7,7 @@
 import type { ListOfGuid } from "./listOfGuid";
 
 export interface GetAvailableAgentsQuery {
-  resourceIds: ListOfGuid;
-  workspaceId: string;
+  resourceIds?: ListOfGuid;
+  repositoryId?: string;
+  workspaceId?: string;
 }

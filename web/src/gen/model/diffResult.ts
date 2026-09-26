@@ -7,9 +7,10 @@
 import type { ListOfResourceDiffItem } from "./listOfResourceDiffItem";
 
 export interface DiffResult {
-  workspaceAgentId: string;
+  repositoryRunnerId: string;
   added: ListOfResourceDiffItem;
   modified: ListOfResourceDiffItem;
   deleted: ListOfResourceDiffItem;
   missing: ListOfResourceDiffItem;
+  workspaceAgentId?: string;
 }

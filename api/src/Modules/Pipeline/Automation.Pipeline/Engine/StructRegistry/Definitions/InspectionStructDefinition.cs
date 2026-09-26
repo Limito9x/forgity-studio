@@ -2,12 +2,12 @@ using System.Text.Json;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Tools;
-using Automation.Workspace.Contracts;
+using Automation.Repository.Contracts;
 
 namespace Automation.Pipeline.Engine.StructRegistry.Definitions;
 
 public class InspectionStructDefinition(
-    IWorkspaceApi workspaceApi
+    IRepositoryApi workspaceApi
 ) : IEntityStructDefinition
 {
     public string StructType => "Inspection";

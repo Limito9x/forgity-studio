@@ -13,12 +13,14 @@ export const createProjectBodyNameMax = 255;
 
 
 export const CreateProjectBody = /*#__PURE__*/ zod.object({
-  "name": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(createProjectBodyNameMin)).check(/*#__PURE__*/ zod.maxLength(createProjectBodyNameMax))
+  "name": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(createProjectBodyNameMin)).check(/*#__PURE__*/ zod.maxLength(createProjectBodyNameMax)),
+  "studioId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid())
 })
 
 export const CreateProjectResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
-  "name": /*#__PURE__*/ zod.string()
+  "name": /*#__PURE__*/ zod.string(),
+  "studioId": /*#__PURE__*/ zod.uuid()
 })
 
 export const GetProjectsQueryParams = /*#__PURE__*/ zod.object({
@@ -35,7 +37,8 @@ export const GetProjectsQueryParams = /*#__PURE__*/ zod.object({
 export const GetProjectsResponse = /*#__PURE__*/ zod.object({
   "items": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
-  "name": /*#__PURE__*/ zod.string()
+  "name": /*#__PURE__*/ zod.string(),
+  "studioId": /*#__PURE__*/ zod.uuid()
 }))),
   "totalCount": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
   "page": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
@@ -57,7 +60,8 @@ export const GetProjectByIdParams = /*#__PURE__*/ zod.object({
 
 export const GetProjectByIdResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
-  "name": /*#__PURE__*/ zod.string()
+  "name": /*#__PURE__*/ zod.string(),
+  "studioId": /*#__PURE__*/ zod.uuid()
 })
 
 export const UpdateProjectParams = /*#__PURE__*/ zod.object({
@@ -75,7 +79,8 @@ export const UpdateProjectBody = /*#__PURE__*/ zod.object({
 
 export const UpdateProjectResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
-  "name": /*#__PURE__*/ zod.string()
+  "name": /*#__PURE__*/ zod.string(),
+  "studioId": /*#__PURE__*/ zod.uuid()
 })
 
 export const GetProjectExecutorConfigsParams = /*#__PURE__*/ zod.object({

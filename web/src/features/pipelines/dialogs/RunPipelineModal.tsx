@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import type { Node, Edge } from "@xyflow/react";
 import { useForm } from "react-hook-form";
-import { useGetAgents } from "@/gen/endpoints/agents/agents";
+import { useGetRunners } from "@/gen/endpoints/runners/runners";
+import type { RunnerDto } from "@/gen/model";
 import { useRunPipeline, usePipelineInputSchema } from "../hooks/usePipelineGraph";
 import {
   Dialog,
@@ -53,7 +54,7 @@ export function RunPipelineModal({
   onClose,
   onExecutionStarted,
 }: RunPipelineModalProps) {
-  const { data: agents = [], isLoading: isLoadingAgents } = useGetAgents();
+  const { data: agents = [], isLoading: isLoadingAgents } = useGetRunners();
   const { data: schemaInputs = [], isLoading: isLoadingSchema } = usePipelineInputSchema(pipelineId);
 
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
@@ -177,7 +178,7 @@ export function RunPipelineModal({
     return defaults;
   }, [schemaInputs, startFields, additionalMissingInputs]);
 
-  const form = useForm({
+  const form = useForm<any>({
     resolver: zodResolver(validationSchema as any),
     defaultValues,
     values: defaultValues,
@@ -187,7 +188,7 @@ export function RunPipelineModal({
   const isSubmitting = runMutation.isPending || form.formState.isSubmitting;
 
   const handleRun = form.handleSubmit(
-    async (values) => {
+    async (values: any) => {
       if (runMutation.isPending) return;
 
       const finalAgentId =
@@ -227,9 +228,9 @@ export function RunPipelineModal({
         toast.error(msg);
       }
     },
-    (errors) => {
+    (errors: any) => {
       console.warn("Pipeline run validation errors:", errors);
-      const firstError = Object.values(errors)[0]?.message;
+      const firstError = (Object.values(errors)[0] as any)?.message;
       toast.error(
         typeof firstError === "string"
           ? firstError
@@ -319,7 +320,7 @@ export function RunPipelineModal({
               </div>
             ) : (
               <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                {agents.map((agent) => {
+                {agents.map((agent: RunnerDto) => {
                   const isSelected = selectedAgentId === agent.id;
                   const isOnline = agent.isActive;
 

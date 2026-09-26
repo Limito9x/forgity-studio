@@ -26,7 +26,7 @@ public class TagItemConfiguration : IEntityTypeConfiguration<TagItem>
         builder.HasOne(x => x.Parent)
             .WithMany(x => x.Children)
             .HasForeignKey(x => x.ParentId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Cascade);
 
         // Unique per project and path
         builder.HasIndex(x => new { x.ProjectId, x.Path })

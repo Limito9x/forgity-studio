@@ -1,6 +1,6 @@
 namespace Automation.Tag.Domain.Entities;
 
-public class TagItem : BaseEntity
+public class TagItem : AuditableEntity
 {
     public Guid ProjectId { get; set; }
     

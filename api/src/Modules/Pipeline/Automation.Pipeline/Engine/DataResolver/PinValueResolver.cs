@@ -191,28 +191,8 @@ public class PinValueResolver(
             resolvedValue = await assetResolver.ResolveAssetIfApplicableAsync(resolvedValue, ct);
 
             pinDef ??= FindPinDefinition(node, pinKey);
-            if (pinDef != null)
-            {
-                if (pinDef.Cardinality == PinCardinality.Array)
-                {
-                    if (resolvedValue is string arrJson && arrJson.TrimStart().StartsWith('['))
-                    {
-                        try { resolvedValue = JsonSerializer.Deserialize<List<object?>>(arrJson); } catch { }
-                    }
-                    else if (resolvedValue is not Array && resolvedValue is not System.Collections.IList && resolvedValue is not JsonElement { ValueKind: JsonValueKind.Array })
-                    {
-                        resolvedValue = new[] { resolvedValue };
-                    }
-                }
-                else if (pinDef.Cardinality == PinCardinality.Map && resolvedValue is string jsonStr && jsonStr.TrimStart().StartsWith('{'))
-                {
-                    try
-                    {
-                        resolvedValue = JsonSerializer.Deserialize<Dictionary<string, object?>>(jsonStr) ?? resolvedValue;
-                    }
-                    catch { }
-                }
-            }
+            resolvedValue = PinTypeCoercer.Coerce(resolvedValue, pinDef);
+
 
             // Memoize resolved value in memory store
             await memoryStore.SetNodePinValueAsync(executionId, nodeId, pinKey, resolvedValue, scope, ct);

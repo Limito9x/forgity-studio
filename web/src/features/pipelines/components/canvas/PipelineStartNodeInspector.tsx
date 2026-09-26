@@ -26,7 +26,7 @@ import {
   useDeletePipelineInput,
   useUpdatePipelineTrigger,
 } from "../../hooks/usePipelineGraph";
-import { useWorkspaces } from "@/features/workspaces/hooks/useWorkspaces";
+import { useRepositories } from "@/features/repositories/hooks/useRepositories";
 import { getPinVisual, formatPinTypeLabel } from "./CustomPipelineNode";
 import { toast } from "sonner";
 
@@ -68,7 +68,7 @@ export function PipelineStartNodeInspector({
   triggerConfig = null,
 }: PipelineStartNodeInspectorProps) {
   const { data: schemaInputs = [], refetch: refetchSchema } = usePipelineInputSchema(pipelineId);
-  const { data: workspaces = [] } = useWorkspaces(projectId);
+  const { data: workspaces = [] } = useRepositories(projectId);
   const addInputMutation = useAddPipelineInput(pipelineId);
   const deleteInputMutation = useDeletePipelineInput(pipelineId);
   const updateTriggerMutation = useUpdatePipelineTrigger(pipelineId);

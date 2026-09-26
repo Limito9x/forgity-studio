@@ -1,4 +1,4 @@
-import { useGetResourcesByContent, useAssignResourcesContent } from "@/features/workspaces/hooks/useWorkspaceResources";
+import { useGetResourcesByContent, useAssignResourcesContent } from "@/gen/endpoints/resources/resources";
 import { FileCode, GitBranch, HardDrive, Unlink, Loader2, FolderTree, Layers, Plus, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDialogStore } from "@/stores/dialogStore";
@@ -58,7 +58,7 @@ export function ContentResourcesTab({ contentId, contentName, projectId }: Conte
 
   const totalSizeBytes = useMemo(() => {
     if (!resources) return 0;
-    return resources.reduce((acc, item) => acc + (item.latestSizeBytes || 0), 0);
+    return resources.reduce((acc: number, item: any) => acc + (item.latestSizeBytes || 0), 0);
   }, [resources]);
 
   if (isLoading) {
@@ -136,7 +136,7 @@ export function ContentResourcesTab({ contentId, contentName, projectId }: Conte
 
       {/* List of Resource Cards */}
       <div className="grid grid-cols-1 gap-2">
-        {resources.map((item) => (
+        {resources.map((item: any) => (
           <div
             key={item.id}
             className="group flex items-center justify-between p-3 rounded-xl border bg-card hover:border-primary/40 hover:shadow-xs transition-all"

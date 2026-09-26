@@ -138,7 +138,7 @@ public class CollectionToolsTests
     [Fact]
     public async Task MakeMapTool_ShouldCreateSingleEntryMap()
     {
-        var tool = new Tools.Utility.MakeMapTool();
+        var tool = new MakeMapTool();
         var inputs = new Dictionary<string, object>
         {
             ["Key_0"] = "Diffuse",
@@ -283,7 +283,7 @@ public class CollectionToolsTests
     [Fact]
     public async Task SetMapKeyTool_PureExecution_ShouldReturnUpdatedMap()
     {
-        var tool = new SetMapKeyTool();
+        var tool = new SetMapItemTool();
         var inputs = new Dictionary<string, object>
         {
             ["TargetMap"] = new Dictionary<string, object?> { ["Diffuse"] = "diff.png" },
@@ -303,7 +303,7 @@ public class CollectionToolsTests
     [Fact]
     public async Task AppendMapTool_ShouldMergeTwoMaps()
     {
-        var tool = new AppendMapTool();
+        var tool = new MergeMapsTool();
         var inputs = new Dictionary<string, object>
         {
             ["TargetMap"] = new Dictionary<string, object?> { ["A"] = "1" },

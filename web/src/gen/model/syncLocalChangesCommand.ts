@@ -4,13 +4,16 @@
  * Automation.Api | v1
  * OpenAPI spec version: 1.0.0
  */
-import type { DictionaryOfStringAndString } from "./dictionaryOfStringAndString";
 import type { ListOfString } from "./listOfString";
 
 export interface SyncLocalChangesCommand {
+  /** @minLength 1 */
+  repositoryId: string;
+  /** @minLength 1 */
+  runnerId: string;
   /** @nullable */
   notes: string | null;
   targetPaths: ListOfString;
   /** @nullable */
-  newResourceNames: DictionaryOfStringAndString | null;
+  removedPaths?: unknown[] | null;
 }

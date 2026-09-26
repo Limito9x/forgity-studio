@@ -14,7 +14,7 @@ import {
   SidebarMenuSubItem,
   SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, Settings, Logs, Folder, ChevronRight, Layers, Workflow, Cpu, Boxes } from "lucide-react";
+import { LayoutDashboard, Settings, Logs, ChevronRight, Workflow, Cpu, Boxes, FolderGit2, Folder } from "lucide-react";
 import { NavUser } from "./NavUser";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useGetProjectById } from "@/features/projects/hooks/useProjects";
@@ -37,9 +37,9 @@ export function ProjectSidebar() {
       icon: LayoutDashboard
     },
     {
-      title: "Workspaces",
-      url: `/projects/${currentProjectId}/workspaces`,
-      icon: Layers
+      title: "Repositories",
+      url: `/projects/${currentProjectId}/repositories`,
+      icon: FolderGit2
     },
     {
       title: "Pipelines",

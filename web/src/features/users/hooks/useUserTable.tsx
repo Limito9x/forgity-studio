@@ -6,7 +6,7 @@ import { DataTableRowActions } from "@/components/table/DataTableRowActions";
 import type { BaseSearchParams, useResourceQuery } from "@/lib/useResourceQuery";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { UserDto } from "@/gen/model";
-import { useAutomationIdentityFeaturesUsersBulkUpdateStatusBulkUpdateUserStatus } from "@/gen/endpoints/users/users";
+import { useBulkUpdateUserStatus } from "@/gen/endpoints/users/users";
 import { EditIcon, TrashIcon, ShieldIcon, TypeIcon, HashIcon, TagsIcon, ActivityIcon, PowerIcon, EyeIcon } from "lucide-react";
 import { useDataTable } from "@/lib/useDataTable";
 import { toast } from "sonner";
@@ -23,7 +23,7 @@ export function useUserTable({ data, totalCount, resource }: UseUserTableOptions
     const openDialog = useDialogStore((state) => state.openDialog);
     const queryClient = useQueryClient();
     const navigate = useNavigate();
-    const bulkUpdateStatus = useAutomationIdentityFeaturesUsersBulkUpdateStatusBulkUpdateUserStatus();
+    const bulkUpdateStatus = useBulkUpdateUserStatus();
 
     const columns = useMemo<ColumnDef<UserDto>[]>(
         () => [

@@ -8,5 +8,5 @@ logs/
 Generated/
 appsettings.*.json
 appsettings.json
-tools/
+/tools/
 rename-template.ps1

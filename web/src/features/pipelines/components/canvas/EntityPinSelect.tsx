@@ -1,9 +1,9 @@
 import { useState, useMemo } from "react";
 import { useParams } from "@tanstack/react-router";
 import { BaseCombobox } from "@/components/custom-ui/inputs/combobox/BaseCombobox";
-import { useWorkspaces } from "@/features/workspaces/hooks/useWorkspaces";
-import { useWorkspaceResources } from "@/features/workspaces/hooks/useWorkspaceResources";
-import { useAgents } from "@/features/agents/hooks/useAgents";
+import { useRepositories } from "@/features/repositories/hooks/useRepositories";
+import { useGetRepositoryResources } from "@/gen/endpoints/repositories/repositories";
+import { useRunners } from "@/features/runners/hooks/useRunners";
 import { useTags } from "@/features/tags/hooks/useTags";
 import { useContentTypes } from "@/features/contentTypes/hooks/useContentTypes";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -41,23 +41,23 @@ export function EntityPinSelect({
   const isResourceRef = normType.includes("resource");
   const isContentTypeRef = normType === "contenttype" || normType.includes("contenttype");
 
-  // 1. Workspaces
-  const { data: workspacesData, isLoading: isWorkspacesLoading } = useWorkspaces(
-    normType === "workspace" || isResourceRef ? effectiveProjectId : ""
+  // 1. Repositories
+  const { data: workspacesData, isLoading: isWorkspacesLoading } = useRepositories(
+    normType === "workspace" || normType === "repository" || isResourceRef ? effectiveProjectId : ""
   );
 
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>("");
   const [resourceSearch, setResourceSearch] = useState<string>("");
 
-  // 2. Resources within Selected Workspace
-  const { data: resourcesData, isLoading: isResourcesLoading } = useWorkspaceResources(
+  // 2. Resources within Selected Repository
+  const { data: resourcesData, isLoading: isResourcesLoading } = useGetRepositoryResources(
     selectedWorkspaceId,
-    { projectId: effectiveProjectId, pageSize: 100 },
-    { enabled: isResourceRef && Boolean(selectedWorkspaceId) }
+    { projectId: effectiveProjectId, workspaceId: selectedWorkspaceId, pageSize: 100, page: 1 },
+    { query: { enabled: isResourceRef && Boolean(selectedWorkspaceId) } }
   );
 
-  // 3. Agents
-  const { data: agentsData, isLoading: isAgentsLoading } = useAgents();
+  // 3. Runners
+  const { data: agentsData, isLoading: isAgentsLoading } = useRunners();
 
   // 4. Tags
   const { data: tagsData, isLoading: isTagsLoading } = useTags(
