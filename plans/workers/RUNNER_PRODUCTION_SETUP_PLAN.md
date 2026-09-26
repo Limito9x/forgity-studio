@@ -1,170 +1,185 @@
 # Kế Hoạch Thiết Kế & Triển Khai: Production-Grade Runner (Worker)
 
-> **Tài liệu Kế hoạch Kỹ thuật (Technical Planning Document)**  
+> **Tài liệu Kế hoạch Kỹ thuật (Master Technical Blueprint)**  
 > **Vị trí**: `plans/workers/RUNNER_PRODUCTION_SETUP_PLAN.md`  
-> **Ngày lập**: 2026-09-24  
-> **Mục tiêu**: Chuẩn hóa toàn diện Automation Runner từ bản PoC thành hệ thống Daemon máy trạm chuẩn công nghiệp: Không tạo lại bánh xe, đóng gói độc lập, định danh phần cứng (Hardware Profiling), tách biệt tính năng quét Executor Config, và vận hành bền bỉ dưới dạng Windows Service.
+> **Trạng thái**: Đang triển khai (Active Execution)  
+> **Cập nhật ngày**: 2026-09-26  
+> **Tóm tắt tiến độ**: Đã hoàn thành 100% Nền tảng Backend DB, Dọn dẹp Worker Core, Hardware Scanner, gRPC Handlers và CLI. Đang tiến hành Giai đoạn 2: Hoàn thiện Frontend Management & Onboarding.
 
 ---
 
-## 1. Triết Lý Thiết Kế: "Không Tạo Lại Bánh Xe"
+## 1. Tầm Nhìn & Viễn Cảnh Vận Hành (The "Remote Control" Vision)
 
-Thay vì tự phát minh ra các cơ chế phức tạp, kiến trúc Runner kế thừa các tiêu chuẩn đã được kiểm chứng từ các sản phẩm hàng đầu:
-- **GitHub Actions & GitLab Runner**: Cơ chế **Ephemeral Setup Token** (Token dùng 1 lần, hết hạn sau 1h để đổi lấy Machine Key dài hạn) + Gói chạy tự chứa (Self-contained).
-- **Flamenco (Blender Foundation)**: Cơ chế bắt tay nhận diện máy trạm đồ họa, tách bạch giữa **năng lực phần cứng** (GPU/VRAM) và **phần mềm cài đặt** (Blender versions).
-- **Cloudflare Tunnel / WinSW**: Cơ chế bọc Daemon thành **Windows Service** nhẹ nhàng, tự khởi động cùng máy tính, tự phục hồi khi crash mà không cần mở cửa sổ dòng lệnh màu đen.
+Mục tiêu tối thượng của Runner là **biến chiếc PC đồ họa mạnh mẽ tại nhà/studio thành một trạm tính toán đám mây cá nhân (Personal Cloud Node)**:
+
+1. **Cài đặt 1 lần duy nhất**: Người dùng tải gói Runner về PC, chạy file `install.bat` hoặc 1 dòng lệnh với Setup Token. Runner tự động thiết lập chạy ngầm cùng Windows mỗi khi đăng nhập.
+2. **Điều khiển từ mọi nơi (Web First)**:
+   - Mở Web Dashboard thấy ngay máy trạm ở nhà đang **Online**, cấu hình phần cứng hiển thị trực quan (`NVIDIA RTX 3050 4GB`, `16GB RAM`, `AMD Ryzen 7 16 Threads`, `Idle`).
+   - Mở modal cấu hình Pipeline: Bấm nút **"Browse Remote Files"** ➔ Màn hình hiện lên một File Browser trực quan giống hệt Blender: có ổ `C:`, ổ `D:`, thư mục `Desktop`, các folder dự án đã ghim.
+   - Chọn file `D:/Projects/Scene_01.blend`, chọn bản `Blender 5.2`, bấm **"Start Pipeline"**.
+   - Máy trạm tự động nhận lệnh qua RabbitMQ/gRPC, kích hoạt tiến trình render ngầm, stream log và thông số GPU trực tiếp về Web.
 
 ---
 
-## 2. Mô Hình Phân Tầng Thông Tin Máy Trạm (Workstation Hierarchy)
+## 2. Các Hạng Mục ĐÃ HOÀN TẤT (Completed Foundation) ✅
 
-Cần phân định rạch ròi 2 tầng thông tin để tránh xung đột dữ liệu:
+Toàn bộ nền tảng cốt lõi từ Backend đến Worker Daemon đã được triển khai và kiểm thử hoàn tất:
+
+### 2.1. Backend Core & Database (`api/`) ✅
+- **Entity & PostgreSQL JSONB**:
+  - [Runner.cs](file:///d:/FullStack/Automation/api/src/Modules/Runner/Automation.Runner/Domain/Entities/Runner.cs): Đã bổ sung 5 cột indexable (`OsPlatform`, `CpuModel`, `TotalRamBytes`, `PrimaryGpuName`, `PrimaryGpuVramBytes`), `LastHardwareScannedAt`, và cột JSONB `HardwareDetails` ([RunnerHardwareProfile.cs](file:///d:/FullStack/Automation/api/src/Modules/Runner/Automation.Runner/Domain/Entities/RunnerHardwareProfile.cs)).
+  - Đã sinh và áp dụng EF Core Migration: `20260926054054_AddRunnerHardwareProfile`.
+- **Vertical Slice Architecture Endpoints**:
+  - [ScanRunnerHardware.cs](file:///d:/FullStack/Automation/api/src/Modules/Runner/Automation.Runner/Features/Runners/ScanRunnerHardware.cs): `POST /runners/{runnerId}/hardware/scan` kích hoạt Runner quét lại phần cứng từ xa qua gRPC.
+  - [UpdateRunnerHardwareProfile.cs](file:///d:/FullStack/Automation/api/src/Modules/Runner/Automation.Runner/Features/Runners/UpdateRunnerHardwareProfile.cs): `POST /runners/{runnerId}/hardware-profile` cho phép Runner push snapshot khi khởi động hoặc chạy lệnh rescan.
+  - [ScanExecutors.cs](file:///d:/FullStack/Automation/api/src/Modules/Runner/Automation.Runner/Features/Runners/ScanExecutors.cs): `POST /runners/{runnerId}/executors/scan` kích hoạt Runner quét phần mềm đồ họa cài đặt.
+  - `IRunnerApi` & `RunnerApiService`: Triển khai `SendScanHardwareCommandAsync` và `SendScanExecutorsCommandAsync`.
+  - **Build status**: `dotnet build Automation.sln` đạt **0 Warning / 0 Error**.
+
+### 2.2. Worker Daemon & System Core (`workers/`) ✅
+- **Dọn dẹp & Tái cấu trúc chuẩn công nghiệp**:
+  - Xóa bỏ các file rác cũ (`run_worker.bat`, `inspector_consumer.py`, queue `tasks.inspect`).
+  - Di chuyển các script Admin/Dev vào [workers/tools/](file:///d:/FullStack/Automation/workers/tools/) (`compile_protos.py`, `purge_queues.py`).
+  - Toàn bộ code, docstring, log, CLI prompts được chuyển đổi **100% sang tiếng Anh**.
+  - **Bảo tồn tuyệt đối**: Các Stage Runners ([stage_runner.py](file:///d:/FullStack/Automation/workers/worker/scripts/stage_runner.py), [ue_stage_runner.py](file:///d:/FullStack/Automation/workers/worker/scripts/ue_stage_runner.py)) được giữ nguyên vẹn 100%.
+- **Zero-Dependency Hardware Scanner** ([core/system/hardware.py](file:///d:/FullStack/Automation/workers/core/system/hardware.py)):
+  - Sử dụng Windows Registry + ctypes native (không cần quyền Admin, không phụ thuộc WMI/psutil).
+  - Quét trong **0.15s**: CPU (AMD Ryzen 7 16 threads), 16GB RAM, Dual GPU (AMD Radeon iGPU + NVIDIA GeForce RTX 3050 Laptop GPU 4GB VRAM [PRIMARY]), Ổ đĩa C & D.
+- **Graphics Software Scanners** ([core/executors/](file:///d:/FullStack/Automation/workers/core/executors)):
+  - Tách kiến trúc Base-First: [blender_scanner.py](file:///d:/FullStack/Automation/workers/core/executors/blender_scanner.py) (Registry, Steam, PATH), [unreal_scanner.py](file:///d:/FullStack/Automation/workers/core/executors/unreal_scanner.py) (Epic Games Launcher), [python_scanner.py](file:///d:/FullStack/Automation/workers/core/executors/python_scanner.py) (Host AI/DCC Python).
+- **gRPC Contract & Handlers** ([handlers/](file:///d:/FullStack/Automation/workers/handlers/)):
+  - [packages/proto/agent.proto](file:///d:/FullStack/Automation/packages/proto/agent.proto): Bổ sung `ScanHardwareCommand` & `ScanHardwareCommandResult`. Đã biên dịch sang C# và Python.
+  - Handlers độc lập: [hardware_handler.py](file:///d:/FullStack/Automation/workers/handlers/hardware_handler.py), [executor_handler.py](file:///d:/FullStack/Automation/workers/handlers/executor_handler.py), [browse_handler.py](file:///d:/FullStack/Automation/workers/handlers/browse_handler.py), [scan_handler.py](file:///d:/FullStack/Automation/workers/handlers/scan_handler.py).
+  - [commands/connect.py](file:///d:/FullStack/Automation/workers/commands/connect.py): Tinh gọn thành gRPC dispatcher thuần túy (~85 dòng).
+- **CLI Entrypoint & Launcher** ([runner.bat](file:///d:/FullStack/Automation/workers/runner.bat) + [cli.py](file:///d:/FullStack/Automation/workers/cli.py)):
+  - `runner.bat rescan-hardware`: Tái quét phần cứng tại chỗ và đồng bộ lên server.
+  - `runner.bat diagnose`: Báo cáo 5 phần toàn diện (Identity, Hardware, Engines, RabbitMQ, gRPC).
+  - `runner.bat start`: Khởi động worker ngầm + **Auto-diff hardware trên boot**.
+  - `runner.bat register`: Kích hoạt bằng Setup Token, tự scan hardware ban đầu.
+
+---
+
+## 3. Lộ Trình Triển Khai Mới (Updated Roadmap)
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        RUNNER CORE (Phần Cứng)                         │
-│  - Hostname, OS, Platform (Windows 11 x64)                             │
-│  - Machine Key (MAC Address + Motherboard UUID)                        │
-│  - Hardware Spec:                                                      │
-│    ├── CPU: Model, Cores, Threads (e.g. AMD Ryzen 9 7950X, 16C/32T)   │
-│    ├── RAM: Total Memory (e.g. 64GB)                                   │
-│    └── GPU: NVIDIA RTX 4090, 24GB VRAM, CUDA Driver 560.xx             │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ Liên kết Many-to-Many
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                   EXECUTOR CONFIGS (Phần Mềm Đồ Họa)                  │
-│  (Quản lý độc lập - Có thể quét lại hoặc thêm/bớt thủ công)            │
-│  ├── Blender:                                                          │
-│  │   ├── v4.2 -> C:\Program Files\Blender Foundation\Blender 4.2       │
-│  │   └── v5.2 -> C:\...\Blender 5.2\blender.exe                        │
-│  ├── Unreal Engine:                                                    │
-│  │   └── v5.4 -> D:\Epic Games\UE_5.4\Engine\Binaries\Win64\...        │
-│  └── Python Standalone:                                                │
-│      └── v3.12 -> C:\Users\...\AppData\Local\Programs\Python           │
-└────────────────────────────────────────────────────────────────────────┘
+[ ĐÃ HOÀN TẤT ] ── Giai đoạn 1: Backend Database & Worker Core (Phần cứng, gRPC, CLI)
+      │
+      ▼
+[ TRỌNG TÂM ] ── Giai đoạn 2: Hoàn thiện Frontend Runner Management & Onboarding UI
+      │            ├─ 2.1: Dialog "Connect New Runner" (Sinh Token, copy lệnh 1-click)
+      │            ├─ 2.2: Nâng cấp Runner Card (Hiển thị CPU, RAM, RTX 3050, VRAM, Disks)
+      │            ├─ 2.3: Actions tương tác (Nút Re-scan Hardware & Scan Software từ xa)
+      │            └─ 2.4: Chuẩn hóa thuật ngữ Runner trên toàn Frontend
+      │
+      ▼
+[ GIAI ĐOẠN 3 ] ── Giai đoạn 3: Remote File/Folder Picker Chuẩn Phong Cách Blender
+      │            ├─ Mở rộng gRPC: Drives (dung lượng free), System Places, Pinned Folders
+      │            ├─ Component RemoteFilePicker 2-panel (Left Sidebar + Right Explorer)
+      │            └─ Tích hợp vào Pipeline Form / Project Config (chọn .blend, .uproject từ xa)
+      │
+      ▼
+[ GIAI ĐOẠN 4 ] ── Giai đoạn 4: Đóng Gói Phân Phối & Tự Khởi Động (Production Release)
+                   ├─ Script `install.bat` 1-click (hỗ trợ cả CLI và click đúp nhập token)
+                   ├─ Đóng gói kèm Python Embedded (~60MB zip độc lập, zero-dependency)
+                   └─ Tự động hóa User Logon Task Scheduler (`runner.bat setup-autostart`)
 ```
 
 ---
 
-## 3. Kiến Trúc Chi Tiết Từng Trọng Tâm
+## 4. Chi Tiết Các Giai Đoạn Tiếp Theo
 
-### 3.1. Đóng Gói Phân Phối (Packaging & Distribution)
-- **Vấn đề của PoC**: Máy trạm phải có sẵn Python, phải clone repo, cài `pip install`, dễ xung đột môi trường.
-- **Giải pháp Production**:
-  - Đóng gói toàn bộ `workers/` thành gói độc lập (Self-contained Archive `.zip` hoặc installer):
-    - Sử dụng **Embedded Python 3.12** (chính thức từ Python.org, chỉ ~15MB) đi kèm folder thư viện độc lập `site-packages/`.
-    - Cung cấp file thực thi chính: `automation-runner.exe` (hoặc bootstrap launcher `runner.bat`).
-  - **Trải nghiệm người dùng**:
-    - Tải file `automation-runner-win-x64.zip` từ trang Studio Settings hoặc Web Dashboard.
-    - Giải nén ra thư mục bất kỳ (ví dụ: `C:\AutomationRunner`). Không yêu cầu quyền Administrator để giải nén.
+### Giai Đoạn 2: Frontend Runner Management & Onboarding UI (Đang thực hiện)
 
----
+Mục tiêu: Đóng kín vòng lặp trải nghiệm người dùng trên Web Dashboard ([RunnerPage.tsx](file:///d:/FullStack/Automation/web/src/features/runners/RunnerPage.tsx)).
 
-### 3.2. Quy Trình Cấp Token & Xác Thực An Toàn (Pairing Flow)
+1. **Task 2.1 - Onboarding Dialog (`ConnectRunnerDialog.tsx`)**:
+   - Thêm nút chính **"Connect Runner"** trên Header trang Runners.
+   - Bấm vào mở Dialog:
+     - Gọi `useGenerateSetupToken` sinh Setup Token (hạn 15 phút).
+     - Hiển thị Token rõ ràng với nút Copy.
+     - Hiển thị câu lệnh 1-click để dán vào terminal máy trạm:
+       ```bat
+       .\runner.bat register
+       ```
+     - Kèm link tải gói Runner (chuẩn bị cho Giai đoạn 4).
 
-1. **Trên Web UI (Studio Admin)**:
-   - Người dùng bấm **"Add Runner to Studio"**.
-   - Backend sinh một **Setup Token** (ký JWT hoặc mã UUID có thời hạn 30-60 phút, chứa `StudioId` đích).
-   - Web hiển thị:
-     - **Option A (One-Liner PowerShell - Khuyên dùng)**: Đoạn lệnh copy gồm tải zip -> giải nén -> chạy lệnh đăng ký.
-     - **Option B (Thủ công)**: Setup Token dạng chuỗi text để paste vào file config hoặc CLI.
-2. **Trên Máy Trạm (Workstation Registration)**:
-   - Lệnh đăng ký:
-     ```powershell
-     .\automation-runner.exe register --url "https://api.my-studio.com" --token "std-tk-9a8b7c..."
-     ```
-   - **Các bước Runner thực hiện ngầm**:
-     - Thu thập thông tin phần cứng (CPU, RAM, GPU qua `wmic` / `nvidia-smi`).
-     - Gửi request `POST /api/runners/register-with-token` lên Backend.
-     - Backend xác thực Setup Token ➔ Đăng ký Runner vào Database ➔ Liên kết vào Studio tương ứng ➔ Trả về **Machine Secret (Permanent Token)**.
-     - Runner lưu cấu hình bảo mật vào file cục bộ: `%LOCALAPPDATA%\AutomationStudio\runner_config.json` (chỉ user sở hữu máy mới đọc được).
+2. **Task 2.2 - Nâng Cấp Runner Card UI**:
+   - Thiết kế lại Card máy trạm trên Grid theo chuẩn thiết kế Shadcn/Tailwind:
+     - **Header**: Tên máy tính (Hostname), Platform (Windows 11 AMD64), Badge trạng thái Online/Offline (Xanh/Xám).
+     - **Hardware Badges**:
+       - ⚡ **CPU**: Model CPU + Cores/Threads (e.g. AMD Ryzen 7 6800HS 16T).
+       - 🧠 **RAM**: Tổng dung lượng (e.g. 15.3 GB).
+       - 🎮 **GPU**: Card chính kèm VRAM (e.g. NVIDIA GeForce RTX 3050 Laptop GPU - 4.0 GB).
+       - 💾 **Storage**: Các ổ đĩa chính (C: 54GB free, D: 156GB free).
+     - **Last Seen / Scanned**: Thời điểm quét phần cứng gần nhất.
 
----
+3. **Task 2.3 - Actions Tương Tác Trực Tiếp (Remote Triggers)**:
+   - Nút **"Re-scan Hardware"**: Gọi `POST /runners/{id}/hardware/scan` ➔ máy trạm quét lại phần cứng và cập nhật realtime trên card.
+   - Nút **"Scan Software"**: Gọi `POST /runners/{id}/executors/scan` ➔ hiển thị danh sách các bản Blender, Unreal, Python đã phát hiện trên máy đó.
 
-### 3.3. Thu Thập & Nhúng Cấu Hình Phần Cứng (Hardware Profiling)
-Module `hardware_info.py` tự động chạy khi khởi động và đăng ký:
-- **CPU**: Tên chip, số nhân/luồng (`platform.processor()`, `psutil.cpu_count()`).
-- **RAM**: Dung lượng RAM vật lý (`psutil.virtual_memory().total`).
-- **GPU (Tối quan trọng cho VFX/3D)**:
-  - Gọi công cụ tiêu chuẩn `nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader,nounits` (có fallback qua DirectX/WMI nếu máy không có card NVIDIA).
-  - Lấy được: Tên GPU (e.g. `RTX 4090`), VRAM (e.g. `24576 MB`), Driver version.
-- **Ý nghĩa**:
-  - Giúp Web Dashboard hiển thị cấu hình máy trực quan.
-  - Sau này Pipeline Engine có thể route Job thông minh (ví dụ: Job bake texture 8K chỉ giao cho máy có VRAM ≥ 16GB).
+4. **Task 2.4 - Chuẩn Hóa Thuật Ngữ**:
+   - Rà soát các component (như `ProjectExecutorConfigTable.tsx`) đổi các chuỗi "Agent" thành "Runner" cho đồng bộ với toàn hệ thống.
 
 ---
 
-### 3.4. Quét & Bổ Sung Executor Config (Tính Năng Riêng Biệt)
-- Đây là một tiến trình **độc lập với đăng ký phần cứng**:
-  - Runner có lệnh:
-    ```powershell
-    .\automation-runner.exe scan-executors
-    ```
-  - Hoặc Backend có thể gửi tín hiệu từ xa qua gRPC: **"Request Runner re-scan software"**.
-- **Cơ chế quét (Scanner)**:
-  - **Blender Scanner**:
-    - Quét registry `SOFTWARE\BlenderFoundation`
-    - Quét các thư mục mặc định: `C:\Program Files\Blender Foundation\*`
-    - Quét `PATH` môi trường
-    - Đọc version thực tế bằng lệnh `blender.exe --version`
-  - **Unreal Engine Scanner**:
-    - Quét registry `SOFTWARE\EpicGames\Unreal Engine`
-    - Quét các ổ đĩa phổ biến `C:\`, `D:\Program Files\Epic Games\UE_*`
-  - **Báo cáo**:
-    - Gửi danh sách phát hiện lên API `POST /api/runners/{runnerId}/executors/report`.
-    - Trên Web UI có trang quản lý **Executor Configs** cho từng Runner: người quản lý có thể kích hoạt, tắt, hoặc tự thêm một đường dẫn tùy chỉnh (Custom Path).
+### Giai Đoạn 3: Remote File/Folder Picker Chuẩn Phong Cách Blender
+
+Mục tiêu: Cho phép người dùng ngồi từ xa duyệt file/folder trên máy trạm thông qua giao diện Web 2 cột trực quan.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ 📁 Remote File Browser (Runner: DESKTOP-DNN7HQ6)                                                    │
+├────────────────────────────────┬────────────────────────────────────────────────────────────────────┤
+│ ◀ LEFT SIDEBAR                 │ ▶ RIGHT CONTENT EXPLORER                                           │
+│                                │                                                                    │
+│ 🖥️ SYSTEM (Drives)             │ [ ◀ ] [ ▲ ]  D:/Projects/VFX_Shot01/Assets/  [ 🔍 Search... ] [ 🔄 ]│
+│   💽 C: [OS]      (54GB Free)  │ ────────────────────────────────────────────────────────────────── │
+│   💽 D: [DATA]    (156GB Free) │ Mode: [ All Blender Files (*.blend) ▼ ]                            │
+│                                │                                                                    │
+│ 📌 SYSTEM PLACES               │ [📁 ..]                                                            │
+│   🏠 Home (User Profile)       │ [📁 textures]                               02/09/2026    Folder   │
+│   🖥️ Desktop                   │ [📁 cache]                                  02/09/2026    Folder   │
+│   📄 Documents                 │ [📦 character_rig.blend]         142.5 MB   01/09/2026    Blender  │
+│   📥 Downloads                 │ [📦 environment_lighting.blend]  312.0 MB   28/08/2026    Blender  │
+│                                │                                                                    │
+│ ⭐ PINNED FOLDERS              │                                                                    │
+│   📂 D:/Projects/VFX_Shot01    │                                                                    │
+├────────────────────────────────┴────────────────────────────────────────────────────────────────────┤
+│ Selected: [ D:/Projects/VFX_Shot01/Assets/character_rig.blend                                    ] │
+│ Mode: File Picker (Extensions: .blend, .fbx)               [ Cancel ]  [ Select File (Open) ]       │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+1. **Nâng cấp gRPC Contract (`agent.proto`)**:
+   - Bổ sung `DriveInfoMessage` (mount, label, total_bytes, free_bytes).
+   - Bổ sung `SystemPlaceMessage` (name, path).
+   - Bổ sung `pinned_folders` (lưu tại local config máy trạm).
+2. **Nâng cấp `core/system/file_browser.py` & Handler**:
+   - Tự động phát hiện các ổ đĩa và thư mục hệ thống (Desktop, Downloads, Home) trong < 3ms.
+   - Hỗ trợ thêm/xóa Pinned Folders vào `agent_config.json`.
+3. **Xây dựng Component `RemoteFilePicker.tsx` (Frontend)**:
+   - Left Sidebar: Drives với thanh dung lượng, System Places, Pinned Folders.
+   - Right Explorer: Breadcrumb, tìm kiếm nhanh, lọc theo extension (`.blend`, `.uproject`).
+   - Hai chế độ: Chọn Thư mục (Folder mode) hoặc Chọn Tệp (File mode).
 
 ---
 
-### 3.5. Vận Hành Dưới Dạng Windows Service (Persistent Background Daemon)
-- Để Runner chạy thực sự "nghiêm túc", nó không thể là một cửa sổ console cmd mà người dùng vô tình bấm tắt là chết.
-- **Giải pháp**:
-  - Sử dụng **WinSW (Windows Service Wrapper)** hoặc **NSSM**: Một file binary wrapper mã nguồn mở, kích thước ~500KB, tiêu chuẩn công nghiệp cho Windows.
-  - Runner tích hợp lệnh quản lý:
-    ```powershell
-    .\automation-runner.exe service install    # Cài đặt Windows Service tự chạy cùng máy
-    .\automation-runner.exe service start      # Bật dịch vụ ngầm
-    .\automation-runner.exe service status     # Kiểm tra trạng thái
-    .\automation-runner.exe service uninstall  # Gỡ bỏ dịch vụ
-    ```
-  - Khi cài làm Service:
-    - Log ghi tự động ra file xoay vòng (rotating log): `%LOCALAPPDATA%\AutomationStudio\logs\runner.log`.
-    - Tự động restart nếu bị crash bất ngờ.
-    - Không hiển thị bất kỳ cửa sổ console nào làm phiền nghệ sĩ 3D đang làm việc trên máy trạm.
+### Giai Đoạn 4: Đóng Gói Phân Phối & Tự Khởi Động (Production Release)
 
----
+Mục tiêu: Đưa Runner thành một gói phần mềm độc lập, người dùng không cần cài đặt Python.
 
-## 4. Lộ Trình Triển Khai Từng Bước (Roadmap Nghiên Cứu & Thực Hiện)
-
-### Giai đoạn 1: Chuẩn Hóa Contracts & API Backend
-1. Hoàn thiện bảng `Runner`:
-   - Bổ sung các cột: `CpuInfo`, `RamTotalBytes`, `GpuName`, `GpuVramBytes`, `OsVersion`.
-2. Tạo API cấp `SetupToken` (`POST /api/studios/{id}/setup-tokens`) và API đăng ký (`POST /api/runners/register-with-token`).
-3. Chuẩn hóa API nhận diện Executors (`POST /api/runners/{id}/executors/report`).
-
-### Giai đoạn 2: Nâng Cấp Module Worker Python
-1. Viết module `core/hardware.py`: Thu thập CPU, RAM, GPU NVIDIA chuẩn xác, chịu lỗi (fail-safe nếu không có GPU).
-2. Tách module `commands/scan_executors.py`: Tự động tìm Blender & Unreal trên Windows.
-3. Cập nhật `commands/register.py`: Nhận argument CLI không tương tác (`--url`, `--token`, `--name`), tự chạy hardware scan và gửi lên Backend.
-
-### Giai đoạn 3: Đóng Gói Phân Phối & Windows Service
-1. Chuẩn bị thư mục phân phối `dist/` với Embedded Python 3.12 sạch sẽ.
-2. Tích hợp `winsw.exe` và file template `runner-service.xml` để hỗ trợ lệnh `service install`.
-3. Viết script bootstrap cài đặt nhanh `install.ps1`.
-
-### Giai đoạn 4: Trải Nghiệm Giao Diện Trên Web
-1. Xây dựng Dialog **"Connect Runner"** trên Frontend:
-   - Hiển thị tab PowerShell One-Liner (có nút Copy nhanh).
-   - Hiển thị tab Setup Token thủ công.
-2. Nâng cấp bảng **Runners**:
-   - Hiển thị badge phần cứng (GPU `RTX 4090 24GB`, RAM `64GB`).
-   - Drawer/Tab xem các Executors (Blender 4.2, Blender 5.2) đã phát hiện trên máy đó.
-
----
-
-## 5. Kết Luận
-Cách tiếp cận này giúp dự án:
-- **Đạt chuẩn công nghiệp**: Ổn định, an toàn, không phụ thuộc vào việc máy trạm có cài Python hay không.
-- **Tôn trọng nghệ sĩ 3D**: Cài đặt 1 lần bằng 1 dòng lệnh, chạy ngầm tĩnh lặng, tự nhận diện Blender/GPU mà không bắt họ phải cấu hình phức tạp.
-- **Dễ bảo trì**: Tách bạch 100% giữa thông tin máy vật lý và danh mục phần mềm cài đặt.
+1. **Script Cài Đặt Tự Động (`install.bat`)**:
+   - Hỗ trợ 2 chế độ:
+     - **Chế độ dòng lệnh**: `.\install.bat --token <SETUP_TOKEN>` (tự chạy im lặng từ đầu đến cuối).
+     - **Chế độ tương tác**: Click đúp file `install.bat` ➔ nhắc người dùng dán Setup Token từ Web.
+   - Tự động lấy Hostname, MachineKey, đăng ký với server, quét phần cứng và khởi động background daemon.
+2. **Đóng Gói Gọn Gàng Kèm Python Embedded**:
+   - Sử dụng **Python 3.12/3.13 Embedded** chính thức (~40MB).
+   - Đã nhúng sẵn các dependency nhẹ (`grpcio`, `protobuf`, `pika`).
+   - Tổng kích thước gói zip: **~60MB**. Người dùng chỉ việc giải nén và chạy.
+3. **Chạy Ngầm Cùng Windows (Windows Task Scheduler)**:
+   - Tránh cạm bẫy Session 0 Isolation của Windows Service (làm mất quyền tăng tốc phần cứng GPU NVIDIA và ổ đĩa mạng).
+   - Lệnh `runner.bat setup-autostart` tự động đăng ký **User Logon Task**:
+     - Khởi chạy tĩnh lặng bằng `pythonw.exe` (không hiện cửa sổ console đen).
+     - Giữ 100% quyền GPU NVIDIA CUDA/OptiX và ổ đĩa mạng.
+     - Tự động khởi động lại nếu tiến trình gặp sự cố.

@@ -1,5 +1,15 @@
 import logging
+import os
+import sys
 import pika
+
+# Ensure parent directory is in sys.path when run directly
+current_dir = os.path.dirname(os.path.abspath(__file__))
+workers_root = os.path.dirname(current_dir)
+if workers_root not in sys.path:
+    sys.path.insert(0, workers_root)
+if os.path.join(workers_root, "core") not in sys.path:
+    sys.path.insert(0, os.path.join(workers_root, "core"))
 
 from core.config import (
     RABBITMQ_HOST,
@@ -31,7 +41,6 @@ def run():
             "stage_tasks",
             "stage_results",
             "step_progress",
-            "tasks.inspect",
         ]
 
         for q in queues_to_purge:
@@ -47,3 +56,6 @@ def run():
         print("[SUCCESS] All pending messages in RabbitMQ queues have been cleared!")
     except Exception as err:
         print(f"[ERROR] Failed to connect to RabbitMQ: {err}")
+
+if __name__ == "__main__":
+    run()

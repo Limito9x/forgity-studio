@@ -173,7 +173,6 @@ poetry.toml
 /pipeline/
 tests/
 agent_config.json
-.FullName
 cache/
 
 # LSP config files
