@@ -258,11 +258,92 @@ public class RunnerApiService(
         }
     }
 
+    public async Task<Result<bool>> SendScanHardwareCommandAsync(
+        Guid runnerId,
+        CancellationToken ct = default
+    )
+    {
+        if (!registry.TryGet(runnerId, out var connection) || connection is null)
+        {
+            return Result.Fail<bool>(
+                $"Runner with ID '{runnerId}' is not connected via gRPC stream."
+            );
+        }
+
+        var commandId = Guid.NewGuid().ToString();
+        var scanCommand = new ScanHardwareCommand
+        {
+            CommandId = commandId,
+        };
+
+        var task = commandTracker.RegisterCommandAsync(commandId, ct);
+
+        try
+        {
+            await connection.ResponseStream.WriteAsync(
+                new ServerMessage { ScanHardwareCommand = scanCommand },
+                ct
+            );
+
+            var response = await task;
+
+            if (!response.Success)
+            {
+                return Result.Fail<bool>(
+                    $"Error from Runner: {response.ErrorMessage}"
+                );
+            }
+
+            var hwResult = response.ScanHardwareResult;
+            if (hwResult is not null)
+            {
+                var runner = await db.Runners.FirstOrDefaultAsync(x => x.Id == runnerId, ct);
+                if (runner is not null)
+                {
+                    runner.OsPlatform = hwResult.OsPlatform;
+                    runner.CpuModel = hwResult.CpuModel;
+                    runner.TotalRamBytes = hwResult.TotalRamBytes;
+                    runner.PrimaryGpuName = hwResult.PrimaryGpuName;
+                    runner.PrimaryGpuVramBytes = hwResult.PrimaryGpuVramBytes;
+                    runner.LastHardwareScannedAt = DateTimeOffset.UtcNow;
+
+                    if (!string.IsNullOrWhiteSpace(hwResult.HardwareDetailsJson))
+                    {
+                        try
+                        {
+                            runner.HardwareDetails = System.Text.Json.JsonSerializer.Deserialize<Automation.Runner.Domain.Entities.RunnerHardwareProfile>(
+                                hwResult.HardwareDetailsJson,
+                                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                            );
+                        }
+                        catch
+                        {
+                            // Ignore malformed extra hardware json
+                        }
+                    }
+
+                    await db.SaveChangesAsync(ct);
+                }
+            }
+
+            return Result.Ok(true);
+        }
+        catch (OperationCanceledException)
+        {
+            return Result.Fail<bool>("Timed out waiting for hardware scan response from Runner.");
+        }
+        catch (Exception ex)
+        {
+            return Result.Fail<bool>($"Failed to send hardware scan command: {ex.Message}");
+        }
+    }
+
     public async Task<Result<IReadOnlyList<RunnerExecutorConfigDto>>> GetExecutorConfigsAsync(
         Guid runnerId,
         CancellationToken ct = default
     )
     {
+
         var configs = await db
             .RunnerExecutorConfigs.AsNoTracking()
             .Where(x => x.RunnerId == runnerId)

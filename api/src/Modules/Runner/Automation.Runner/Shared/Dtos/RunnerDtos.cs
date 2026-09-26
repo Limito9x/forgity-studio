@@ -1,3 +1,5 @@
+using Automation.Runner.Domain.Entities;
+
 namespace Automation.Runner.Shared.Dtos;
 
 public record RunnerDto(
@@ -7,6 +9,13 @@ public record RunnerDto(
     bool IsActive,
     DateTimeOffset? LastSeenAt,
     DateTimeOffset CreatedAt,
+    string? OsPlatform = null,
+    string? CpuModel = null,
+    long? TotalRamBytes = null,
+    string? PrimaryGpuName = null,
+    long? PrimaryGpuVramBytes = null,
+    DateTimeOffset? LastHardwareScannedAt = null,
+    RunnerHardwareProfile? HardwareDetails = null,
     IReadOnlyList<RunnerExecutorConfigDto>? ExecutorConfigs = null
 );
 
@@ -45,7 +54,7 @@ public record AgentDto(
     DateTimeOffset? LastSeenAt,
     DateTimeOffset CreatedAt,
     IReadOnlyList<RunnerExecutorConfigDto>? ExecutorConfigs = null
-) : RunnerDto(Id, Name, MachineKey, IsActive, LastSeenAt, CreatedAt, ExecutorConfigs);
+) : RunnerDto(Id, Name, MachineKey, IsActive, LastSeenAt, CreatedAt, ExecutorConfigs: ExecutorConfigs);
 
 public record RegisterAgentResultDto(
     Guid Id,

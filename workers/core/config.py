@@ -16,6 +16,7 @@ except ImportError:
 
 # 2. File cấu hình Agent (JSON)
 CONFIG_FILE = "agent_config.json"
+DEFAULT_API_URL = os.getenv("API_URL") or "http://localhost:5189/api"
 
 def load_config():
     if not os.path.exists(CONFIG_FILE):
@@ -29,10 +30,20 @@ def load_config():
 def get_config():
     config = load_config()
     if not config:
-        print(f"Error: {CONFIG_FILE} not found. Please run 'python cli.py register' first.")
+        print(f"Error: {CONFIG_FILE} not found. Please run 'runner.bat register' first.")
         import sys
         sys.exit(1)
     return config
+
+def save_config(config_data: dict, filepath: str = CONFIG_FILE) -> bool:
+    """Save configuration dictionary to JSON file."""
+    try:
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(config_data, f, indent=4)
+        return True
+    except Exception as e:
+        print(f"[ERROR] Failed to save configuration to '{filepath}': {e}")
+        return False
 
 # 3. Thông số kết nối RabbitMQ dùng chung (Ưu tiên: .env -> agent_config.json -> Mặc định "guest")
 _cfg = load_config() or {}

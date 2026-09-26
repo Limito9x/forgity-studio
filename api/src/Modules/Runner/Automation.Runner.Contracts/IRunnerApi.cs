@@ -29,6 +29,11 @@ public interface IRunnerApi
         string? executorKey = null,
         CancellationToken ct = default
     );
+    Task<Result<bool>> SendScanHardwareCommandAsync(
+        Guid runnerId,
+        CancellationToken ct = default
+    );
+
     Task<Result<List<RunnerInfo>>> GetRunnerInfoByIds(
         IReadOnlyList<Guid> runnerIds,
         CancellationToken ct = default

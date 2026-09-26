@@ -29,7 +29,17 @@ message CommandResponse {
         ScanCommandResult scan_result = 4;
         BrowseCommandResult browse_result = 5;
         ScanExecutorsCommandResult scan_executors_result = 6;
+        ScanHardwareCommandResult scan_hardware_result = 7;
     }
+}
+
+message ScanHardwareCommandResult {
+    string os_platform = 1;
+    string cpu_model = 2;
+    int64 total_ram_bytes = 3;
+    string primary_gpu_name = 4;
+    int64 primary_gpu_vram_bytes = 5;
+    string hardware_details_json = 6;
 }
 
 message ScanCommandResult {
@@ -75,6 +85,7 @@ message ServerMessage {
         ScanCommand scan_command = 1;
         BrowseCommand browse_command = 2;
         ScanExecutorsCommand scan_executors_command = 3;
+        ScanHardwareCommand scan_hardware_command = 4;
     }
 }
 
@@ -92,4 +103,8 @@ message BrowseCommand {
 message ScanExecutorsCommand {
     string command_id = 1;
     string executor_key = 2;
+}
+
+message ScanHardwareCommand {
+    string command_id = 1;
 }
