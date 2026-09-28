@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Automation.Studio.Domain.Entities;
 using Automation.Studio.Infrastructure.Persistence;
 using Automation.Studio.Shared.Dtos;
@@ -6,7 +6,10 @@ using Gridify;
 
 namespace Automation.Studio.Features.Projects;
 
-public class GetProjectsQuery : PagedQuery;
+public class GetProjectsQuery : PagedQuery
+{
+    public Guid? StudioId { get; set; }
+}
 
 public class GetProjectsEndpoint(IMessageBus bus)
     : Endpoint<GetProjectsQuery, PagedResult<ProjectDto>>
@@ -23,6 +26,14 @@ public class GetProjectsEndpoint(IMessageBus bus)
         GetProjectsQuery req,
         CancellationToken ct)
     {
+        if (!req.StudioId.HasValue &&
+            HttpContext.Request.Headers.TryGetValue("X-Studio-Id", out var studioHeader) &&
+            Guid.TryParse(studioHeader, out var sId) &&
+            sId != Guid.Empty)
+        {
+            req.StudioId = sId;
+        }
+
         var result = await bus.InvokeAsync<Result<PagedResult<ProjectDto>>>(req, ct);
         await this.SendResultAsync(result, ct);
     }
@@ -44,9 +55,18 @@ public class GetProjectsHandler(StudioDbContext db, ICurrentUserProvider userPro
         var mapper = new GridifyMapper<Project>()
             .GenerateMappings();
 
-        var result = await db.Projects
-            .Where(x => x.OwnerId == userId)
-            .AsNoTracking()
+        var queryable = db.Projects.AsNoTracking();
+
+        if (query.StudioId.HasValue && query.StudioId.Value != Guid.Empty)
+        {
+            queryable = queryable.Where(x => x.StudioId == query.StudioId.Value);
+        }
+        else
+        {
+            queryable = queryable.Where(x => x.OwnerId == userId);
+        }
+
+        var result = await queryable
             .ToPagedResultAsync<Project, ProjectDto>(query, mapper, ct);
             
         return result;

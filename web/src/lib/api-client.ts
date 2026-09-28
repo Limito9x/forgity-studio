@@ -6,6 +6,7 @@ import axios, {
 } from 'axios';
 import { toast } from 'sonner';
 import { getAuthState } from '@/stores/authStore';
+import { useStudioStore } from '@/stores/studioStore';
 import qs from 'qs';
 
 // -----------------------------------------------------------------------------
@@ -136,6 +137,9 @@ AXIOS_INSTANCE.interceptors.request.use((config: InternalAxiosRequestConfig) => 
   if (!isRefreshEndpoint) {
     const token = getAuthState().accessToken;
     if (token) config.headers.set('Authorization', `Bearer ${token}`);
+
+    const activeStudioId = useStudioStore.getState().activeStudioId;
+    if (activeStudioId) config.headers.set('X-Studio-Id', activeStudioId);
   }
 
   return config;

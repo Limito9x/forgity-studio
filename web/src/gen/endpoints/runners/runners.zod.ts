@@ -46,6 +46,8 @@ export const GetRunnersResponseItem = /*#__PURE__*/ zod.object({
   "executorKey": /*#__PURE__*/ zod.string(),
   "executablePath": /*#__PURE__*/ zod.string(),
   "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isEnabled": /*#__PURE__*/ zod.boolean(),
+  "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 })))
 })
@@ -101,6 +103,8 @@ export const GetStudioRunnersResponseItem = /*#__PURE__*/ zod.object({
   "executorKey": /*#__PURE__*/ zod.string(),
   "executablePath": /*#__PURE__*/ zod.string(),
   "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isEnabled": /*#__PURE__*/ zod.boolean(),
+  "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 })))
 }))
@@ -156,6 +160,8 @@ export const GetMyRunnerResponse = /*#__PURE__*/ zod.object({
   "executorKey": /*#__PURE__*/ zod.string(),
   "executablePath": /*#__PURE__*/ zod.string(),
   "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isEnabled": /*#__PURE__*/ zod.boolean(),
+  "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 })))
 })
@@ -261,6 +267,8 @@ export const ReportExecutorConfigsResponseItem = /*#__PURE__*/ zod.object({
   "executorKey": /*#__PURE__*/ zod.string(),
   "executablePath": /*#__PURE__*/ zod.string(),
   "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isEnabled": /*#__PURE__*/ zod.boolean(),
+  "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 })
 export const ReportExecutorConfigsResponse = /*#__PURE__*/ zod.array(ReportExecutorConfigsResponseItem)
@@ -269,10 +277,14 @@ export const ConfigureRunnerExecutorParams = /*#__PURE__*/ zod.object({
   "runnerId": /*#__PURE__*/ zod.uuid()
 })
 
+export const configureRunnerExecutorBodyIsEnabledDefault = true;
+
 export const ConfigureRunnerExecutorBody = /*#__PURE__*/ zod.object({
   "executorKey": /*#__PURE__*/ zod.string(),
   "executablePath": /*#__PURE__*/ zod.string(),
-  "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+  "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isEnabled": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.boolean()), configureRunnerExecutorBodyIsEnabledDefault),
+  "settings": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
 })
 
 export const ConfigureRunnerExecutorResponse = /*#__PURE__*/ zod.object({
@@ -281,6 +293,8 @@ export const ConfigureRunnerExecutorResponse = /*#__PURE__*/ zod.object({
   "executorKey": /*#__PURE__*/ zod.string(),
   "executablePath": /*#__PURE__*/ zod.string(),
   "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isEnabled": /*#__PURE__*/ zod.boolean(),
+  "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 })
 
@@ -370,6 +384,8 @@ export const UpdateRunnerHardwareProfileResponse = /*#__PURE__*/ zod.object({
   "executorKey": /*#__PURE__*/ zod.string(),
   "executablePath": /*#__PURE__*/ zod.string(),
   "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isEnabled": /*#__PURE__*/ zod.boolean(),
+  "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 })))
 })
@@ -417,6 +433,8 @@ export const ScanRunnerHardwareResponse = /*#__PURE__*/ zod.object({
   "executorKey": /*#__PURE__*/ zod.string(),
   "executablePath": /*#__PURE__*/ zod.string(),
   "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isEnabled": /*#__PURE__*/ zod.boolean(),
+  "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 })))
 })
@@ -476,6 +494,8 @@ export const AttachRunnerToStudioResponse = /*#__PURE__*/ zod.object({
   "executorKey": /*#__PURE__*/ zod.string(),
   "executablePath": /*#__PURE__*/ zod.string(),
   "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isEnabled": /*#__PURE__*/ zod.boolean(),
+  "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 })))
 }))

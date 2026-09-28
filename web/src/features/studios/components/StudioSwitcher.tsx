@@ -24,13 +24,20 @@ import { useStudios } from "../hooks/useStudios";
 import { useStudioStore } from "@/stores/studioStore";
 import { useDialogStore } from "@/stores/dialogStore";
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function StudioSwitcher() {
   const { isMobile } = useSidebar();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: studios = [], isLoading } = useStudios();
   const { activeStudioId, setActiveStudioId } = useStudioStore();
   const openDialog = useDialogStore((s) => s.openDialog);
+
+  const handleSelectStudio = (studioId: string) => {
+    setActiveStudioId(studioId);
+    queryClient.invalidateQueries();
+  };
 
   // Auto-select first studio if none is active or active is invalid
   useEffect(() => {
@@ -81,7 +88,7 @@ export function StudioSwitcher() {
                 return (
                   <DropdownMenuItem
                     key={studio.id}
-                    onAction={() => setActiveStudioId(studio.id)}
+                    onAction={() => handleSelectStudio(studio.id)}
                     className="flex items-center gap-2 cursor-pointer py-2"
                   >
                     <div className="flex aspect-square size-6 items-center justify-center rounded bg-muted text-xs font-semibold shrink-0">

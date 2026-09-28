@@ -9,6 +9,7 @@ public static class AuthServiceCollectionExtensions
     {
         services.AddHttpContextAccessor();
         services.AddSingleton<ICurrentUserProvider, CurrentUserProvider>();
+        services.AddSingleton<ICurrentStudioProvider, CurrentStudioProvider>();
         return services;
     }
 }

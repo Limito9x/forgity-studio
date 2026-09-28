@@ -13,7 +13,6 @@ public class StudioDbContext : DbContext
     public DbSet<StudioEntity> Studios => Set<StudioEntity>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
-    public DbSet<ProjectExecutorConfig> ProjectExecutorConfigs => Set<ProjectExecutorConfig>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

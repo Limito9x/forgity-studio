@@ -60,11 +60,6 @@ export function ProjectSidebar() {
       title: "Contents",
       url: `/projects/${currentProjectId}/contents`,
       icon: Logs
-    },
-    {
-      title: "Executor Settings",
-      url: `/projects/${currentProjectId}/executor-settings`,
-      icon: Cpu
     }
   ];
 

@@ -10,4 +10,7 @@ export interface ConfigureRunnerExecutorRequest {
   executablePath: string;
   /** @nullable */
   version: string | null;
+  /** @nullable */
+  isEnabled?: boolean | null;
+  settings?: unknown;
 }

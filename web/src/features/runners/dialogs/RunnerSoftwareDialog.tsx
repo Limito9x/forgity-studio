@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { BaseDialog } from "@/components/custom-ui/overlays/dialog/BaseDialog";
 import type { DialogProps } from "@/lib/dialog-registry";
 import {
@@ -8,22 +8,21 @@ import {
   type RunnerExecutorConfigDto,
 } from "../hooks/useRunners";
 import type { ExecutorCandidateDto } from "../types";
-import { getSoftwareMetadata } from "../constants/dccEngines";
+import { BaseExecutorCard } from "../components/BaseExecutorCard";
+import { getSoftwareMetadata, SUPPORTED_EXECUTOR_KEYS } from "../constants/dccEngines";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
 import {
-  Copy,
-  Check,
   RefreshCw,
-  Layers,
   Sparkles,
-  FolderOpen,
   Info,
   PackageOpen,
-  Star,
-  Zap,
+  Cpu,
+  Search,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
 
 export interface RunnerSoftwareDialogProps {
   runnerId: string;
@@ -41,12 +40,15 @@ export function RunnerSoftwareDialog({
   const { data: runners } = useRunners();
   const currentRunner = runners?.find((r) => r.id === runnerId);
   const activeConfigs = (currentRunner?.executorConfigs || []) as RunnerExecutorConfigDto[];
-  const activeConfigMap = new Map<string, RunnerExecutorConfigDto>(
-    activeConfigs.map((c) => [c.executorKey?.toLowerCase(), c])
+  const activeConfigMap = useMemo(
+    () => new Map<string, RunnerExecutorConfigDto>(
+      activeConfigs.map((c) => [c.executorKey?.toLowerCase(), c])
+    ),
+    [activeConfigs]
   );
 
   const [executors, setExecutors] = useState<ExecutorCandidateDto[]>([]);
-  const [copiedPathIndex, setCopiedPathIndex] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   const scanMutation = useScanRunnerExecutors();
   const configureMutation = useConfigureRunnerExecutor();
@@ -72,26 +74,34 @@ export function RunnerSoftwareDialog({
     );
   };
 
-  const handleSetActive = (item: ExecutorCandidateDto) => {
+  const handleSaveExecutor = (payload: {
+    executorKey: string;
+    executablePath: string;
+    version: string | null;
+    isEnabled: boolean;
+    settings: Record<string, any>;
+  }) => {
     if (!runnerId) return;
 
     configureMutation.mutate(
       {
         runnerId,
         data: {
-          executorKey: item.executorKey,
-          executablePath: item.executablePath,
-          version: item.version,
+          executorKey: payload.executorKey,
+          executablePath: payload.executablePath,
+          version: payload.version,
+          isEnabled: payload.isEnabled,
+          settings: payload.settings,
         },
       },
       {
         onSuccess: () => {
           toast.success(
-            `Set ${item.executorKey.toUpperCase()} v${item.version || ""} as active runtime`
+            `Saved ${payload.executorKey.toUpperCase()} executor configuration`
           );
         },
         onError: (err: any) => {
-          toast.error(err?.message || "Failed to set active executor runtime");
+          toast.error(err?.message || "Failed to save executor configuration");
         },
       }
     );
@@ -103,23 +113,65 @@ export function RunnerSoftwareDialog({
     }
   }, [open, runnerId]);
 
-  const copyToClipboard = async (path: string, index: number) => {
-    try {
-      await navigator.clipboard.writeText(path);
-      setCopiedPathIndex(index);
-      setTimeout(() => setCopiedPathIndex(null), 2000);
-      toast.success("Executable path copied to clipboard");
-    } catch {
-      toast.error("Failed to copy path");
+  // Luôn đảm bảo các executor hệ thống hỗ trợ xuất hiện trong danh mục
+  const groupedExecutors = useMemo(() => {
+    const map = new Map<string, ExecutorCandidateDto[]>();
+
+    // 1. Thêm các supported executor keys cốt lõi (python, blender, unreal)
+    for (const key of SUPPORTED_EXECUTOR_KEYS) {
+      map.set(key, []);
     }
-  };
+
+    // 2. Điền candidates phát hiện từ máy
+    for (const item of executors) {
+      const key = item.executorKey.toLowerCase();
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(item);
+    }
+
+    // 3. Đảm bảo những active configs đã cấu hình trước đó vẫn luôn xuất hiện
+    for (const active of activeConfigs) {
+      const key = active.executorKey.toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, [
+          {
+            executorKey: active.executorKey,
+            executablePath: active.executablePath,
+            version: active.version,
+          },
+        ]);
+      }
+    }
+
+    return map;
+  }, [executors, activeConfigs]);
+
+  const uniqueKeys = Array.from(groupedExecutors.keys());
+
+  // Số lượng executor đã được setup path trên máy này
+  const configuredCount = useMemo(() => {
+    return uniqueKeys.filter((key) => !!activeConfigMap.get(key)?.executablePath).length;
+  }, [uniqueKeys, activeConfigMap]);
+
+  // Filter keys by search query
+  const filteredKeys = useMemo(() => {
+    if (!searchQuery.trim()) return uniqueKeys;
+    const q = searchQuery.toLowerCase().trim();
+    return uniqueKeys.filter((key) => {
+      const meta = getSoftwareMetadata(key);
+      return (
+        key.toLowerCase().includes(q) ||
+        meta.name.toLowerCase().includes(q)
+      );
+    });
+  }, [uniqueKeys, searchQuery]);
 
   return (
     <BaseDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Installed Software & Engines"
-      description={`Discovered DCC applications, game engines, and runtimes on ${runnerName}.`}
+      title="Runner Settings"
+      description={`Manage supported pipeline executors and machine configuration for ${runnerName}.`}
       size="2xl"
       footer={
         <div className="flex items-center justify-between w-full">
@@ -138,7 +190,7 @@ export function RunnerSoftwareDialog({
               <RefreshCw
                 className={`size-3.5 ${scanMutation.isPending ? "animate-spin" : ""}`}
               />
-              <span>{scanMutation.isPending ? "Scanning..." : "Re-scan"}</span>
+              <span>{scanMutation.isPending ? "Scanning..." : "Re-scan Machine"}</span>
             </Button>
             <Button
               variant="default"
@@ -146,196 +198,104 @@ export function RunnerSoftwareDialog({
               onPress={() => onOpenChange(false)}
               className="cursor-pointer"
             >
-              Close
+              Done
             </Button>
           </div>
         </div>
       }
     >
-      <div className="space-y-3.5 py-1 w-full min-w-0 overflow-hidden">
+      <div className="space-y-4 py-1 max-h-[620px] overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/25 [&::-webkit-scrollbar-track]:bg-transparent">
+        {/* VS Code Settings Search & Runner Banner */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground pointer-events-none" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search executor settings (e.g. unreal, python, blender)..."
+              className="pl-9 pr-8 h-9 text-xs bg-muted/30 font-mono"
+            />
+            {searchQuery && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onPress={() => setSearchQuery("")}
+                className="absolute right-1 top-1 h-7 w-7 p-0 text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <X className="size-3.5" />
+              </Button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/40 border border-border/60 text-xs shrink-0">
+            <Cpu className="size-3.5 text-primary shrink-0" />
+            <span className="font-semibold text-foreground truncate max-w-[140px]">
+              {runnerName}
+            </span>
+            <Badge variant="outline" className="font-mono text-[10px] h-4 px-1.5">
+              {configuredCount}/{uniqueKeys.length} setup
+            </Badge>
+          </div>
+        </div>
+
         {/* Loading state */}
         {scanMutation.isPending && (
-          <div className="flex flex-col items-center justify-center p-8 rounded-xl border border-dashed bg-muted/30 space-y-3">
+          <div className="flex flex-col items-center justify-center p-12 rounded-xl border border-dashed bg-muted/30 space-y-3">
             <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center text-primary animate-spin">
               <RefreshCw className="size-5" />
             </div>
             <div className="text-center space-y-1">
               <p className="text-sm font-medium text-foreground">
-                Querying runner filesystem & registry...
+                Scanning runner workstation filesystem...
               </p>
               <p className="text-xs text-muted-foreground">
-                Scanning standard installation directories, Steam libraries, and Epic Games launcher.
+                Querying standard install dirs, PATH registry, and Epic Games launcher.
               </p>
             </div>
           </div>
         )}
 
         {/* Empty state */}
-        {!scanMutation.isPending && executors.length > 0 ? (
-          <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-2 w-full min-w-0 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/25 [&::-webkit-scrollbar-track]:bg-transparent">
-            {executors.map((item, index) => {
-              const meta = getSoftwareMetadata(item.executorKey);
-              const isCopied = copiedPathIndex === index;
-              const isVenv = item.executablePath.toLowerCase().includes("venv");
-
-              const activeForThisKey = activeConfigMap.get(item.executorKey?.toLowerCase());
-              const isActive =
-                !!activeForThisKey &&
-                activeForThisKey.executablePath?.toLowerCase() === item.executablePath?.toLowerCase();
-
-              return (
-                <div
-                  key={`${item.executorKey}-${index}`}
-                  className={`w-full min-w-0 overflow-hidden p-3 rounded-xl border transition-all space-y-2.5 ${
-                    isActive
-                      ? "border-emerald-500/50 bg-emerald-500/[0.03] shadow-xs"
-                      : "border-border/70 bg-card hover:border-primary/40 hover:shadow-xs"
-                  }`}
-                >
-                  {/* Top Bar: Icon + Name + Badges + Active Runtime Button */}
-                  <div className="flex items-center justify-between gap-2 flex-wrap min-w-0">
-                    {/* Left: Icon & Name */}
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="size-9 rounded-lg bg-muted/80 border border-border/60 flex items-center justify-center shrink-0 p-1.5 overflow-hidden">
-                        {meta.iconUrl ? (
-                          <img
-                            src={meta.iconUrl}
-                            alt={meta.name}
-                            className="size-full object-contain filter drop-shadow-sm"
-                            onError={(e) => {
-                              e.currentTarget.style.display = "none";
-                            }}
-                          />
-                        ) : (
-                          <Layers className="size-4 text-primary" />
-                        )}
-                      </div>
-
-                      <div className="min-w-0 flex items-center gap-2 flex-wrap">
-                        <h4 className="font-semibold text-sm text-foreground truncate">
-                          {meta.name}
-                        </h4>
-                        {isVenv && (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] py-0 px-1.5 font-mono h-4 shrink-0 bg-muted/60 text-muted-foreground"
-                          >
-                            Venv
-                          </Badge>
-                        )}
-                        <Badge
-                          variant="secondary"
-                          className="text-[10px] py-0 px-1.5 font-mono h-4 shrink-0 font-medium"
-                        >
-                          {meta.category}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    {/* Right: Version & Active Runtime Action */}
-                    <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                      {item.version && (
-                        <Badge
-                          variant="outline"
-                          className="font-mono text-[11px] h-5 px-1.5 bg-background border-border text-foreground"
-                        >
-                          v{item.version}
-                        </Badge>
-                      )}
-
-                      {isActive ? (
-                        <Badge
-                          variant="default"
-                          className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/40 text-[10px] h-5 px-2 flex items-center gap-1 font-semibold"
-                        >
-                          <Star className="size-3 fill-emerald-500 text-emerald-500" />
-                          <span>Active Runtime</span>
-                        </Badge>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onPress={() => handleSetActive(item)}
-                          isDisabled={configureMutation.isPending}
-                          className="h-5 px-2 text-[10px] font-medium cursor-pointer shrink-0 gap-1 border-primary/40 text-primary hover:bg-primary/10 transition-colors"
-                        >
-                          <Zap className="size-2.5" />
-                          <span>Set as Active</span>
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Executable Path Bar (Full Width with Auto Truncate & Copy) */}
-                  <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/40 border border-border/50 text-xs w-full min-w-0">
-                    <div className="flex items-center gap-2 min-w-0 font-mono text-[11px] text-muted-foreground flex-1 overflow-hidden">
-                      <FolderOpen className="size-3.5 shrink-0 text-primary" />
-                      <span
-                        className="block truncate select-all text-foreground min-w-0 flex-1"
-                        title={item.executablePath}
-                      >
-                        {item.executablePath}
-                      </span>
-                    </div>
-
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onPress={() => copyToClipboard(item.executablePath, index)}
-                      className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer shrink-0 gap-1"
-                    >
-                      {isCopied ? (
-                        <>
-                          <Check className="size-3 text-emerald-500" />
-                          <span className="text-emerald-500 font-medium text-[11px]">Copied</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="size-3" />
-                          <span className="text-[11px]">Copy</span>
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : null}
-
-        {/* Empty state */}
-        {!scanMutation.isPending && executors.length === 0 && (
-          <div className="flex flex-col items-center justify-center p-8 rounded-xl border border-dashed bg-card text-center space-y-3">
+        {!scanMutation.isPending && filteredKeys.length === 0 && (
+          <div className="flex flex-col items-center justify-center p-12 rounded-xl border border-dashed bg-card text-center space-y-3">
             <div className="size-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
               <PackageOpen className="size-5" />
             </div>
             <div className="space-y-1 max-w-sm">
               <p className="text-sm font-semibold text-foreground">
-                No Compatible Software Detected
+                No Executors Found
               </p>
               <p className="text-xs text-muted-foreground">
-                Make sure Blender, Unreal Engine, or Python is installed on this runner, or trigger a re-scan.
+                {searchQuery
+                  ? `No executors matched "${searchQuery}". Try clearing search.`
+                  : "No executors configured or discovered on this runner."}
               </p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onPress={handleScan}
-              className="cursor-pointer gap-1.5 mt-2"
-            >
-              <RefreshCw className="size-3.5" />
-              <span>Scan Again</span>
-            </Button>
           </div>
         )}
 
-        {/* Tip / Note footer */}
-        <div className="flex items-start gap-2 p-2.5 rounded-lg bg-primary/5 border border-primary/15 text-xs text-muted-foreground">
-          <Info className="size-4 text-primary shrink-0 mt-0.5" />
-          <p className="leading-relaxed">
-            Automation Studio automatically registers these executors to run headless Blender renders, Unreal cooker tasks, or custom Python pipeline scripts on this machine.
-          </p>
-        </div>
+        {/* Render BaseExecutorCard for each key (Collapsible) */}
+        {!scanMutation.isPending &&
+          filteredKeys.map((key, index) => {
+            const candidates = groupedExecutors.get(key) || [];
+            const activeConfig = activeConfigMap.get(key);
+            const defaultCand = candidates[0];
+
+            return (
+              <BaseExecutorCard
+                key={key}
+                runnerId={runnerId}
+                runnerName={runnerName}
+                executorKey={key}
+                defaultCandidate={defaultCand}
+                activeConfig={activeConfig}
+                availableCandidates={candidates}
+                defaultExpanded={index === 0 || !activeConfig?.executablePath}
+                onSave={handleSaveExecutor}
+                isSaving={configureMutation.isPending}
+              />
+            );
+          })}
       </div>
     </BaseDialog>
   );

@@ -9,18 +9,23 @@ import { DataTableViewOptions } from "@/components/table/DataTableViewOptions";
 import { useDialogStore } from "@/stores/dialogStore";
 
 import { useAuthStore } from "@/stores/authStore";
+import { useStudioStore } from "@/stores/studioStore";
 
 export function ProjectPage({ useSearch, useNavigate }: ResourcePageProps) {
     const openDialog = useDialogStore((state) => state.openDialog);
     const { t } = useTranslation("projects");
     const hasPermission = useAuthStore((state) => state.hasPermission);
+    const activeStudioId = useStudioStore((state) => state.activeStudioId);
 
     const search = useSearch();
     const navigate = useNavigate();
 
     const resourceQuery = useResourceQuery(search, navigate);
 
-    const { data, isLoading } = useProjects(search as any);
+    const { data, isLoading } = useProjects({
+        ...(search as any),
+        studioId: activeStudioId || undefined,
+    });
 
     const { table, columns } = useProjectTable({
         data: data?.items ?? [],
