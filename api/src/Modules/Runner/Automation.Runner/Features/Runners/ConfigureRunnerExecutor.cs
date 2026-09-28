@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Automation.Runner.Domain.Entities;
 using Automation.Runner.Infrastructure.Persistence;
 using Automation.Runner.Shared.Dtos;
@@ -9,14 +10,18 @@ namespace Automation.Runner.Features.Runners;
 public record ConfigureRunnerExecutorRequest(
     string ExecutorKey,
     string ExecutablePath,
-    string? Version
+    string? Version,
+    bool? IsEnabled = true,
+    JsonDocument? Settings = null
 );
 
 public record ConfigureRunnerExecutorCommand(
     Guid RunnerId,
     string ExecutorKey,
     string ExecutablePath,
-    string? Version
+    string? Version,
+    bool? IsEnabled = true,
+    JsonDocument? Settings = null
 );
 
 public class ConfigureRunnerExecutorValidator : Validator<ConfigureRunnerExecutorCommand>
@@ -43,7 +48,14 @@ public class ConfigureRunnerExecutorEndpoint(IMessageBus bus)
     public override async Task HandleAsync(ConfigureRunnerExecutorRequest req, CancellationToken ct)
     {
         var runnerId = Route<Guid>("runnerId");
-        var command = new ConfigureRunnerExecutorCommand(runnerId, req.ExecutorKey, req.ExecutablePath, req.Version);
+        var command = new ConfigureRunnerExecutorCommand(
+            runnerId,
+            req.ExecutorKey,
+            req.ExecutablePath,
+            req.Version,
+            req.IsEnabled,
+            req.Settings
+        );
         var result = await bus.InvokeAsync<Result<RunnerExecutorConfigDto>>(command, ct);
         await this.SendResultAsync(result, ct);
     }
@@ -68,6 +80,10 @@ public class ConfigureRunnerExecutorHandler(RunnerDbContext db)
         {
             existingConfig.ExecutablePath = command.ExecutablePath;
             existingConfig.Version = command.Version;
+            if (command.IsEnabled.HasValue)
+                existingConfig.IsEnabled = command.IsEnabled.Value;
+            if (command.Settings is not null)
+                existingConfig.Settings = command.Settings;
         }
         else
         {
@@ -76,14 +92,25 @@ public class ConfigureRunnerExecutorHandler(RunnerDbContext db)
                 RunnerId = command.RunnerId,
                 ExecutorKey = command.ExecutorKey.ToLowerInvariant(),
                 ExecutablePath = command.ExecutablePath,
-                Version = command.Version
+                Version = command.Version,
+                IsEnabled = command.IsEnabled ?? true,
+                Settings = command.Settings
             };
             db.RunnerExecutorConfigs.Add(existingConfig);
         }
 
         await db.SaveChangesAsync(ct);
 
-        var dto = existingConfig.Adapt<RunnerExecutorConfigDto>();
+        var dto = new RunnerExecutorConfigDto(
+            existingConfig.Id,
+            existingConfig.RunnerId,
+            existingConfig.ExecutorKey,
+            existingConfig.ExecutablePath,
+            existingConfig.Version,
+            existingConfig.IsEnabled,
+            existingConfig.Settings,
+            existingConfig.CreatedAt
+        );
         return Result.Ok(dto);
     }
 }

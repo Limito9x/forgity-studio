@@ -5,6 +5,7 @@ import type {
   RunnerDiskInfo,
   ExecutorCandidateDto,
   RunnerExecutorConfigDto,
+  ConfigureRunnerExecutorRequest,
   SetupTokenDto,
   AttachRunnerToStudioRequest,
 } from "@/gen/model";
@@ -16,6 +17,7 @@ export type {
   RunnerDiskInfo,
   ExecutorCandidateDto,
   RunnerExecutorConfigDto,
+  ConfigureRunnerExecutorRequest,
   SetupTokenDto,
   AttachRunnerToStudioRequest,
 };

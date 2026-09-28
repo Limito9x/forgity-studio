@@ -19,6 +19,11 @@ export interface SoftwareCatalogItem {
 }
 
 /**
+ * Các executor được hệ thống Automation Studio chính thức hỗ trợ trong pipeline
+ */
+export const SUPPORTED_EXECUTOR_KEYS = ["python", "blender", "unreal"] as const;
+
+/**
  * Vector SVG nhúng trực tiếp cho Daz 3D (do SimpleIcons chưa có slug chính thức)
  */
 const DAZ3D_INLINE_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><polygon points="24,4 42,14 24,24 6,14" fill="%2300B4D8"/><polygon points="42,14 42,34 24,44 24,24" fill="%230077B6"/><polygon points="6,14 24,24 24,44 6,34" fill="%23023E8A"/><text x="24" y="27" font-family="Arial,sans-serif" font-size="9" font-weight="900" fill="%23FFFFFF" text-anchor="middle" letter-spacing="0.5">DAZ</text></svg>`;

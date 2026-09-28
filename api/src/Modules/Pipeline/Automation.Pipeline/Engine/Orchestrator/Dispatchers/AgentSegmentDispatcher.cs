@@ -6,7 +6,7 @@ using Automation.Pipeline.Engine.DataResolver;
 using Automation.Pipeline.Engine.Messages;
 using Automation.Pipeline.Engine.Models;
 using Automation.Pipeline.Hubs;
-using Automation.Studio.Contracts;
+using Automation.Runner.Contracts;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -15,7 +15,7 @@ namespace Automation.Pipeline.Engine.Orchestrator.Dispatchers;
 
 public class AgentSegmentDispatcher(
     IMessageBus messageBus,
-    IStudioApi studioApi,
+    IRunnerApi runnerApi,
     IAssetApi assetApi,
     IConfiguration configuration,
     ILogger<AgentSegmentDispatcher> logger,
@@ -149,24 +149,70 @@ public class AgentSegmentDispatcher(
                 i, step.Label, step.NodeId, !string.IsNullOrEmpty(scriptUrl), scriptHash);
         }
 
-        // Fetch Environment Config for Executor (e.g. blender executable path, unreal engine port)
+        // Fetch Environment Config for Executor (e.g. blender executable path, unreal engine uproject)
         var envConfig = new Dictionary<string, object?>();
-        var configResult = await studioApi.GetExecutorConfigAsync(
-            execution.Pipeline.ProjectId,
+        var configResult = await runnerApi.GetExecutorConfigAsync(
             execution.AgentId,
             segment.Executor,
             ct
         );
 
-        if (configResult != null && configResult.IsSuccess && configResult.Value?.Settings != null)
+        if (configResult != null && configResult.IsSuccess && configResult.Value != null)
         {
-            try
+            var config = configResult.Value;
+            if (!string.IsNullOrWhiteSpace(config.ExecutablePath))
             {
-                envConfig = JsonSerializer.Deserialize<Dictionary<string, object?>>(configResult.Value.Settings.RootElement.GetRawText()) ?? [];
+                envConfig["executablePath"] = config.ExecutablePath;
             }
-            catch (Exception ex)
+
+            if (config.Settings != null)
             {
-                logger.LogWarning(ex, "Failed to parse executor settings for {Executor}", segment.Executor);
+                try
+                {
+                    var parsedSettings = JsonSerializer.Deserialize<Dictionary<string, object?>>(config.Settings.RootElement.GetRawText()) ?? [];
+                    foreach (var (k, v) in parsedSettings)
+                    {
+                        envConfig[k] = v;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to parse executor settings for {Executor}", segment.Executor);
+                }
+            }
+
+            // Auto-resolve Unreal project path for the current project if executor is unreal
+            if (segment.Executor.Equals("unreal", StringComparison.OrdinalIgnoreCase))
+            {
+                if (envConfig.TryGetValue("registeredProjects", out var regObj) && regObj != null)
+                {
+                    var projIdStr = execution.Pipeline.ProjectId.ToString();
+                    string? projectPath = null;
+
+                    if (regObj is JsonElement jsonElem && jsonElem.ValueKind == JsonValueKind.Object)
+                    {
+                        if (jsonElem.TryGetProperty(projIdStr, out var prop))
+                        {
+                            projectPath = prop.GetString();
+                        }
+                    }
+                    else if (regObj is IDictionary<string, object?> dict && dict.TryGetValue(projIdStr, out var val))
+                    {
+                        projectPath = val?.ToString();
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(projectPath))
+                    {
+                        envConfig["projectPath"] = projectPath;
+                        logger.LogInformation("Resolved Unreal Engine project path for Project {ProjectId}: {ProjectPath}",
+                            execution.Pipeline.ProjectId, projectPath);
+                    }
+                    else
+                    {
+                        logger.LogWarning("Runner {RunnerId} has no registered Unreal project for Project {ProjectId}",
+                            execution.AgentId, execution.Pipeline.ProjectId);
+                    }
+                }
             }
         }
 

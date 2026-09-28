@@ -21,6 +21,12 @@ public class RunnerExecutorConfigConfiguration : IEntityTypeConfiguration<Runner
         builder.Property(x => x.Version)
             .HasMaxLength(50);
 
+        builder.Property(x => x.IsEnabled)
+            .HasDefaultValue(true);
+
+        builder.Property(x => x.Settings)
+            .HasColumnType("jsonb");
+
         builder.HasIndex(x => new { x.RunnerId, x.ExecutorKey })
             .IsUnique();
     }

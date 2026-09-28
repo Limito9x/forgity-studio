@@ -448,6 +448,30 @@ public class RunnerApiService(
 
         return await GetRunnersByIdsAsync(runnerIds, ct);
     }
+
+    public async Task<Result<RunnerExecutorConfigDto?>> GetExecutorConfigAsync(
+        Guid runnerId,
+        string executorKey,
+        CancellationToken ct = default
+    )
+    {
+        var config = await db.RunnerExecutorConfigs
+            .AsNoTracking()
+            .Where(x => x.RunnerId == runnerId && x.ExecutorKey.ToLower() == executorKey.ToLower())
+            .Select(x => new RunnerExecutorConfigDto(
+                x.Id,
+                x.RunnerId,
+                x.ExecutorKey,
+                x.ExecutablePath,
+                x.Version,
+                x.IsEnabled,
+                x.Settings,
+                x.CreatedAt
+            ))
+            .FirstOrDefaultAsync(ct);
+
+        return Result.Ok<RunnerExecutorConfigDto?>(config);
+    }
 }
 
 // Backward-compatibility alias

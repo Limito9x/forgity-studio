@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Automation.Runner.Domain.Entities;
 
 namespace Automation.Runner.Shared.Dtos;
@@ -32,6 +33,8 @@ public record RunnerExecutorConfigDto(
     string ExecutorKey,
     string ExecutablePath,
     string? Version,
+    bool IsEnabled,
+    JsonDocument? Settings,
     DateTimeOffset CreatedAt
 );
 
@@ -69,5 +72,7 @@ public record AgentExecutorConfigDto(
     string ExecutorKey,
     string ExecutablePath,
     string? Version,
+    bool IsEnabled,
+    JsonDocument? Settings,
     DateTimeOffset CreatedAt
-) : RunnerExecutorConfigDto(Id, RunnerId, ExecutorKey, ExecutablePath, Version, CreatedAt);
+) : RunnerExecutorConfigDto(Id, RunnerId, ExecutorKey, ExecutablePath, Version, IsEnabled, Settings, CreatedAt);

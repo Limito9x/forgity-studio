@@ -47,6 +47,12 @@ public interface IRunnerApi
         CancellationToken ct = default
     );
 
+    Task<Result<RunnerExecutorConfigDto?>> GetExecutorConfigAsync(
+        Guid runnerId,
+        string executorKey,
+        CancellationToken ct = default
+    );
+
     // Compatibility methods for previous IAgentApi callers
     Task<Result<RunnerDto>> GetAgentByIdAsync(Guid agentId, CancellationToken ct = default)
         => GetRunnerByIdAsync(agentId, ct);
