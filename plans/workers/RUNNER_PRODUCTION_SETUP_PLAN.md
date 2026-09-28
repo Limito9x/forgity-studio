@@ -88,41 +88,40 @@ Toàn bộ nền tảng cốt lõi từ Backend đến Worker Daemon đã đư�
 
 ## 4. Chi Tiết Các Giai Đoạn Tiếp Theo
 
-### Giai Đoạn 2: Frontend Runner Management & Onboarding UI (Đang thực hiện)
+### Giai Đoạn 2: Frontend Runner Management & Onboarding UI (Hoàn thành 100% ✅)
 
 Mục tiêu: Đóng kín vòng lặp trải nghiệm người dùng trên Web Dashboard ([RunnerPage.tsx](file:///d:/FullStack/Automation/web/src/features/runners/RunnerPage.tsx)).
 
-1. **Task 2.1 - Onboarding Dialog (`ConnectRunnerDialog.tsx`)**:
-   - Thêm nút chính **"Connect Runner"** trên Header trang Runners.
-   - Bấm vào mở Dialog:
-     - Gọi `useGenerateSetupToken` sinh Setup Token (hạn 15 phút).
-     - Hiển thị Token rõ ràng với nút Copy.
-     - Hiển thị câu lệnh 1-click để dán vào terminal máy trạm:
-       ```bat
-       .\runner.bat register
-       ```
-     - Kèm link tải gói Runner (chuẩn bị cho Giai đoạn 4).
+- [x] **Phase 2.1 - Data Layer & Custom Hooks**:
+  - Đã tạo [types.ts](file:///d:/FullStack/Automation/web/src/features/runners/types.ts): Mở rộng `RunnerDto` với `RunnerHardwareProfile`, `RunnerGpuInfo`, `RunnerDiskInfo`, `ExecutorCandidateDto`.
+  - Đã tạo [hardwareFormatter.ts](file:///d:/FullStack/Automation/web/src/features/runners/utils/hardwareFormatter.ts): Format bytes (B/MB/GB/TB), rút gọn nhãn GPU/CPU, tính toán % ổ đĩa và relative time bằng Temporal API.
+  - Đã nâng cấp [useRunners.ts](file:///d:/FullStack/Automation/web/src/features/runners/hooks/useRunners.ts): Sử dụng 100% API sinh bởi Orval qua `createMutationHook`.
 
-2. **Task 2.2 - Nâng Cấp Runner Card UI**:
-   - Thiết kế lại Card máy trạm trên Grid theo chuẩn thiết kế Shadcn/Tailwind:
-     - **Header**: Tên máy tính (Hostname), Platform (Windows 11 AMD64), Badge trạng thái Online/Offline (Xanh/Xám).
-     - **Hardware Badges**:
-       - ⚡ **CPU**: Model CPU + Cores/Threads (e.g. AMD Ryzen 7 6800HS 16T).
-       - 🧠 **RAM**: Tổng dung lượng (e.g. 15.3 GB).
-       - 🎮 **GPU**: Card chính kèm VRAM (e.g. NVIDIA GeForce RTX 3050 Laptop GPU - 4.0 GB).
-       - 💾 **Storage**: Các ổ đĩa chính (C: 54GB free, D: 156GB free).
-     - **Last Seen / Scanned**: Thời điểm quét phần cứng gần nhất.
+- [x] **Phase 2.2 - Onboarding Dialog (`ConnectRunnerDialog.tsx`)**:
+  - Tạo [ConnectRunnerDialog.tsx](file:///d:/FullStack/Automation/web/src/features/runners/dialogs/ConnectRunnerDialog.tsx) kế thừa `BaseDialog` với giao diện UI/UX Pro Max, tự động sinh Setup Token, hiển thị thời hạn 15 phút, copy token và copy câu lệnh 1-click `.\runner.bat register`.
+  - Đăng ký dialog vào Global Dialog Registry tại [dialogs/index.ts](file:///d:/FullStack/Automation/web/src/features/runners/dialogs/index.ts).
+  - Tích hợp nút Primary **"Connect Runner"** trên Header và Empty State của [RunnerPage.tsx](file:///d:/FullStack/Automation/web/src/features/runners/RunnerPage.tsx).
 
-3. **Task 2.3 - Actions Tương Tác Trực Tiếp (Remote Triggers)**:
-   - Nút **"Re-scan Hardware"**: Gọi `POST /runners/{id}/hardware/scan` ➔ máy trạm quét lại phần cứng và cập nhật realtime trên card.
-   - Nút **"Scan Software"**: Gọi `POST /runners/{id}/executors/scan` ➔ hiển thị danh sách các bản Blender, Unreal, Python đã phát hiện trên máy đó.
+- [x] **Phase 2.3 - Nâng Cấp Runner Card UI**:
+  - Đã tạo [RunnerCard.tsx](file:///d:/FullStack/Automation/web/src/features/runners/components/RunnerCard.tsx): Hiển thị sống động Hostname, Platform, Online badge với animation pulsing dot xanh lá.
+  - Hiển thị đầy đủ thông số phần cứng: Processor (CPU kèm số luồng), System Memory (RAM), Primary Graphics (GPU RTX 3050 + VRAM badge), Storage Drives (thanh tiến trình progress bar trực quan ổ C và D).
+  - Tích hợp nút Re-scan trực tiếp trên Card và hiển thị thời gian quét tương đối chuẩn Temporal API.
 
-4. **Task 2.4 - Chuẩn Hóa Thuật Ngữ**:
-   - Rà soát các component (như `ProjectExecutorConfigTable.tsx`) đổi các chuỗi "Agent" thành "Runner" cho đồng bộ với toàn hệ thống.
+- [x] **Phase 2.4 - Chuẩn Hóa Toàn Diện Thuật Ngữ "Agent" ➔ "Runner" Trên UI**:
+  - Đã rà soát và chuyển đổi toàn bộ chuỗi hiển thị liên quan đến máy trạm từ "Agent" sang "Runner".
+  - [ProjectExecutorConfigTable.tsx](file:///d:/FullStack/Automation/web/src/features/projects/components/ProjectExecutorConfigTable.tsx), [UpsertProjectExecutorConfigForm.tsx](file:///d:/FullStack/Automation/web/src/features/projects/components/UpsertProjectExecutorConfigForm.tsx), [UpsertProjectExecutorConfigDialog.tsx](file:///d:/FullStack/Automation/web/src/features/projects/dialogs/UpsertProjectExecutorConfigDialog.tsx).
+  - [RunPipelineModal.tsx](file:///d:/FullStack/Automation/web/src/features/pipelines/dialogs/RunPipelineModal.tsx), [LiveExecutionDrawer.tsx](file:///d:/FullStack/Automation/web/src/features/pipelines/components/canvas/LiveExecutionDrawer.tsx), [NodeMetaForm.tsx](file:///d:/FullStack/Automation/web/src/features/pipelines/components/node-editor/NodeMetaForm.tsx), [PipelineStartNodeInspector.tsx](file:///d:/FullStack/Automation/web/src/features/pipelines/components/canvas/PipelineStartNodeInspector.tsx).
+
+- [x] **Phase 2.5 - Quản Lý & Phát Hiện Phần Mềm DCC (`RunnerSoftwareDialog.tsx`)**:
+  - Đã xây dựng mảng catalog metadata [dccEngines.ts](file:///d:/FullStack/Automation/web/src/features/runners/constants/dccEngines.ts) định nghĩa các ứng dụng DCC (Blender 3D, Unreal Engine, Python, Maya, 3ds Max, Houdini, Cinema 4D, Daz Studio, Unity) kèm CDN SVG icons chuẩn hãng (SimpleIcons), brand colors, category.
+  - Đã tạo [RunnerSoftwareDialog.tsx](file:///d:/FullStack/Automation/web/src/features/runners/dialogs/RunnerSoftwareDialog.tsx): Kết nối API `useScanRunnerExecutors`, render danh sách ứng dụng với Logo SVG, Version badge, đường dẫn executable path kèm nút 1-click copy, trạng thái Valid badge và nút Re-scan.
+  - Đăng ký dialog vào `GlobalDialogRegistry` và liên kết với nút **Software** trên mỗi [RunnerCard.tsx](file:///d:/FullStack/Automation/web/src/features/runners/components/RunnerCard.tsx).
+  - Đã kiểm tra `pnpm run typecheck` và `pnpm build` đạt 0 Error, 0 Warning.
+
 
 ---
 
-### Giai Đoạn 3: Remote File/Folder Picker Chuẩn Phong Cách Blender
+### Giai Đoạn 3: Remote File/Folder Picker Chuẩn Phong Cách Blender (Hoàn Thành 100% ✅)
 
 Mục tiêu: Cho phép người dùng ngồi từ xa duyệt file/folder trên máy trạm thông qua giao diện Web 2 cột trực quan.
 
@@ -150,17 +149,23 @@ Mục tiêu: Cho phép người dùng ngồi từ xa duyệt file/folder trên m
 └─────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-1. **Nâng cấp gRPC Contract (`agent.proto`)**:
-   - Bổ sung `DriveInfoMessage` (mount, label, total_bytes, free_bytes).
-   - Bổ sung `SystemPlaceMessage` (name, path).
-   - Bổ sung `pinned_folders` (lưu tại local config máy trạm).
-2. **Nâng cấp `core/system/file_browser.py` & Handler**:
-   - Tự động phát hiện các ổ đĩa và thư mục hệ thống (Desktop, Downloads, Home) trong < 3ms.
-   - Hỗ trợ thêm/xóa Pinned Folders vào `agent_config.json`.
-3. **Xây dựng Component `RemoteFilePicker.tsx` (Frontend)**:
-   - Left Sidebar: Drives với thanh dung lượng, System Places, Pinned Folders.
-   - Right Explorer: Breadcrumb, tìm kiếm nhanh, lọc theo extension (`.blend`, `.uproject`).
-   - Hai chế độ: Chọn Thư mục (Folder mode) hoặc Chọn Tệp (File mode).
+- [x] **3.1. Nâng cấp gRPC Contract (`agent.proto`)**:
+  - Bổ sung `message SystemPlaceMessage { string name = 1; string path = 2; }`.
+  - Mở rộng `BrowseCommandResult` với `repeated SystemPlaceMessage system_places = 5;` và `repeated string pinned_folders = 6;`.
+  - Chạy `python tools/compile_protos.py` sinh lại mã Python gRPC stubs.
+- [x] **3.2. Cập nhật Python Worker (`browse_handler.py`)**:
+  - Tự động gọi `get_system_places()` và `get_pinned_folders()` trả về cùng dữ liệu duyệt file.
+- [x] **3.3. Cập nhật Backend .NET**:
+  - Bổ sung `RunnerSystemPlaceDto`, ánh xạ `SystemPlaces` và `PinnedFolders` trong `RunnerApiService.cs` và `DiscoverRunnerFolder.cs`.
+  - Khởi động lại Backend API, chạy `pnpm run gen:api` đồng bộ types `SystemPlaceDto`, `pinnedFolders`.
+- [x] **3.4. Xây dựng Component 2-Panel `FolderBrowser.tsx` & `RemoteFileBrowserDialog.tsx`**:
+  - **Left Sidebar**: 
+    - 📌 **System Places**: Home, Desktop, Downloads, Documents (icon trực quan, click nhảy ngay).
+    - 💽 **Drives**: C:, D: với dung lượng free + progress bar cảnh báo đổi màu.
+    - ⭐ **Pinned Folders**: Ghim / Bỏ ghim thư mục yêu thích (đồng bộ runner config và client state).
+    - 🖥️ **Target Machine**: Hiển thị tên máy và machineKey.
+  - **Right Explorer**: Breadcrumbs, Search, icon riêng biệt cho Unreal (.uproject), Blender (.blend), scripts và files.
+  - Chạy `pnpm run typecheck` (`tsc -b`): **Thành công 100% (0 errors, 0 warnings)**.
 
 ---
 

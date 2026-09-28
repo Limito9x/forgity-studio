@@ -90,7 +90,7 @@ export const GetProjectExecutorConfigsParams = /*#__PURE__*/ zod.object({
 export const GetProjectExecutorConfigsResponseItem = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "projectId": /*#__PURE__*/ zod.uuid(),
-  "agentId": /*#__PURE__*/ zod.uuid(),
+  "runnerId": /*#__PURE__*/ zod.uuid(),
   "executorKey": /*#__PURE__*/ zod.string(),
   "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
@@ -109,7 +109,7 @@ export const upsertProjectExecutorConfigBodyExecutorKeyMax = 50;
 
 
 export const UpsertProjectExecutorConfigBody = /*#__PURE__*/ zod.object({
-  "agentId": /*#__PURE__*/ zod.uuid().check(/*#__PURE__*/ zod.minLength(1)),
+  "runnerId": /*#__PURE__*/ zod.uuid().check(/*#__PURE__*/ zod.minLength(1)),
   "executorKey": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(upsertProjectExecutorConfigBodyExecutorKeyMin)).check(/*#__PURE__*/ zod.maxLength(upsertProjectExecutorConfigBodyExecutorKeyMax)),
   "settings": /*#__PURE__*/ zod.unknown()
 })
@@ -117,7 +117,7 @@ export const UpsertProjectExecutorConfigBody = /*#__PURE__*/ zod.object({
 export const UpsertProjectExecutorConfigResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "projectId": /*#__PURE__*/ zod.uuid(),
-  "agentId": /*#__PURE__*/ zod.uuid(),
+  "runnerId": /*#__PURE__*/ zod.uuid(),
   "executorKey": /*#__PURE__*/ zod.string(),
   "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),

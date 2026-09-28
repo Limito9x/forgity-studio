@@ -76,9 +76,6 @@ namespace Automation.Studio.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("AgentId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -93,6 +90,9 @@ namespace Automation.Studio.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("RunnerId")
+                        .HasColumnType("uuid");
+
                     b.Property<JsonDocument>("Settings")
                         .HasColumnType("jsonb");
 
@@ -104,7 +104,7 @@ namespace Automation.Studio.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ProjectId", "AgentId", "ExecutorKey")
+                    b.HasIndex("ProjectId", "RunnerId", "ExecutorKey")
                         .IsUnique();
 
                     b.ToTable("ProjectExecutorConfigs", "studio");

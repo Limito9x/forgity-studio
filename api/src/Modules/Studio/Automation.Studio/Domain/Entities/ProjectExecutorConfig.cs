@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 
 namespace Automation.Studio.Domain.Entities;
 
@@ -7,7 +7,7 @@ public class ProjectExecutorConfig : AuditableEntity
     public Guid ProjectId { get; set; }
     public Project Project { get; set; } = null!;
 
-    public Guid AgentId { get; set; }
+    public Guid RunnerId { get; set; }
     public string ExecutorKey { get; set; } = string.Empty;
     public JsonDocument? Settings { get; set; }
 
@@ -15,13 +15,13 @@ public class ProjectExecutorConfig : AuditableEntity
 
     public ProjectExecutorConfig(
         Guid projectId,
-        Guid agentId,
+        Guid runnerId,
         string executorKey,
         JsonDocument? settings = null
     )
     {
         ProjectId = projectId;
-        AgentId = agentId;
+        RunnerId = runnerId;
         ExecutorKey = executorKey;
         Settings = settings;
     }

@@ -1,4 +1,4 @@
-﻿using Automation.Studio.Domain.Entities;
+using Automation.Studio.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -15,7 +15,7 @@ public class ProjectExecutorConfigConfiguration : IEntityTypeConfiguration<Proje
             .HasForeignKey(x => x.ProjectId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.Property(x => x.AgentId)
+        builder.Property(x => x.RunnerId)
             .IsRequired();
 
         builder.Property(x => x.ExecutorKey)
@@ -25,7 +25,7 @@ public class ProjectExecutorConfigConfiguration : IEntityTypeConfiguration<Proje
         builder.Property(x => x.Settings)
             .HasColumnType("jsonb");
 
-        builder.HasIndex(x => new { x.ProjectId, x.AgentId, x.ExecutorKey })
+        builder.HasIndex(x => new { x.ProjectId, x.RunnerId, x.ExecutorKey })
             .IsUnique();
     }
 }

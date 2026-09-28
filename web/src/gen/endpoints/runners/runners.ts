@@ -40,6 +40,7 @@ import type {
   RunnerStudioDto,
   ScanExecutorsRequest,
   SetupTokenDto,
+  UpdateRunnerHardwareProfileRequest,
 } from "../../model";
 
 import { customInstance } from "../../../lib/api-client";
@@ -1159,6 +1160,160 @@ export const useScanExecutors = <TError = void, TContext = unknown>(
   TContext
 > => {
   return useMutation(getScanExecutorsMutationOptions(options), queryClient);
+};
+export const updateRunnerHardwareProfile = (
+  runnerId: string,
+  updateRunnerHardwareProfileRequest: UpdateRunnerHardwareProfileRequest,
+  signal?: AbortSignal,
+) => {
+  return customInstance<RunnerDto2>({
+    url: `/api/runners/${runnerId}/hardware-profile`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: updateRunnerHardwareProfileRequest,
+    signal,
+  });
+};
+
+export const getUpdateRunnerHardwareProfileMutationOptions = <
+  TError = unknown,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRunnerHardwareProfile>>,
+    TError,
+    { runnerId: string; data: UpdateRunnerHardwareProfileRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateRunnerHardwareProfile>>,
+  TError,
+  { runnerId: string; data: UpdateRunnerHardwareProfileRequest },
+  TContext
+> => {
+  const mutationKey = ["updateRunnerHardwareProfile"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateRunnerHardwareProfile>>,
+    { runnerId: string; data: UpdateRunnerHardwareProfileRequest }
+  > = (props) => {
+    const { runnerId, data } = props ?? {};
+
+    return updateRunnerHardwareProfile(runnerId, data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateRunnerHardwareProfileMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateRunnerHardwareProfile>>
+>;
+export type UpdateRunnerHardwareProfileMutationBody =
+  UpdateRunnerHardwareProfileRequest;
+export type UpdateRunnerHardwareProfileMutationError = unknown;
+
+export const useUpdateRunnerHardwareProfile = <
+  TError = unknown,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateRunnerHardwareProfile>>,
+      TError,
+      { runnerId: string; data: UpdateRunnerHardwareProfileRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateRunnerHardwareProfile>>,
+  TError,
+  { runnerId: string; data: UpdateRunnerHardwareProfileRequest },
+  TContext
+> => {
+  return useMutation(
+    getUpdateRunnerHardwareProfileMutationOptions(options),
+    queryClient,
+  );
+};
+export const scanRunnerHardware = (runnerId: string, signal?: AbortSignal) => {
+  return customInstance<RunnerDto2>({
+    url: `/api/runners/${runnerId}/hardware/scan`,
+    method: "POST",
+    signal,
+  });
+};
+
+export const getScanRunnerHardwareMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof scanRunnerHardware>>,
+    TError,
+    { runnerId: string },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof scanRunnerHardware>>,
+  TError,
+  { runnerId: string },
+  TContext
+> => {
+  const mutationKey = ["scanRunnerHardware"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof scanRunnerHardware>>,
+    { runnerId: string }
+  > = (props) => {
+    const { runnerId } = props ?? {};
+
+    return scanRunnerHardware(runnerId);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ScanRunnerHardwareMutationResult = NonNullable<
+  Awaited<ReturnType<typeof scanRunnerHardware>>
+>;
+
+export type ScanRunnerHardwareMutationError = void;
+
+export const useScanRunnerHardware = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof scanRunnerHardware>>,
+      TError,
+      { runnerId: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof scanRunnerHardware>>,
+  TError,
+  { runnerId: string },
+  TContext
+> => {
+  return useMutation(
+    getScanRunnerHardwareMutationOptions(options),
+    queryClient,
+  );
 };
 export const attachRunnerToStudio = (
   runnerId: string,

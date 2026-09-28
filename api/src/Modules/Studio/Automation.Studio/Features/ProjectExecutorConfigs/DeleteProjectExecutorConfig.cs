@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
 using Automation.Studio.Features.Projects;
 using Automation.Studio.Infrastructure.Persistence;
@@ -22,7 +22,9 @@ public class DeleteProjectExecutorConfigEndpoint(IMessageBus bus)
         DeleteProjectExecutorConfigCommand req,
         CancellationToken ct)
     {
-        var result = await bus.InvokeAsync<Result>(req, ct);
+        var projectId = Route<Guid>("ProjectId");
+        var id = Route<Guid>("Id");
+        var result = await bus.InvokeAsync<Result>(new DeleteProjectExecutorConfigCommand(projectId, id), ct);
         await this.SendResultAsync(result, ct);
     }
 }

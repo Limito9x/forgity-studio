@@ -20,6 +20,18 @@ public record RunnerBrowseItemDto(
     long SizeBytes
 );
 
+public record RunnerSystemPlaceDto(
+    string Name,
+    string Path
+);
+
+public record RunnerDriveInfoDto(
+    string Mount,
+    string Label,
+    long TotalBytes,
+    long FreeBytes
+);
+
 public record RunnerBrowseResultDto(
     string CommandId,
     bool Success,
@@ -27,7 +39,10 @@ public record RunnerBrowseResultDto(
     string CurrentPath,
     string ParentPath,
     bool CanNavigateUp,
-    IReadOnlyList<RunnerBrowseItemDto>? Items
+    IReadOnlyList<RunnerBrowseItemDto>? Items,
+    IReadOnlyList<RunnerSystemPlaceDto>? SystemPlaces = null,
+    IReadOnlyList<string>? PinnedFolders = null,
+    IReadOnlyList<RunnerDriveInfoDto>? Drives = null
 );
 
 // Backward-compatibility aliases

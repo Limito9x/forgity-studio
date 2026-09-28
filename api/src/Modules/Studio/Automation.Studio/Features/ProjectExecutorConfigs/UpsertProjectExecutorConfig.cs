@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
 using Automation.Studio.Domain.Entities;
@@ -10,7 +10,7 @@ namespace Automation.Studio.Features.ProjectExecutorConfigs;
 
 public record UpsertProjectExecutorConfigCommand(
     Guid ProjectId,
-    Guid AgentId,
+    Guid RunnerId,
     string ExecutorKey,
     JsonDocument? Settings
 );
@@ -20,7 +20,7 @@ public class UpsertProjectExecutorConfigValidator : AbstractValidator<UpsertProj
     public UpsertProjectExecutorConfigValidator()
     {
         RuleFor(x => x.ProjectId).NotEmpty();
-        RuleFor(x => x.AgentId).NotEmpty();
+        RuleFor(x => x.RunnerId).NotEmpty();
         RuleFor(x => x.ExecutorKey).NotEmpty().MaximumLength(50);
     }
 }
@@ -40,6 +40,8 @@ public class UpsertProjectExecutorConfigEndpoint(IMessageBus bus)
         UpsertProjectExecutorConfigCommand req,
         CancellationToken ct)
     {
+        var projectId = Route<Guid>("ProjectId");
+        req = req with { ProjectId = projectId };
         var result = await bus.InvokeAsync<Result<ProjectExecutorConfigDto>>(req, ct);
         await this.SendResultAsync(result, ct);
     }
@@ -60,14 +62,14 @@ public class UpsertProjectExecutorConfigHandler(StudioDbContext db)
 
         var config = await db.ProjectExecutorConfigs
             .FirstOrDefaultAsync(x => x.ProjectId == command.ProjectId &&
-                                      x.AgentId == command.AgentId &&
+                                      x.RunnerId == command.RunnerId &&
                                       x.ExecutorKey == command.ExecutorKey, ct);
 
         if (config == null)
         {
             config = new ProjectExecutorConfig(
                 command.ProjectId,
-                command.AgentId,
+                command.RunnerId,
                 command.ExecutorKey,
                 command.Settings
             );
@@ -83,7 +85,7 @@ public class UpsertProjectExecutorConfigHandler(StudioDbContext db)
         return Result.Ok(new ProjectExecutorConfigDto(
             config.Id,
             config.ProjectId,
-            config.AgentId,
+            config.RunnerId,
             config.ExecutorKey,
             config.Settings,
             config.CreatedAt,

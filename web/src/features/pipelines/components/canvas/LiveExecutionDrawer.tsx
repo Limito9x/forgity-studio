@@ -276,7 +276,7 @@ export function LiveExecutionDrawer({
                           {exec.agentId && (
                             <span className="flex items-center gap-1">
                               <Server className="h-3 w-3" />
-                              Agent: {exec.agentId.slice(0, 6)}...
+                              Runner: {exec.agentId.slice(0, 6)}...
                             </span>
                           )}
                         </div>
@@ -441,7 +441,7 @@ export function LiveExecutionDrawer({
                     {activeExecution.agentId && (
                       <span className="text-muted-foreground flex items-center gap-1">
                         <Server className="h-3 w-3" />
-                        Agent: <code className="font-mono text-foreground">{activeExecution.agentId}</code>
+                        Runner: <code className="font-mono text-foreground">{activeExecution.agentId}</code>
                       </span>
                     )}
                   </div>

@@ -4,6 +4,7 @@
  * Automation.Api | v1
  * OpenAPI spec version: 1.0.0
  */
+import type { RunnerHardwareProfile } from "./runnerHardwareProfile";
 
 export interface RunnerDto2 {
   id: string;
@@ -13,6 +14,20 @@ export interface RunnerDto2 {
   /** @nullable */
   lastSeenAt: string | null;
   createdAt: string;
+  /** @nullable */
+  osPlatform?: string | null;
+  /** @nullable */
+  cpuModel?: string | null;
+  /** @nullable */
+  totalRamBytes?: number | null;
+  /** @nullable */
+  primaryGpuName?: string | null;
+  /** @nullable */
+  primaryGpuVramBytes?: number | null;
+  /** @nullable */
+  lastHardwareScannedAt?: string | null;
+  /** @nullable */
+  hardwareDetails?: RunnerHardwareProfile | null;
   /** @nullable */
   executorConfigs?: unknown[] | null;
 }

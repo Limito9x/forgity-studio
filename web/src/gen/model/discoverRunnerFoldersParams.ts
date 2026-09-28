@@ -10,4 +10,9 @@ export type DiscoverRunnerFoldersParams = {
    * @nullable
    */
   path?: string | null;
+  includeFiles?: boolean;
+  /**
+   * @nullable
+   */
+  extensions?: string | null;
 };

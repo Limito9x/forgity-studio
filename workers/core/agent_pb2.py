@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0b\x61gent.proto\x12\x10\x61utomation.agent\"j\n\x0c\x41gentMessage\x12\x10\n\x08\x61gent_id\x18\x01 \x01(\t\x12=\n\x10\x63ommand_response\x18\x02 \x01(\x0b\x32!.automation.agent.CommandResponseH\x00\x42\t\n\x07payload\"\xef\x02\n\x0f\x43ommandResponse\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x0f\n\x07success\x18\x02 \x01(\x08\x12\x15\n\rerror_message\x18\x03 \x01(\t\x12:\n\x0bscan_result\x18\x04 \x01(\x0b\x32#.automation.agent.ScanCommandResultH\x00\x12>\n\rbrowse_result\x18\x05 \x01(\x0b\x32%.automation.agent.BrowseCommandResultH\x00\x12M\n\x15scan_executors_result\x18\x06 \x01(\x0b\x32,.automation.agent.ScanExecutorsCommandResultH\x00\x12K\n\x14scan_hardware_result\x18\x07 \x01(\x0b\x32+.automation.agent.ScanHardwareCommandResultH\x00\x42\x08\n\x06result\"\xb5\x01\n\x19ScanHardwareCommandResult\x12\x13\n\x0bos_platform\x18\x01 \x01(\t\x12\x11\n\tcpu_model\x18\x02 \x01(\t\x12\x17\n\x0ftotal_ram_bytes\x18\x03 \x01(\x03\x12\x18\n\x10primary_gpu_name\x18\x04 \x01(\t\x12\x1e\n\x16primary_gpu_vram_bytes\x18\x05 \x01(\x03\x12\x1d\n\x15hardware_details_json\x18\x06 \x01(\t\"I\n\x11ScanCommandResult\x12\x34\n\x05items\x18\x01 \x03(\x0b\x32%.automation.agent.ResourceItemMessage\"\x8d\x01\n\x13\x42rowseCommandResult\x12\x14\n\x0c\x63urrent_path\x18\x01 \x01(\t\x12\x13\n\x0bparent_path\x18\x02 \x01(\t\x12\x17\n\x0f\x63\x61n_navigate_up\x18\x03 \x01(\x08\x12\x32\n\x05items\x18\x04 \x03(\x0b\x32#.automation.agent.BrowseItemMessage\"W\n\x1aScanExecutorsCommandResult\x12\x39\n\x05items\x18\x01 \x03(\x0b\x32*.automation.agent.ExecutorCandidateMessage\"Z\n\x18\x45xecutorCandidateMessage\x12\x14\n\x0c\x65xecutor_key\x18\x01 \x01(\t\x12\x17\n\x0f\x65xecutable_path\x18\x02 \x01(\t\x12\x0f\n\x07version\x18\x03 \x01(\t\"N\n\x13ResourceItemMessage\x12\x15\n\rrelative_path\x18\x01 \x01(\t\x12\x0c\n\x04hash\x18\x02 \x01(\t\x12\x12\n\nsize_bytes\x18\x03 \x01(\x03\"Y\n\x11\x42rowseItemMessage\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0c\n\x04path\x18\x02 \x01(\t\x12\x14\n\x0cis_directory\x18\x03 \x01(\x08\x12\x12\n\nsize_bytes\x18\x04 \x01(\x03\"\x9e\x02\n\rServerMessage\x12\x35\n\x0cscan_command\x18\x01 \x01(\x0b\x32\x1d.automation.agent.ScanCommandH\x00\x12\x39\n\x0e\x62rowse_command\x18\x02 \x01(\x0b\x32\x1f.automation.agent.BrowseCommandH\x00\x12H\n\x16scan_executors_command\x18\x03 \x01(\x0b\x32&.automation.agent.ScanExecutorsCommandH\x00\x12\x46\n\x15scan_hardware_command\x18\x04 \x01(\x0b\x32%.automation.agent.ScanHardwareCommandH\x00\x42\t\n\x07payload\"M\n\x0bScanCommand\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x16\n\x0e\x64irectory_path\x18\x02 \x01(\t\x12\x12\n\nextensions\x18\x03 \x03(\t\";\n\rBrowseCommand\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x16\n\x0e\x64irectory_path\x18\x02 \x01(\t\"@\n\x14ScanExecutorsCommand\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x14\n\x0c\x65xecutor_key\x18\x02 \x01(\t\")\n\x13ScanHardwareCommand\x12\x12\n\ncommand_id\x18\x01 \x01(\t2^\n\x0c\x41gentService\x12N\n\x07\x43onnect\x12\x1e.automation.agent.AgentMessage\x1a\x1f.automation.agent.ServerMessage(\x01\x30\x01\x42\x18\xaa\x02\x15\x41utomation.Agent.Grpcb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0b\x61gent.proto\x12\x10\x61utomation.agent\"j\n\x0c\x41gentMessage\x12\x10\n\x08\x61gent_id\x18\x01 \x01(\t\x12=\n\x10\x63ommand_response\x18\x02 \x01(\x0b\x32!.automation.agent.CommandResponseH\x00\x42\t\n\x07payload\"\xef\x02\n\x0f\x43ommandResponse\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x0f\n\x07success\x18\x02 \x01(\x08\x12\x15\n\rerror_message\x18\x03 \x01(\t\x12:\n\x0bscan_result\x18\x04 \x01(\x0b\x32#.automation.agent.ScanCommandResultH\x00\x12>\n\rbrowse_result\x18\x05 \x01(\x0b\x32%.automation.agent.BrowseCommandResultH\x00\x12M\n\x15scan_executors_result\x18\x06 \x01(\x0b\x32,.automation.agent.ScanExecutorsCommandResultH\x00\x12K\n\x14scan_hardware_result\x18\x07 \x01(\x0b\x32+.automation.agent.ScanHardwareCommandResultH\x00\x42\x08\n\x06result\"\xb5\x01\n\x19ScanHardwareCommandResult\x12\x13\n\x0bos_platform\x18\x01 \x01(\t\x12\x11\n\tcpu_model\x18\x02 \x01(\t\x12\x17\n\x0ftotal_ram_bytes\x18\x03 \x01(\x03\x12\x18\n\x10primary_gpu_name\x18\x04 \x01(\t\x12\x1e\n\x16primary_gpu_vram_bytes\x18\x05 \x01(\x03\x12\x1d\n\x15hardware_details_json\x18\x06 \x01(\t\"I\n\x11ScanCommandResult\x12\x34\n\x05items\x18\x01 \x03(\x0b\x32%.automation.agent.ResourceItemMessage\"0\n\x12SystemPlaceMessage\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0c\n\x04path\x18\x02 \x01(\t\"Y\n\x10\x44riveInfoMessage\x12\r\n\x05mount\x18\x01 \x01(\t\x12\r\n\x05label\x18\x02 \x01(\t\x12\x13\n\x0btotal_bytes\x18\x03 \x01(\x03\x12\x12\n\nfree_bytes\x18\x04 \x01(\x03\"\x96\x02\n\x13\x42rowseCommandResult\x12\x14\n\x0c\x63urrent_path\x18\x01 \x01(\t\x12\x13\n\x0bparent_path\x18\x02 \x01(\t\x12\x17\n\x0f\x63\x61n_navigate_up\x18\x03 \x01(\x08\x12\x32\n\x05items\x18\x04 \x03(\x0b\x32#.automation.agent.BrowseItemMessage\x12;\n\rsystem_places\x18\x05 \x03(\x0b\x32$.automation.agent.SystemPlaceMessage\x12\x16\n\x0epinned_folders\x18\x06 \x03(\t\x12\x32\n\x06\x64rives\x18\x07 \x03(\x0b\x32\".automation.agent.DriveInfoMessage\"W\n\x1aScanExecutorsCommandResult\x12\x39\n\x05items\x18\x01 \x03(\x0b\x32*.automation.agent.ExecutorCandidateMessage\"Z\n\x18\x45xecutorCandidateMessage\x12\x14\n\x0c\x65xecutor_key\x18\x01 \x01(\t\x12\x17\n\x0f\x65xecutable_path\x18\x02 \x01(\t\x12\x0f\n\x07version\x18\x03 \x01(\t\"N\n\x13ResourceItemMessage\x12\x15\n\rrelative_path\x18\x01 \x01(\t\x12\x0c\n\x04hash\x18\x02 \x01(\t\x12\x12\n\nsize_bytes\x18\x03 \x01(\x03\"Y\n\x11\x42rowseItemMessage\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0c\n\x04path\x18\x02 \x01(\t\x12\x14\n\x0cis_directory\x18\x03 \x01(\x08\x12\x12\n\nsize_bytes\x18\x04 \x01(\x03\"\x9e\x02\n\rServerMessage\x12\x35\n\x0cscan_command\x18\x01 \x01(\x0b\x32\x1d.automation.agent.ScanCommandH\x00\x12\x39\n\x0e\x62rowse_command\x18\x02 \x01(\x0b\x32\x1f.automation.agent.BrowseCommandH\x00\x12H\n\x16scan_executors_command\x18\x03 \x01(\x0b\x32&.automation.agent.ScanExecutorsCommandH\x00\x12\x46\n\x15scan_hardware_command\x18\x04 \x01(\x0b\x32%.automation.agent.ScanHardwareCommandH\x00\x42\t\n\x07payload\"M\n\x0bScanCommand\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x16\n\x0e\x64irectory_path\x18\x02 \x01(\t\x12\x12\n\nextensions\x18\x03 \x03(\t\";\n\rBrowseCommand\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x16\n\x0e\x64irectory_path\x18\x02 \x01(\t\"@\n\x14ScanExecutorsCommand\x12\x12\n\ncommand_id\x18\x01 \x01(\t\x12\x14\n\x0c\x65xecutor_key\x18\x02 \x01(\t\")\n\x13ScanHardwareCommand\x12\x12\n\ncommand_id\x18\x01 \x01(\t2^\n\x0c\x41gentService\x12N\n\x07\x43onnect\x12\x1e.automation.agent.AgentMessage\x1a\x1f.automation.agent.ServerMessage(\x01\x30\x01\x42\x18\xaa\x02\x15\x41utomation.Agent.Grpcb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -40,26 +40,30 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_SCANHARDWARECOMMANDRESULT']._serialized_end=693
   _globals['_SCANCOMMANDRESULT']._serialized_start=695
   _globals['_SCANCOMMANDRESULT']._serialized_end=768
-  _globals['_BROWSECOMMANDRESULT']._serialized_start=771
-  _globals['_BROWSECOMMANDRESULT']._serialized_end=912
-  _globals['_SCANEXECUTORSCOMMANDRESULT']._serialized_start=914
-  _globals['_SCANEXECUTORSCOMMANDRESULT']._serialized_end=1001
-  _globals['_EXECUTORCANDIDATEMESSAGE']._serialized_start=1003
-  _globals['_EXECUTORCANDIDATEMESSAGE']._serialized_end=1093
-  _globals['_RESOURCEITEMMESSAGE']._serialized_start=1095
-  _globals['_RESOURCEITEMMESSAGE']._serialized_end=1173
-  _globals['_BROWSEITEMMESSAGE']._serialized_start=1175
-  _globals['_BROWSEITEMMESSAGE']._serialized_end=1264
-  _globals['_SERVERMESSAGE']._serialized_start=1267
-  _globals['_SERVERMESSAGE']._serialized_end=1553
-  _globals['_SCANCOMMAND']._serialized_start=1555
-  _globals['_SCANCOMMAND']._serialized_end=1632
-  _globals['_BROWSECOMMAND']._serialized_start=1634
-  _globals['_BROWSECOMMAND']._serialized_end=1693
-  _globals['_SCANEXECUTORSCOMMAND']._serialized_start=1695
-  _globals['_SCANEXECUTORSCOMMAND']._serialized_end=1759
-  _globals['_SCANHARDWARECOMMAND']._serialized_start=1761
-  _globals['_SCANHARDWARECOMMAND']._serialized_end=1802
-  _globals['_AGENTSERVICE']._serialized_start=1804
-  _globals['_AGENTSERVICE']._serialized_end=1898
+  _globals['_SYSTEMPLACEMESSAGE']._serialized_start=770
+  _globals['_SYSTEMPLACEMESSAGE']._serialized_end=818
+  _globals['_DRIVEINFOMESSAGE']._serialized_start=820
+  _globals['_DRIVEINFOMESSAGE']._serialized_end=909
+  _globals['_BROWSECOMMANDRESULT']._serialized_start=912
+  _globals['_BROWSECOMMANDRESULT']._serialized_end=1190
+  _globals['_SCANEXECUTORSCOMMANDRESULT']._serialized_start=1192
+  _globals['_SCANEXECUTORSCOMMANDRESULT']._serialized_end=1279
+  _globals['_EXECUTORCANDIDATEMESSAGE']._serialized_start=1281
+  _globals['_EXECUTORCANDIDATEMESSAGE']._serialized_end=1371
+  _globals['_RESOURCEITEMMESSAGE']._serialized_start=1373
+  _globals['_RESOURCEITEMMESSAGE']._serialized_end=1451
+  _globals['_BROWSEITEMMESSAGE']._serialized_start=1453
+  _globals['_BROWSEITEMMESSAGE']._serialized_end=1542
+  _globals['_SERVERMESSAGE']._serialized_start=1545
+  _globals['_SERVERMESSAGE']._serialized_end=1831
+  _globals['_SCANCOMMAND']._serialized_start=1833
+  _globals['_SCANCOMMAND']._serialized_end=1910
+  _globals['_BROWSECOMMAND']._serialized_start=1912
+  _globals['_BROWSECOMMAND']._serialized_end=1971
+  _globals['_SCANEXECUTORSCOMMAND']._serialized_start=1973
+  _globals['_SCANEXECUTORSCOMMAND']._serialized_end=2037
+  _globals['_SCANHARDWARECOMMAND']._serialized_start=2039
+  _globals['_SCANHARDWARECOMMAND']._serialized_end=2080
+  _globals['_AGENTSERVICE']._serialized_start=2082
+  _globals['_AGENTSERVICE']._serialized_end=2176
 # @@protoc_insertion_point(module_scope)

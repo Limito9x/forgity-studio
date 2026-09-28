@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useProjectExecutorConfigs, type ProjectExecutorConfigDto } from "../hooks/useProjectExecutorConfigs";
-import { useRunners, type RunnerDto } from "@/features/runners/hooks/useRunners";
+import { useRunners, useStudioRunners, type RunnerDto } from "@/features/runners/hooks/useRunners";
+import { useGetProjectById } from "@/features/projects/hooks/useProjects";
 import { useDialogStore } from "@/stores/dialogStore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,16 +11,21 @@ import { toast } from "sonner";
 
 interface ProjectExecutorConfigTableProps {
     projectId: string;
+    studioId?: string;
 }
 
-export function ProjectExecutorConfigTable({ projectId }: ProjectExecutorConfigTableProps) {
+export function ProjectExecutorConfigTable({ projectId, studioId }: ProjectExecutorConfigTableProps) {
     const { t } = useTranslation("projects");
     const { data: configs, isLoading } = useProjectExecutorConfigs(projectId);
-    const { data: runners } = useRunners();
+    const { data: project } = useGetProjectById(projectId);
+    const effectiveStudioId = studioId || project?.studioId;
+    const { data: studioRunners } = useStudioRunners(effectiveStudioId);
+    const { data: allRunners } = useRunners();
     const openDialog = useDialogStore((state) => state.openDialog);
     const [copiedId, setCopiedId] = useState<string | null>(null);
 
-    const runnerMap = new Map<string, RunnerDto>((runners || []).map((r: RunnerDto) => [r.id, r]));
+    const runners = effectiveStudioId && studioRunners ? studioRunners : (allRunners || []);
+    const runnerMap = new Map<string, RunnerDto>(runners.map((r: RunnerDto) => [r.id, r]));
 
     const handleCopyPath = (path: string, id: string) => {
         navigator.clipboard.writeText(path);
@@ -41,66 +47,68 @@ export function ProjectExecutorConfigTable({ projectId }: ProjectExecutorConfigT
     };
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-6">
+            {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h3 className="text-lg font-semibold tracking-tight">
-                        {t("sections.executorConfigs.title", { defaultValue: "Agent Executor Configurations" })}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
+                    <h1 className="text-2xl font-bold tracking-tight">
+                        {t("sections.executorConfigs.title", { defaultValue: "Runner Executor Configurations" })}
+                    </h1>
+                    <p className="text-sm text-muted-foreground mt-1">
                         {t("sections.executorConfigs.description", {
-                            defaultValue: "Configure local project paths (.uproject, blend files) and parameters for each target machine.",
+                            defaultValue: "Configure local project paths (.uproject, blend files) and parameters for each runner machine.",
                         })}
                     </p>
                 </div>
                 <Button
-                    onClick={() =>
+                    onPress={() =>
                         openDialog("upsertProjectExecutorConfig", {
                             projectId,
+                            studioId: effectiveStudioId,
                         })
                     }
-                    className="gap-2"
+                    className="flex items-center gap-2 cursor-pointer"
                 >
-                    <Plus className="h-4 w-4" />
-                    {t("actions.addExecutorConfig", { defaultValue: "Add Configuration" })}
+                    <Plus className="size-4" />
+                    <span>{t("actions.addExecutorConfig", { defaultValue: "Add Configuration" })}</span>
                 </Button>
             </div>
 
             {isLoading ? (
-                <div className="flex h-32 items-center justify-center rounded-xl border border-border bg-card">
-                    <p className="text-sm text-muted-foreground">Loading configurations...</p>
+                <div className="flex items-center justify-center py-16 text-muted-foreground">
+                    <p className="text-sm">Loading configurations...</p>
                 </div>
             ) : !configs || configs.length === 0 ? (
-                <div className="flex h-44 flex-col items-center justify-center space-y-3 rounded-xl border border-dashed border-border bg-card p-6 text-center">
-                    <Cpu className="h-10 w-10 text-muted-foreground/60" />
-                    <div className="space-y-1">
-                        <p className="text-sm font-medium">
-                            {t("empty.noExecutorConfigs", { defaultValue: "No executor configurations found" })}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                            {t("empty.noExecutorConfigsDesc", {
-                                defaultValue: "Add an agent project path (e.g. Unreal Engine .uproject) to enable automated pipeline executions.",
-                            })}
-                        </p>
+                <div className="flex flex-col items-center justify-center py-16 px-4 rounded-xl border border-dashed text-center bg-card">
+                    <div className="p-3 rounded-full bg-primary/10 text-primary mb-3">
+                        <Cpu className="size-8" />
                     </div>
+                    <h3 className="text-base font-semibold">
+                        {t("empty.noExecutorConfigs", { defaultValue: "No executor configurations found" })}
+                    </h3>
+                    <p className="text-sm text-muted-foreground max-w-sm mt-1 mb-4">
+                        {t("empty.noExecutorConfigsDesc", {
+                            defaultValue: "Add a runner project path (e.g. Unreal Engine .uproject) to enable automated pipeline executions.",
+                        })}
+                    </p>
                     <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
+                        onPress={() =>
                             openDialog("upsertProjectExecutorConfig", {
                                 projectId,
+                                studioId: effectiveStudioId,
                             })
                         }
+                        className="flex items-center gap-2 cursor-pointer"
                     >
-                        <Plus className="mr-2 h-3.5 w-3.5" />
-                        {t("actions.addFirstConfig", { defaultValue: "Configure Now" })}
+                        <Plus className="size-4" />
+                        <span>{t("actions.addFirstConfig", { defaultValue: "Configure Now" })}</span>
                     </Button>
                 </div>
             ) : (
                 <div className="overflow-hidden rounded-xl border border-border bg-card">
                     <div className="divide-y divide-border">
                         {configs.map((cfg: ProjectExecutorConfigDto) => {
-                            const runner = runnerMap.get(cfg.agentId);
+                            const runner = runnerMap.get(cfg.runnerId);
                             const settings = parseSettings(cfg.settings);
                             const fullPath = settings.fullPathProject || settings.project_path || "(No path set)";
                             const engineVersion = settings.engineVersion;
@@ -113,7 +121,7 @@ export function ProjectExecutorConfigTable({ projectId }: ProjectExecutorConfigT
                                     <div className="space-y-1.5 min-w-0 flex-1">
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <span className="font-medium text-foreground">
-                                                {runner ? runner.name : `Runner [${cfg.agentId.slice(0, 8)}]`}
+                                                {runner ? runner.name : `Runner [${cfg.runnerId.slice(0, 8)}]`}
                                             </span>
                                             {runner && (
                                                 <span className="text-xs text-muted-foreground">
@@ -157,6 +165,7 @@ export function ProjectExecutorConfigTable({ projectId }: ProjectExecutorConfigT
                                             onClick={() =>
                                                 openDialog("upsertProjectExecutorConfig", {
                                                     projectId,
+                                                    studioId: effectiveStudioId,
                                                     config: cfg,
                                                 })
                                             }

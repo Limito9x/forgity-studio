@@ -34,12 +34,12 @@ public class GetRunnersHandler(RunnerDbContext db)
         if (query.IsActive.HasValue)
             dbQuery = dbQuery.Where(x => x.IsActive == query.IsActive.Value);
 
-        var runners = await dbQuery
+        var entities = await dbQuery
             .Include(x => x.ExecutorConfigs)
             .OrderByDescending(x => x.CreatedAt)
-            .ProjectToType<RunnerDto>()
             .ToListAsync(ct);
 
-        return Result.Ok<IReadOnlyList<RunnerDto>>(runners);
+        var runners = entities.Adapt<IReadOnlyList<RunnerDto>>();
+        return Result.Ok(runners);
     }
 }

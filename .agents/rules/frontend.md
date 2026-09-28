@@ -10,10 +10,17 @@ Quy tắc áp dụng bắt buộc khi xây dựng hoặc sửa đổi mã nguồ
 
 ---
 
-## 2. API Auto-Generation với Orval
+## 2. API Auto-Generation với Orval & Cảnh Báo Thiếu API
 - Thư mục `web/src/gen` được tự động sinh bởi `orval` (`pnpm run gen:api`).
 - **TUYỆT ĐỐI KHÔNG** viết, sửa hoặc thêm code thủ công bên trong `src/gen`.
 - Mọi logic custom API, interceptors, error handling phải đặt bên ngoài (ví dụ: `src/lib/api-client.ts`).
+- **QUY TẮC BẮT BUỘC NHẮC USER KHI THIẾU API HOẶC CHƯA GEN ORVAL**:
+  - Khi làm việc trên Frontend mà nhận thấy API cần dùng **chưa có trong `src/gen`** hoặc **Backend hoàn toàn chưa có endpoint đó**:
+  - **TUYỆT ĐỐI KHÔNG** tự ý âm thầm viết code wrapper thủ công bằng `customInstance` hay raw axios.
+  - **BẮT BUỘC PHẢI DỪNG LẠI VÀ THÔNG BÁO NGAY CHO USER**:
+    + *Trường hợp 1 (Backend đã có, Orval chưa gen)*: Thông báo cho user biết endpoint đã tồn tại ở Backend nhưng Frontend chưa gen, hướng dẫn/nhắc user bật Backend (`.\cli start`) và chạy `pnpm run gen:api` trong `web/` để đồng bộ.
+    + *Trường hợp 2 (Backend cũng chưa có endpoint)*: Báo rõ cho user rằng Backend chưa hỗ trợ endpoint này, cần triển khai Slice Backend trước hay có hướng đi nào khác.
+
 
 ---
 
@@ -63,11 +70,36 @@ Quy tắc áp dụng bắt buộc khi xây dựng hoặc sửa đổi mã nguồ
 
 ---
 
-## 8. Kiểm Tra Mã Nguồn (Code Verification)
-- Sau khi hoàn thành code frontend, LUÔN LUÔN chạy lệnh kiểm tra lỗi type TypeScript:
+## 8. Kiểm Tra Mã Nguồn & Type-Checking (Code Verification)
+- **CẢNH BÁO QUAN TRỌNG VỀ TSCONFIG**: Do dự án sử dụng TypeScript Project References, file `tsconfig.json` gốc có `"files": []`. Do đó:
+  - **TUYỆT ĐỐI KHÔNG** dùng lệnh `pnpm tsc --noEmit` trần trụi (vì nó sẽ bỏ qua thư mục `src/` và luôn báo 0 lỗi dù code sai).
+- **BẮT BUỘC** kiểm tra lỗi TypeScript bằng một trong các lệnh sau:
   ```bash
-  pnpm tsc --project tsconfig.app.json --noEmit
+  pnpm run typecheck
   # hoặc
   pnpm tsc -b
   ```
-- Bất cứ lỗi TypeScript nào xuất hiện cũng phải được sửa triệt để trước khi báo cáo hoàn thành.
+- Trước khi nghiệm thu hoặc báo cáo hoàn thành tính năng, chạy lệnh build tổng thể để xác nhận cả TypeScript lẫn Vite bundle đều qua:
+  ```bash
+  pnpm build
+  ```
+- Bất cứ lỗi TypeScript hay Warning nghiêm ngặt (`noUnusedLocals`, `noUnusedParameters`) nào xuất hiện cũng phải được sửa triệt để trước khi chuyển giao.
+
+---
+
+## 9. Quy Chuẩn Page Layout Container & Header (Chống Lệch Layout)
+- **Chuẩn duy nhất cho Page / Sub-page Wrapper:** Mọi trang tính năng (Feature Page, Resource Page, Settings Page) nằm trong `ProjectShell` hoặc `AppShell` BẮT BUỘC sử dụng wrapper container chuẩn:
+  ```tsx
+  <div className="p-6 mx-auto space-y-6 w-full min-w-0">
+  ```
+- **CẤM TỰ Ý DÙNG `max-w-*` TRÊN PAGE WRAPPER:**
+  - Tuyệt đối **KHÔNG** bọc toàn trang bằng `max-w-4xl`, `max-w-5xl`, `max-w-6xl` hay `max-w-prose`. Việc này làm cho trang bị co rúm vào giữa và lệch hoàn toàn so với các trang Data-First khác trong Studio (`Repositories`, `Pipelines`, `Contents`).
+  - Layout phải tràn đều không gian làm việc của Desktop Studio (`w-full min-w-0`).
+- **Chuẩn Tiêu Đề Header Trang (Page Header Typography):**
+  - Tiêu đề chính trang: `<h1 className="text-2xl font-bold tracking-tight">` (KHÔNG dùng `h2` hay `h3` làm title trang).
+  - Mô tả phụ: `<p className="text-sm text-muted-foreground mt-1">`.
+  - Nút thao tác chính: Luôn dùng `<Button onPress={() => openDialog(...)} className="flex items-center gap-2 cursor-pointer">` với icon `<Plus className="size-4" />`.
+- **Chuẩn Empty State:**
+  - Luôn sử dụng icon bọc trong vòng tròn: `<div className="p-3 rounded-full bg-primary/10 text-primary mb-3"><Icon className="size-8" /></div>`.
+  - Padding: `py-16 px-4 rounded-xl border border-dashed text-center bg-card`.
+
