@@ -35,15 +35,15 @@ public class GetMyRunnerHandler(RunnerDbContext db)
 {
     public async Task<Result<RunnerDto>> HandleAsync(GetMyRunnerQuery query, CancellationToken ct)
     {
-        var runner = await db.Runners
+        var entity = await db.Runners
             .AsNoTracking()
+            .Include(x => x.ExecutorConfigs)
             .Where(x => x.Id == query.RunnerId)
-            .ProjectToType<RunnerDto>()
             .FirstOrDefaultAsync(ct);
 
-        if (runner is null)
+        if (entity is null)
             return Result.Fail("Runner not found or inactive.");
 
-        return Result.Ok(runner);
+        return Result.Ok(entity.Adapt<RunnerDto>());
     }
 }

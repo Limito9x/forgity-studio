@@ -38,13 +38,15 @@ def check_and_sync_hardware_diff():
 
         if has_diff:
             print("[INFO] Hardware configuration change detected. Updating local profile snapshot...")
+            from datetime import datetime, timezone
             config["hardwareProfile"] = {
                 "osPlatform": current_hw["os_platform"],
                 "cpuModel": current_hw["cpu_model"],
                 "totalRamBytes": current_hw["total_ram_bytes"],
                 "primaryGpuName": current_hw["primary_gpu_name"],
                 "primaryGpuVramBytes": current_hw["primary_gpu_vram_bytes"],
-                "lastScannedAt": current_hw["scanned_at"],
+                "hardwareDetails": current_hw.get("hardware_details"),
+                "lastScannedAt": datetime.now(timezone.utc).isoformat(),
             }
             save_config(config)
 

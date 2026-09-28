@@ -8,18 +8,18 @@ public class StudioApiService(StudioDbContext db) : IStudioApi, IProjectsApi
 {
     public async Task<Result<ProjectExecutorConfigResultDto?>> GetExecutorConfigAsync(
         Guid projectId,
-        Guid agentId,
+        Guid runnerId,
         string executorKey,
         CancellationToken ct = default
     )
     {
         var config = await db.ProjectExecutorConfigs
             .AsNoTracking()
-            .Where(x => x.ProjectId == projectId && x.AgentId == agentId && x.ExecutorKey == executorKey)
+            .Where(x => x.ProjectId == projectId && x.RunnerId == runnerId && x.ExecutorKey == executorKey)
             .Select(x => new ProjectExecutorConfigResultDto(
                 x.Id,
                 x.ProjectId,
-                x.AgentId,
+                x.RunnerId,
                 x.ExecutorKey,
                 x.Settings
             ))

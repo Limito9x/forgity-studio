@@ -19,14 +19,14 @@ public class RunnerApiService(
     {
         var runner = await db
             .Runners.AsNoTracking()
+            .Include(x => x.ExecutorConfigs)
             .Where(a => a.Id == runnerId)
-            .ProjectToType<RunnerDto>()
             .FirstOrDefaultAsync(ct);
 
         if (runner is null)
             return Result.Fail($"Runner with ID '{runnerId}' was not found.");
 
-        return Result.Ok(runner);
+        return Result.Ok(runner.Adapt<RunnerDto>());
     }
 
     public async Task<Result<IReadOnlyList<RunnerDto>>> GetRunnersByIdsAsync(
@@ -38,13 +38,13 @@ public class RunnerApiService(
         if (ids.Count == 0)
             return Result.Ok<IReadOnlyList<RunnerDto>>([]);
 
-        var runners = await db
+        var entities = await db
             .Runners.AsNoTracking()
+            .Include(x => x.ExecutorConfigs)
             .Where(a => ids.Contains(a.Id))
-            .ProjectToType<RunnerDto>()
             .ToListAsync(ct);
 
-        return Result.Ok<IReadOnlyList<RunnerDto>>(runners);
+        return Result.Ok<IReadOnlyList<RunnerDto>>(entities.Adapt<IReadOnlyList<RunnerDto>>());
     }
 
     public async Task<Result<IReadOnlyDictionary<Guid, RunnerDto>>> GetRunnersMapByIdsAsync(
@@ -172,6 +172,16 @@ public class RunnerApiService(
                 ))
                 .ToList();
 
+            var systemPlaces = browseResult?.SystemPlaces
+                ?.Select(p => new RunnerSystemPlaceDto(p.Name, p.Path))
+                .ToList() ?? [];
+
+            var pinnedFolders = browseResult?.PinnedFolders?.ToList() ?? [];
+
+            var drives = browseResult?.Drives
+                ?.Select(d => new RunnerDriveInfoDto(d.Mount, d.Label, d.TotalBytes, d.FreeBytes))
+                .ToList() ?? [];
+
             return Result.Ok(
                 new RunnerBrowseResultDto(
                     commandId,
@@ -180,7 +190,10 @@ public class RunnerApiService(
                     currentPath,
                     parentPath,
                     canNavigateUp,
-                    items
+                    items,
+                    systemPlaces,
+                    pinnedFolders,
+                    drives
                 )
             );
         }
@@ -313,7 +326,11 @@ public class RunnerApiService(
                         {
                             runner.HardwareDetails = System.Text.Json.JsonSerializer.Deserialize<Automation.Runner.Domain.Entities.RunnerHardwareProfile>(
                                 hwResult.HardwareDetailsJson,
-                                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                                new System.Text.Json.JsonSerializerOptions
+                                {
+                                    PropertyNameCaseInsensitive = true,
+                                    PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower
+                                }
                             );
                         }
                         catch
@@ -374,12 +391,13 @@ public class RunnerApiService(
         CancellationToken ct = default
     )
     {
-        var runners = await db
+        var entities = await db
             .Runners.AsNoTracking()
+            .Include(x => x.ExecutorConfigs)
             .Where(a => a.CreatedBy == userId.ToString())
-            .ProjectToType<RunnerDto>()
             .ToListAsync(ct);
 
+        var runners = entities.Adapt<List<RunnerDto>>();
         var available = runners.Where(a => registry.Contain(a.Id)).ToList();
 
         return Result.Ok(available);

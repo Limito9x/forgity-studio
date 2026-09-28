@@ -30,15 +30,15 @@ public class GetStudioRunnersHandler(RunnerDbContext db)
 {
     public async Task<Result<IReadOnlyList<RunnerStudioDto>>> HandleAsync(GetStudioRunnersQuery query, CancellationToken ct)
     {
-        var links = await db.RunnerStudios
+        var entities = await db.RunnerStudios
             .AsNoTracking()
             .Include(rs => rs.Runner)
                 .ThenInclude(r => r.ExecutorConfigs)
             .Where(rs => rs.StudioId == query.StudioId)
             .OrderByDescending(rs => rs.CreatedAt)
-            .ProjectToType<RunnerStudioDto>()
             .ToListAsync(ct);
 
+        var links = entities.Adapt<IReadOnlyList<RunnerStudioDto>>();
         return Result.Ok<IReadOnlyList<RunnerStudioDto>>(links);
     }
 }

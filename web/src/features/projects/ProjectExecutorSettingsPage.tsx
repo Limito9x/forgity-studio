@@ -6,7 +6,7 @@ interface ProjectExecutorSettingsPageProps {
 
 export function ProjectExecutorSettingsPage({ projectId }: ProjectExecutorSettingsPageProps) {
     return (
-        <div className="flex-1 p-6 space-y-6 max-w-5xl mx-auto w-full">
+        <div className="p-6 mx-auto space-y-6 w-full min-w-0">
             <ProjectExecutorConfigTable projectId={projectId} />
         </div>
     );

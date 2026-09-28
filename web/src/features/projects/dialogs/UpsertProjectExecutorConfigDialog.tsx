@@ -9,6 +9,7 @@ import {
 
 export interface UpsertProjectExecutorConfigDialogProps {
     projectId: string;
+    studioId?: string;
     config?: ProjectExecutorConfigDto;
 }
 
@@ -19,6 +20,7 @@ export function UpsertProjectExecutorConfigDialog({
 }: DialogProps<UpsertProjectExecutorConfigDialogProps>) {
     const { t } = useTranslation("projects");
     const projectId = data?.projectId || "";
+    const studioId = data?.studioId;
     const config = data?.config;
 
     const upsertConfig = useUpsertProjectExecutorConfig(projectId);
@@ -38,7 +40,7 @@ export function UpsertProjectExecutorConfigDialog({
 
     const defaultValues = config
         ? {
-            agentId: config.agentId,
+            runnerId: config.runnerId,
             executorKey: config.executorKey,
             fullPathProject: settingsObj.fullPathProject || settingsObj.project_path || "",
             engineVersion: settingsObj.engineVersion || "",
@@ -52,18 +54,20 @@ export function UpsertProjectExecutorConfigDialog({
             title={
                 config
                     ? t("actions.editExecutorConfig", { defaultValue: "Edit Executor Configuration" })
-                    : t("actions.addExecutorConfig", { defaultValue: "Configure Agent Executor" })
+                    : t("actions.addExecutorConfig", { defaultValue: "Configure Runner Executor" })
             }
             formId="upsert-project-executor-config-form"
             isPending={isPending}
             size="md"
         >
             <UpsertProjectExecutorConfigForm
+                projectId={projectId}
+                studioId={studioId}
                 defaultValues={defaultValues}
                 onSubmit={(values) => {
                     upsertConfig.mutate(
                         {
-                            agentId: values.agentId,
+                            runnerId: values.runnerId,
                             executorKey: values.executorKey,
                             settings: values.settings,
                         },

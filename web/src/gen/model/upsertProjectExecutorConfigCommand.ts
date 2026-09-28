@@ -8,7 +8,7 @@ import type { JsonDocument } from "./jsonDocument";
 
 export interface UpsertProjectExecutorConfigCommand {
   /** @minLength 1 */
-  agentId: string;
+  runnerId: string;
   /**
    * @minLength 0
    * @maxLength 50

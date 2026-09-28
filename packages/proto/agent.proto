@@ -46,11 +46,26 @@ message ScanCommandResult {
     repeated ResourceItemMessage items = 1;
 }
 
+message SystemPlaceMessage {
+    string name = 1;
+    string path = 2;
+}
+
+message DriveInfoMessage {
+    string mount = 1;
+    string label = 2;
+    int64 total_bytes = 3;
+    int64 free_bytes = 4;
+}
+
 message BrowseCommandResult {
     string current_path = 1;
     string parent_path = 2;
     bool can_navigate_up = 3;
     repeated BrowseItemMessage items = 4;
+    repeated SystemPlaceMessage system_places = 5;
+    repeated string pinned_folders = 6;
+    repeated DriveInfoMessage drives = 7;
 }
 
 message ScanExecutorsCommandResult {

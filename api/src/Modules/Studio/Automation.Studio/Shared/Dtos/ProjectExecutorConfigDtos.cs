@@ -1,11 +1,11 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 
 namespace Automation.Studio.Shared.Dtos;
 
 public record ProjectExecutorConfigDto(
     Guid Id,
     Guid ProjectId,
-    Guid AgentId,
+    Guid RunnerId,
     string ExecutorKey,
     JsonDocument? Settings,
     DateTimeOffset CreatedAt,
@@ -14,7 +14,7 @@ public record ProjectExecutorConfigDto(
 
 public record UpsertProjectExecutorConfigDto(
     Guid ProjectId,
-    Guid AgentId,
+    Guid RunnerId,
     string ExecutorKey,
     JsonDocument? Settings
 );

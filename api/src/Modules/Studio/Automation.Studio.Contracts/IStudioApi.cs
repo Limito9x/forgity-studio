@@ -6,7 +6,7 @@ namespace Automation.Studio.Contracts;
 public record ProjectExecutorConfigResultDto(
     Guid Id,
     Guid ProjectId,
-    Guid AgentId,
+    Guid RunnerId,
     string ExecutorKey,
     JsonDocument? Settings
 );
@@ -15,7 +15,7 @@ public interface IStudioApi
 {
     Task<Result<ProjectExecutorConfigResultDto?>> GetExecutorConfigAsync(
         Guid projectId,
-        Guid agentId,
+        Guid runnerId,
         string executorKey,
         CancellationToken ct = default
     );

@@ -1,50 +1,64 @@
-﻿---
+---
 name: create_migration
-description: Hướng dẫn cách tạo và áp dụng Entity Framework Core Migration cho một module cụ thể.
+description: Hướng dẫn cách tạo và áp dụng Entity Framework Core Migration cho một module cụ thể bằng .\cli hoặc dotnet ef.
 ---
 
 # Hướng Dẫn Tạo Và Áp Dụng Migration
 
-Dự án Modular Monolith sử dụng nhiều DbContext khác nhau cho mỗi Module. Do đó, khi tạo migration, bạn phải chỉ định rõ project và DbContext của module đó.
+Dự án Modular Monolith sử dụng nhiều DbContext khác nhau cho mỗi Module. Dự án đã trang bị script tự động hóa tại `api/cli.ps1` để đơn giản hóa thao tác.
+
+---
+
+## Cách 1: Sử dụng Script CLI của Dự Án (Khuyên dùng - Recommended ⭐)
+
+Mở terminal tại thư mục `api/` và sử dụng lệnh rút gọn thông minh:
+
+### 1. Tạo Migration mới cho Module
+```powershell
+.\cli add-migration <ModuleName> <MigrationName>
+```
+* **Cơ chế**: Script tự động quét file `*DbContext.cs` trong `src/Modules/<ModuleName>`, tự điền `--context`, `--project`, `--startup-project` và `--output-dir Infrastructure/Persistence/Migrations`.
+* **Ví dụ**:
+  ```powershell
+  .\cli add-migration Studio RenameAgentIdToRunnerIdInProjectExecutorConfig
+  ```
+
+### 2. Áp dụng Migration vào Database
+* Cập nhật cho 1 module cụ thể:
+  ```powershell
+  .\cli update-db <ModuleName>
+  # Ví dụ: .\cli update-db Studio
+  ```
+* Hoặc cập nhật cho tất cả các modules trong hệ thống:
+  ```powershell
+  .\cli update-db
+  ```
+
+---
+
+## Cách 2: Sử dụng Lệnh Gốc `dotnet ef` (Khi cần tùy biến hoặc trong CI/CD)
+
+Nếu cần truyền thêm các tham số đặc biệt của EF Core, sử dụng lệnh gốc tại thư mục `api/`:
 
 ### 1. Lệnh Tạo Migration
-
-Sử dụng lệnh `dotnet ef migrations add` với các tham số bắt buộc sau:
-- `--project`: Trỏ tới project của Module đó (ví dụ: `src/Modules/Identity/Automation.Identity/Automation.Identity.csproj`)
-- `--startup-project`: Trỏ tới `Automation.Api` (nơi chứa chuỗi kết nối và cài đặt DI).
-- `--context`: Tên của lớp DbContext của module (ví dụ: `IdentityDbContext`, `BillingDbContext`).
-- `--output-dir`: (Tuỳ chọn) Trỏ vào thư mục `Infrastructure/Persistence/Migrations` trong module đó để mã nguồn gọn gàng.
-
-**Ví dụ lệnh (chạy tại thư mục gốc của giải pháp):**
-```bash
-dotnet ef migrations add <TênMigration> \
-  --project src/Modules/<TênModule>/Automation.<TênModule>/Automation.<TênModule>.csproj \
-  --startup-project src/Automation.Api/Automation.Api.csproj \
-  --context <TênModule>DbContext \
+```powershell
+dotnet ef migrations add <TênMigration> `
+  --project src/Modules/<TênModule>/Automation.<TênModule>/Automation.<TênModule>.csproj `
+  --startup-project src/Automation.Api/Automation.Api.csproj `
+  --context <TênModule>DbContext `
   --output-dir Infrastructure/Persistence/Migrations
 ```
 
-Ví dụ thực tế cho module `Billing`:
-```bash
-dotnet ef migrations add InitialBillingSchema \
-  --project src/Modules/Billing/Automation.Billing/Automation.Billing.csproj \
-  --startup-project src/Automation.Api/Automation.Api.csproj \
-  --context BillingDbContext \
-  --output-dir Infrastructure/Persistence/Migrations
-```
-
-### 2. Cập Nhật Database (Áp Dụng Migration)
-Tương tự như khi tạo migration, lệnh update database cũng cần chỉ rõ `project`, `startup-project` và `context`:
-
-```bash
-dotnet ef database update \
-  --project src/Modules/<TênModule>/Automation.<TênModule>/Automation.<TênModule>.csproj \
-  --startup-project src/Automation.Api/Automation.Api.csproj \
+### 2. Cập Nhật Database
+```powershell
+dotnet ef database update `
+  --project src/Modules/<TênModule>/Automation.<TênModule>/Automation.<TênModule>.csproj `
+  --startup-project src/Automation.Api/Automation.Api.csproj `
   --context <TênModule>DbContext
 ```
 
+---
+
 ### Lưu ý:
-- Nếu bạn gặp lỗi không tìm thấy `dotnet ef`, hãy đảm bảo bạn đã cài đặt tool EF Core bằng lệnh: `dotnet tool install --global dotnet-ef`.
-- Luôn đảm bảo bạn đã build thành công dự án (`dotnet build`) trước khi chạy lệnh tạo migration.
-
-
+- Luôn đảm bảo dự án biên dịch thành công (`dotnet build`) trước khi tạo migration.
+- Tuyệt đối không xóa tay các file migration cũ đã apply lên database production/staging mà phải tạo migration mới để roll-forward.

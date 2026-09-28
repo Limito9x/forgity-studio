@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
 using Automation.Studio.Features.Projects;
 using Automation.Studio.Infrastructure.Persistence;
@@ -23,7 +23,8 @@ public class GetProjectExecutorConfigsEndpoint(IMessageBus bus)
         GetProjectExecutorConfigsQuery req,
         CancellationToken ct)
     {
-        var result = await bus.InvokeAsync<Result<IReadOnlyList<ProjectExecutorConfigDto>>>(req, ct);
+        var projectId = Route<Guid>("ProjectId");
+        var result = await bus.InvokeAsync<Result<IReadOnlyList<ProjectExecutorConfigDto>>>(new GetProjectExecutorConfigsQuery(projectId), ct);
         await this.SendResultAsync(result, ct);
     }
 }
@@ -42,7 +43,7 @@ public class GetProjectExecutorConfigsHandler(StudioDbContext db)
             .Select(x => new ProjectExecutorConfigDto(
                 x.Id,
                 x.ProjectId,
-                x.AgentId,
+                x.RunnerId,
                 x.ExecutorKey,
                 x.Settings,
                 x.CreatedAt,

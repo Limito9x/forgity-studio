@@ -49,7 +49,7 @@ const ENTITY_TARGETS = [
   { value: "Resource", label: "Resource File (3D Asset / File in Workspace)" },
   { value: "Workspace", label: "Workspace" },
   { value: "Tag", label: "Tag" },
-  { value: "Agent", label: "Agent Worker" },
+  { value: "Agent", label: "Runner Worker" },
 ];
 
 interface PipelineStartNodeInspectorProps {

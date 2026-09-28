@@ -71,7 +71,7 @@ export function NodeMetaForm({
                 <SelectItem id="python">Native Python 3 Worker</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-[10px] text-muted-foreground">Execution target on Agent side.</p>
+            <p className="text-[10px] text-muted-foreground">Execution target on Runner side.</p>
           </div>
         </div>
       </CardContent>

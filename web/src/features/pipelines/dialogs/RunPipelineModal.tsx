@@ -251,7 +251,7 @@ export function RunPipelineModal({
           <span>Run Pipeline</span>
         </DialogTitle>
         <p className="text-xs text-muted-foreground">
-          Running <span className="font-semibold text-foreground">{pipelineName}</span> requires selecting an Execution Agent and specifying pipeline inputs.
+          Running <span className="font-semibold text-foreground">{pipelineName}</span> requires selecting an Execution Runner and specifying pipeline inputs.
         </p>
       </DialogHeader>
 
@@ -302,21 +302,21 @@ export function RunPipelineModal({
             </div>
           )}
 
-          {/* 3. Select Agent Section */}
+          {/* 3. Select Runner Section */}
           <div className="space-y-2">
             <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
               <Layers className="h-3.5 w-3.5 text-muted-foreground" />
-              <span>Select Execution Agent</span>
+              <span>Select Execution Runner</span>
             </Label>
             {isLoadingAgents ? (
               <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Loading registered agents...
+                Loading registered runners...
               </div>
             ) : agents.length === 0 ? (
               <div className="flex items-center gap-2 rounded-lg border border-dashed border-destructive/40 p-4 text-xs text-destructive">
                 <AlertCircle className="h-4 w-4 shrink-0" />
-                <span>No agents registered. Please start an Automation-Agent worker first.</span>
+                <span>No runners registered. Please start an Automation Studio runner first.</span>
               </div>
             ) : (
               <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
