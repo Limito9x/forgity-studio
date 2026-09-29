@@ -2,9 +2,9 @@
 
 > **Tài liệu Kế hoạch Kỹ thuật (Master Technical Blueprint)**  
 > **Vị trí**: `plans/workers/RUNNER_PRODUCTION_SETUP_PLAN.md`  
-> **Trạng thái**: Đang triển khai (Active Execution)  
-> **Cập nhật ngày**: 2026-09-26  
-> **Tóm tắt tiến độ**: Đã hoàn thành 100% Nền tảng Backend DB, Dọn dẹp Worker Core, Hardware Scanner, gRPC Handlers và CLI. Đang tiến hành Giai đoạn 2: Hoàn thiện Frontend Management & Onboarding.
+> **Trạng thái**: Hoàn thành Giai đoạn 1-3 (Phase 1-3 Done 100% ✅), Giai đoạn 4 = Future  
+> **Cập nhật ngày**: 2026-09-28  
+> **Tóm tắt tiến độ**: Đã hoàn thành 100% Giai đoạn 1 (Backend Core, Scanner, gRPC), Giai đoạn 2 (Frontend Management, Onboarding Dialog, Runner Card, Software Catalog), và Giai đoạn 3 (Remote File/Folder Browser 2-panel). Giai đoạn 4 (Đóng gói phân phối) dành cho tương lai.
 
 ---
 
@@ -62,26 +62,26 @@ Toàn bộ nền tảng cốt lõi từ Backend đến Worker Daemon đã đư�
 ## 3. Lộ Trình Triển Khai Mới (Updated Roadmap)
 
 ```
-[ ĐÃ HOÀN TẤT ] ── Giai đoạn 1: Backend Database & Worker Core (Phần cứng, gRPC, CLI)
+[ ĐÃ HOÀN TẤT ✅ ] ── Giai đoạn 1: Backend Database & Worker Core (Phần cứng, gRPC, CLI)
       │
       ▼
-[ TRỌNG TÂM ] ── Giai đoạn 2: Hoàn thiện Frontend Runner Management & Onboarding UI
-      │            ├─ 2.1: Dialog "Connect New Runner" (Sinh Token, copy lệnh 1-click)
-      │            ├─ 2.2: Nâng cấp Runner Card (Hiển thị CPU, RAM, RTX 3050, VRAM, Disks)
-      │            ├─ 2.3: Actions tương tác (Nút Re-scan Hardware & Scan Software từ xa)
-      │            └─ 2.4: Chuẩn hóa thuật ngữ Runner trên toàn Frontend
+[ ĐÃ HOÀN TẤT ✅ ] ── Giai đoạn 2: Hoàn thiện Frontend Runner Management & Onboarding UI
+      │                ├─ 2.1: Dialog "Connect New Runner" (Sinh Token, copy lệnh 1-click)
+      │                ├─ 2.2: Nâng cấp Runner Card (Hiển thị CPU, RAM, RTX 3050, VRAM, Disks)
+      │                ├─ 2.3: Actions tương tác (Nút Re-scan Hardware & Scan Software từ xa)
+      │                └─ 2.4: Chuẩn hóa thuật ngữ Runner trên toàn Frontend
       │
       ▼
-[ GIAI ĐOẠN 3 ] ── Giai đoạn 3: Remote File/Folder Picker Chuẩn Phong Cách Blender
-      │            ├─ Mở rộng gRPC: Drives (dung lượng free), System Places, Pinned Folders
-      │            ├─ Component RemoteFilePicker 2-panel (Left Sidebar + Right Explorer)
-      │            └─ Tích hợp vào Pipeline Form / Project Config (chọn .blend, .uproject từ xa)
+[ ĐÃ HOÀN TẤT ✅ ] ── Giai đoạn 3: Remote File/Folder Picker Chuẩn Phong Cách Blender
+      │                ├─ Mở rộng gRPC: Drives (dung lượng free), System Places, Pinned Folders
+      │                ├─ Component RemoteFilePicker 2-panel (Left Sidebar + Right Explorer)
+      │                └─ Tích hợp vào Pipeline Form / Project Config (chọn .blend, .uproject từ xa)
       │
       ▼
-[ GIAI ĐOẠN 4 ] ── Giai đoạn 4: Đóng Gói Phân Phối & Tự Khởi Động (Production Release)
-                   ├─ Script `install.bat` 1-click (hỗ trợ cả CLI và click đúp nhập token)
-                   ├─ Đóng gói kèm Python Embedded (~60MB zip độc lập, zero-dependency)
-                   └─ Tự động hóa User Logon Task Scheduler (`runner.bat setup-autostart`)
+[ FUTURE 🔮 ] ───── Giai đoạn 4: Đóng Gói Phân Phối & Tự Khởi Động (Production Release)
+                       ├─ Script `install.bat` 1-click (hỗ trợ cả CLI và click đúp nhập token)
+                       ├─ Đóng gói kèm Python Embedded (~60MB zip độc lập, zero-dependency)
+                       └─ Tự động hóa User Logon Task Scheduler (`runner.bat setup-autostart`)
 ```
 
 ---

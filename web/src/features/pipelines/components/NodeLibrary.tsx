@@ -16,6 +16,7 @@ import {
   Workflow,
   ArrowRight,
   Filter,
+  UploadCloud,
 } from "lucide-react";
 import type { NodePaletteItemDto } from "@/gen/model";
 
@@ -84,18 +85,34 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
           </p>
         </div>
 
-        <Button
-          className="gap-2 shrink-0"
-          onPress={() =>
-            navigate({
-              to: "/projects/$projectId/pipeline/nodes/new",
-              params: { projectId },
-            })
-          }
-        >
-          <Plus className="size-4" />
-          Create Custom Node
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onPress={() =>
+              navigate({
+                to: "/projects/$projectId/pipeline/nodes/ingest",
+                params: { projectId },
+              })
+            }
+          >
+            <UploadCloud className="size-4 text-primary" />
+            Batch Upload Scripts
+          </Button>
+
+          <Button
+            className="gap-2"
+            onPress={() =>
+              navigate({
+                to: "/projects/$projectId/pipeline/nodes/new",
+                params: { projectId },
+              })
+            }
+          >
+            <Plus className="size-4" />
+            Create Custom Node
+          </Button>
+        </div>
       </div>
 
 

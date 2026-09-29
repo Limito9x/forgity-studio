@@ -24,6 +24,7 @@ export const CreateProjectResponse = /*#__PURE__*/ zod.object({
 })
 
 export const GetProjectsQueryParams = /*#__PURE__*/ zod.object({
+  "studioId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
   "page": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
   "pageSize": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
   "filters": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({

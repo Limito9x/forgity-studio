@@ -8,6 +8,8 @@ import {
   deleteCustomNode,
   getCustomNodeById,
   getGetCustomNodeByIdQueryKey,
+  analyzeCustomNodesBatch,
+  batchUpsertCustomNodes,
 } from "@/gen/endpoints/pipeline-nodes/pipeline-nodes";
 import type {
   CreateCustomNodeCommand,
@@ -230,3 +232,38 @@ export function useCustomNodeById(id?: string) {
     enabled: !!id,
   });
 }
+
+export function useAnalyzeCustomNodesBatchMutation() {
+  return useMutation({
+    mutationFn: (data: Parameters<typeof analyzeCustomNodesBatch>[0]) =>
+      analyzeCustomNodesBatch(data),
+  });
+}
+
+export function useBatchUpsertCustomNodesMutation(projectId?: string) {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation({
+    mutationFn: (data: Parameters<typeof batchUpsertCustomNodes>[0]) =>
+      batchUpsertCustomNodes(data),
+    onSuccess: () => {
+      toast.success(
+        t("pipelines.batchUpsertSuccess", {
+          defaultValue: "Custom nodes processed and saved successfully",
+        })
+      );
+      if (projectId) {
+        queryClient.invalidateQueries({
+          queryKey: getGetNodePaletteQueryKey({ projectId }),
+        });
+      }
+    },
+    onError: (err: any) => {
+      const errorMsg =
+        err?.response?.data?.message || err?.message || "Failed to process custom nodes";
+      toast.error(t("pipelines.batchUpsertFailed", { defaultValue: errorMsg }));
+    },
+  });
+}
+

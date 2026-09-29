@@ -64,6 +64,7 @@ import { Route as ProtectedProjectProjectsProjectIdContentTypesContentTypeIdBuil
 import { Route as ProtectedProjectProjectsProjectIdContentsTypeKeyIndexRouteImport } from './routes/_protected/_project/projects/$projectId/contents/$typeKey/index'
 import { Route as ProtectedProjectProjectsProjectIdContentsTypeKeyNewRouteImport } from './routes/_protected/_project/projects/$projectId/contents/$typeKey/new'
 import { Route as ProtectedProjectProjectsProjectIdPipelineNodesIndexRouteImport } from './routes/_protected/_project/projects/$projectId/pipeline/nodes/index'
+import { Route as ProtectedProjectProjectsProjectIdPipelineNodesIngestRouteImport } from './routes/_protected/_project/projects/$projectId/pipeline/nodes/ingest'
 import { Route as ProtectedProjectProjectsProjectIdPipelineNodesNewRouteImport } from './routes/_protected/_project/projects/$projectId/pipeline/nodes/new'
 import { Route as ProtectedProjectProjectsProjectIdStructsStructIdBuilderRouteImport } from './routes/_protected/_project/projects/$projectId/structs/$structId/builder'
 import { Route as ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRouteImport } from './routes/_protected/_project/projects/$projectId/contents/$typeKey/$contentItemId/edit'
@@ -384,6 +385,12 @@ const ProtectedProjectProjectsProjectIdPipelineNodesIndexRoute =
     path: '/pipeline/nodes/',
     getParentRoute: () => ProtectedProjectProjectsProjectIdRouteRoute,
   } as any)
+const ProtectedProjectProjectsProjectIdPipelineNodesIngestRoute =
+  ProtectedProjectProjectsProjectIdPipelineNodesIngestRouteImport.update({
+    id: '/pipeline/nodes/ingest',
+    path: '/pipeline/nodes/ingest',
+    getParentRoute: () => ProtectedProjectProjectsProjectIdRouteRoute,
+  } as any)
 const ProtectedProjectProjectsProjectIdPipelineNodesNewRoute =
   ProtectedProjectProjectsProjectIdPipelineNodesNewRouteImport.update({
     id: '/pipeline/nodes/new',
@@ -456,6 +463,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/structs/': typeof ProtectedProjectProjectsProjectIdStructsIndexRoute
   '/projects/$projectId/content-types/$contentTypeId/builder': typeof ProtectedProjectProjectsProjectIdContentTypesContentTypeIdBuilderRoute
   '/projects/$projectId/contents/$typeKey/new': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyNewRoute
+  '/projects/$projectId/pipeline/nodes/ingest': typeof ProtectedProjectProjectsProjectIdPipelineNodesIngestRoute
   '/projects/$projectId/pipeline/nodes/new': typeof ProtectedProjectProjectsProjectIdPipelineNodesNewRoute
   '/projects/$projectId/structs/$structId/builder': typeof ProtectedProjectProjectsProjectIdStructsStructIdBuilderRoute
   '/projects/$projectId/content-types/$contentTypeId/': typeof ProtectedProjectProjectsProjectIdContentTypesContentTypeIdIndexRoute
@@ -502,6 +510,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/structs': typeof ProtectedProjectProjectsProjectIdStructsIndexRoute
   '/projects/$projectId/content-types/$contentTypeId/builder': typeof ProtectedProjectProjectsProjectIdContentTypesContentTypeIdBuilderRoute
   '/projects/$projectId/contents/$typeKey/new': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyNewRoute
+  '/projects/$projectId/pipeline/nodes/ingest': typeof ProtectedProjectProjectsProjectIdPipelineNodesIngestRoute
   '/projects/$projectId/pipeline/nodes/new': typeof ProtectedProjectProjectsProjectIdPipelineNodesNewRoute
   '/projects/$projectId/structs/$structId/builder': typeof ProtectedProjectProjectsProjectIdStructsStructIdBuilderRoute
   '/projects/$projectId/content-types/$contentTypeId': typeof ProtectedProjectProjectsProjectIdContentTypesContentTypeIdIndexRoute
@@ -563,6 +572,7 @@ export interface FileRoutesById {
   '/_protected/_project/projects/$projectId/structs/': typeof ProtectedProjectProjectsProjectIdStructsIndexRoute
   '/_protected/_project/projects/$projectId/content-types/$contentTypeId/builder': typeof ProtectedProjectProjectsProjectIdContentTypesContentTypeIdBuilderRoute
   '/_protected/_project/projects/$projectId/contents/$typeKey/new': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyNewRoute
+  '/_protected/_project/projects/$projectId/pipeline/nodes/ingest': typeof ProtectedProjectProjectsProjectIdPipelineNodesIngestRoute
   '/_protected/_project/projects/$projectId/pipeline/nodes/new': typeof ProtectedProjectProjectsProjectIdPipelineNodesNewRoute
   '/_protected/_project/projects/$projectId/structs/$structId/builder': typeof ProtectedProjectProjectsProjectIdStructsStructIdBuilderRoute
   '/_protected/_project/projects/$projectId/content-types/$contentTypeId/': typeof ProtectedProjectProjectsProjectIdContentTypesContentTypeIdIndexRoute
@@ -622,6 +632,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/structs/'
     | '/projects/$projectId/content-types/$contentTypeId/builder'
     | '/projects/$projectId/contents/$typeKey/new'
+    | '/projects/$projectId/pipeline/nodes/ingest'
     | '/projects/$projectId/pipeline/nodes/new'
     | '/projects/$projectId/structs/$structId/builder'
     | '/projects/$projectId/content-types/$contentTypeId/'
@@ -668,6 +679,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/structs'
     | '/projects/$projectId/content-types/$contentTypeId/builder'
     | '/projects/$projectId/contents/$typeKey/new'
+    | '/projects/$projectId/pipeline/nodes/ingest'
     | '/projects/$projectId/pipeline/nodes/new'
     | '/projects/$projectId/structs/$structId/builder'
     | '/projects/$projectId/content-types/$contentTypeId'
@@ -728,6 +740,7 @@ export interface FileRouteTypes {
     | '/_protected/_project/projects/$projectId/structs/'
     | '/_protected/_project/projects/$projectId/content-types/$contentTypeId/builder'
     | '/_protected/_project/projects/$projectId/contents/$typeKey/new'
+    | '/_protected/_project/projects/$projectId/pipeline/nodes/ingest'
     | '/_protected/_project/projects/$projectId/pipeline/nodes/new'
     | '/_protected/_project/projects/$projectId/structs/$structId/builder'
     | '/_protected/_project/projects/$projectId/content-types/$contentTypeId/'
@@ -1128,6 +1141,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedProjectProjectsProjectIdPipelineNodesIndexRouteImport
       parentRoute: typeof ProtectedProjectProjectsProjectIdRouteRoute
     }
+    '/_protected/_project/projects/$projectId/pipeline/nodes/ingest': {
+      id: '/_protected/_project/projects/$projectId/pipeline/nodes/ingest'
+      path: '/pipeline/nodes/ingest'
+      fullPath: '/projects/$projectId/pipeline/nodes/ingest'
+      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdPipelineNodesIngestRouteImport
+      parentRoute: typeof ProtectedProjectProjectsProjectIdRouteRoute
+    }
     '/_protected/_project/projects/$projectId/pipeline/nodes/new': {
       id: '/_protected/_project/projects/$projectId/pipeline/nodes/new'
       path: '/pipeline/nodes/new'
@@ -1397,6 +1417,7 @@ interface ProtectedProjectProjectsProjectIdRouteRouteChildren {
   ProtectedProjectProjectsProjectIdPipelinePipelineIdRoute: typeof ProtectedProjectProjectsProjectIdPipelinePipelineIdRoute
   ProtectedProjectProjectsProjectIdResourcesResourceIdRoute: typeof ProtectedProjectProjectsProjectIdResourcesResourceIdRoute
   ProtectedProjectProjectsProjectIdPipelineIndexRoute: typeof ProtectedProjectProjectsProjectIdPipelineIndexRoute
+  ProtectedProjectProjectsProjectIdPipelineNodesIngestRoute: typeof ProtectedProjectProjectsProjectIdPipelineNodesIngestRoute
   ProtectedProjectProjectsProjectIdPipelineNodesNewRoute: typeof ProtectedProjectProjectsProjectIdPipelineNodesNewRoute
   ProtectedProjectProjectsProjectIdPipelineNodesIndexRoute: typeof ProtectedProjectProjectsProjectIdPipelineNodesIndexRoute
 }
@@ -1419,6 +1440,8 @@ const ProtectedProjectProjectsProjectIdRouteRouteChildren: ProtectedProjectProje
       ProtectedProjectProjectsProjectIdResourcesResourceIdRoute,
     ProtectedProjectProjectsProjectIdPipelineIndexRoute:
       ProtectedProjectProjectsProjectIdPipelineIndexRoute,
+    ProtectedProjectProjectsProjectIdPipelineNodesIngestRoute:
+      ProtectedProjectProjectsProjectIdPipelineNodesIngestRoute,
     ProtectedProjectProjectsProjectIdPipelineNodesNewRoute:
       ProtectedProjectProjectsProjectIdPipelineNodesNewRoute,
     ProtectedProjectProjectsProjectIdPipelineNodesIndexRoute:
