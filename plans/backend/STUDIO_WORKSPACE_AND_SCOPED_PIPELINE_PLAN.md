@@ -352,19 +352,19 @@ graph LR
     P1 --> P2 --> P3 --> P4
 ```
 
-### Phase 1: Studio Layer + Rename Workspace → Repository
+### Phase 1: Studio Layer + Rename Workspace → Repository (HOÀN THÀNH 100% ✅)
 
-**Backend Tasks:**
+**Backend & Frontend Tasks:**
 
-- [ ] **1.1.** Tạo entity `Studio` trong `Automation.Projects/Domain/Entities/`
-- [ ] **1.2.** Thêm `StudioId` FK vào entity `Project`
-- [ ] **1.3.** Tạo entity `StudioRunner` trong `Automation.Projects/Domain/Entities/` (đổi tên entity `Agent` → `Runner` trong module `Automation.Agent`)
-- [ ] **1.4.** Đổi tên entity `Workspace` → `Repository` (class, properties, all references)
-- [ ] **1.5.** Đổi tên entity `WorkspaceAgent` → `RepositoryRunner` (class, properties, all references)
-- [ ] **1.6.** Loại bỏ entity `WorkspacePlatform` và method `AddPlatform()` / `RemovePlatform()` trên Repository
-- [ ] **1.7.** Cập nhật tất cả Feature handlers, DTOs, Endpoints (find & replace)
-- [ ] **1.8.** Cập nhật EF Configurations, rename FK columns
-- [ ] **1.9.** Viết Migration:
+- [x] **1.1.** Tạo entity `Studio` trong `Automation.Projects/Domain/Entities/`
+- [x] **1.2.** Thêm `StudioId` FK vào entity `Project`
+- [x] **1.3.** Tạo entity `StudioRunner` trong `Automation.Projects/Domain/Entities/` (đổi tên entity `Agent` → `Runner` trong module `Automation.Runner`)
+- [x] **1.4.** Đổi tên entity `Workspace` → `Repository` (class, properties, all references)
+- [x] **1.5.** Đổi tên entity `WorkspaceAgent` → `RepositoryRunner` (class, properties, all references)
+- [x] **1.6.** Loại bỏ entity `WorkspacePlatform` và method `AddPlatform()` / `RemovePlatform()` trên Repository
+- [x] **1.7.** Cập nhật tất cả Feature handlers, DTOs, Endpoints (find & replace)
+- [x] **1.8.** Cập nhật EF Configurations, rename FK columns
+- [x] **1.9.** Viết Migration:
   - Tạo bảng `projects.studios`, seed row mặc định
   - Thêm cột `studio_id` vào `projects.projects`, gán giá trị mặc định
   - Tạo bảng `projects.studio_runners`
@@ -373,12 +373,12 @@ graph LR
   - Rename table `workspace.workspace_agents` → `workspace.repository_runners`
   - Drop table `workspace.workspace_platforms`
   - Rename FK columns (`workspace_id` → `repository_id`, `agent_id` → `runner_id`, v.v.)
-- [ ] **1.10.** Regenerate frontend API client (Orval)
-- [ ] **1.11.** Cập nhật frontend components: Workspace → Repository, Agent → Runner (naming)
+- [x] **1.10.** Regenerate frontend API client (Orval)
+- [x] **1.11.** Cập nhật frontend components: Workspace → Repository, Agent → Runner (naming)
 
-**Ước tính**: 2-3 ngày (phần lớn là find & replace + migration)
+---
 
-### Phase 2: Scoped Stage Schema (Backend Pipeline Engine)
+### Phase 2: Scoped Stage Schema (Backend Pipeline Engine) — [FUTURE]
 
 - [ ] **2.1.** Tạo entity `PipelineStage` (Name, ExecutorKey, TargetRunnerId, vị trí/kích thước trên canvas)
 - [ ] **2.2.** Thêm `StageId?` FK vào `PipelineNode`
@@ -387,18 +387,14 @@ graph LR
 - [ ] **2.5.** Cập nhật `StageExecutionMessage` để mang theo `TargetRunnerId` từ Stage
 - [ ] **2.6.** Migration: tạo bảng `pipeline.pipeline_stages`, thêm cột `stage_id` vào `pipeline.pipeline_nodes`
 
-**Ước tính**: 3-5 ngày
-
-### Phase 3: Frontend Scoped Canvas UI
+### Phase 3: Frontend Scoped Canvas UI — [FUTURE]
 
 - [ ] **3.1.** Tạo `ScopeContainerNode` (React Flow): hộp bao quanh, header hiển thị executor + dropdown Runner
 - [ ] **3.2.** Scoped Palette Menu: lọc tool theo executor khi chuột phải trong Stage box
 - [ ] **3.3.** Header navigation: `[ Studio: Limito ▼ ] / [ Project: Laura ▼ ]`
 - [ ] **3.4.** Cập nhật API hooks cho Repository (ex-Workspace), Runner (ex-Agent)
 
-**Ước tính**: 3-5 ngày
-
-### Phase 4: Kiểm Thử & Nghiệm Thu
+### Phase 4: Kiểm Thử & Nghiệm Thu — [FUTURE]
 
 - [ ] Chạy build backend .NET (tsc, dotnet build)
 - [ ] Chạy lại luồng Daz → SimpleBake → Unreal Ingestion trên cấu trúc mới

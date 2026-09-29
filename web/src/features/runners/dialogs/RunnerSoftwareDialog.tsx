@@ -16,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import {
   RefreshCw,
   Sparkles,
-  Info,
   PackageOpen,
   Cpu,
   Search,
@@ -135,9 +134,9 @@ export function RunnerSoftwareDialog({
       if (!map.has(key)) {
         map.set(key, [
           {
-            executorKey: active.executorKey,
-            executablePath: active.executablePath,
-            version: active.version,
+            executorKey: active.executorKey ?? "",
+            executablePath: active.executablePath ?? "",
+            version: active.version ?? "",
           },
         ]);
       }

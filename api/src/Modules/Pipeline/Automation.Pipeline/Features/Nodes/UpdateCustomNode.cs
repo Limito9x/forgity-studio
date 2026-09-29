@@ -1,8 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Wolverine;
 using Wolverine.Attributes;
 using Automation.Files.Contracts;
 using Automation.Pipeline.Constants;
+using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
+using Automation.Pipeline.Features.Nodes.Events;
 using Automation.Pipeline.Infrastructure.Persistence;
 
 namespace Automation.Pipeline.Features.Nodes;
@@ -15,7 +18,8 @@ public record UpdateCustomNodeCommand(
     Guid? AssetId,
     string? OriginalFileName,
     List<PinDefinition>? Inputs,
-    List<PinDefinition>? Outputs
+    List<PinDefinition>? Outputs,
+    EdgeReconciliationStrategy EdgeReconciliationStrategy = EdgeReconciliationStrategy.KeepCompatiblePins
 );
 
 public record UpdateCustomNodeRequest(
@@ -25,7 +29,8 @@ public record UpdateCustomNodeRequest(
     Guid? AssetId,
     string? OriginalFileName,
     List<PinDefinition>? Inputs,
-    List<PinDefinition>? Outputs
+    List<PinDefinition>? Outputs,
+    EdgeReconciliationStrategy EdgeReconciliationStrategy = EdgeReconciliationStrategy.KeepCompatiblePins
 );
 
 public class UpdateCustomNodeEndpoint(IMessageBus bus)
@@ -50,7 +55,8 @@ public class UpdateCustomNodeEndpoint(IMessageBus bus)
             req.AssetId,
             req.OriginalFileName,
             req.Inputs,
-            req.Outputs
+            req.Outputs,
+            req.EdgeReconciliationStrategy
         );
 
         var result = await bus.InvokeAsync<Result<CreateCustomNodeResponseDto>>(cmd, ct);
@@ -61,7 +67,8 @@ public class UpdateCustomNodeEndpoint(IMessageBus bus)
 [Transactional(typeof(PipelineDbContext))]
 public class UpdateCustomNodeHandler(
     PipelineDbContext db,
-    IAssetApi assetApi
+    IAssetApi assetApi,
+    IMessageBus bus
 )
 {
     public async Task<Result<CreateCustomNodeResponseDto>> HandleAsync(
@@ -76,6 +83,10 @@ public class UpdateCustomNodeHandler(
         {
             return Result.Fail<CreateCustomNodeResponseDto>("Custom node not found.");
         }
+
+        // Capture old pins before update
+        var oldInputPinIds = node.Inputs.Select(p => p.Id).ToList();
+        var oldOutputPinIds = node.Outputs.Select(p => p.Id).ToList();
 
         var label = string.IsNullOrWhiteSpace(command.Label) ? command.Name : command.Label.Trim();
         var executor = string.IsNullOrWhiteSpace(command.Executor) ? "blender" : command.Executor.Trim().ToLowerInvariant();
@@ -133,6 +144,21 @@ public class UpdateCustomNodeHandler(
                 return Result.Fail<CreateCustomNodeResponseDto>($"Updated node but failed to link asset script: {linkResult.Errors.FirstOrDefault()?.Message}");
             }
         }
+
+        // Publish reconciliation event for edge cleanup
+        var newInputPinIds = node.Inputs.Select(p => p.Id).ToList();
+        var newOutputPinIds = node.Outputs.Select(p => p.Id).ToList();
+
+        await bus.PublishAsync(new NodeDefinitionPinsChangedEvent(
+            NodeDefinitionId: node.Id,
+            NodeKey: node.Key,
+            ProjectId: node.ProjectId,
+            OldInputPinIds: oldInputPinIds,
+            OldOutputPinIds: oldOutputPinIds,
+            NewInputPinIds: newInputPinIds,
+            NewOutputPinIds: newOutputPinIds,
+            Strategy: command.EdgeReconciliationStrategy
+        ));
 
         return Result.Ok(new CreateCustomNodeResponseDto(
             node.Id,
