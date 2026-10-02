@@ -16,6 +16,7 @@ public record DeletePipelineNodeRequest(
     Guid NodeId
 );
 
+[Obsolete("Use SavePipelineGraph (PUT {id}/graph) with debounced draft state instead.")]
 public class DeletePipelineNodeEndpoint : Endpoint<DeletePipelineNodeRequest>
 {
     public override void Configure()
@@ -52,13 +53,13 @@ public class DeletePipelineNodeHandler(
             return Result.Fail($"Node '{command.NodeId}' not found in Pipeline '{command.PipelineId}'.");
         }
 
-        if (string.Equals(node.Kind, Constants.PipelineNodeKind.Start, StringComparison.OrdinalIgnoreCase) ||
+        if (node.Kind == Constants.PipelineNodeKind.Start ||
             string.Equals(node.RefId, "Start", StringComparison.OrdinalIgnoreCase))
         {
             return Result.Fail("The Start node is the entry point of the pipeline and cannot be deleted.");
         }
 
-        if (string.Equals(node.Kind, Constants.PipelineNodeKind.Return, StringComparison.OrdinalIgnoreCase) ||
+        if (node.Kind == Constants.PipelineNodeKind.Return ||
             string.Equals(node.RefId, "Return", StringComparison.OrdinalIgnoreCase))
         {
             return Result.Fail("The Return node is the exit point of the pipeline and cannot be deleted.");

@@ -131,11 +131,19 @@ export function useDeletePipelineMutation(projectId?: string) {
   });
 }
 
-export function useNodePalette(projectId?: string) {
+export function useNodePalette(projectId?: string, executor?: string) {
   return useQuery({
-    queryKey: getGetNodePaletteQueryKey(projectId ? { projectId } : undefined),
-    queryFn: ({ signal }) => getNodePalette(projectId ? { projectId } : undefined, signal),
+    queryKey: getGetNodePaletteQueryKey({
+      projectId: projectId ?? null,
+      executor: executor ?? null,
+    }),
+    queryFn: ({ signal }) =>
+      getNodePalette(
+        { projectId: projectId ?? null, executor: executor ?? null },
+        signal
+      ),
     enabled: !!projectId,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

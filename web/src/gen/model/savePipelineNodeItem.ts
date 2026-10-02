@@ -5,14 +5,23 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { DictionaryOfStringAndObject } from "./dictionaryOfStringAndObject";
+import type { PipelineNodeKind } from "./pipelineNodeKind";
 
 export interface SavePipelineNodeItem {
   /** @nullable */
   id: string | null;
   refId: string;
-  kind: string;
+  kind: PipelineNodeKind;
   positionX: number;
   positionY: number;
   /** @nullable */
   configValues: DictionaryOfStringAndObject | null;
+  /** @nullable */
+  parentId?: string | null;
+  /** @nullable */
+  width?: number | null;
+  /** @nullable */
+  height?: number | null;
+  /** @nullable */
+  metadata?: DictionaryOfStringAndObject | null;
 }

@@ -51,6 +51,10 @@ public class StepProgressConsumer(
             {
                 try
                 {
+                    var isRunning = message.Status.Equals("running", StringComparison.OrdinalIgnoreCase);
+                    var isFinished = message.Status.Equals("succeeded", StringComparison.OrdinalIgnoreCase) ||
+                                     message.Status.Equals("failed", StringComparison.OrdinalIgnoreCase);
+
                     await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
                         "PipelineNodeExecutionUpdated",
                         new
@@ -58,7 +62,9 @@ public class StepProgressConsumer(
                             executionId = execution.Id,
                             pipelineId = execution.PipelineId,
                             nodeId,
-                            status = message.Status
+                            status = message.Status,
+                            startedAt = isRunning ? DateTimeOffset.UtcNow : (DateTimeOffset?)null,
+                            finishedAt = isFinished ? DateTimeOffset.UtcNow : (DateTimeOffset?)null
                         },
                         ct
                     );

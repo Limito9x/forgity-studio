@@ -1,11 +1,12 @@
 import { createContext, useContext, useMemo } from "react";
 import type { Node, Edge } from "@xyflow/react";
-import type { PipelineVariableDto } from "../hooks/usePipelineGraph";
+import type { PipelineParameterDto } from "../hooks/usePipelineGraph";
 
 export interface PipelineFormScopeValue {
   pipelineId?: string;
   projectId?: string;
-  variables?: PipelineVariableDto[];
+  parameters?: PipelineParameterDto[];
+  variables?: PipelineParameterDto[];
   edges?: Edge[];
   nodes?: Node[];
 }

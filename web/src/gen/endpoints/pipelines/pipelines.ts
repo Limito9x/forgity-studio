@@ -22,34 +22,25 @@ import type {
 
 import type {
   AddPipelineEdgeRequest,
-  AddPipelineInputRequest,
   AddPipelineNodeRequest,
-  AddPipelineOutputCommand,
   CreatePipelineCommand,
   GetPipelinesParams,
   GetStructCatalogueParams,
   IReadOnlyListOfPinTypeMetadataDto,
-  IReadOnlyListOfPipelineInputDto,
   IReadOnlyListOfStructDefinitionDto,
   ListOfNodeExecutionDto,
   ListOfPipelineExecutionDto,
   ListOfPipelineSummaryDto,
-  ListOfPipelineVariableDto,
   PipelineEdgeGraphDto,
   PipelineExecutionDto,
   PipelineGraphDto,
-  PipelineInputDto,
   PipelineNodeGraphDto,
-  PipelineOutputDto,
   PipelineSummaryDto,
   RunPipelineRequest,
   SavePipelineGraphRequest,
-  UpdatePipelineInputRequest,
   UpdatePipelineNodeRequest,
-  UpdatePipelineOutputCommand,
   UpdatePipelineRequest,
   UpdatePipelineTriggerRequest,
-  UpdatePipelineVariablesRequest,
   ValidatePipelineQuery,
   ValidatePipelineResponse,
 } from "../../model";
@@ -1320,6 +1311,9 @@ export const useUpdatePipelineTrigger = <TError = void, TContext = unknown>(
     queryClient,
   );
 };
+/**
+ * @deprecated
+ */
 export const addPipelineEdge = (
   pipelineId: string,
   addPipelineEdgeRequest: AddPipelineEdgeRequest,
@@ -1377,6 +1371,9 @@ export type AddPipelineEdgeMutationResult = NonNullable<
 export type AddPipelineEdgeMutationBody = AddPipelineEdgeRequest;
 export type AddPipelineEdgeMutationError = unknown;
 
+/**
+ * @deprecated
+ */
 export const useAddPipelineEdge = <TError = unknown, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
@@ -1395,6 +1392,9 @@ export const useAddPipelineEdge = <TError = unknown, TContext = unknown>(
 > => {
   return useMutation(getAddPipelineEdgeMutationOptions(options), queryClient);
 };
+/**
+ * @deprecated
+ */
 export const deletePipelineEdge = (
   pipelineId: string,
   edgeId: string,
@@ -1450,6 +1450,9 @@ export type DeletePipelineEdgeMutationResult = NonNullable<
 
 export type DeletePipelineEdgeMutationError = unknown;
 
+/**
+ * @deprecated
+ */
 export const useDeletePipelineEdge = <TError = unknown, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
@@ -1629,394 +1632,9 @@ export function useGetPipelineExecutions<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-export const getPipelineInputSchema = (
-  pipelineId: string,
-  signal?: AbortSignal,
-) => {
-  return customInstance<IReadOnlyListOfPipelineInputDto>({
-    url: `/api/pipelines/${pipelineId}/input-schema`,
-    method: "GET",
-    signal,
-  });
-};
-
-export const getGetPipelineInputSchemaQueryKey = (pipelineId: string) => {
-  return [`/api/pipelines/${pipelineId}/input-schema`] as const;
-};
-
-export const getGetPipelineInputSchemaQueryOptions = <
-  TData = Awaited<ReturnType<typeof getPipelineInputSchema>>,
-  TError = void,
->(
-  pipelineId: string,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPipelineInputSchema>>,
-        TError,
-        TData
-      >
-    >;
-  },
-) => {
-  const { query: queryOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ?? getGetPipelineInputSchemaQueryKey(pipelineId);
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getPipelineInputSchema>>
-  > = ({ signal }) => getPipelineInputSchema(pipelineId, signal);
-
-  return {
-    queryKey,
-    queryFn,
-    enabled: pipelineId !== null && pipelineId !== undefined,
-    ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof getPipelineInputSchema>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type GetPipelineInputSchemaQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getPipelineInputSchema>>
->;
-export type GetPipelineInputSchemaQueryError = void;
-
-export function useGetPipelineInputSchema<
-  TData = Awaited<ReturnType<typeof getPipelineInputSchema>>,
-  TError = void,
->(
-  pipelineId: string,
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPipelineInputSchema>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPipelineInputSchema>>,
-          TError,
-          Awaited<ReturnType<typeof getPipelineInputSchema>>
-        >,
-        "initialData"
-      >;
-  },
-  queryClient?: QueryClient,
-): DefinedUseQueryResult<TData, TError> & {
-  queryKey: DataTag<QueryKey, TData, TError>;
-};
-export function useGetPipelineInputSchema<
-  TData = Awaited<ReturnType<typeof getPipelineInputSchema>>,
-  TError = void,
->(
-  pipelineId: string,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPipelineInputSchema>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getPipelineInputSchema>>,
-          TError,
-          Awaited<ReturnType<typeof getPipelineInputSchema>>
-        >,
-        "initialData"
-      >;
-  },
-  queryClient?: QueryClient,
-): UseQueryResult<TData, TError> & {
-  queryKey: DataTag<QueryKey, TData, TError>;
-};
-export function useGetPipelineInputSchema<
-  TData = Awaited<ReturnType<typeof getPipelineInputSchema>>,
-  TError = void,
->(
-  pipelineId: string,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPipelineInputSchema>>,
-        TError,
-        TData
-      >
-    >;
-  },
-  queryClient?: QueryClient,
-): UseQueryResult<TData, TError> & {
-  queryKey: DataTag<QueryKey, TData, TError>;
-};
-
-export function useGetPipelineInputSchema<
-  TData = Awaited<ReturnType<typeof getPipelineInputSchema>>,
-  TError = void,
->(
-  pipelineId: string,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof getPipelineInputSchema>>,
-        TError,
-        TData
-      >
-    >;
-  },
-  queryClient?: QueryClient,
-): UseQueryResult<TData, TError> & {
-  queryKey: DataTag<QueryKey, TData, TError>;
-} {
-  const queryOptions = getGetPipelineInputSchemaQueryOptions(
-    pipelineId,
-    options,
-  );
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
-    TData,
-    TError
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-export const addPipelineInput = (
-  pipelineId: string,
-  addPipelineInputRequest: AddPipelineInputRequest,
-  signal?: AbortSignal,
-) => {
-  return customInstance<PipelineInputDto>({
-    url: `/api/pipelines/${pipelineId}/inputs`,
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    data: addPipelineInputRequest,
-    signal,
-  });
-};
-
-export const getAddPipelineInputMutationOptions = <
-  TError = void,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof addPipelineInput>>,
-    TError,
-    { pipelineId: string; data: AddPipelineInputRequest },
-    TContext
-  >;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof addPipelineInput>>,
-  TError,
-  { pipelineId: string; data: AddPipelineInputRequest },
-  TContext
-> => {
-  const mutationKey = ["addPipelineInput"];
-  const { mutation: mutationOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof addPipelineInput>>,
-    { pipelineId: string; data: AddPipelineInputRequest }
-  > = (props) => {
-    const { pipelineId, data } = props ?? {};
-
-    return addPipelineInput(pipelineId, data);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type AddPipelineInputMutationResult = NonNullable<
-  Awaited<ReturnType<typeof addPipelineInput>>
->;
-export type AddPipelineInputMutationBody = AddPipelineInputRequest;
-export type AddPipelineInputMutationError = void;
-
-export const useAddPipelineInput = <TError = void, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof addPipelineInput>>,
-      TError,
-      { pipelineId: string; data: AddPipelineInputRequest },
-      TContext
-    >;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<ReturnType<typeof addPipelineInput>>,
-  TError,
-  { pipelineId: string; data: AddPipelineInputRequest },
-  TContext
-> => {
-  return useMutation(getAddPipelineInputMutationOptions(options), queryClient);
-};
-export const deletePipelineInput = (
-  pipelineId: string,
-  inputId: string,
-  signal?: AbortSignal,
-) => {
-  return customInstance<void>({
-    url: `/api/pipelines/${pipelineId}/inputs/${inputId}`,
-    method: "DELETE",
-    signal,
-  });
-};
-
-export const getDeletePipelineInputMutationOptions = <
-  TError = void,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deletePipelineInput>>,
-    TError,
-    { pipelineId: string; inputId: string },
-    TContext
-  >;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof deletePipelineInput>>,
-  TError,
-  { pipelineId: string; inputId: string },
-  TContext
-> => {
-  const mutationKey = ["deletePipelineInput"];
-  const { mutation: mutationOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deletePipelineInput>>,
-    { pipelineId: string; inputId: string }
-  > = (props) => {
-    const { pipelineId, inputId } = props ?? {};
-
-    return deletePipelineInput(pipelineId, inputId);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type DeletePipelineInputMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deletePipelineInput>>
->;
-
-export type DeletePipelineInputMutationError = void;
-
-export const useDeletePipelineInput = <TError = void, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deletePipelineInput>>,
-      TError,
-      { pipelineId: string; inputId: string },
-      TContext
-    >;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<ReturnType<typeof deletePipelineInput>>,
-  TError,
-  { pipelineId: string; inputId: string },
-  TContext
-> => {
-  return useMutation(
-    getDeletePipelineInputMutationOptions(options),
-    queryClient,
-  );
-};
-export const updatePipelineInput = (
-  pipelineId: string,
-  inputId: string,
-  updatePipelineInputRequest: UpdatePipelineInputRequest,
-  signal?: AbortSignal,
-) => {
-  return customInstance<PipelineInputDto>({
-    url: `/api/pipelines/${pipelineId}/inputs/${inputId}`,
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    data: updatePipelineInputRequest,
-    signal,
-  });
-};
-
-export const getUpdatePipelineInputMutationOptions = <
-  TError = void,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updatePipelineInput>>,
-    TError,
-    { pipelineId: string; inputId: string; data: UpdatePipelineInputRequest },
-    TContext
-  >;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof updatePipelineInput>>,
-  TError,
-  { pipelineId: string; inputId: string; data: UpdatePipelineInputRequest },
-  TContext
-> => {
-  const mutationKey = ["updatePipelineInput"];
-  const { mutation: mutationOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updatePipelineInput>>,
-    { pipelineId: string; inputId: string; data: UpdatePipelineInputRequest }
-  > = (props) => {
-    const { pipelineId, inputId, data } = props ?? {};
-
-    return updatePipelineInput(pipelineId, inputId, data);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UpdatePipelineInputMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updatePipelineInput>>
->;
-export type UpdatePipelineInputMutationBody = UpdatePipelineInputRequest;
-export type UpdatePipelineInputMutationError = void;
-
-export const useUpdatePipelineInput = <TError = void, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updatePipelineInput>>,
-      TError,
-      { pipelineId: string; inputId: string; data: UpdatePipelineInputRequest },
-      TContext
-    >;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<ReturnType<typeof updatePipelineInput>>,
-  TError,
-  { pipelineId: string; inputId: string; data: UpdatePipelineInputRequest },
-  TContext
-> => {
-  return useMutation(
-    getUpdatePipelineInputMutationOptions(options),
-    queryClient,
-  );
-};
+/**
+ * @deprecated
+ */
 export const addPipelineNode = (
   pipelineId: string,
   addPipelineNodeRequest: AddPipelineNodeRequest,
@@ -2074,6 +1692,9 @@ export type AddPipelineNodeMutationResult = NonNullable<
 export type AddPipelineNodeMutationBody = AddPipelineNodeRequest;
 export type AddPipelineNodeMutationError = unknown;
 
+/**
+ * @deprecated
+ */
 export const useAddPipelineNode = <TError = unknown, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
@@ -2092,6 +1713,9 @@ export const useAddPipelineNode = <TError = unknown, TContext = unknown>(
 > => {
   return useMutation(getAddPipelineNodeMutationOptions(options), queryClient);
 };
+/**
+ * @deprecated
+ */
 export const deletePipelineNode = (
   pipelineId: string,
   nodeId: string,
@@ -2147,6 +1771,9 @@ export type DeletePipelineNodeMutationResult = NonNullable<
 
 export type DeletePipelineNodeMutationError = unknown;
 
+/**
+ * @deprecated
+ */
 export const useDeletePipelineNode = <TError = unknown, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
@@ -2168,6 +1795,9 @@ export const useDeletePipelineNode = <TError = unknown, TContext = unknown>(
     queryClient,
   );
 };
+/**
+ * @deprecated
+ */
 export const updatePipelineNode = (
   pipelineId: string,
   nodeId: string,
@@ -2226,6 +1856,9 @@ export type UpdatePipelineNodeMutationResult = NonNullable<
 export type UpdatePipelineNodeMutationBody = UpdatePipelineNodeRequest;
 export type UpdatePipelineNodeMutationError = unknown;
 
+/**
+ * @deprecated
+ */
 export const useUpdatePipelineNode = <TError = unknown, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
@@ -2244,240 +1877,6 @@ export const useUpdatePipelineNode = <TError = unknown, TContext = unknown>(
 > => {
   return useMutation(
     getUpdatePipelineNodeMutationOptions(options),
-    queryClient,
-  );
-};
-export const addPipelineOutput = (
-  pipelineId: string,
-  addPipelineOutputCommand: AddPipelineOutputCommand,
-  signal?: AbortSignal,
-) => {
-  return customInstance<PipelineOutputDto>({
-    url: `/api/pipelines/${pipelineId}/outputs`,
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    data: addPipelineOutputCommand,
-    signal,
-  });
-};
-
-export const getAddPipelineOutputMutationOptions = <
-  TError = void,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof addPipelineOutput>>,
-    TError,
-    { pipelineId: string; data: AddPipelineOutputCommand },
-    TContext
-  >;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof addPipelineOutput>>,
-  TError,
-  { pipelineId: string; data: AddPipelineOutputCommand },
-  TContext
-> => {
-  const mutationKey = ["addPipelineOutput"];
-  const { mutation: mutationOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof addPipelineOutput>>,
-    { pipelineId: string; data: AddPipelineOutputCommand }
-  > = (props) => {
-    const { pipelineId, data } = props ?? {};
-
-    return addPipelineOutput(pipelineId, data);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type AddPipelineOutputMutationResult = NonNullable<
-  Awaited<ReturnType<typeof addPipelineOutput>>
->;
-export type AddPipelineOutputMutationBody = AddPipelineOutputCommand;
-export type AddPipelineOutputMutationError = void;
-
-export const useAddPipelineOutput = <TError = void, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof addPipelineOutput>>,
-      TError,
-      { pipelineId: string; data: AddPipelineOutputCommand },
-      TContext
-    >;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<ReturnType<typeof addPipelineOutput>>,
-  TError,
-  { pipelineId: string; data: AddPipelineOutputCommand },
-  TContext
-> => {
-  return useMutation(getAddPipelineOutputMutationOptions(options), queryClient);
-};
-export const deletePipelineOutput = (
-  pipelineId: string,
-  outputId: string,
-  signal?: AbortSignal,
-) => {
-  return customInstance<void>({
-    url: `/api/pipelines/${pipelineId}/outputs/${outputId}`,
-    method: "DELETE",
-    signal,
-  });
-};
-
-export const getDeletePipelineOutputMutationOptions = <
-  TError = void,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deletePipelineOutput>>,
-    TError,
-    { pipelineId: string; outputId: string },
-    TContext
-  >;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof deletePipelineOutput>>,
-  TError,
-  { pipelineId: string; outputId: string },
-  TContext
-> => {
-  const mutationKey = ["deletePipelineOutput"];
-  const { mutation: mutationOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deletePipelineOutput>>,
-    { pipelineId: string; outputId: string }
-  > = (props) => {
-    const { pipelineId, outputId } = props ?? {};
-
-    return deletePipelineOutput(pipelineId, outputId);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type DeletePipelineOutputMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deletePipelineOutput>>
->;
-
-export type DeletePipelineOutputMutationError = void;
-
-export const useDeletePipelineOutput = <TError = void, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deletePipelineOutput>>,
-      TError,
-      { pipelineId: string; outputId: string },
-      TContext
-    >;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<ReturnType<typeof deletePipelineOutput>>,
-  TError,
-  { pipelineId: string; outputId: string },
-  TContext
-> => {
-  return useMutation(
-    getDeletePipelineOutputMutationOptions(options),
-    queryClient,
-  );
-};
-export const updatePipelineOutput = (
-  pipelineId: string,
-  outputId: string,
-  updatePipelineOutputCommand: UpdatePipelineOutputCommand,
-  signal?: AbortSignal,
-) => {
-  return customInstance<PipelineOutputDto>({
-    url: `/api/pipelines/${pipelineId}/outputs/${outputId}`,
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    data: updatePipelineOutputCommand,
-    signal,
-  });
-};
-
-export const getUpdatePipelineOutputMutationOptions = <
-  TError = void,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updatePipelineOutput>>,
-    TError,
-    { pipelineId: string; outputId: string; data: UpdatePipelineOutputCommand },
-    TContext
-  >;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof updatePipelineOutput>>,
-  TError,
-  { pipelineId: string; outputId: string; data: UpdatePipelineOutputCommand },
-  TContext
-> => {
-  const mutationKey = ["updatePipelineOutput"];
-  const { mutation: mutationOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updatePipelineOutput>>,
-    { pipelineId: string; outputId: string; data: UpdatePipelineOutputCommand }
-  > = (props) => {
-    const { pipelineId, outputId, data } = props ?? {};
-
-    return updatePipelineOutput(pipelineId, outputId, data);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UpdatePipelineOutputMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updatePipelineOutput>>
->;
-export type UpdatePipelineOutputMutationBody = UpdatePipelineOutputCommand;
-export type UpdatePipelineOutputMutationError = void;
-
-export const useUpdatePipelineOutput = <TError = void, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updatePipelineOutput>>,
-      TError,
-      {
-        pipelineId: string;
-        outputId: string;
-        data: UpdatePipelineOutputCommand;
-      },
-      TContext
-    >;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<ReturnType<typeof updatePipelineOutput>>,
-  TError,
-  { pipelineId: string; outputId: string; data: UpdatePipelineOutputCommand },
-  TContext
-> => {
-  return useMutation(
-    getUpdatePipelineOutputMutationOptions(options),
     queryClient,
   );
 };
@@ -2630,86 +2029,4 @@ export const useValidatePipeline = <TError = void, TContext = unknown>(
   TContext
 > => {
   return useMutation(getValidatePipelineMutationOptions(options), queryClient);
-};
-export const updatePipelineVariables = (
-  pipelineId: string,
-  updatePipelineVariablesRequest: UpdatePipelineVariablesRequest,
-  signal?: AbortSignal,
-) => {
-  return customInstance<ListOfPipelineVariableDto>({
-    url: `/api/pipelines/${pipelineId}/variables`,
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    data: updatePipelineVariablesRequest,
-    signal,
-  });
-};
-
-export const getUpdatePipelineVariablesMutationOptions = <
-  TError = unknown,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updatePipelineVariables>>,
-    TError,
-    { pipelineId: string; data: UpdatePipelineVariablesRequest },
-    TContext
-  >;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof updatePipelineVariables>>,
-  TError,
-  { pipelineId: string; data: UpdatePipelineVariablesRequest },
-  TContext
-> => {
-  const mutationKey = ["updatePipelineVariables"];
-  const { mutation: mutationOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updatePipelineVariables>>,
-    { pipelineId: string; data: UpdatePipelineVariablesRequest }
-  > = (props) => {
-    const { pipelineId, data } = props ?? {};
-
-    return updatePipelineVariables(pipelineId, data);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UpdatePipelineVariablesMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updatePipelineVariables>>
->;
-export type UpdatePipelineVariablesMutationBody =
-  UpdatePipelineVariablesRequest;
-export type UpdatePipelineVariablesMutationError = unknown;
-
-export const useUpdatePipelineVariables = <
-  TError = unknown,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updatePipelineVariables>>,
-      TError,
-      { pipelineId: string; data: UpdatePipelineVariablesRequest },
-      TContext
-    >;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<ReturnType<typeof updatePipelineVariables>>,
-  TError,
-  { pipelineId: string; data: UpdatePipelineVariablesRequest },
-  TContext
-> => {
-  return useMutation(
-    getUpdatePipelineVariablesMutationOptions(options),
-    queryClient,
-  );
 };

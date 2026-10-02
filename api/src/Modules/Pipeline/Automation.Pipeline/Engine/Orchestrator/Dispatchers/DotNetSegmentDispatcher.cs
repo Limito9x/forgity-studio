@@ -19,6 +19,8 @@ public class DotNetSegmentDispatcher(
     IToolRegistry toolRegistry,
     IPinValueResolver pinResolver,
     IExecutionMemoryStore memoryStore,
+    IExecutionStateStore stateStore,
+    SubPipelineDispatcher subPipelineDispatcher,
     ILogger<DotNetSegmentDispatcher> logger,
     IHubContext<PipelineExecutionHub>? hubContext = null
 )
@@ -33,7 +35,7 @@ public class DotNetSegmentDispatcher(
     {
         foreach (var step in segment.Steps)
         {
-            var isStart = string.Equals(step.Kind, PipelineNodeKind.Start, StringComparison.OrdinalIgnoreCase) ||
+            var isStart = step.Kind == PipelineNodeKind.Start ||
                           string.Equals(step.RefId, "Start", StringComparison.OrdinalIgnoreCase);
 
             if (isStart)
@@ -42,7 +44,7 @@ public class DotNetSegmentDispatcher(
                 continue;
             }
 
-            var isReturn = string.Equals(step.Kind, PipelineNodeKind.Return, StringComparison.OrdinalIgnoreCase) ||
+            var isReturn = step.Kind == PipelineNodeKind.Return ||
                            string.Equals(step.RefId, "Return", StringComparison.OrdinalIgnoreCase);
 
             if (isReturn)
@@ -66,122 +68,19 @@ public class DotNetSegmentDispatcher(
                 continue;
             }
 
-            var isSubPipeline = string.Equals(step.Kind, PipelineNodeKind.SubPipeline, StringComparison.OrdinalIgnoreCase);
-
-            await RecordNodeRunningAsync(execution.Id, execution.PipelineId, step.NodeId, ct);
+            var isSubPipeline = step.Kind == PipelineNodeKind.SubPipeline;
 
             if (isSubPipeline)
             {
-                var subResolvedInputs = await pinResolver.ResolveAllPinsAsync(
-                    execution.Id,
-                    step.NodeId,
-                    scope: scope,
-                    ct: ct
-                );
-
-                Guid? targetPipelineId = null;
-                if (Guid.TryParse(step.RefId, out var parsedRefId))
+                var subRes = await subPipelineDispatcher.DispatchStepAsync(execution, step, scope, orchestrator, ct);
+                if (subRes.IsFailed)
                 {
-                    targetPipelineId = parsedRefId;
+                    return subRes;
                 }
-                else if (step.Config != null)
-                {
-                    try
-                    {
-                        if (step.Config.RootElement.TryGetProperty("pipelineId", out var pProp) && pProp.TryGetGuid(out var gid))
-                        {
-                            targetPipelineId = gid;
-                        }
-                    }
-                    catch { }
-                }
-
-                if (!targetPipelineId.HasValue || targetPipelineId.Value == Guid.Empty)
-                {
-                    var err = $"Sub-Pipeline target not configured for step '{step.Label}'.";
-                    logger.LogError(err);
-                    await RecordNodeFailureAsync(execution.Id, execution.PipelineId, step.NodeId, err, ct);
-                    return Result.Fail(err);
-                }
-
-                var childPipeline = await db.Pipelines
-                    .AsNoTracking()
-                    .Include(p => p.Outputs)
-                    .FirstOrDefaultAsync(p => p.Id == targetPipelineId.Value, ct);
-
-                if (childPipeline == null)
-                {
-                    var err = $"Target Sub-Pipeline '{targetPipelineId.Value}' not found.";
-                    logger.LogError(err);
-                    await RecordNodeFailureAsync(execution.Id, execution.PipelineId, step.NodeId, err, ct);
-                    return Result.Fail(err);
-                }
-
-                var childExecution = new PipelineExecution(childPipeline.Id, execution.AgentId);
-                db.PipelineExecutions.Add(childExecution);
-                await db.SaveChangesAsync(ct);
-
-                var childInputs = new Dictionary<string, object?>(subResolvedInputs, StringComparer.OrdinalIgnoreCase);
-
-                logger.LogInformation("Executing Sub-Pipeline [{ChildName}] ({ChildPipelineId}) under Execution {ExecutionId}",
-                    childPipeline.Name, childPipeline.Id, execution.Id);
-
-                if (orchestrator == null)
-                {
-                    var err = "Orchestrator instance required for Sub-Pipeline execution.";
-                    logger.LogError(err);
-                    await RecordNodeFailureAsync(execution.Id, execution.PipelineId, step.NodeId, err, ct);
-                    return Result.Fail(err);
-                }
-
-                var childResult = await orchestrator.ExecuteOrResumeAsync(childExecution.Id, childInputs, ct);
-
-                if (childResult.IsFailed || childResult.Value.Status == ExecutionStatus.Failed)
-                {
-                    var err = childResult.Errors.FirstOrDefault()?.Message ?? childResult.Value.ErrorMessage ?? "Sub-Pipeline execution failed.";
-                    logger.LogError(err);
-                    await RecordNodeFailureAsync(execution.Id, execution.PipelineId, step.NodeId, err, ct);
-                    return Result.Fail(err);
-                }
-
-                // Collect outputs from child Return node (if any) or memory store
-                var subOutputs = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-                var childReturnNode = await db.PipelineNodes
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(n => n.PipelineId == childPipeline.Id && n.Kind == PipelineNodeKind.Return, ct);
-
-                if (childReturnNode != null)
-                {
-                    var childReturnNodeExec = await db.NodeExecutions
-                        .AsNoTracking()
-                        .FirstOrDefaultAsync(ne => ne.PipelineExecutionId == childExecution.Id && ne.PipelineNodeId == childReturnNode.Id, ct);
-
-                    if (childReturnNodeExec?.Output != null)
-                    {
-                        try
-                        {
-                            var parsedOuts = JsonSerializer.Deserialize<Dictionary<string, object?>>(childReturnNodeExec.Output.RootElement.GetRawText());
-                            if (parsedOuts != null)
-                            {
-                                foreach (var (k, v) in parsedOuts)
-                                {
-                                    subOutputs[k] = v;
-                                }
-                            }
-                        }
-                        catch { }
-                    }
-                }
-
-                await memoryStore.SetNodeAllOutputsAsync(execution.Id, step.NodeId, subOutputs, scope, ct);
-                var successOutputs = new Dictionary<string, object>();
-                foreach (var (k, v) in subOutputs)
-                {
-                    successOutputs[k] = v ?? string.Empty;
-                }
-                await RecordNodeSuccessAsync(execution.Id, execution.PipelineId, step.NodeId, successOutputs, ct);
                 continue;
             }
+
+            await RecordNodeRunningAsync(execution.Id, execution.PipelineId, step.NodeId, ct);
 
             var tool = toolRegistry.Get(step.RefId);
             if (tool == null)
@@ -236,24 +135,8 @@ public class DotNetSegmentDispatcher(
 
     private async Task RecordNodeSuccessAsync(Guid executionId, Guid pipelineId, Guid nodeId, Dictionary<string, object> outputs, CancellationToken ct)
     {
-        var nodeExec = await db.NodeExecutions
-            .FirstOrDefaultAsync(x => x.PipelineExecutionId == executionId && x.PipelineNodeId == nodeId, ct);
-
-        var outputJson = JsonSerializer.Serialize(outputs);
-        var outputDoc = JsonDocument.Parse(outputJson);
-
-        if (nodeExec == null)
-        {
-            nodeExec = new NodeExecution(executionId, nodeId, status: ExecutionStatus.Running);
-            nodeExec.MarkSucceeded(outputDoc);
-            db.NodeExecutions.Add(nodeExec);
-        }
-        else
-        {
-            nodeExec.MarkSucceeded(outputDoc);
-        }
-
-        await db.SaveChangesAsync(ct);
+        await stateStore.SetNodeStatusAsync(executionId, nodeId, "succeeded", ct);
+        await stateStore.SetNodeOutputsAsync(executionId, nodeId, outputs.ToDictionary(k => k.Key, v => (object?)v.Value), ct);
 
         if (hubContext != null)
         {
@@ -261,7 +144,15 @@ public class DotNetSegmentDispatcher(
             {
                 await hubContext.Clients.Group($"pipeline_{pipelineId}").SendAsync(
                     "PipelineNodeExecutionUpdated",
-                    new { executionId, pipelineId, nodeId, status = "succeeded" },
+                    new
+                    {
+                        executionId,
+                        pipelineId,
+                        nodeId,
+                        status = "succeeded",
+                        outputs,
+                        finishedAt = DateTimeOffset.UtcNow
+                    },
                     ct
                 );
             }
@@ -274,21 +165,7 @@ public class DotNetSegmentDispatcher(
 
     private async Task RecordNodeRunningAsync(Guid executionId, Guid pipelineId, Guid nodeId, CancellationToken ct)
     {
-        var nodeExec = await db.NodeExecutions
-            .FirstOrDefaultAsync(x => x.PipelineExecutionId == executionId && x.PipelineNodeId == nodeId, ct);
-
-        if (nodeExec == null)
-        {
-            nodeExec = new NodeExecution(executionId, nodeId, status: ExecutionStatus.Running);
-            nodeExec.MarkRunning();
-            db.NodeExecutions.Add(nodeExec);
-            await db.SaveChangesAsync(ct);
-        }
-        else if (nodeExec.Status != ExecutionStatus.Running)
-        {
-            nodeExec.MarkRunning();
-            await db.SaveChangesAsync(ct);
-        }
+        await stateStore.SetNodeStatusAsync(executionId, nodeId, "running", ct);
 
         if (hubContext != null)
         {
@@ -296,7 +173,14 @@ public class DotNetSegmentDispatcher(
             {
                 await hubContext.Clients.Group($"pipeline_{pipelineId}").SendAsync(
                     "PipelineNodeExecutionUpdated",
-                    new { executionId, pipelineId, nodeId, status = "running" },
+                    new
+                    {
+                        executionId,
+                        pipelineId,
+                        nodeId,
+                        status = "running",
+                        startedAt = DateTimeOffset.UtcNow
+                    },
                     ct
                 );
             }
@@ -309,21 +193,7 @@ public class DotNetSegmentDispatcher(
 
     private async Task RecordNodeFailureAsync(Guid executionId, Guid pipelineId, Guid nodeId, string error, CancellationToken ct)
     {
-        var nodeExec = await db.NodeExecutions
-            .FirstOrDefaultAsync(x => x.PipelineExecutionId == executionId && x.PipelineNodeId == nodeId, ct);
-
-        if (nodeExec == null)
-        {
-            nodeExec = new NodeExecution(executionId, nodeId, status: ExecutionStatus.Running);
-            nodeExec.MarkFailed(error);
-            db.NodeExecutions.Add(nodeExec);
-        }
-        else
-        {
-            nodeExec.MarkFailed(error);
-        }
-
-        await db.SaveChangesAsync(ct);
+        await stateStore.SetNodeStatusAsync(executionId, nodeId, "failed", ct);
 
         if (hubContext != null)
         {
@@ -331,7 +201,15 @@ public class DotNetSegmentDispatcher(
             {
                 await hubContext.Clients.Group($"pipeline_{pipelineId}").SendAsync(
                     "PipelineNodeExecutionUpdated",
-                    new { executionId, pipelineId, nodeId, status = "failed" },
+                    new
+                    {
+                        executionId,
+                        pipelineId,
+                        nodeId,
+                        status = "failed",
+                        errorMessage = error,
+                        finishedAt = DateTimeOffset.UtcNow
+                    },
                     ct
                 );
             }

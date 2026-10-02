@@ -7,11 +7,13 @@
 import type { DictionaryOfStringAndObject } from "./dictionaryOfStringAndObject";
 import type { IReadOnlyListOfPinDefinition } from "./iReadOnlyListOfPinDefinition";
 import type { NodePosition } from "./nodePosition";
+import type { NodeSize } from "./nodeSize";
+import type { PipelineNodeKind } from "./pipelineNodeKind";
 
 export interface PipelineNodeGraphDto {
   id: string;
   refId: string;
-  kind: string;
+  kind: PipelineNodeKind;
   label: string;
   /** @nullable */
   category: string | null;
@@ -22,4 +24,10 @@ export interface PipelineNodeGraphDto {
   outputs: IReadOnlyListOfPinDefinition;
   /** @nullable */
   configValues: DictionaryOfStringAndObject | null;
+  /** @nullable */
+  parentId?: string | null;
+  /** @nullable */
+  size?: NodeSize | null;
+  /** @nullable */
+  metadata?: DictionaryOfStringAndObject | null;
 }

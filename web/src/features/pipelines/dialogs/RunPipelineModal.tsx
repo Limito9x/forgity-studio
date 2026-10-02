@@ -3,7 +3,7 @@ import type { Node, Edge } from "@xyflow/react";
 import { useForm } from "react-hook-form";
 import { useGetRunners } from "@/gen/endpoints/runners/runners";
 import type { RunnerDto } from "@/gen/model";
-import { useRunPipeline, usePipelineInputSchema } from "../hooks/usePipelineGraph";
+import { useRunPipeline, type PipelineParameterDto } from "../hooks/usePipelineGraph";
 import {
   Dialog,
   DialogHeader,
@@ -40,6 +40,7 @@ interface RunPipelineModalProps {
   projectId?: string;
   nodes?: Node[];
   edges?: Edge[];
+  parameters?: PipelineParameterDto[];
   isOpen: boolean;
   onClose: () => void;
   onExecutionStarted?: (executionId: string) => void;
@@ -50,12 +51,12 @@ export function RunPipelineModal({
   pipelineName,
   nodes = [],
   edges = [],
+  parameters = [],
   isOpen,
   onClose,
   onExecutionStarted,
 }: RunPipelineModalProps) {
   const { data: agents = [], isLoading: isLoadingAgents } = useGetRunners();
-  const { data: schemaInputs = [], isLoading: isLoadingSchema } = usePipelineInputSchema(pipelineId);
 
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const runMutation = useRunPipeline(pipelineId);
@@ -67,6 +68,21 @@ export function RunPipelineModal({
       setSelectedAgentId(active?.id || agents[0].id);
     }
   }, [agents, selectedAgentId]);
+
+  // Derived inputs: strictly rely on unified parameters (kind === 1 or "Input")
+  const pipelineInputs = useMemo(() => {
+    return (parameters || [])
+      .filter((p) => p.kind === 1 || (p.kind as unknown) === "Input")
+      .map((p) => ({
+        id: p.id,
+        key: p.key,
+        label: p.label || p.key,
+        type: typeof p.type === "number" ? p.type : Number(p.type) || 0,
+        cardinality: p.cardinality ? (typeof p.cardinality === "number" ? p.cardinality : Number(p.cardinality) || 0) : 0,
+        defaultValue: p.defaultValue,
+        isRequired: p.isRequired,
+      }));
+  }, [parameters]);
 
   // Compute unwired & unconfigured required inputs on internal nodes (excluding Start node)
   const additionalMissingInputs = useMemo<MissingRuntimeInput[]>(() => {
@@ -108,10 +124,10 @@ export function RunPipelineModal({
     return list;
   }, [nodes, edges]);
 
-  // Convert schema inputs (Start Node) to FieldDefinition[]
+  // Convert pipeline inputs (Start Node) to FieldDefinition[]
   const startFields = useMemo(() => {
-    return schemaInputs.map((input) => pipelineInputToFieldDefinition(input));
-  }, [schemaInputs]);
+    return pipelineInputs.map((input) => pipelineInputToFieldDefinition(input as any));
+  }, [pipelineInputs]);
 
   // Convert missing unwired inputs to FieldDefinition[]
   const missingFields = useMemo(() => {
@@ -158,7 +174,7 @@ export function RunPipelineModal({
       "none",
     ];
 
-    schemaInputs.forEach((input) => {
+    pipelineInputs.forEach((input) => {
       const f = startFields.find((field) => field.name === input.key);
       const val = f?.defaultValue !== undefined ? f.defaultValue : input.defaultValue;
       const valStr = typeof val === "string" ? val.trim().toLowerCase() : "";
@@ -176,7 +192,7 @@ export function RunPipelineModal({
     });
 
     return defaults;
-  }, [schemaInputs, startFields, additionalMissingInputs]);
+  }, [pipelineInputs, startFields, additionalMissingInputs]);
 
   const form = useForm<any>({
     resolver: zodResolver(validationSchema as any),
@@ -198,7 +214,7 @@ export function RunPipelineModal({
       // Separate start inputs vs node overrides
       const runtimeInputs: Record<string, any> = {};
 
-      schemaInputs.forEach((input) => {
+      pipelineInputs.forEach((input) => {
         if (values[input.key] !== undefined) {
           runtimeInputs[input.key] = values[input.key];
         }
@@ -257,17 +273,12 @@ export function RunPipelineModal({
 
       <form onSubmit={handleRun} className="space-y-4">
         <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
-          {/* 1. Pipeline Start Inputs Section (From Backend Schema) */}
-          {isLoadingSchema ? (
-            <div className="flex items-center justify-center py-4 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />
-              Loading input schema...
-            </div>
-          ) : schemaInputs.length > 0 ? (
+          {/* 1. Pipeline Start Inputs Section (From Unified Parameters) */}
+          {pipelineInputs.length > 0 ? (
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 space-y-3">
               <div className="flex items-center gap-2 text-xs font-semibold text-primary">
                 <Sparkles className="h-4 w-4 shrink-0" />
-                <span>Pipeline Start Inputs ({schemaInputs.length})</span>
+                <span>Pipeline Start Inputs ({pipelineInputs.length})</span>
               </div>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
                 Configure runtime arguments for your pipeline execution entry point.

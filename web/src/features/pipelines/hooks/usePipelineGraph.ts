@@ -6,12 +6,14 @@ import type {
   PipelineGraphDto,
   PipelineNodeGraphDto,
   PipelineEdgeGraphDto,
-  PipelineInputDto,
+  PipelineParameterDto,
+  PipelineParameterKind,
+  SavePipelineGraphRequest,
+  SavePipelineNodeItem,
+  SavePipelineEdgeItem,
   AddPipelineNodeRequest,
   UpdatePipelineNodeRequest,
   AddPipelineEdgeRequest,
-  AddPipelineInputRequest,
-  UpdatePipelineInputRequest,
   RunPipelineRequest,
   ValidatePipelineQuery,
   ValidatePipelineResponse,
@@ -22,31 +24,33 @@ import type {
   EdgeKind,
   ExecutionStatus,
 } from "@/gen/model";
+import { PipelineNodeKind } from "@/gen/model";
 
-export interface PipelineVariableDto {
-  name: string;
-  type: number | string;
-  cardinality?: number | string;
-  description?: string | null;
-  structType?: string | null;
-}
+export type StageKindType = "Worker" | "Server" | "Macro";
 
-export type ExtendedPipelineGraphDto = PipelineGraphDto & {
-  triggerType?: number | string;
-  triggerWorkspaceId?: string | null;
-  variables?: PipelineVariableDto[];
+// Re-export generated Parameter, Save DTOs, and Enums from Orval
+export { PipelineNodeKind };
+export type {
+  PipelineParameterDto,
+  PipelineParameterKind,
+  SavePipelineNodeItem,
+  SavePipelineEdgeItem,
+  SavePipelineGraphRequest,
 };
+
+export type SavePipelineGraphData = Omit<SavePipelineGraphRequest, "parameters"> & {
+  parameters?: PipelineParameterDto[] | any[] | null;
+};
+
+export type ExtendedPipelineGraphDto = PipelineGraphDto;
 
 export type {
   PipelineGraphDto,
   PipelineNodeGraphDto,
   PipelineEdgeGraphDto,
-  PipelineInputDto,
   AddPipelineNodeRequest,
   UpdatePipelineNodeRequest,
   AddPipelineEdgeRequest,
-  AddPipelineInputRequest,
-  UpdatePipelineInputRequest,
   RunPipelineRequest,
   ValidatePipelineQuery,
   ValidatePipelineResponse,
@@ -82,32 +86,12 @@ export const usePipelineGraph = (pipelineId?: string) => {
   });
 };
 
-export const usePipelineInputSchema = (pipelineId?: string) => {
-  return PipelinesApi.useGetPipelineInputSchema(pipelineId || "", {
+export const usePipelineExecutions = (pipelineId?: string) => {
+  return PipelinesApi.useGetPipelineExecutions(pipelineId || "", {
     query: {
       enabled: !!pipelineId,
       placeholderData: keepPreviousData,
     },
-  });
-};
-
-export const getPipelineExecutionsQueryKey = (pipelineId: string) => [
-  "/api/pipelines",
-  pipelineId,
-  "executions",
-];
-
-export const usePipelineExecutions = (pipelineId?: string) => {
-  return useQuery({
-    queryKey: getPipelineExecutionsQueryKey(pipelineId || ""),
-    queryFn: ({ signal }) =>
-      customInstance<PipelineExecutionDto[]>({
-        url: `/api/pipelines/${pipelineId}/executions`,
-        method: "GET",
-        signal,
-      }),
-    enabled: !!pipelineId,
-    placeholderData: keepPreviousData,
   });
 };
 
@@ -123,15 +107,6 @@ export const useNodeExecutions = (executionId?: string) => {
   return PipelinesApi.useGetNodeExecutions(executionId || "", {
     query: {
       enabled: !!executionId,
-      refetchInterval: (query) => {
-        // Auto-poll every 3s while execution is active
-        const data = query.state.data;
-        if (!data || data.length === 0) return 3000;
-        const allDone = data.every(
-          (n) => n.status === 4 || n.status === 5 || (n.status as any) === "Succeeded" || (n.status as any) === "Failed"
-        );
-        return allDone ? false : 3000;
-      },
     },
   });
 };
@@ -143,6 +118,17 @@ export const useNodeExecutions = (executionId?: string) => {
 export const useCreatePipeline = (projectId?: string) => {
   const queryKey = projectId ? PipelinesApi.getGetPipelinesQueryKey({ projectId }) : ["pipelines"];
   return createMutationHook(PipelinesApi.useCreatePipeline, [queryKey])();
+};
+
+export const useSavePipelineGraph = (pipelineId?: string) => {
+  const mutation = PipelinesApi.useSavePipelineGraph();
+  return {
+    ...mutation,
+    mutate: (data: SavePipelineGraphData, options?: any) =>
+      mutation.mutate({ id: pipelineId!, data: data as any }, options),
+    mutateAsync: (data: SavePipelineGraphData, options?: any) =>
+      mutation.mutateAsync({ id: pipelineId!, data: data as any }, options),
+  };
 };
 
 export const useAddPipelineNode = (pipelineId?: string) => {
@@ -248,73 +234,6 @@ export const useValidatePipeline = (pipelineId?: string) => {
   };
 };
 
-export const useAddPipelineInput = (pipelineId?: string) => {
-  const queryKeys = pipelineId
-    ? [
-        PipelinesApi.getGetPipelineGraphQueryKey(pipelineId),
-        PipelinesApi.getGetPipelineInputSchemaQueryKey(pipelineId),
-      ]
-    : [["pipelines"]];
-  const mutation = createMutationHook(PipelinesApi.useAddPipelineInput, queryKeys)();
-  return {
-    ...mutation,
-    mutate: (data: AddPipelineInputRequest, options?: any) =>
-      mutation.mutate({ pipelineId: pipelineId!, data }, options),
-    mutateAsync: (data: AddPipelineInputRequest, options?: any) =>
-      mutation.mutateAsync({ pipelineId: pipelineId!, data }, options),
-  };
-};
-
-export const useUpdatePipelineInput = (pipelineId?: string) => {
-  const queryKeys = pipelineId
-    ? [
-        PipelinesApi.getGetPipelineGraphQueryKey(pipelineId),
-        PipelinesApi.getGetPipelineInputSchemaQueryKey(pipelineId),
-      ]
-    : [["pipelines"]];
-  const mutation = createMutationHook(PipelinesApi.useUpdatePipelineInput, queryKeys)();
-  return {
-    ...mutation,
-    mutate: ({ inputId, data }: { inputId: string; data: UpdatePipelineInputRequest }, options?: any) =>
-      mutation.mutate({ pipelineId: pipelineId!, inputId, data }, options),
-    mutateAsync: ({ inputId, data }: { inputId: string; data: UpdatePipelineInputRequest }, options?: any) =>
-      mutation.mutateAsync({ pipelineId: pipelineId!, inputId, data }, options),
-  };
-};
-
-export const useDeletePipelineInput = (pipelineId?: string) => {
-  const queryKeys = pipelineId
-    ? [
-        PipelinesApi.getGetPipelineGraphQueryKey(pipelineId),
-        PipelinesApi.getGetPipelineInputSchemaQueryKey(pipelineId),
-      ]
-    : [["pipelines"]];
-  const mutation = createMutationHook(PipelinesApi.useDeletePipelineInput, queryKeys)();
-  return {
-    ...mutation,
-    mutate: (inputId: string, options?: any) =>
-      mutation.mutate({ pipelineId: pipelineId!, inputId }, options),
-    mutateAsync: (inputId: string, options?: any) =>
-      mutation.mutateAsync({ pipelineId: pipelineId!, inputId }, options),
-  };
-};
-
-export const useUpdatePipelineVariables = (pipelineId?: string) => {
-  const queryClient = useQueryClient();
-  const queryKey = pipelineId ? PipelinesApi.getGetPipelineGraphQueryKey(pipelineId) : ["pipelines"];
-  return useMutation({
-    mutationFn: (variables: PipelineVariableDto[]) =>
-      customInstance<PipelineVariableDto[]>({
-        url: `/api/pipelines/${pipelineId}/variables`,
-        method: "PUT",
-        data: { pipelineId, variables },
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
-    },
-  });
-};
-
 export const useUpdatePipelineTrigger = (pipelineId?: string) => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -328,9 +247,6 @@ export const useUpdatePipelineTrigger = (pipelineId?: string) => {
       if (pipelineId) {
         queryClient.invalidateQueries({
           queryKey: PipelinesApi.getGetPipelineGraphQueryKey(pipelineId),
-        });
-        queryClient.invalidateQueries({
-          queryKey: PipelinesApi.getGetPipelineInputSchemaQueryKey(pipelineId),
         });
       }
       queryClient.invalidateQueries({ queryKey: ["pipelines"] });

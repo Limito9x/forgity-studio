@@ -54,19 +54,23 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
   const { data: projectStructs = [] } = useGetProjectStructs(projectId);
 
   const data = (node?.data as unknown as CustomPipelineNodeData) || {};
+  const refIdLower = String(data.refId || "").toLowerCase();
+  const kindLower = String(data.kind || "").toLowerCase();
+  const labelLower = String(data.label || "").toLowerCase();
+
   const isPipelineInputNode =
-    data.refId?.toLowerCase() === "pipelineinput" ||
-    data.refId?.toLowerCase() === "pipelineinputs" ||
-    data.refId?.toLowerCase() === "start" ||
-    data.refId?.toLowerCase() === "beginexecute" ||
-    data.kind?.toLowerCase() === "start" ||
-    data.kind?.toLowerCase() === "entry" ||
-    data.kind?.toLowerCase() === "pipelineinput" ||
-    data.label?.toLowerCase() === "start" ||
-    data.label?.toLowerCase() === "pipeline inputs" ||
-    data.label?.toLowerCase() === "pipeline input" ||
-    data.label?.toLowerCase() === "on resource created" ||
-    data.label?.toLowerCase() === "on resource version updated";
+    refIdLower === "pipelineinput" ||
+    refIdLower === "pipelineinputs" ||
+    refIdLower === "start" ||
+    refIdLower === "beginexecute" ||
+    kindLower === "start" ||
+    kindLower === "entry" ||
+    kindLower === "pipelineinput" ||
+    labelLower === "start" ||
+    labelLower === "pipeline inputs" ||
+    labelLower === "pipeline input" ||
+    labelLower === "on resource created" ||
+    labelLower === "on resource version updated";
 
 
   const inputs = data.inputs || [];
@@ -242,9 +246,9 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
         ) : (
           <div className="space-y-4">
             {/* BreakStruct / MakeStruct / CastToStruct Special Configuration */}
-            {(data.refId?.toLowerCase() === "breakstruct" ||
-              data.refId?.toLowerCase() === "makestruct" ||
-              data.refId?.toLowerCase() === "casttostruct") && (
+            {(refIdLower === "breakstruct" ||
+              refIdLower === "makestruct" ||
+              refIdLower === "casttostruct") && (
               <div className="rounded-xl border border-sky-500/30 bg-sky-500/5 p-3 space-y-2 shadow-sm">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-sky-600 dark:text-sky-400">
                   <Box className="h-3.5 w-3.5" />
@@ -272,7 +276,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
                 </Select>
                 <p className="text-[10px] text-muted-foreground leading-tight">
                   Selecting a struct type dynamically updates{" "}
-                  {data.refId?.toLowerCase() === "makestruct" ? "input" : "output"} pins to match the entity schema.
+                  {refIdLower === "makestruct" ? "input" : "output"} pins to match the entity schema.
                 </p>
               </div>
             )}

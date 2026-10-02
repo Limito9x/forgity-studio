@@ -1,8 +1,6 @@
-using System.Text.Json;
 using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
-using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Engine.Models;
 using Automation.Pipeline.Tools;
 
@@ -17,15 +15,6 @@ public class ExecPlanner : IExecPlanner
         Dictionary<string, object?>? runtimeInputs = null
     )
     {
-        var customDefsLookup = customDefinitions
-            .GroupBy(x => x.Id.ToString())
-            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-
-        var customDefsKeyLookup = customDefinitions
-            .Where(x => !string.IsNullOrEmpty(x.Key))
-            .GroupBy(x => x.Key)
-            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-
         var execEdges = pipeline.Edges
             .Where(e => e.Kind == EdgeKind.Exec ||
                         IsLoopBodyPin(e.SourcePin) ||
@@ -35,127 +24,246 @@ public class ExecPlanner : IExecPlanner
             .ToList();
 
         var cycleNodeIds = new List<string>();
-        var segments = new List<ExecSegment>();
 
-        // 1. Build Exec Steps Lookup (Action & FlowControl nodes only)
-        var stepsLookup = new Dictionary<Guid, ExecStep>();
-        foreach (var node in pipeline.Nodes)
-        {
-            var isStart = string.Equals(node.Kind, PipelineNodeKind.Start, StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(node.RefId, "Start", StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(node.RefId, "BeginExecute", StringComparison.OrdinalIgnoreCase);
+        // 1. Build Frozen Execution Graph (O(1) in-memory lookup & Stage-Worker-Runner Binding with Plug over Select)
+        var graph = FrozenExecutionGraph.Create(pipeline, toolRegistry, runtimeInputs);
 
-            var isFlowControl = string.Equals(node.Kind, PipelineNodeKind.FlowControl, StringComparison.OrdinalIgnoreCase) ||
-                                (toolRegistry.Get(node.RefId) is { } t && string.Equals(t.Category, "Flow Control", StringComparison.OrdinalIgnoreCase));
+        // 2. Build Exec Steps Lookup via Step Factory
+        var stepsLookup = ExecStepFactory.BuildStepsLookup(pipeline, customDefinitions, toolRegistry);
 
-            var tool = toolRegistry.Get(node.RefId);
-            var isPure = tool is { IsPure: true };
+        // 3. Discover Entry Point and Trace Scoped Exec Segments
+        var segments = BuildScopedExecSegments(pipeline, graph, stepsLookup, execEdges, cycleNodeIds);
 
-            // Pure nodes are excluded from ExecPlan (resolved on-demand via pull)
-            if (isPure && !isStart && !isFlowControl)
-            {
-                continue;
-            }
-
-            IReadOnlyList<PinDefinition> inputs = [];
-            IReadOnlyList<PinDefinition> outputs = [];
-            var label = node.RefId;
-            var executor = "dotNet";
-
-            if (isStart)
-            {
-                label = "Start";
-                executor = "dotNet";
-                outputs = pipeline.Inputs.OrderBy(i => i.Order).Select(i => new PinDefinition
-                {
-                    Id = i.Key,
-                    Label = i.Label,
-                    Kind = PinKind.Data,
-                    PrimitiveType = i.Type,
-                    Cardinality = i.Cardinality,
-                    IsRequired = i.IsRequired,
-                    DefaultValue = i.DefaultValue
-                }).ToList();
-            }
-            else if (tool != null)
-            {
-                inputs = tool.Inputs;
-                outputs = tool.Outputs;
-                label = !string.IsNullOrWhiteSpace(tool.Label) ? tool.Label : tool.Key;
-                executor = "dotNet";
-            }
-            else
-            {
-                NodeDefinition? def = null;
-                if (customDefsLookup.TryGetValue(node.RefId, out var foundDef) ||
-                    customDefsKeyLookup.TryGetValue(node.RefId, out foundDef))
-                {
-                    def = foundDef;
-                }
-
-                if (def != null)
-                {
-                    inputs = def.Inputs;
-                    outputs = def.Outputs;
-                    label = !string.IsNullOrEmpty(def.Label) ? def.Label : def.Name;
-                    executor = !string.IsNullOrEmpty(def.Executor) ? def.Executor : "blender";
-                }
-            }
-
-            var incoming = pipeline.Edges
-                .Where(e => e.TargetPipelineNodeId == node.Id)
-                .Select(e => new IncomingPinConnection(e.TargetPin, e.SourcePipelineNodeId, e.SourcePin))
-                .ToList();
-
-            var nodeKind = isStart ? PipelineNodeKind.Start :
-                           isFlowControl ? PipelineNodeKind.FlowControl :
-                           tool != null ? PipelineNodeKind.Tool :
-                           node.Kind;
-
-            stepsLookup[node.Id] = new ExecStep
-            {
-                NodeId = node.Id,
-                RefId = node.RefId,
-                Kind = nodeKind,
-                Label = label,
-                Executor = executor,
-                InputPins = inputs,
-                OutputPins = outputs,
-                IncomingConnections = incoming,
-                Config = node.Config
-            };
-        }
-
-        // 2. Discover Entry Point and Trace Exec Chain
-        var execTargets = execEdges.Select(e => e.TargetPipelineNodeId).ToHashSet();
-        var entryNode = pipeline.Nodes.FirstOrDefault(n => string.Equals(n.Kind, PipelineNodeKind.Start, StringComparison.OrdinalIgnoreCase))
-                        ?? pipeline.Nodes.FirstOrDefault(n => string.Equals(n.RefId, "BeginExecute", StringComparison.OrdinalIgnoreCase))
-                        ?? pipeline.Nodes.FirstOrDefault(n => stepsLookup.ContainsKey(n.Id) && !execTargets.Contains(n.Id))
-                        ?? pipeline.Nodes.FirstOrDefault(n => stepsLookup.ContainsKey(n.Id));
-
-        if (entryNode != null && stepsLookup.TryGetValue(entryNode.Id, out var startStep))
-        {
-            var visited = new HashSet<Guid>();
-            var recursionStack = new HashSet<Guid>();
-
-            segments = TraceExecChain(startStep.NodeId, stepsLookup, execEdges, visited, recursionStack, cycleNodeIds);
-        }
-
-        // 3. Pre-flight Pin Validation
-        var unresolvedPins = ValidateRequiredPins(segments, runtimeInputs);
+        // 4. Pre-flight Pin Validation via Plan Validator
+        var unresolvedPins = ExecPlanValidator.ValidateRequiredPins(segments, runtimeInputs);
 
         return new ExecPlan
         {
             Segments = segments,
             CycleNodeIds = cycleNodeIds,
-            UnresolvedPins = unresolvedPins
+            UnresolvedPins = unresolvedPins,
+            Graph = graph
         };
     }
 
-    private List<ExecSegment> TraceExecChain(
-        Guid? startNodeId,
+    private List<ExecSegment> BuildScopedExecSegments(
+        Domain.Entities.Pipeline pipeline,
+        FrozenExecutionGraph graph,
         Dictionary<Guid, ExecStep> stepsLookup,
         List<PipelineEdge> execEdges,
+        List<string> cycleNodeIds
+    )
+    {
+        var segments = new List<ExecSegment>();
+
+        // 1. Root Start Node (StageId == null)
+        var startStep = stepsLookup.Values.FirstOrDefault(s =>
+            s.StageId == null &&
+            s.Kind == PipelineNodeKind.Start);
+
+        if (startStep != null)
+        {
+            segments.Add(new ExecSegment("dotNet")
+            {
+                Steps = [startStep]
+            });
+        }
+
+        // 2. Discover container nodes and infer DAG dependencies
+        var containerNodes = pipeline.Nodes
+            .Where(n => n.Kind == PipelineNodeKind.Container)
+            .ToList();
+
+        var containerIds = containerNodes.Select(c => c.Id).ToHashSet();
+        var nodesById = pipeline.Nodes.ToDictionary(n => n.Id);
+        var containerDependencies = new HashSet<(Guid Source, Guid Target)>();
+
+        foreach (var edge in pipeline.Edges)
+        {
+            // Inter-container edge between child nodes (data wire or exec wire across containers)
+            if (nodesById.TryGetValue(edge.SourcePipelineNodeId, out var srcNode) &&
+                nodesById.TryGetValue(edge.TargetPipelineNodeId, out var tgtNode))
+            {
+                var srcContainerId = srcNode.ParentId;
+                var tgtContainerId = tgtNode.ParentId;
+
+                if (srcContainerId.HasValue && tgtContainerId.HasValue &&
+                    srcContainerId.Value != tgtContainerId.Value &&
+                    containerIds.Contains(srcContainerId.Value) &&
+                    containerIds.Contains(tgtContainerId.Value))
+                {
+                    containerDependencies.Add((srcContainerId.Value, tgtContainerId.Value));
+                }
+            }
+        }
+
+        var sortedContainers = SortContainersTopologically(containerNodes, containerDependencies, cycleNodeIds);
+
+        // 3. For each Container, trace intra-container steps
+        foreach (var container in sortedContainers)
+        {
+            var containerSteps = stepsLookup.Values
+                .Where(s => s.StageId == container.Id)
+                .ToDictionary(s => s.NodeId);
+
+            if (containerSteps.Count == 0)
+            {
+                continue;
+            }
+
+            var intraExecEdges = execEdges
+                .Where(e => containerSteps.ContainsKey(e.SourcePipelineNodeId) &&
+                            containerSteps.ContainsKey(e.TargetPipelineNodeId))
+                .ToList();
+
+            var intraTargets = intraExecEdges.Select(e => e.TargetPipelineNodeId).ToHashSet();
+
+            // Implicit Entry Point: Action step inside this container with no incoming intra-exec edge
+            var entryStep = containerSteps.Values.FirstOrDefault(s => !intraTargets.Contains(s.NodeId));
+
+            if (entryStep == null)
+            {
+                // All nodes in this container have incoming exec edges -> intra-container cycle!
+                foreach (var step in containerSteps.Values)
+                {
+                    cycleNodeIds.Add(step.NodeId.ToString());
+                }
+                continue;
+            }
+
+            var visited = new HashSet<Guid>();
+            var recursionStack = new HashSet<Guid>();
+
+            var stageSegments = TraceIntraContainerChain(
+                container,
+                graph,
+                entryStep.NodeId,
+                containerSteps,
+                intraExecEdges,
+                visited,
+                recursionStack,
+                cycleNodeIds
+            );
+
+            segments.AddRange(stageSegments);
+        }
+
+        // 3b. Trace root action steps (if pipeline has nodes outside containers)
+        var rootActionSteps = stepsLookup.Values
+            .Where(s => s.StageId == null &&
+                        s.Kind != PipelineNodeKind.Start &&
+                        s.Kind != PipelineNodeKind.Return)
+            .ToDictionary(s => s.NodeId);
+
+        if (rootActionSteps.Count > 0)
+        {
+            var rootExecEdges = execEdges
+                .Where(e => rootActionSteps.ContainsKey(e.SourcePipelineNodeId) &&
+                            rootActionSteps.ContainsKey(e.TargetPipelineNodeId))
+                .ToList();
+
+            var rootTargets = rootExecEdges.Select(e => e.TargetPipelineNodeId).ToHashSet();
+            var entryStep = rootActionSteps.Values.FirstOrDefault(s => !rootTargets.Contains(s.NodeId));
+
+            if (entryStep != null)
+            {
+                var visited = new HashSet<Guid>();
+                var recursionStack = new HashSet<Guid>();
+                var pseudoContainer = new PipelineNode(Guid.Empty, pipeline.Id, "RootScope", PipelineNodeKind.Container, 0, 0);
+
+                var rootSegments = TraceIntraContainerChain(
+                    pseudoContainer,
+                    graph,
+                    entryStep.NodeId,
+                    rootActionSteps,
+                    rootExecEdges,
+                    visited,
+                    recursionStack,
+                    cycleNodeIds
+                );
+                segments.AddRange(rootSegments);
+            }
+        }
+
+        // 4. Root Return Node (StageId == null)
+        var returnStep = stepsLookup.Values.FirstOrDefault(s =>
+            s.StageId == null &&
+            s.Kind == PipelineNodeKind.Return);
+
+        if (returnStep != null)
+        {
+            segments.Add(new ExecSegment("dotNet")
+            {
+                Steps = [returnStep]
+            });
+        }
+
+        return segments;
+    }
+
+    private static List<PipelineNode> SortContainersTopologically(
+        IReadOnlyCollection<PipelineNode> containers,
+        HashSet<(Guid Source, Guid Target)> dependencies,
+        List<string> cycleNodeIds
+    )
+    {
+        var containersById = containers.ToDictionary(s => s.Id);
+        var inDegree = containers.ToDictionary(s => s.Id, _ => 0);
+        var adj = containers.ToDictionary(s => s.Id, _ => new List<Guid>());
+
+        foreach (var (src, tgt) in dependencies)
+        {
+            if (containersById.ContainsKey(src) && containersById.ContainsKey(tgt))
+            {
+                adj[src].Add(tgt);
+                inDegree[tgt]++;
+            }
+        }
+
+        var queue = new Queue<Guid>(
+            containers
+                .Where(s => inDegree[s.Id] == 0)
+                .OrderBy(s => s.Position.X)
+                .ThenBy(s => s.Position.Y)
+                .Select(s => s.Id)
+        );
+
+        var sorted = new List<PipelineNode>();
+        while (queue.Count > 0)
+        {
+            var currentId = queue.Dequeue();
+            sorted.Add(containersById[currentId]);
+
+            foreach (var neighborId in adj[currentId])
+            {
+                inDegree[neighborId]--;
+                if (inDegree[neighborId] == 0)
+                {
+                    queue.Enqueue(neighborId);
+                }
+            }
+        }
+
+        if (sorted.Count < containers.Count)
+        {
+            foreach (var container in containers)
+            {
+                if (inDegree[container.Id] > 0)
+                {
+                    cycleNodeIds.Add(container.Id.ToString());
+                }
+            }
+        }
+
+        return sorted;
+    }
+
+    private List<ExecSegment> TraceIntraContainerChain(
+        PipelineNode container,
+        FrozenExecutionGraph graph,
+        Guid? startNodeId,
+        Dictionary<Guid, ExecStep> containerStepsLookup,
+        List<PipelineEdge> intraExecEdges,
         HashSet<Guid> visited,
         HashSet<Guid> recursionStack,
         List<string> cycleNodeIds
@@ -164,6 +272,36 @@ public class ExecPlanner : IExecPlanner
         var segments = new List<ExecSegment>();
         ExecSegment? currentSegment = null;
         var currentNodeId = startNodeId;
+
+        var containerExecutor = "dotNet";
+        Guid? targetRunnerId = null;
+
+        // Ưu tiên đọc từ StageWorkerBinding (đã giải quyết Plug over Select: cắm dây pin "runner" ghi đè header select)
+        if (graph.StageBindings.TryGetValue(container.Id, out var stageBinding))
+        {
+            containerExecutor = stageBinding.Executor;
+            targetRunnerId = stageBinding.EffectiveRunnerId;
+        }
+        else if (container.Metadata != null && container.Metadata.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object)
+        {
+            if (container.Metadata.RootElement.TryGetProperty("executor", out var execProp))
+                containerExecutor = execProp.GetString() ?? "dotNet";
+            else if (container.Metadata.RootElement.TryGetProperty("executorKey", out var execKeyProp))
+                containerExecutor = execKeyProp.GetString() ?? "dotNet";
+
+            if (container.Metadata.RootElement.TryGetProperty("targetRunnerId", out var runnerProp) &&
+                Guid.TryParse(runnerProp.GetString(), out var parsedRunnerId))
+            {
+                targetRunnerId = parsedRunnerId;
+            }
+        }
+
+        var containerName = container.RefId;
+        if (container.Config != null && container.Config.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
+            container.Config.RootElement.TryGetProperty("label", out var labelProp))
+        {
+            containerName = labelProp.GetString() ?? containerName;
+        }
 
         while (currentNodeId.HasValue)
         {
@@ -175,32 +313,35 @@ public class ExecPlanner : IExecPlanner
                 break;
             }
 
-            if (!stepsLookup.TryGetValue(cId, out var step) || !visited.Add(cId))
+            if (!containerStepsLookup.TryGetValue(cId, out var step) || !visited.Add(cId))
             {
                 break;
             }
 
             recursionStack.Add(cId);
 
-            var isFlowControl = string.Equals(step.Kind, PipelineNodeKind.FlowControl, StringComparison.OrdinalIgnoreCase);
+            var isFlowControl = step.Kind == PipelineNodeKind.FlowControl;
+            var isSubPipeline = step.Kind == PipelineNodeKind.SubPipeline;
 
             if (isFlowControl)
             {
-                // Finalize current open segment
                 if (currentSegment != null && currentSegment.Steps.Count > 0)
                 {
                     segments.Add(currentSegment);
                     currentSegment = null;
                 }
 
-                // Create dedicated segment for FlowControl
-                var fcSegment = new ExecSegment(step.Executor, isFlowControl: true)
+                var fcSegment = new ExecSegment(
+                    "dotNet",
+                    isFlowControl: true,
+                    stageId: container.Id,
+                    stageName: containerName
+                )
                 {
                     Steps = [step]
                 };
 
-                // Trace loop_body sub-plan recursively
-                var loopBodyEdge = execEdges.FirstOrDefault(e =>
+                var loopBodyEdge = intraExecEdges.FirstOrDefault(e =>
                     e.SourcePipelineNodeId == cId &&
                     IsLoopBodyPin(e.SourcePin));
 
@@ -208,14 +349,22 @@ public class ExecPlanner : IExecPlanner
                 {
                     var bodyVisited = new HashSet<Guid>(visited);
                     var bodyStack = new HashSet<Guid>(recursionStack);
-                    var bodySegments = TraceExecChain(loopBodyEdge.TargetPipelineNodeId, stepsLookup, execEdges, bodyVisited, bodyStack, cycleNodeIds);
+                    var bodySegments = TraceIntraContainerChain(
+                        container,
+                        graph,
+                        loopBodyEdge.TargetPipelineNodeId,
+                        containerStepsLookup,
+                        intraExecEdges,
+                        bodyVisited,
+                        bodyStack,
+                        cycleNodeIds
+                    );
                     fcSegment.BodyPlan = new ExecPlan { Segments = bodySegments };
                 }
 
                 segments.Add(fcSegment);
 
-                // Continue along completed pin
-                var completedEdge = execEdges.FirstOrDefault(e =>
+                var completedEdge = intraExecEdges.FirstOrDefault(e =>
                     e.SourcePipelineNodeId == cId &&
                     IsCompletedPin(e.SourcePin));
 
@@ -224,25 +373,64 @@ public class ExecPlanner : IExecPlanner
                 continue;
             }
 
-            // Normal Action step: Group by executor
-            if (currentSegment == null || !string.Equals(currentSegment.Executor, step.Executor, StringComparison.OrdinalIgnoreCase))
+            if (isSubPipeline)
             {
                 if (currentSegment != null && currentSegment.Steps.Count > 0)
                 {
                     segments.Add(currentSegment);
+                    currentSegment = null;
                 }
-                currentSegment = new ExecSegment(step.Executor) { Steps = [step] };
+
+                var subSegment = new ExecSegment(
+                    "dotNet",
+                    isSubPipeline: true,
+                    stageId: container.Id,
+                    stageName: containerName
+                )
+                {
+                    Steps = [step]
+                };
+
+                segments.Add(subSegment);
+
+                var nextSubEdge = intraExecEdges.FirstOrDefault(e =>
+                    e.SourcePipelineNodeId == cId &&
+                    IsExecOutPin(e.SourcePin));
+
+                recursionStack.Remove(cId);
+                currentNodeId = nextSubEdge?.TargetPipelineNodeId;
+                continue;
+            }
+
+            // Normal Action Step inside Container: fuse all contiguous action steps of this container into a single segment
+            if (currentSegment == null)
+            {
+                currentSegment = new ExecSegment(
+                    containerExecutor,
+                    stageId: container.Id,
+                    stageName: containerName,
+                    targetRunnerId: targetRunnerId
+                )
+                {
+                    Steps = [step]
+                };
             }
             else
             {
                 currentSegment.Steps.Add(step);
             }
 
-            // Follow exec_out to next action node
-            var nextEdge = execEdges.FirstOrDefault(e =>
+            var nextEdge = intraExecEdges.FirstOrDefault(e =>
                 e.SourcePipelineNodeId == cId &&
                 IsExecOutPin(e.SourcePin));
 
+            if (nextEdge != null && recursionStack.Contains(nextEdge.TargetPipelineNodeId))
+            {
+                cycleNodeIds.Add(nextEdge.TargetPipelineNodeId.ToString());
+                break;
+            }
+
+            recursionStack.Remove(cId);
             currentNodeId = nextEdge?.TargetPipelineNodeId;
         }
 
@@ -268,9 +456,6 @@ public class ExecPlanner : IExecPlanner
         return norm is "completed" or "done" or "complete";
     }
 
-    /// <summary>
-    /// For use in TraceExecChain (following next step): empty pin = also exec edge
-    /// </summary>
     private static bool IsExecOutPin(string? pin)
     {
         if (string.IsNullOrWhiteSpace(pin)) return true;
@@ -278,100 +463,10 @@ public class ExecPlanner : IExecPlanner
         return norm is "execout" or "exec";
     }
 
-    /// <summary>
-    /// For use in filtering execEdges: non-empty pin must explicitly be an exec-in pin
-    /// </summary>
     private static bool IsExecInPin(string? pin)
     {
         if (string.IsNullOrWhiteSpace(pin)) return false;
         var norm = pin.Replace(" ", "").Replace("_", "").Replace("-", "").ToLowerInvariant();
         return norm is "execin" or "exec";
-    }
-
-    private static List<UnresolvedPin> ValidateRequiredPins(
-        List<ExecSegment> segments,
-        Dictionary<string, object?>? runtimeInputs
-    )
-    {
-        var unresolvedPins = new List<UnresolvedPin>();
-
-        IEnumerable<ExecStep> Flatten(IEnumerable<ExecSegment> segs)
-        {
-            foreach (var seg in segs)
-            {
-                foreach (var step in seg.Steps) yield return step;
-                if (seg.BodyPlan != null)
-                {
-                    foreach (var s in Flatten(seg.BodyPlan.Segments)) yield return s;
-                }
-            }
-        }
-
-        foreach (var step in Flatten(segments))
-        {
-            foreach (var pin in step.InputPins)
-            {
-                if (pin.Kind == PinKind.Exec || string.Equals(pin.Id, "exec_in", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                var isConnected = step.IncomingConnections.Any(c =>
-                    string.Equals(c.TargetPinKey, pin.Id, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(c.TargetPinKey, pin.Label, StringComparison.OrdinalIgnoreCase));
-
-                var hasInlineValue = HasConfigValue(step.Config, pin.Id) || HasConfigValue(step.Config, pin.Label);
-                var hasDefaultValue = pin.DefaultValue != null;
-                var hasRuntimeInput = runtimeInputs != null &&
-                    (runtimeInputs.ContainsKey(pin.Id) ||
-                     runtimeInputs.ContainsKey(pin.Label) ||
-                     runtimeInputs.ContainsKey($"{step.NodeId}:{pin.Id}"));
-
-                var isScopeImplicit = string.Equals(pin.Id, "Item", StringComparison.OrdinalIgnoreCase) ||
-                                      string.Equals(pin.Id, "Index", StringComparison.OrdinalIgnoreCase) ||
-                                      string.Equals(pin.Id, "Key", StringComparison.OrdinalIgnoreCase) ||
-                                      string.Equals(pin.Id, "Value", StringComparison.OrdinalIgnoreCase) ||
-                                      string.Equals(pin.Id, "YieldValue", StringComparison.OrdinalIgnoreCase) ||
-                                      string.Equals(pin.Id, "YieldKey", StringComparison.OrdinalIgnoreCase);
-
-                if (!isConnected && !hasInlineValue && !hasDefaultValue && !hasRuntimeInput && !isScopeImplicit && pin.IsRequired)
-                {
-                    unresolvedPins.Add(new UnresolvedPin(
-                        step.NodeId,
-                        step.Label,
-                        pin.Id,
-                        pin.Label,
-                        pin.PrimitiveType,
-                        "Required input pin is not connected and has no inline or default value."
-                    ));
-                }
-            }
-        }
-
-        return unresolvedPins;
-    }
-
-    private static bool HasConfigValue(JsonDocument? config, string key)
-    {
-        if (config == null || string.IsNullOrWhiteSpace(key)) return false;
-
-        if (config.RootElement.ValueKind == JsonValueKind.Object)
-        {
-            foreach (var prop in config.RootElement.EnumerateObject())
-            {
-                if (string.Equals(prop.Name, key, StringComparison.OrdinalIgnoreCase))
-                {
-                    return prop.Value.ValueKind switch
-                    {
-                        JsonValueKind.Null or JsonValueKind.Undefined => false,
-                        JsonValueKind.String => !string.IsNullOrEmpty(prop.Value.GetString()),
-                        JsonValueKind.Array => prop.Value.GetArrayLength() > 0,
-                        _ => true
-                    };
-                }
-            }
-        }
-
-        return false;
     }
 }

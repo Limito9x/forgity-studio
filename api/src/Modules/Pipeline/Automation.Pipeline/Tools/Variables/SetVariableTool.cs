@@ -1,10 +1,17 @@
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Engine.DataResolver;
+using Automation.Pipeline.Hubs;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging;
 
 namespace Automation.Pipeline.Tools.Variables;
 
-public class SetVariableTool(IExecutionMemoryStore? memoryStore = null) : IResolverTool
+public class SetVariableTool(
+    IExecutionMemoryStore? memoryStore = null,
+    IHubContext<PipelineExecutionHub>? hubContext = null,
+    ILogger<SetVariableTool>? logger = null
+) : IResolverTool
 {
     public string Key => "SetVariable";
     public string Label => "Set Variable";
@@ -119,6 +126,34 @@ public class SetVariableTool(IExecutionMemoryStore? memoryStore = null) : IResol
         if (context.PipelineExecutionId != Guid.Empty && !string.IsNullOrWhiteSpace(varName) && memoryStore != null)
         {
             await memoryStore.SetVariableAsync(context.PipelineExecutionId, varName, val, context.CancellationToken);
+
+            // Broadcast real-time variable change via SignalR
+            if (hubContext != null)
+            {
+                try
+                {
+                    var payload = new
+                    {
+                        executionId = context.PipelineExecutionId,
+                        pipelineId = context.PipelineId,
+                        key = varName,
+                        value = val
+                    };
+
+                    await hubContext.Clients.Group($"execution_{context.PipelineExecutionId}")
+                        .SendAsync("PipelineVariableChanged", payload, context.CancellationToken);
+
+                    if (context.PipelineId != Guid.Empty)
+                    {
+                        await hubContext.Clients.Group($"pipeline_{context.PipelineId}")
+                            .SendAsync("PipelineVariableChanged", payload, context.CancellationToken);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogWarning(ex, "Failed to broadcast PipelineVariableChanged via SignalR for var {VarName}", varName);
+                }
+            }
         }
 
         return new Dictionary<string, object>

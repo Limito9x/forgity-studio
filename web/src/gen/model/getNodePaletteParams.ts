@@ -10,4 +10,8 @@ export type GetNodePaletteParams = {
    * @nullable
    */
   projectId?: string | null;
+  /**
+   * @nullable
+   */
+  executor?: string | null;
 };

@@ -316,7 +316,8 @@ export const UpdateCustomNodeResponse = /*#__PURE__*/ zod.object({
 })
 
 export const GetNodePaletteQueryParams = /*#__PURE__*/ zod.object({
-  "projectId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid())
+  "projectId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "executor": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 export const GetNodePaletteResponseItem = /*#__PURE__*/ zod.object({

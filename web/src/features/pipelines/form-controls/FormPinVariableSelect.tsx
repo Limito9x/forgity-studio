@@ -43,8 +43,8 @@ export function FormPinVariableSelect<T extends FieldValues>({
               <SelectContent>
                 <SelectItem id="none">{placeholder}</SelectItem>
                 {variables.map((v) => (
-                  <SelectItem key={v.name} id={v.name}>
-                    {v.name} ({formatPinTypeLabel(v.type, v.cardinality)})
+                  <SelectItem key={v.key} id={v.key}>
+                    {v.label || v.key} ({formatPinTypeLabel(v.type, v.cardinality)})
                   </SelectItem>
                 ))}
               </SelectContent>

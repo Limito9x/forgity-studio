@@ -30,6 +30,7 @@ public record AddPipelineNodeRequest(
     Dictionary<string, object?>? ConfigValues = null
 );
 
+[Obsolete("Use SavePipelineGraph (PUT {id}/graph) with debounced draft state instead.")]
 public class AddPipelineNodeEndpoint : Endpoint<AddPipelineNodeRequest, PipelineNodeGraphDto>
 {
     public override void Configure()
@@ -98,7 +99,7 @@ public class AddPipelineNodeHandler(
         var tool = toolRegistry.Get(node.RefId);
         if (tool != null)
         {
-            var ctx = new PinResolutionContext(structRegistry, pipeline.ProjectId, pipeline.Variables);
+            var ctx = new PinResolutionContext(structRegistry, pipeline.ProjectId, pipeline.Parameters);
             var (pInputs, pOutputs) = FlowPinHelper.WithExecPinsResolved(tool, command.ConfigValues, ctx);
             inputs = pInputs;
             outputs = pOutputs;

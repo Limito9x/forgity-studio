@@ -15,6 +15,7 @@ public class ForEachDispatcher(
     PipelineDbContext db,
     IPinValueResolver pinResolver,
     IExecutionMemoryStore memoryStore,
+    IExecutionStateStore stateStore,
     DotNetSegmentDispatcher dotNetDispatcher,
     ILogger<ForEachDispatcher> logger
 )
@@ -112,23 +113,9 @@ public class ForEachDispatcher(
 
         await memoryStore.SetNodeAllOutputsAsync(execution.Id, step.NodeId, outputs, parentScope, ct);
 
-        // 4. Mark node success in DB
-        var nodeExec = await db.NodeExecutions
-            .FirstOrDefaultAsync(x => x.PipelineExecutionId == execution.Id && x.PipelineNodeId == step.NodeId, ct);
-
-        var outputDoc = JsonDocument.Parse(JsonSerializer.Serialize(outputs));
-        if (nodeExec == null)
-        {
-            nodeExec = new NodeExecution(execution.Id, step.NodeId, status: ExecutionStatus.Running);
-            nodeExec.MarkSucceeded(outputDoc);
-            db.NodeExecutions.Add(nodeExec);
-        }
-        else
-        {
-            nodeExec.MarkSucceeded(outputDoc);
-        }
-
-        await db.SaveChangesAsync(ct);
+        // 4. Mark node success in state store
+        await stateStore.SetNodeStatusAsync(execution.Id, step.NodeId, "succeeded", ct);
+        await stateStore.SetNodeOutputsAsync(execution.Id, step.NodeId, outputs, ct);
         return Result.Ok();
     }
 

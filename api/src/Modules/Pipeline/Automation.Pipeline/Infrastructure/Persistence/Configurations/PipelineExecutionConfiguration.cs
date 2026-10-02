@@ -29,6 +29,15 @@ public class PipelineExecutionConfiguration : IEntityTypeConfiguration<Domain.En
 
         builder.Property(x => x.ErrorMessage)
             .HasMaxLength(2000);
+
+        builder.HasOne(x => x.ParentExecution)
+            .WithMany()
+            .HasForeignKey(x => x.ParentExecutionId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Property(x => x.TriggeredByNodeId)
+            .IsRequired(false);
     }
 }
 

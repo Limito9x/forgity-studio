@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ArrowRightCircle, ArrowDownCircle, Variable } from "lucide-react";
+import { Pill, Zap, Variable } from "lucide-react";
 
 interface VariableDropMenuProps {
   varName: string;
@@ -54,19 +54,25 @@ export function VariableDropMenu({
       <button
         type="button"
         onClick={() => onSelect("Get")}
-        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-foreground hover:bg-emerald-500/10 hover:text-emerald-500 transition-colors cursor-pointer"
+        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-foreground hover:bg-violet-500/10 hover:text-violet-400 transition-colors cursor-pointer"
       >
-        <ArrowRightCircle className="h-4 w-4 text-emerald-500 shrink-0" />
-        <span className="font-medium">Get {varName}</span>
+        <Pill className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+        <div className="flex items-center justify-between w-full">
+          <span className="font-medium">Get</span>
+          <span className="text-[10px] text-muted-foreground font-mono">Capsule</span>
+        </div>
       </button>
 
       <button
         type="button"
         onClick={() => onSelect("Set")}
-        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-foreground hover:bg-sky-500/10 hover:text-sky-500 transition-colors cursor-pointer"
+        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-foreground hover:bg-sky-500/10 hover:text-sky-400 transition-colors cursor-pointer"
       >
-        <ArrowDownCircle className="h-4 w-4 text-sky-500 shrink-0" />
-        <span className="font-medium">Set {varName}</span>
+        <Zap className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+        <div className="flex items-center justify-between w-full">
+          <span className="font-medium">Set</span>
+          <span className="text-[10px] text-muted-foreground font-mono">Action</span>
+        </div>
       </button>
     </div>
   );

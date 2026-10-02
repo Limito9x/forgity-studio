@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 
@@ -9,16 +10,15 @@ public class Pipeline : BaseEntity
     public string Name { get; set; } = string.Empty;
     public PipelineTriggerType TriggerType { get; set; } = PipelineTriggerType.Manual;
     public Guid? TriggerWorkspaceId { get; set; }
-    public System.Text.Json.JsonDocument? TriggerConfig { get; set; }
-    public List<PipelineVariableDecl> Variables { get; set; } = new();
+    public JsonDocument? TriggerConfig { get; set; }
+
+    // Unified Parameter Collection (JSONB)
+    public List<PipelineParameter> Parameters { get; set; } = new();
+
     private readonly List<PipelineNode> _nodes = new();
     public IReadOnlyList<PipelineNode> Nodes => _nodes;
     private readonly List<PipelineEdge> _edges = new();
     public IReadOnlyList<PipelineEdge> Edges => _edges;
-    private readonly List<PipelineInput> _inputs = new();
-    public IReadOnlyList<PipelineInput> Inputs => _inputs;
-    private readonly List<PipelineOutput> _outputs = new();
-    public IReadOnlyList<PipelineOutput> Outputs => _outputs;
 
     public Pipeline() { }
 
@@ -27,7 +27,7 @@ public class Pipeline : BaseEntity
         string name,
         PipelineTriggerType triggerType = PipelineTriggerType.Manual,
         Guid? triggerWorkspaceId = null,
-        System.Text.Json.JsonDocument? triggerConfig = null
+        JsonDocument? triggerConfig = null
     )
     {
         ProjectId = projectId;
@@ -37,7 +37,7 @@ public class Pipeline : BaseEntity
         TriggerConfig = triggerConfig;
     }
 
-    public void UpdateTrigger(PipelineTriggerType triggerType, Guid? triggerWorkspaceId = null, System.Text.Json.JsonDocument? triggerConfig = null)
+    public void UpdateTrigger(PipelineTriggerType triggerType, Guid? triggerWorkspaceId = null, JsonDocument? triggerConfig = null)
     {
         TriggerType = triggerType;
         TriggerWorkspaceId = triggerWorkspaceId;
@@ -50,37 +50,9 @@ public class Pipeline : BaseEntity
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
-    public void AddInput(PipelineInput input)
+    public void AddNode(string refId, string kind, float x, float y, JsonDocument? config = null, Guid? parentId = null)
     {
-        _inputs.Add(input);
-    }
-
-    public void RemoveInput(Guid inputId)
-    {
-        var input = _inputs.FirstOrDefault(x => x.Id == inputId);
-        if (input != null)
-        {
-            _inputs.Remove(input);
-        }
-    }
-
-    public void AddOutput(PipelineOutput output)
-    {
-        _outputs.Add(output);
-    }
-
-    public void RemoveOutput(Guid outputId)
-    {
-        var output = _outputs.FirstOrDefault(x => x.Id == outputId);
-        if (output != null)
-        {
-            _outputs.Remove(output);
-        }
-    }
-
-    public void AddNode(string refId, string kind, float x, float y, System.Text.Json.JsonDocument? config = null)
-    {
-        _nodes.Add(new PipelineNode(IdGenerator.NewId(), Id, refId, kind, x, y, config));
+        _nodes.Add(new PipelineNode(IdGenerator.NewId(), Id, refId, kind, x, y, config, parentId));
     }
 
     public void AddNode(PipelineNode node)
@@ -97,28 +69,35 @@ public class Pipeline : BaseEntity
         }
     }
 
-    public void UpdateNode(Guid nodeId, float x, float y)
+    public void UpdateNode(Guid nodeId, float x, float y, Guid? parentId = null, NodeSize? size = null)
     {
         var node = _nodes.FirstOrDefault(x => x.Id == nodeId);
-        node?.Update(x, y);
+        node?.Update(x, y, parentId, size);
     }
 
-    public void UpdateNodeConfig(Guid nodeId, System.Text.Json.JsonDocument? config)
+    public void UpdateNodeConfig(Guid nodeId, JsonDocument? config)
     {
         var node = _nodes.FirstOrDefault(x => x.Id == nodeId);
         node?.UpdateConfig(config);
     }
 
-    public void AddEdge(
+    public PipelineEdge AddEdge(
         Guid sourcePipelineNodeId,
         string sourcePin,
         Guid targetPipelineNodeId,
-        string targetPin
+        string targetPin,
+        Guid? id = null,
+        EdgeKind? kind = null
     )
     {
-        _edges.Add(
-            new PipelineEdge(Id, sourcePipelineNodeId, sourcePin, targetPipelineNodeId, targetPin)
-        );
+        var edge = new PipelineEdge(Id, sourcePipelineNodeId, sourcePin, targetPipelineNodeId, targetPin, kind, id);
+        _edges.Add(edge);
+        return edge;
+    }
+
+    public void AddEdge(PipelineEdge edge)
+    {
+        _edges.Add(edge);
     }
 
     public void RemoveEdge(Guid edgeId)
@@ -133,10 +112,5 @@ public class Pipeline : BaseEntity
     public void ClearEdges()
     {
         _edges.Clear();
-    }
-
-    public void SetVariables(List<PipelineVariableDecl> variables)
-    {
-        Variables = variables ?? new List<PipelineVariableDecl>();
     }
 }

@@ -14,7 +14,10 @@ public class PipelineEdge : AuditableEntity
     public string TargetPin { get; set; } = string.Empty;
     public EdgeKind Kind { get; set; }
 
-    public PipelineEdge() { }
+    public PipelineEdge()
+    {
+        Id = IdGenerator.NewId();
+    }
 
     public PipelineEdge(
         Guid pipelineId,
@@ -22,17 +25,25 @@ public class PipelineEdge : AuditableEntity
         string sourcePin,
         Guid targetPipelineNodeId,
         string targetPin,
-        EdgeKind? kind = null
+        EdgeKind? kind = null,
+        Guid? id = null
     )
     {
+        Id = id.HasValue && id.Value != Guid.Empty ? id.Value : IdGenerator.NewId();
         PipelineId = pipelineId;
         SourcePipelineNodeId = sourcePipelineNodeId;
         SourcePin = sourcePin;
         TargetPipelineNodeId = targetPipelineNodeId;
         TargetPin = targetPin;
-        Kind = kind ?? ((string.Equals(sourcePin, "exec_out", StringComparison.OrdinalIgnoreCase) ||
-                         string.Equals(targetPin, "exec_in", StringComparison.OrdinalIgnoreCase))
+        Kind = kind ?? (IsExecPin(sourcePin) || IsExecPin(targetPin)
             ? EdgeKind.Exec
             : EdgeKind.Data);
+    }
+
+    private static bool IsExecPin(string? pin)
+    {
+        if (string.IsNullOrWhiteSpace(pin)) return false;
+        var norm = pin.Replace(" ", "").Replace("_", "").Replace("-", "").ToLowerInvariant();
+        return norm is "execin" or "execout" or "exec" or "loopbody" or "completed";
     }
 }

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Engine.DataResolver;
@@ -18,12 +19,15 @@ public class PipelineOrchestrator(
     PipelineDbContext db,
     IExecPlanner execPlanner,
     IExecutionMemoryStore memoryStore,
+    IExecutionStateStore stateStore,
     DotNetSegmentDispatcher dotNetDispatcher,
     AgentSegmentDispatcher agentDispatcher,
     ForEachDispatcher forEachDispatcher,
+    SubPipelineDispatcher subPipelineDispatcher,
     IToolRegistry toolRegistry,
     IHubContext<PipelineExecutionHub>? hubContext,
-    ILogger<PipelineOrchestrator> logger
+    ILogger<PipelineOrchestrator> logger,
+    DataResolver.IPipelineGraphProvider? graphProvider = null
 ) : IPipelineOrchestrator
 {
     public async Task<Result<PipelineExecution>> ExecuteOrResumeAsync(
@@ -37,13 +41,17 @@ public class PipelineOrchestrator(
                 .ThenInclude(p => p.Nodes)
             .Include(x => x.Pipeline)
                 .ThenInclude(p => p.Edges)
-            .Include(x => x.Pipeline)
-                .ThenInclude(p => p.Inputs)
             .FirstOrDefaultAsync(x => x.Id == executionId, ct);
 
         if (execution == null)
         {
             return Result.Fail<PipelineExecution>($"Pipeline execution '{executionId}' not found.");
+        }
+
+        graphProvider?.RegisterExecution(execution);
+        if (execution.Pipeline != null)
+        {
+            graphProvider?.RegisterPipeline(execution.Pipeline);
         }
 
         if (execution.Status == ExecutionStatus.Succeeded || execution.Status == ExecutionStatus.Cancelled)
@@ -60,9 +68,12 @@ public class PipelineOrchestrator(
         // 2. Populate Runtime / Start Inputs into Memory Store (from defaults, persisted ExecutionState, or arguments)
         var mergedStartInputs = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
 
-        if (execution.Pipeline.Inputs != null)
+        if (execution.Pipeline.Parameters != null)
         {
-            foreach (var input in execution.Pipeline.Inputs)
+            var startInputs = execution.Pipeline.Parameters
+                .Where(p => p.Kind == Domain.Enums.PipelineParameterKind.Input);
+
+            foreach (var input in startInputs)
             {
                 if (!string.IsNullOrEmpty(input.DefaultValue))
                 {
@@ -112,25 +123,30 @@ public class PipelineOrchestrator(
         }
 
         // 3. Initialize Pipeline Variables into Memory Store (Execution Context) only when starting execution
-        if (execution.NextNodeIndex == 0 && execution.Pipeline.Variables != null)
+        if (execution.NextNodeIndex == 0 && execution.Pipeline.Parameters != null)
         {
-            foreach (var v in execution.Pipeline.Variables)
+            var variables = execution.Pipeline.Parameters
+                .Where(p => p.Kind == Domain.Enums.PipelineParameterKind.Variable);
+
+            foreach (var v in variables)
             {
-                var existing = await memoryStore.GetVariableAsync(execution.Id, v.Name, ct);
+                var existing = await memoryStore.GetVariableAsync(execution.Id, v.Key, ct);
                 if (existing == null)
                 {
-                    object? initVal = v.Cardinality switch
-                    {
-                        PinCardinality.Map => new Dictionary<string, object?>(),
-                        PinCardinality.Array => new List<object?>(),
-                        _ => v.Type switch
+                    object? initVal = !string.IsNullOrWhiteSpace(v.DefaultValue)
+                        ? v.DefaultValue
+                        : v.Cardinality switch
                         {
-                            PinPrimitiveType.Number => 0,
-                            PinPrimitiveType.Boolean => false,
-                            _ => string.Empty
-                        }
-                    };
-                    await memoryStore.SetVariableAsync(execution.Id, v.Name, initVal, ct);
+                            PinCardinality.Map => new Dictionary<string, object?>(),
+                            PinCardinality.Array => new List<object?>(),
+                            _ => v.Type switch
+                            {
+                                PinPrimitiveType.Number => 0,
+                                PinPrimitiveType.Boolean => false,
+                                _ => string.Empty
+                            }
+                        };
+                    await memoryStore.SetVariableAsync(execution.Id, v.Key, initVal, ct);
                 }
             }
         }
@@ -142,6 +158,11 @@ public class PipelineOrchestrator(
             toolRegistry,
             runtimeInputs
         );
+
+        if (plan.Graph != null)
+        {
+            graphProvider?.RegisterFrozenGraph(execution.Id, plan.Graph);
+        }
 
         if (!plan.IsValid)
         {
@@ -173,7 +194,7 @@ public class PipelineOrchestrator(
                 );
             }
         }
-        else if (execution.Status == ExecutionStatus.WaitingForAgent)
+        else if (execution.Status == ExecutionStatus.WaitingForRunner)
         {
             execution.Resume();
             await db.SaveChangesAsync(ct);
@@ -194,19 +215,42 @@ public class PipelineOrchestrator(
                 if (fcRes.IsFailed)
                 {
                     var err = fcRes.Errors.FirstOrDefault()?.Message ?? "FlowControl execution failed";
-                    execution.MarkFailed(err);
+                    var failSnapshot = await CaptureExecutionStateSnapshotAsync(execution, ct);
+                    execution.MarkFailed(err, failSnapshot);
                     await db.SaveChangesAsync(ct);
 
                     if (hubContext != null)
                     {
                         await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
                             "PipelineExecutionFinished",
-                            new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = err },
+                            new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = err, executionState = failSnapshot },
                             ct
                         );
                     }
 
                     return Result.Fail<PipelineExecution>(fcRes.Errors);
+                }
+            }
+            else if (segment.IsSubPipeline)
+            {
+                var subRes = await subPipelineDispatcher.DispatchAsync(execution, segment, rootScope, this, ct);
+                if (subRes.IsFailed)
+                {
+                    var err = subRes.Errors.FirstOrDefault()?.Message ?? "SubPipeline execution failed";
+                    var failSnapshot = await CaptureExecutionStateSnapshotAsync(execution, ct);
+                    execution.MarkFailed(err, failSnapshot);
+                    await db.SaveChangesAsync(ct);
+
+                    if (hubContext != null)
+                    {
+                        await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
+                            "PipelineExecutionFinished",
+                            new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = err, executionState = failSnapshot },
+                            ct
+                        );
+                    }
+
+                    return Result.Fail<PipelineExecution>(subRes.Errors);
                 }
             }
             else if (string.Equals(segment.Executor, "dotNet", StringComparison.OrdinalIgnoreCase))
@@ -215,14 +259,15 @@ public class PipelineOrchestrator(
                 if (dotNetRes.IsFailed)
                 {
                     var err = dotNetRes.Errors.FirstOrDefault()?.Message ?? "DotNet segment execution failed";
-                    execution.MarkFailed(err);
+                    var failSnapshot = await CaptureExecutionStateSnapshotAsync(execution, ct);
+                    execution.MarkFailed(err, failSnapshot);
                     await db.SaveChangesAsync(ct);
 
                     if (hubContext != null)
                     {
                         await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
                             "PipelineExecutionFinished",
-                            new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = err },
+                            new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = err, executionState = failSnapshot },
                             ct
                         );
                     }
@@ -245,14 +290,15 @@ public class PipelineOrchestrator(
                 if (agentRes.IsFailed)
                 {
                     var err = agentRes.Errors.FirstOrDefault()?.Message ?? "Agent dispatch failed";
-                    execution.MarkFailed(err);
+                    var failSnapshot = await CaptureExecutionStateSnapshotAsync(execution, ct);
+                    execution.MarkFailed(err, failSnapshot);
                     await db.SaveChangesAsync(ct);
 
                     if (hubContext != null)
                     {
                         await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
                             "PipelineExecutionFinished",
-                            new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = err },
+                            new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = err, executionState = failSnapshot },
                             ct
                         );
                     }
@@ -266,20 +312,157 @@ public class PipelineOrchestrator(
             }
         }
 
-        // 6. All segments succeeded
-        execution.MarkSucceeded(execution.ExecutionState ?? JsonDocument.Parse("{}"));
+        // 6. All segments succeeded - Capture complete parameter and state snapshot
+        var finalSnapshot = await CaptureExecutionStateSnapshotAsync(execution, ct);
+        execution.MarkSucceeded(finalSnapshot);
         await db.SaveChangesAsync(ct);
 
         if (hubContext != null)
         {
             await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
                 "PipelineExecutionFinished",
-                new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt },
+                new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, executionState = finalSnapshot },
                 ct
             );
         }
 
-        logger.LogInformation("Pipeline Execution [{ExecutionId}] completed successfully.", execution.Id);
+        // Set 48h TTL on hot Redis keys now that atomic state is persisted in Postgres
+        try
+        {
+            await stateStore.ExpireExecutionAsync(execution.Id, TimeSpan.FromHours(48), ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to set Redis TTL for finished execution {ExecutionId}", execution.Id);
+        }
+
+        logger.LogInformation("Pipeline Execution [{ExecutionId}] completed successfully with Parameters snapshot.", execution.Id);
         return Result.Ok(execution);
+    }
+
+    private async Task<JsonDocument> CaptureExecutionStateSnapshotAsync(
+        PipelineExecution execution,
+        CancellationToken ct
+    )
+    {
+        var parametersSnapshot = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        var inputsDict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        var variablesDict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        var outputsDict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        var contextDict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+        // 1. Inputs
+        if (execution.Pipeline?.Parameters != null)
+        {
+            var inputParams = execution.Pipeline.Parameters
+                .Where(p => p.Kind == PipelineParameterKind.Input);
+
+            foreach (var p in inputParams)
+            {
+                var val = await memoryStore.GetStartInputAsync(execution.Id, p.Key, ct);
+                inputsDict[p.Key] = val ?? p.DefaultValue;
+            }
+        }
+
+        // 2. Variables
+        if (execution.Pipeline?.Parameters != null)
+        {
+            var varParams = execution.Pipeline.Parameters
+                .Where(p => p.Kind == PipelineParameterKind.Variable);
+
+            foreach (var p in varParams)
+            {
+                var val = await memoryStore.GetVariableAsync(execution.Id, p.Key, ct);
+                variablesDict[p.Key] = val ?? p.DefaultValue;
+            }
+        }
+
+        // 3. Outputs (from Return node or from memory store)
+        if (execution.Pipeline?.Parameters != null)
+        {
+            var outParams = execution.Pipeline.Parameters
+                .Where(p => p.Kind == PipelineParameterKind.Output);
+
+            var returnNode = execution.Pipeline.Nodes.FirstOrDefault(n =>
+                n.Kind == PipelineNodeKind.Return ||
+                string.Equals(n.RefId, "Return", StringComparison.OrdinalIgnoreCase));
+
+            if (returnNode != null)
+            {
+                var returnOutputs = await memoryStore.GetNodeAllOutputsAsync(execution.Id, returnNode.Id, ct: ct);
+                foreach (var p in outParams)
+                {
+                    if (returnOutputs.TryGetValue(p.Key, out var outVal))
+                    {
+                        outputsDict[p.Key] = outVal;
+                    }
+                    else
+                    {
+                        var incomingEdge = execution.Pipeline.Edges.FirstOrDefault(e =>
+                            e.TargetPipelineNodeId == returnNode.Id &&
+                            string.Equals(e.TargetPin, p.Key, StringComparison.OrdinalIgnoreCase));
+
+                        if (incomingEdge != null)
+                        {
+                            var srcVal = await memoryStore.GetNodePinValueAsync(execution.Id, incomingEdge.SourcePipelineNodeId, incomingEdge.SourcePin, ct: ct);
+                            outputsDict[p.Key] = srcVal;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. Context
+        if (execution.Pipeline != null)
+        {
+            contextDict["projectId"] = execution.Pipeline.ProjectId;
+            contextDict["triggerType"] = execution.Pipeline.TriggerType.ToString();
+            if (execution.Pipeline.TriggerWorkspaceId.HasValue)
+            {
+                contextDict["triggerWorkspaceId"] = execution.Pipeline.TriggerWorkspaceId.Value;
+            }
+        }
+
+        parametersSnapshot["inputs"] = inputsDict;
+        parametersSnapshot["variables"] = variablesDict;
+        parametersSnapshot["outputs"] = outputsDict;
+        parametersSnapshot["context"] = contextDict;
+
+        // 5. Node Executions & Live Outputs from Redis Hot State
+        var nodeExecutionsList = new List<object>();
+        var nodeOutputsDict = new Dictionary<string, Dictionary<string, object?>>(StringComparer.OrdinalIgnoreCase);
+
+        if (execution.Pipeline?.Nodes != null)
+        {
+            foreach (var node in execution.Pipeline.Nodes)
+            {
+                var status = await stateStore.GetNodeStatusAsync(execution.Id, node.Id, ct);
+                var outputs = await stateStore.GetNodeAllOutputsAsync(execution.Id, node.Id, ct);
+
+                if (status != null || outputs.Count > 0)
+                {
+                    nodeExecutionsList.Add(new
+                    {
+                        nodeId = node.Id,
+                        status = status ?? ExecutionStatus.Succeeded.ToString(),
+                        output = outputs.Count > 0 ? outputs : null
+                    });
+                }
+
+                if (outputs.Count > 0)
+                {
+                    nodeOutputsDict[node.Id.ToString()] = outputs;
+                }
+            }
+        }
+
+        var fullState = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["parameters"] = parametersSnapshot,
+            ["nodeExecutions"] = nodeExecutionsList,
+            ["nodeOutputs"] = nodeOutputsDict
+        };
+
+        return JsonDocument.Parse(JsonSerializer.Serialize(fullState));
     }
 }

@@ -37,7 +37,7 @@ public class StageResultConsumer(
             return;
         }
 
-        if (execution.Status != ExecutionStatus.WaitingForAgent && execution.Status != ExecutionStatus.Running)
+        if (execution.Status != ExecutionStatus.WaitingForRunner && execution.Status != ExecutionStatus.Running)
         {
             logger.LogWarning("PipelineExecution {ExecutionId} is in status {Status}, skipping callback", execution.Id, execution.Status);
             return;
@@ -72,35 +72,8 @@ public class StageResultConsumer(
                     try { logDoc = JsonDocument.Parse(JsonSerializer.Serialize(stepResult.Log)); } catch { /* ignore */ }
                 }
 
-                var nodeExec = await db.NodeExecutions
-                    .FirstOrDefaultAsync(x => x.PipelineExecutionId == execution.Id && x.PipelineNodeId == nodeId, ct);
-
-                if (nodeExec == null)
-                {
-                    nodeExec = new NodeExecution(execution.Id, nodeId, outputDoc);
-                    if (stepResult.Succeeded)
-                    {
-                        nodeExec.MarkSucceeded(outputDoc, logDoc);
-                        await stateStore.SetNodeStatusAsync(execution.Id, nodeId, ExecutionStatus.Succeeded.ToString(), ct);
-                    }
-                    else
-                    {
-                        nodeExec.MarkFailed(stepResult.ErrorMessage ?? "Step failed", logDoc);
-                        await stateStore.SetNodeStatusAsync(execution.Id, nodeId, ExecutionStatus.Failed.ToString(), ct);
-                    }
-                    db.NodeExecutions.Add(nodeExec);
-                }
-                else
-                {
-                    if (stepResult.Succeeded)
-                    {
-                        nodeExec.MarkSucceeded(outputDoc, logDoc);
-                    }
-                    else
-                    {
-                        nodeExec.MarkFailed(stepResult.ErrorMessage ?? "Step failed", logDoc);
-                    }
-                }
+                var statusStr = stepResult.Succeeded ? ExecutionStatus.Succeeded.ToString() : ExecutionStatus.Failed.ToString();
+                await stateStore.SetNodeStatusAsync(execution.Id, nodeId, statusStr, ct);
 
                 if (hubContext != null)
                 {
@@ -113,7 +86,10 @@ public class StageResultConsumer(
                                 executionId = execution.Id,
                                 pipelineId = execution.PipelineId,
                                 nodeId,
-                                status = stepResult.Succeeded ? "succeeded" : "failed"
+                                status = stepResult.Succeeded ? "succeeded" : "failed",
+                                outputs = stepResult.Outputs,
+                                finishedAt = DateTimeOffset.UtcNow,
+                                errorMessage = stepResult.Succeeded ? null : stepResult.Log
                             },
                             ct
                         );

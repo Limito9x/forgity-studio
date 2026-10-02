@@ -33,8 +33,10 @@ public sealed class PipelineModule : IModule, IPermissionModule
         services.AddScoped<Engine.Orchestrator.Dispatchers.DotNetSegmentDispatcher>();
         services.AddScoped<Engine.Orchestrator.Dispatchers.AgentSegmentDispatcher>();
         services.AddScoped<Engine.Orchestrator.Dispatchers.ForEachDispatcher>();
+        services.AddScoped<Engine.Orchestrator.Dispatchers.SubPipelineDispatcher>();
         services.AddScoped<Engine.Orchestrator.IPipelineOrchestrator, Engine.Orchestrator.PipelineOrchestrator>();
         services.AddScoped<IPipelineExecutionEngine, PipelineExecutionEngine>();
+        services.AddScoped<Features.Pipelines.Services.IPipelineGraphDtoBuilder, Features.Pipelines.Services.PipelineGraphDtoBuilder>();
         services.AddHttpClient();
         services.AddPipelineGrpcServices();
     }

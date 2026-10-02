@@ -24,6 +24,7 @@ public record UpdatePipelineNodeRequest(
     Dictionary<string, object?>? ConfigValues = null
 );
 
+[Obsolete("Use SavePipelineGraph (PUT {id}/graph) with debounced draft state instead.")]
 public class UpdatePipelineNodeEndpoint : Endpoint<UpdatePipelineNodeRequest>
 {
     public override void Configure()

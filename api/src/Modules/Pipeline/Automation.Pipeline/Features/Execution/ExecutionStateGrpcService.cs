@@ -166,29 +166,8 @@ public class ExecutionStateGrpcService(
                 );
             }
 
-            // 3. Update NodeExecution in DB
-            var nodeExec = await db.NodeExecutions
-                .FirstOrDefaultAsync(x => x.PipelineExecutionId == pipelineExecId && x.PipelineNodeId == stepNodeId, context.CancellationToken);
-
-            var outputDoc = JsonDocument.Parse(JsonSerializer.Serialize(outputsDict));
-            JsonDocument? logDoc = null;
-            if (!string.IsNullOrEmpty(request.Log))
-            {
-                try { logDoc = JsonDocument.Parse(request.Log); } catch { }
-            }
-
-            if (nodeExec == null)
-            {
-                nodeExec = new NodeExecution(pipelineExecId, stepNodeId, status: ExecutionStatus.Running);
-                nodeExec.MarkSucceeded(outputDoc, logDoc);
-                db.NodeExecutions.Add(nodeExec);
-            }
-            else
-            {
-                nodeExec.MarkSucceeded(outputDoc, logDoc);
-            }
-
-            await db.SaveChangesAsync(context.CancellationToken);
+            // 3. Update Node status in Redis
+            await legacyStateStore.SetNodeStatusAsync(pipelineExecId, stepNodeId, ExecutionStatus.Succeeded.ToString(), context.CancellationToken);
 
             logger.LogInformation("Reported step outputs successfully for node {NodeId} in execution {ExecId}",
                 stepNodeId, pipelineExecId);

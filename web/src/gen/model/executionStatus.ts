@@ -9,10 +9,10 @@ export type ExecutionStatus =
   (typeof ExecutionStatus)[keyof typeof ExecutionStatus];
 
 export const ExecutionStatus = {
-  NUMBER_1: 1,
-  NUMBER_2: 2,
-  NUMBER_3: 3,
-  NUMBER_4: 4,
-  NUMBER_5: 5,
-  NUMBER_6: 6,
+  Pending: "Pending",
+  Running: "Running",
+  WaitingForRunner: "WaitingForRunner",
+  Succeeded: "Succeeded",
+  Failed: "Failed",
+  Cancelled: "Cancelled",
 } as const;

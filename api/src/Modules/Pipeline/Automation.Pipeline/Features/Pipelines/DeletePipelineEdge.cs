@@ -14,6 +14,7 @@ public record DeletePipelineEdgeRequest(
     Guid EdgeId
 );
 
+[Obsolete("Use SavePipelineGraph (PUT {id}/graph) with debounced draft state instead.")]
 public class DeletePipelineEdgeEndpoint : Endpoint<DeletePipelineEdgeRequest>
 {
     public override void Configure()

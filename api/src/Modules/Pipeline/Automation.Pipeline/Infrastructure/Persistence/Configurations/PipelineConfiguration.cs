@@ -36,24 +36,24 @@ public class PipelineConfiguration : IEntityTypeConfiguration<Domain.Entities.Pi
             Converters = { new JsonStringEnumConverter() }
         };
 
-        builder.Property(x => x.Variables)
+        builder.Property(x => x.Parameters)
             .HasColumnType("jsonb")
             .HasConversion(
-                v => JsonSerializer.Serialize(v ?? new List<PipelineVariableDecl>(), jsonOptions),
-                v => SafeDeserializeVariables(v, jsonOptions)
+                v => JsonSerializer.Serialize(v ?? new List<PipelineParameter>(), jsonOptions),
+                v => SafeDeserializeParameters(v, jsonOptions)
             )
-            .Metadata.SetValueComparer(new ValueComparer<List<PipelineVariableDecl>>(
+            .Metadata.SetValueComparer(new ValueComparer<List<PipelineParameter>>(
                 (c1, c2) => JsonSerializer.Serialize(c1, jsonOptions) == JsonSerializer.Serialize(c2, jsonOptions),
                 c => c == null ? 0 : JsonSerializer.Serialize(c, jsonOptions).GetHashCode(),
-                c => SafeDeserializeVariables(JsonSerializer.Serialize(c, jsonOptions), jsonOptions)
+                c => SafeDeserializeParameters(JsonSerializer.Serialize(c, jsonOptions), jsonOptions)
             ));
     }
 
-    private static List<PipelineVariableDecl> SafeDeserializeVariables(string? json, JsonSerializerOptions options)
+    private static List<PipelineParameter> SafeDeserializeParameters(string? json, JsonSerializerOptions options)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
-            return new List<PipelineVariableDecl>();
+            return new List<PipelineParameter>();
         }
 
         try
@@ -61,14 +61,14 @@ public class PipelineConfiguration : IEntityTypeConfiguration<Domain.Entities.Pi
             var trimmed = json.Trim();
             if (trimmed.StartsWith("["))
             {
-                return JsonSerializer.Deserialize<List<PipelineVariableDecl>>(trimmed, options) ?? new List<PipelineVariableDecl>();
+                return JsonSerializer.Deserialize<List<PipelineParameter>>(trimmed, options) ?? new List<PipelineParameter>();
             }
         }
         catch
         {
-            // Ignore corrupted json and fallback to empty list
+            // Fallback to empty list on parsing failure
         }
 
-        return new List<PipelineVariableDecl>();
+        return new List<PipelineParameter>();
     }
 }

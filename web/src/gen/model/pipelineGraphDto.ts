@@ -5,10 +5,8 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { IReadOnlyListOfPipelineEdgeGraphDto } from "./iReadOnlyListOfPipelineEdgeGraphDto";
-import type { IReadOnlyListOfPipelineInputDto } from "./iReadOnlyListOfPipelineInputDto";
 import type { IReadOnlyListOfPipelineNodeGraphDto } from "./iReadOnlyListOfPipelineNodeGraphDto";
-import type { IReadOnlyListOfPipelineOutputDto } from "./iReadOnlyListOfPipelineOutputDto";
-import type { IReadOnlyListOfPipelineVariableDto } from "./iReadOnlyListOfPipelineVariableDto";
+import type { IReadOnlyListOfPipelineParameterDto } from "./iReadOnlyListOfPipelineParameterDto";
 import type { PipelineTriggerType } from "./pipelineTriggerType";
 
 export interface PipelineGraphDto {
@@ -20,8 +18,6 @@ export interface PipelineGraphDto {
   triggerWorkspaceId: string | null;
   nodes: IReadOnlyListOfPipelineNodeGraphDto;
   edges: IReadOnlyListOfPipelineEdgeGraphDto;
-  inputs: IReadOnlyListOfPipelineInputDto;
-  outputs: IReadOnlyListOfPipelineOutputDto;
-  variables: IReadOnlyListOfPipelineVariableDto;
+  parameters: IReadOnlyListOfPipelineParameterDto;
   triggerConfig?: unknown;
 }

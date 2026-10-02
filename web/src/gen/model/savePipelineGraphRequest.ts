@@ -10,4 +10,6 @@ import type { ListOfSavePipelineNodeItem } from "./listOfSavePipelineNodeItem";
 export interface SavePipelineGraphRequest {
   nodes?: ListOfSavePipelineNodeItem;
   edges?: ListOfSavePipelineEdgeItem;
+  /** @nullable */
+  parameters?: unknown[] | null;
 }

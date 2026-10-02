@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
+using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Features.Pipelines.Dtos;
 using Automation.Pipeline.Infrastructure.Persistence;
@@ -22,6 +23,7 @@ public record AddPipelineEdgeRequest(
     string TargetPin
 );
 
+[Obsolete("Use SavePipelineGraph (PUT {id}/graph) with debounced draft state instead.")]
 public class AddPipelineEdgeEndpoint : Endpoint<AddPipelineEdgeRequest, PipelineEdgeGraphDto>
 {
     public override void Configure()
@@ -56,17 +58,29 @@ public class AddPipelineEdgeHandler(PipelineDbContext db)
         }
 
         // Validate source and target nodes exist
-        var sourceExists = await db.PipelineNodes.AnyAsync(n => n.Id == command.SourcePipelineNodeId && n.PipelineId == command.PipelineId, ct);
-        var targetExists = await db.PipelineNodes.AnyAsync(n => n.Id == command.TargetPipelineNodeId && n.PipelineId == command.PipelineId, ct);
+        var sourceNode = await db.PipelineNodes.AsNoTracking().FirstOrDefaultAsync(n => n.Id == command.SourcePipelineNodeId && n.PipelineId == command.PipelineId, ct);
+        var targetNode = await db.PipelineNodes.AsNoTracking().FirstOrDefaultAsync(n => n.Id == command.TargetPipelineNodeId && n.PipelineId == command.PipelineId, ct);
 
-        if (!sourceExists || !targetExists)
+        if (sourceNode == null || targetNode == null)
         {
             return Result.Fail<PipelineEdgeGraphDto>("Source or Target node does not exist in this Pipeline.");
         }
 
         // If connecting an ExecOut pin (1-to-1 flow rule), remove any old edge from this source exec pin
         var normSource = command.SourcePin.Replace(" ", "").Replace("_", "").Replace("-", "").ToLowerInvariant();
+        var normTarget = command.TargetPin.Replace(" ", "").Replace("_", "").Replace("-", "").ToLowerInvariant();
         var isExecOut = normSource is "execout" or "exec" or "loopbody" or "completed";
+        var isExecIn = normTarget is "execin" or "exec";
+
+        if ((isExecOut || isExecIn) && sourceNode.ParentId != targetNode.ParentId)
+        {
+            var isSrcRoot = sourceNode.Kind is PipelineNodeKind.Start or PipelineNodeKind.Return || sourceNode.RefId is "Start" or "Return";
+            var isDstRoot = targetNode.Kind is PipelineNodeKind.Start or PipelineNodeKind.Return || targetNode.RefId is "Start" or "Return";
+            if (!isSrcRoot && !isDstRoot)
+            {
+                return Result.Fail<PipelineEdgeGraphDto>("Exec wires cannot connect nodes across different stages/scopes.");
+            }
+        }
 
         if (isExecOut)
         {

@@ -331,7 +331,17 @@ export const PIN_RULES: PinFieldRule[] = [
   },
 ];
 
-import type { PipelineInputDto } from "@/gen/model";
+import type { PipelineParameterDto } from "@/gen/model";
+
+export interface PipelineInputLike {
+  key: string;
+  name?: string;
+  label?: string;
+  type: string | number;
+  cardinality?: string | number;
+  isRequired?: boolean;
+  defaultValue?: any;
+}
 
 /**
  * Pure function adapter biến đổi PinDefinition thành FieldDefinition chuẩn của FormRenderer
@@ -368,16 +378,16 @@ export function pinToFieldDefinition(
 }
 
 /**
- * Adapter helper chuyển đổi PipelineInputDto từ Start node thành FieldDefinition của FormRenderer
+ * Adapter helper chuyển đổi PipelineParameterDto / PipelineInputLike thành FieldDefinition của FormRenderer
  */
 export function pipelineInputToFieldDefinition(
-  input: PipelineInputDto,
+  input: PipelineParameterDto | PipelineInputLike,
   configValues: Record<string, any> = {}
 ): FieldDefinition<any> {
   const pinDef: PinDefinition = {
     id: input.key,
-    label: input.label || input.key,
-    primitiveType: input.type,
+    label: (input as any).label || (input as any).name || input.key,
+    primitiveType: (typeof input.type === "number" ? input.type : Number(input.type) || 0) as any,
     cardinality: (input.cardinality ?? 0) as any,
     isRequired: input.isRequired,
     defaultValue: input.defaultValue,

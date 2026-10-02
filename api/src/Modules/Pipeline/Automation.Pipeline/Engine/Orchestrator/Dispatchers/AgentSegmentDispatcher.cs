@@ -134,7 +134,7 @@ public class AgentSegmentDispatcher(
             steps.Add(new StepExecution
             {
                 StepExecutionId = step.NodeId.ToString(),
-                StepType = step.Kind,
+                StepType = step.Kind.ToString(),
                 Name = step.Label,
                 ScriptPath = def != null && !string.IsNullOrEmpty(def.Key) ? def.Key : step.RefId,
                 ScriptUrl = scriptUrl,
@@ -149,10 +149,19 @@ public class AgentSegmentDispatcher(
                 i, step.Label, step.NodeId, !string.IsNullOrEmpty(scriptUrl), scriptHash);
         }
 
+        // Determine effective Runner ID from Stage TargetRunnerId (Single Source of Truth)
+        var effectiveRunnerId = segment.TargetRunnerId ?? Guid.Empty;
+        if (effectiveRunnerId == Guid.Empty)
+        {
+            var err = $"Worker Stage '{segment.StageName ?? segment.StageId?.ToString()}' ({segment.Executor}) cannot be dispatched because no Runner was assigned.";
+            logger.LogError(err);
+            return Result.Fail(err);
+        }
+
         // Fetch Environment Config for Executor (e.g. blender executable path, unreal engine uproject)
         var envConfig = new Dictionary<string, object?>();
         var configResult = await runnerApi.GetExecutorConfigAsync(
-            execution.AgentId,
+            effectiveRunnerId,
             segment.Executor,
             ct
         );
@@ -210,7 +219,7 @@ public class AgentSegmentDispatcher(
                     else
                     {
                         logger.LogWarning("Runner {RunnerId} has no registered Unreal project for Project {ProjectId}",
-                            execution.AgentId, execution.Pipeline.ProjectId);
+                            effectiveRunnerId, execution.Pipeline.ProjectId);
                     }
                 }
             }
@@ -224,7 +233,7 @@ public class AgentSegmentDispatcher(
         {
             StageExecutionId = stageId,
             PipelineExecutionId = execution.Id.ToString(),
-            StageId = stageId,
+            StageId = segment.StageId?.ToString() ?? stageId,
             Executor = segment.Executor,
             GrpcEndpoint = grpcEndpoint,
             Steps = steps,
@@ -232,14 +241,14 @@ public class AgentSegmentDispatcher(
             EnvironmentConfig = envConfig
         };
 
-        execution.MarkWaitingForAgent(stageId, nextSegmentIndex, execution.ExecutionState ?? JsonDocument.Parse("{}"));
+        execution.MarkWaitingForRunner(stageId, nextSegmentIndex, execution.ExecutionState ?? JsonDocument.Parse("{}"));
 
-        logger.LogInformation("Dispatching Agent Segment [{StageId}] with {StepCount} steps to {Executor}",
-            stageId, steps.Count, segment.Executor);
+        logger.LogInformation("Dispatching Agent Segment [{StageId}] ({StageName}) with {StepCount} steps to {Executor} (Runner: {RunnerId})",
+            stageId, segment.StageName ?? "Unscoped", steps.Count, segment.Executor, effectiveRunnerId);
 
-        if (execution.AgentId != Guid.Empty)
+        if (effectiveRunnerId != Guid.Empty)
         {
-            var queueName = $"stage_tasks.{execution.AgentId}";
+            var queueName = $"stage_tasks.{effectiveRunnerId}";
             logger.LogInformation("Routing StageTaskMessage to targeted agent queue: {QueueName}", queueName);
             var endpointUri = new Uri($"rabbitmq://queue/{queueName}");
             var endpoint = messageBus.EndpointFor(endpointUri);
@@ -260,7 +269,14 @@ public class AgentSegmentDispatcher(
                     {
                         await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
                             "PipelineNodeExecutionUpdated",
-                            new { executionId = execution.Id, pipelineId = execution.PipelineId, nodeId = nId },
+                            new
+                            {
+                                executionId = execution.Id,
+                                pipelineId = execution.PipelineId,
+                                nodeId = nId,
+                                status = "running",
+                                startedAt = DateTimeOffset.UtcNow
+                            },
                             ct
                         );
                     }

@@ -130,7 +130,7 @@ public class ResourcesCreatedPipelineBridgeHandler(
                 );
 
                 await bus.InvokeAsync<Result<PipelineExecutionDto>>(
-                    new RunPipelineCommand(pipeline.Id, message.AgentId, runtimeInputs),
+                    new RunPipelineCommand(pipeline.Id, runtimeInputs),
                     ct
                 );
             }
