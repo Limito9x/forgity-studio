@@ -14,7 +14,7 @@ export function ResourceDetailPage({ projectId, workspaceId, resourceId }: Resou
   const navigate = useNavigate();
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 w-full max-w-5xl mx-auto">
+    <div className="p-6 space-y-6 w-full min-w-0">
       <div className="flex items-center gap-3">
         <Button
           variant="outline"

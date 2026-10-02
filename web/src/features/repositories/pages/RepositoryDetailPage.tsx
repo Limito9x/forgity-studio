@@ -64,7 +64,7 @@ export function RepositoryDetailPage({ projectId, repositoryId }: RepositoryDeta
   const resources = resourcesData?.items || [];
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 w-full max-w-7xl mx-auto">
+    <div className="p-6 space-y-6 w-full min-w-0">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -151,7 +151,7 @@ export function RepositoryDetailPage({ projectId, repositoryId }: RepositoryDeta
           <CardHeader className="pb-2">
             <CardDescription className="text-xs uppercase font-medium">Storage Location</CardDescription>
             <CardTitle className="text-base font-semibold truncate flex items-center justify-between">
-              <span className="font-mono text-xs truncate max-w-[200px]">
+              <span className="font-mono text-xs truncate">
                 {runners[0]?.rootPath || "Cloud Managed"}
               </span>
               <HardDrive className="size-5 text-primary/60 shrink-0" />
