@@ -91,4 +91,6 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 ## 6. Kế Hoạch Kỹ Thuật (Plans)
 
 - [refactor-repository-trigger-deprecate-platform](file:///d:/FullStack/Automation/.agents/plans/2026-10-02-refactor-repository-trigger-deprecate-platform.md): Kế hoạch loại bỏ module Platform, chuẩn hóa Repository Trigger, batch Resource list & bổ sung RunnerId.
+- [daz-to-blender-unreal-pipeline-upgrade](file:///d:/FullStack/Automation/.agents/plans/2026-10-03-daz-to-blender-unreal-pipeline-upgrade.md): Kế hoạch nâng cấp Pipeline DAZ -> Blender -> Unreal Engine (Queue Isolation, AI Tagging, Lightweight Native Bake).
+
 
