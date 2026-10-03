@@ -6,6 +6,11 @@ from core.system.hardware import get_hardware_snapshot
 from commands import connect
 from commands.rescan_hardware import sync_hardware_to_backend
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%H:%M:%S"
+)
 logger = logging.getLogger(__name__)
 
 try:

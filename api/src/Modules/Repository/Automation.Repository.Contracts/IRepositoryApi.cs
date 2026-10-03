@@ -84,12 +84,28 @@ public interface IRepositoryApi
         CancellationToken ct = default
     ) => GetRepositoryNamesAsync(workspaceIds, ct);
 
+    Task<Result<IReadOnlyList<ResourceDto>>> GetResourcesByIdsAsync(
+        IEnumerable<Guid> resourceIds,
+        CancellationToken ct = default
+    );
+
     Task<Result<string>> GetWorkspaceRootPathAsync(
         Guid workspaceId,
         Guid runnerId,
         CancellationToken ct = default
     ) => GetRepositoryRootPathAsync(workspaceId, runnerId, ct);
 }
+
+public record ResourceDto(
+    Guid ResourceId,
+    Guid ResourceVersionId,
+    string DisplayName,
+    string Extension,
+    string RelativePath,
+    string? FileHash,
+    Guid? ContentId,
+    string? MetadataJson = null
+);
 
 
 public record SyncLocalChangesResultDto(

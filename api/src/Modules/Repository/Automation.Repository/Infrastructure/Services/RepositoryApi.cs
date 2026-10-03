@@ -561,4 +561,44 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
 
         return Result.Ok();
     }
+
+    public async Task<Result<IReadOnlyList<ResourceDto>>> GetResourcesByIdsAsync(
+        IEnumerable<Guid> resourceIds,
+        CancellationToken ct = default
+    )
+    {
+        var idsList = resourceIds.Distinct().ToList();
+        if (idsList.Count == 0)
+        {
+            return Result.Ok<IReadOnlyList<ResourceDto>>([]);
+        }
+
+        var items = await db
+            .ResourceItems.AsNoTracking()
+            .Where(r => idsList.Contains(r.Id) || r.Versions.Any(v => idsList.Contains(v.Id)))
+            .Include(r => r.Versions)
+            .ToListAsync(ct);
+
+        var result = new List<ResourceDto>();
+        foreach (var item in items)
+        {
+            var latestVersion = item.Versions.OrderByDescending(v => v.VersionNo).FirstOrDefault();
+            var versionId = latestVersion?.Id ?? Guid.Empty;
+            var fileHash = latestVersion?.FileHash ?? string.Empty;
+            var metaJson = latestVersion?.Metadata?.RootElement.GetRawText();
+
+            result.Add(new ResourceDto(
+                item.Id,
+                versionId,
+                item.DisplayName,
+                item.Extension,
+                item.RelativePath,
+                fileHash,
+                item.ContentId,
+                metaJson
+            ));
+        }
+
+        return Result.Ok<IReadOnlyList<ResourceDto>>(result);
+    }
 }

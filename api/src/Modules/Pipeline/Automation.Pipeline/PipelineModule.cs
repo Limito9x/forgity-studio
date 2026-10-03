@@ -25,6 +25,7 @@ public sealed class PipelineModule : IModule, IPermissionModule
 
         services.AddSingleton<IExecutionStateStore, RedisExecutionStateStore>();
         services.AddSingleton<Engine.DataResolver.IExecutionMemoryStore, RedisExecutionMemoryStore>();
+        services.AddScoped<Engine.EntityStore.IExecutionEntityStore, Engine.EntityStore.ExecutionEntityStore>();
         services.AddScoped<Engine.ExecPlanner.IExecPlanner, Engine.ExecPlanner.ExecPlanner>();
         services.AddScoped<Engine.DataResolver.IPipelineGraphProvider, Engine.DataResolver.PipelineGraphProvider>();
         services.AddScoped<Engine.DataResolver.Resolvers.PureNodeResolver>();

@@ -1,13 +1,17 @@
 using Automation.Content.Contracts;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
+using Automation.Pipeline.Engine.EntityStore;
 using Automation.Pipeline.Tools;
 using Automation.Repository.Contracts;
 
 namespace Automation.Pipeline.Engine.StructRegistry.Definitions;
 
-public class ResourceStructDefinition(IRepositoryApi workspaceApi, IContentApi contentApi)
-    : IEntityStructDefinition
+public class ResourceStructDefinition(
+    IRepositoryApi workspaceApi,
+    IContentApi contentApi,
+    IExecutionEntityStore? entityStore = null
+) : IEntityStructDefinition
 {
     public string StructType => "Resource";
     public string Label => "Resource";
@@ -154,9 +158,20 @@ public class ResourceStructDefinition(IRepositoryApi workspaceApi, IContentApi c
             throw new ArgumentException($"Invalid Target Resource Reference: '{targetInput}'");
         }
 
+        // Priority 1: Check ExecutionEntityStore (Pure In-Memory lookup in 0ms)
+        if (entityStore?.GetProperties("Resource", targetId) is { } cachedProps)
+        {
+            var inMemoryResult = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (k, v) in cachedProps)
+            {
+                if (v != null) inMemoryResult[k] = v;
+            }
+            return inMemoryResult;
+        }
+
         var ct = context.CancellationToken;
 
-        // 1. Resolve resource location
+        // 1. Fallback: Resolve resource location from DB if not pre-fetched
         var singleResult = await workspaceApi.GetResourceLocationAsync(targetId, ct);
         if (!singleResult.IsSuccess || singleResult.Value == null)
         {

@@ -2,6 +2,7 @@ using System.Collections;
 using System.Text.Json;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
+using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Engine.DataResolver;
 using Automation.Pipeline.Engine.DataResolver.Resolvers;
 using Automation.Pipeline.Engine.Models;
@@ -20,7 +21,8 @@ public class ForEachDispatcher(
     IExecutionStateStore stateStore,
     DotNetSegmentDispatcher dotNetDispatcher,
     ILogger<ForEachDispatcher> logger,
-    IHubContext<PipelineExecutionHub>? hubContext = null
+    IHubContext<PipelineExecutionHub>? hubContext = null,
+    Engine.EntityStore.IExecutionEntityStore? entityStore = null
 )
 {
     public async Task<Result> DispatchAsync(
@@ -52,13 +54,38 @@ public class ForEachDispatcher(
                 step.Label, step.NodeId);
         }
 
+        // 1b. Batch prefetch any resource entities in items array into ExecutionEntityStore
+        if (entityStore != null && items.Count > 0)
+        {
+            var candidateGuids = new List<Guid>();
+            foreach (var it in items)
+            {
+                var (_, parsedGuid, isValid) = EntityRefHelper.Parse(it);
+                if (isValid && parsedGuid != Guid.Empty)
+                {
+                    candidateGuids.Add(parsedGuid);
+                }
+            }
+
+            if (candidateGuids.Count > 0)
+            {
+                await entityStore.PrefetchResourcesAsync(candidateGuids, ct);
+            }
+        }
+
         var resultList = new List<object?>();
         var resultMap = new Dictionary<string, object?>();
 
         // 2. Iterate through items with isolated ScopeContext
+        logger.LogInformation("ForEach [{NodeLabel}]: Starting iteration loop. BodyPlan has {SegCount} segments.",
+            step.Label, segment.BodyPlan?.Segments.Count ?? 0);
+
         for (var i = 0; i < items.Count; i++)
         {
             var item = items[i];
+            logger.LogInformation("ForEach [{NodeLabel}]: >>> Iteration {Index}/{Total} | Item = {Item}",
+                step.Label, i, items.Count, item);
+
             var iterScope = (parentScope ?? new ScopeContext("root"))
                 .BuildChildScope($"foreach_{step.NodeId:N}", iterationIndex: i);
 
@@ -71,23 +98,59 @@ public class ForEachDispatcher(
             {
                 foreach (var bodySeg in segment.BodyPlan.Segments)
                 {
+                    logger.LogInformation("ForEach [{NodeLabel}] iter {Index}: Executing body segment [{Executor}] steps={Steps}",
+                        step.Label, i, bodySeg.Executor, bodySeg.Steps.Count);
+
                     if (bodySeg.Executor == "dotNet")
                     {
-                        var segRes = await dotNetDispatcher.DispatchAsync(execution, bodySeg, iterScope, orchestrator, ct);
+                        Result segRes;
+                        try
+                        {
+                            segRes = await dotNetDispatcher.DispatchAsync(execution, bodySeg, iterScope, orchestrator, ct);
+                        }
+                        catch (Exception ex)
+                        {
+                            var exMsg = $"ForEach body segment threw unhandled exception at iteration {i}: {ex.GetType().Name}: {ex.Message}";
+                            logger.LogError(ex, exMsg);
+                            await RecordNodeFailedAsync(execution.Id, execution.PipelineId, step.NodeId, exMsg, ct);
+                            return Result.Fail(exMsg);
+                        }
+
                         if (segRes.IsFailed)
                         {
                             var errMsg = segRes.Errors.FirstOrDefault()?.Message ?? "Step in ForEach body failed";
+                            logger.LogError("ForEach [{NodeLabel}] iter {Index}: Body segment FAILED: {Error}", step.Label, i, errMsg);
                             await RecordNodeFailedAsync(execution.Id, execution.PipelineId, step.NodeId, errMsg, ct);
                             return segRes;
                         }
+
+                        logger.LogInformation("ForEach [{NodeLabel}] iter {Index}: Body segment succeeded.", step.Label, i);
+                    }
+                    else
+                    {
+                        logger.LogWarning("ForEach [{NodeLabel}] iter {Index}: Body segment executor '{Executor}' is not dotNet - skipped!",
+                            step.Label, i, bodySeg.Executor);
                     }
                 }
             }
+            else
+            {
+                logger.LogWarning("ForEach [{NodeLabel}] iter {Index}: BodyPlan is NULL - no body to execute.", step.Label, i);
+            }
 
             // Collect Yield value for this iteration
-            var yieldVal = await pinResolver.ResolvePinAsync(execution.Id, step.NodeId, "YieldValue", iterScope, ct)
+            object? yieldVal;
+            try
+            {
+                yieldVal = await pinResolver.ResolvePinAsync(execution.Id, step.NodeId, "YieldValue", iterScope, ct)
                            ?? await pinResolver.ResolvePinAsync(execution.Id, step.NodeId, "Yield", iterScope, ct)
                            ?? await pinResolver.ResolvePinAsync(execution.Id, step.NodeId, "Yield_Value", iterScope, ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "ForEach [{NodeLabel}] iter {Index}: Failed to resolve Yield pin (non-fatal).", step.Label, i);
+                yieldVal = null;
+            }
 
             if (yieldVal != null)
             {
@@ -112,7 +175,12 @@ public class ForEachDispatcher(
                     resultMap[i.ToString()] = yieldVal;
                 }
             }
+
+            logger.LogInformation("ForEach [{NodeLabel}]: Iteration {Index} completed.", step.Label, i);
         }
+
+        logger.LogInformation("ForEach [{NodeLabel}]: All {Total} iterations done. ResultList={RCount}, ResultMap={MCount}",
+            step.Label, items.Count, resultList.Count, resultMap.Count);
 
         // 3. Save aggregated outputs to Memory Store (ResultArray, Result, ResultMap, Count)
         var outputs = new Dictionary<string, object?>

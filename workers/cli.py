@@ -1,6 +1,13 @@
 import argparse
 import sys
 import os
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%H:%M:%S"
+)
 
 # Add core and current dir to sys.path so generated protobuf modules can resolve cleanly
 sys.path.append(os.path.abspath("core"))

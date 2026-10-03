@@ -9,7 +9,10 @@ namespace Automation.Pipeline.Tools.Workspaces;
 /// <summary>
 /// Tool batch cập nhật metadata cho nhiều ResourceVersion cùng lúc thông qua Map (Key: Resource ID / File Path -> Value: Metadata).
 /// </summary>
-public class UpdateResourceMetadataTool(IRepositoryApi workspaceApi) : IResolverTool
+public class UpdateResourceMetadataTool(
+    IRepositoryApi workspaceApi,
+    Engine.EntityStore.IExecutionEntityStore? entityStore = null
+) : IResolverTool
 {
     public string Key => "UpdateResourceMetadata";
     public string Label => "Update Resource Metadata";
@@ -162,6 +165,22 @@ public class UpdateResourceMetadataTool(IRepositoryApi workspaceApi) : IResolver
             {
                 throw new InvalidOperationException(
                     $"Failed to update metadata for ResourceVersion '{versionId}': {string.Join(", ", updateResult.Errors.Select(e => e.Message))}");
+            }
+
+            // Sync updated metadata into ExecutionEntityStore (Identity Map sync)
+            if (entityStore != null)
+            {
+                var existingProps = entityStore.GetProperties("Resource", targetGuid.Value)
+                                    ?? entityStore.GetProperties("Resource", versionId);
+                if (existingProps != null)
+                {
+                    existingProps["Metadata"] = jsonDoc?.RootElement.GetRawText() ?? string.Empty;
+                    entityStore.SetProperties("Resource", targetGuid.Value, existingProps);
+                    if (versionId != targetGuid.Value)
+                    {
+                        entityStore.SetProperties("Resource", versionId, existingProps);
+                    }
+                }
             }
 
             updatedCount++;

@@ -55,7 +55,14 @@ class PipelineConsumer:
 
     def start(self):
         """Start consuming. Blocking call."""
+        print(f"\n[RabbitMQ] ===================================================", flush=True)
+        print(f"[RabbitMQ] [*] Pipeline Consumer started successfully!", flush=True)
+        print(f"[RabbitMQ] [*] Broker: {self.host}:{self.port} (vhost: '{RABBITMQ_VHOST}')", flush=True)
+        print(f"[RabbitMQ] [*] Listening on queue: '{self.queue_tasks}'", flush=True)
+        print(f"[RabbitMQ] [*] Results queue: '{QUEUE_RESULTS}', Progress queue: '{QUEUE_PROGRESS}'", flush=True)
+        print(f"[RabbitMQ] ===================================================\n", flush=True)
         logger.info(f"[*] Listening on queue '{self.queue_tasks}' for agent '{self.agent_id}'. Press Ctrl+C to stop.")
+
         self._channel.basic_consume(
             queue=self.queue_tasks,
             on_message_callback=self._on_message,
@@ -65,8 +72,12 @@ class PipelineConsumer:
     def _on_message(self, ch, method, properties, body):
         """Callback when receiving a message from RabbitMQ."""
         task = None
+        print(f"\n[RabbitMQ] >>> [MESSAGE RECEIVED] StageTaskMessage arrived (tag={method.delivery_tag}, {len(body)} bytes)!", flush=True)
         try:
             task = StageTaskMessage.model_validate_json(body)
+            print(f"[RabbitMQ]     Stage Execution ID: {task.stage_execution_id}", flush=True)
+            print(f"[RabbitMQ]     Pipeline Execution ID: {task.pipeline_execution_id}", flush=True)
+            print(f"[RabbitMQ]     Executor: {task.executor} | Steps: {len(task.steps)}", flush=True)
             logger.info(
                 f"--- Received task: {task.stage_execution_id} | "
                 f"executor={task.executor} | steps={len(task.steps)} ---"
@@ -80,8 +91,10 @@ class PipelineConsumer:
                     step_execution_id=step_id,
                     status=status
                 )
+                print(f"[RabbitMQ]     [Progress] Step {step_id} -> {status}", flush=True)
                 self._send_progress(msg)
 
+            print(f"[RabbitMQ]     Dispatching to executor '{task.executor}'...", flush=True)
             result = executor.execute(task=task, progress_callback=_on_step_progress)
 
             # Build per-step result DTOs
@@ -96,6 +109,7 @@ class PipelineConsumer:
                 for sr in result.step_results
             ] if result.step_results else []
 
+            print(f"[RabbitMQ]     Stage execution finished (succeeded={result.succeeded}). Sending result to '{QUEUE_RESULTS}'...", flush=True)
             self._send_result(StageResultMessage(
                 stage_execution_id=task.stage_execution_id,
                 succeeded=result.succeeded,
@@ -105,23 +119,31 @@ class PipelineConsumer:
             ))
 
             ch.basic_ack(delivery_tag=method.delivery_tag)
+            print(f"[RabbitMQ] <<< [ACKED] Delivery tag {method.delivery_tag} acknowledged successfully.\n", flush=True)
             logger.info(f"--- Completed: {task.stage_execution_id} | succeeded={result.succeeded} ---")
 
         except Exception as e:
             stage_id = task.stage_execution_id if task else "unknown"
+            print(f"[RabbitMQ] [ERROR] Failed to process task {stage_id}: {e}", flush=True)
             logger.exception(f"Failed to process task {stage_id}: {e}")
 
             if task:
-                self._send_result(StageResultMessage(
-                    stage_execution_id=task.stage_execution_id,
-                    succeeded=False,
-                    log=None,
-                    error_message=str(e),
-                    step_results=[],
-                    spawned_instances=[]
-                ))
+                try:
+                    self._send_result(StageResultMessage(
+                        stage_execution_id=task.stage_execution_id,
+                        succeeded=False,
+                        log=None,
+                        error_message=str(e),
+                        step_results=[]
+                    ))
+                    print(f"[RabbitMQ] [ERROR] Reported failure result back to '{QUEUE_RESULTS}' for stage {stage_id}.", flush=True)
+                except Exception as send_err:
+                    print(f"[RabbitMQ] [CRITICAL] Could not send error result: {send_err}", flush=True)
 
-            ch.basic_ack(delivery_tag=method.delivery_tag)
+            try:
+                ch.basic_ack(delivery_tag=method.delivery_tag)
+            except Exception:
+                pass
 
     def _send_progress(self, msg: StepProgressMessage):
         """Send StepProgressMessage to 'step_progress' queue."""

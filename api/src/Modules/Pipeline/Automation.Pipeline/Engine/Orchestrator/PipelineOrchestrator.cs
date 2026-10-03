@@ -2,6 +2,7 @@ using System.Text.Json;
 using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
+using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Engine.DataResolver;
 using Automation.Pipeline.Engine.ExecPlanner;
 using Automation.Pipeline.Engine.Models;
@@ -24,10 +25,11 @@ public class PipelineOrchestrator(
     RunnerSegmentDispatcher runnerDispatcher,
     ForEachDispatcher forEachDispatcher,
     SubPipelineDispatcher subPipelineDispatcher,
-    IToolRegistry toolRegistry,
-    IHubContext<PipelineExecutionHub>? hubContext,
-    ILogger<PipelineOrchestrator> logger,
-    DataResolver.IPipelineGraphProvider? graphProvider = null
+    IToolRegistry? toolRegistry = null,
+    IHubContext<PipelineExecutionHub>? hubContext = null,
+    ILogger<PipelineOrchestrator>? logger = null,
+    DataResolver.IPipelineGraphProvider? graphProvider = null,
+    Engine.EntityStore.IExecutionEntityStore? entityStore = null
 ) : IPipelineOrchestrator
 {
     public async Task<Result<PipelineExecution>> ExecuteOrResumeAsync(
@@ -120,6 +122,21 @@ public class PipelineOrchestrator(
         foreach (var (k, v) in mergedStartInputs)
         {
             await memoryStore.SetStartInputAsync(execution.Id, k, v, ct);
+        }
+
+        // 2b. Auto-scan and batch prefetch any Resource entity references in Start Inputs into ExecutionEntityStore
+        if (entityStore != null && mergedStartInputs.Count > 0)
+        {
+            var startGuids = new List<Guid>();
+            foreach (var (_, val) in mergedStartInputs)
+            {
+                CollectResourceGuids(val, startGuids);
+            }
+
+            if (startGuids.Count > 0)
+            {
+                await entityStore.PrefetchResourcesAsync(startGuids, ct);
+            }
         }
 
         // 3. Initialize Pipeline Variables into Memory Store (Execution Context) only when starting execution
@@ -502,5 +519,72 @@ public class PipelineOrchestrator(
         };
 
         return JsonDocument.Parse(JsonSerializer.Serialize(fullState));
+    }
+
+    private static void CollectResourceGuids(object? val, List<Guid> outGuids)
+    {
+        if (val == null) return;
+
+        if (val is JsonElement jsonElem)
+        {
+            if (jsonElem.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in jsonElem.EnumerateArray())
+                {
+                    CollectResourceGuids(item, outGuids);
+                }
+                return;
+            }
+
+            var (_, parsedGuid, isValid) = EntityRefHelper.Parse(jsonElem);
+            if (isValid && parsedGuid != Guid.Empty)
+            {
+                outGuids.Add(parsedGuid);
+            }
+            return;
+        }
+
+        if (val is string str)
+        {
+            var trimmed = str.Trim();
+            if (trimmed.StartsWith('[') && trimmed.EndsWith(']'))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(trimmed);
+                    if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in doc.RootElement.EnumerateArray())
+                        {
+                            CollectResourceGuids(item.Clone(), outGuids);
+                        }
+                        return;
+                    }
+                }
+                catch { }
+            }
+
+            var (_, parsedGuid, isValid) = EntityRefHelper.Parse(str);
+            if (isValid && parsedGuid != Guid.Empty)
+            {
+                outGuids.Add(parsedGuid);
+            }
+            return;
+        }
+
+        if (val is System.Collections.IEnumerable enumerable && val is not System.Collections.IDictionary)
+        {
+            foreach (var item in enumerable)
+            {
+                CollectResourceGuids(item, outGuids);
+            }
+            return;
+        }
+
+        var (_, pGuid, isV) = EntityRefHelper.Parse(val);
+        if (isV && pGuid != Guid.Empty)
+        {
+            outGuids.Add(pGuid);
+        }
     }
 }
