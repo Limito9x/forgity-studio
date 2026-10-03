@@ -35,10 +35,10 @@ public class GetRepositoryInfoTool(
             Id = "Repository",
             Label = "Repository",
             PrimitiveType = PinPrimitiveType.EntityRef,
-            EntityTarget = "Workspace",
+            EntityTarget = "Repository",
             Cardinality = PinCardinality.Single,
             IsRequired = true,
-            Metadata = """{"type": "entity-select", "properties": {"entity": "Workspace"}}"""
+            Metadata = """{"type": "entity-select", "properties": {"entity": "Repository"}}"""
         }
     ];
 

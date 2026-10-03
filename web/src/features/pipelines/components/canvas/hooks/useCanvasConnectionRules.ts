@@ -4,6 +4,8 @@ import { addEdge, MarkerType } from "@xyflow/react";
 import type { Connection, Edge, Node } from "@xyflow/react";
 import { toast } from "sonner";
 import { isExecHandle, isExecEdge } from "./canvasUtils";
+import { isExecPin } from "../nodes/types";
+import { getStructPins } from "../constants/structPins";
 
 interface UseCanvasConnectionRulesArgs {
   nodes: Node[];
@@ -48,17 +50,11 @@ export function useCanvasConnectionRules({
         );
       }
 
-      // 3. Exec Flow between child nodes
+      // 3. Exec Flow between nodes (can cross scopes freely)
       const isSourceExec = isExecHandle(connection.sourceHandle);
       const isTargetExec = isExecHandle(connection.targetHandle);
       if (isSourceExec || isTargetExec) {
         if (!isSourceExec || !isTargetExec) return false;
-
-        // Exec wires CANNOT cross scopes: both nodes must belong to the exact same parent stage
-        if (sourceNode.parentId !== targetNode.parentId) {
-          return false;
-        }
-
         return true;
       }
 
@@ -134,11 +130,14 @@ export function useCanvasConnectionRules({
 
           let inferredStructType = "Resource";
           if (pinText.includes("inspection")) inferredStructType = "Inspection";
-          else if (pinText.includes("workspace")) inferredStructType = "Workspace";
+          else if (pinText.includes("repository") || pinText.includes("workspace")) inferredStructType = "Repository";
+          else if (pinText.includes("taggedasset")) inferredStructType = "TaggedAsset";
           else if (pinText.includes("resource")) inferredStructType = "Resource";
           else if (sourcePin?.metadata && typeof sourcePin.metadata === "string" && sourcePin.metadata.trim()) {
             inferredStructType = sourcePin.metadata.trim();
           }
+
+          const dynamicPins = getStructPins(inferredStructType);
 
           setNodes((nds) =>
             nds.map((n) => {
@@ -146,11 +145,15 @@ export function useCanvasConnectionRules({
               const nodeData = n.data as any;
               const currentConfig = nodeData.configValues || {};
               const updatedConfig = { ...currentConfig, StructType: inferredStructType };
+              const execOutputs = (nodeData.outputs || []).filter(isExecPin);
+              const nextOutputs = dynamicPins.length > 0 ? [...execOutputs, ...dynamicPins] : nodeData.outputs;
+
               return {
                 ...n,
                 data: {
                   ...n.data,
                   configValues: updatedConfig,
+                  outputs: nextOutputs,
                 },
               };
             })

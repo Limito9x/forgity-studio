@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
-export type DialogSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
+export type DialogSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | 'full';
 
 export interface BaseDialogProps {
     open: boolean;
@@ -27,6 +27,8 @@ const sizeClasses: Record<DialogSize, string> = {
     lg: 'sm:max-w-lg',
     xl: 'sm:max-w-xl',
     '2xl': 'sm:max-w-2xl',
+    '3xl': 'sm:max-w-3xl',
+    '4xl': 'sm:max-w-4xl',
     full: 'sm:max-w-[95vw] w-full',
 };
 

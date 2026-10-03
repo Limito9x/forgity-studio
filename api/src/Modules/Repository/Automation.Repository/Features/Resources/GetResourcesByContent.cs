@@ -61,7 +61,7 @@ public class GetResourcesByContentHandler(RepositoryDbContext db)
                 WorkspaceName: r.Repository?.Name ?? string.Empty,
                 DisplayName: r.DisplayName,
                 RelativePath: r.RelativePath,
-                PlatformExtensionId: r.PlatformExtensionId,
+                Extension: r.Extension,
                 LatestVersionNo: latest?.VersionNo ?? 0,
                 LatestSizeBytes: latest?.SizeBytes ?? 0,
                 VersionCount: r.Versions.Count,

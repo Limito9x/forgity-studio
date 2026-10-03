@@ -151,13 +151,15 @@ export function EntityPinSelect({
   const options = useMemo(() => {
     switch (normType) {
       case "workspace":
+      case "repository":
         return workspaceOptions;
-      case "agent": {
+      case "agent":
+      case "runner": {
         const list = Array.isArray(agentsData)
           ? agentsData
           : (agentsData as any)?.items || [];
         return list.map((a: any) => ({
-          label: a.name || a.id,
+          label: a.name || a.machineKey || a.id,
           value: a.id,
         }));
       }
@@ -361,8 +363,8 @@ export function EntityPinSelect({
   }
 
   const isLoading =
-    (normType === "workspace" && isWorkspacesLoading) ||
-    (normType === "agent" && isAgentsLoading) ||
+    ((normType === "workspace" || normType === "repository") && isWorkspacesLoading) ||
+    ((normType === "agent" || normType === "runner") && isAgentsLoading) ||
     (normType === "tag" && isTagsLoading) ||
     (isContentTypeRef && isContentTypesLoading);
 

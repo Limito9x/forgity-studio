@@ -277,7 +277,6 @@ export function PipelineCanvas({ projectId, graph }: PipelineCanvasProps) {
               pipelineId={graph.id}
               node={draft.selectedNode}
               triggerType={graph.triggerType}
-              triggerWorkspaceId={graph.triggerWorkspaceId}
               triggerConfig={graph.triggerConfig}
               onClose={() => draft.setSelectedNodeId(null)}
               onUpdateConfig={draft.handleUpdateConfig}

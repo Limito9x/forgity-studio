@@ -8,10 +8,12 @@ export interface TagsInputProps extends Omit<React.InputHTMLAttributes<HTMLInput
   onChange?: (value: string[]) => void
   placeholder?: string
   maxTags?: number
+  transformTag?: (tag: string) => string
+  renderTagLabel?: (tag: string) => React.ReactNode
 }
 
 export const TagsInput = React.forwardRef<HTMLInputElement, TagsInputProps>(
-  ({ className, value = [], onChange, placeholder, maxTags, disabled, ...props }, ref) => {
+  ({ className, value = [], onChange, placeholder, maxTags, disabled, transformTag, renderTagLabel, ...props }, ref) => {
     const [inputValue, setInputValue] = React.useState("")
     const inputRef = React.useRef<HTMLInputElement>(null)
 
@@ -21,7 +23,10 @@ export const TagsInput = React.forwardRef<HTMLInputElement, TagsInputProps>(
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Enter" || e.key === ",") {
         e.preventDefault()
-        const newTag = inputValue.trim()
+        let newTag = inputValue.trim()
+        if (transformTag) {
+          newTag = transformTag(newTag)
+        }
         if (newTag && !value.includes(newTag)) {
           if (maxTags === undefined || value.length < maxTags) {
             onChange?.([...value, newTag])
@@ -51,7 +56,7 @@ export const TagsInput = React.forwardRef<HTMLInputElement, TagsInputProps>(
       >
         {value.map((tag) => (
           <Badge key={tag} variant="secondary" className="gap-1 px-1.5 py-0.5 text-xs font-normal">
-            {tag}
+            {renderTagLabel ? renderTagLabel(tag) : tag}
             <button
               type="button"
               className="ml-1 rounded-full outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"

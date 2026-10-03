@@ -15,7 +15,5 @@ export interface CreatePipelineCommand {
    */
   name: string;
   triggerType?: PipelineTriggerType;
-  /** @nullable */
-  triggerWorkspaceId?: string | null;
   triggerConfig?: unknown;
 }

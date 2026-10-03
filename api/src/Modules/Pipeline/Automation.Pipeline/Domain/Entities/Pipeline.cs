@@ -9,7 +9,6 @@ public class Pipeline : BaseEntity
     public Guid ProjectId { get; set; }
     public string Name { get; set; } = string.Empty;
     public PipelineTriggerType TriggerType { get; set; } = PipelineTriggerType.Manual;
-    public Guid? TriggerWorkspaceId { get; set; }
     public JsonDocument? TriggerConfig { get; set; }
 
     // Unified Parameter Collection (JSONB)
@@ -26,21 +25,18 @@ public class Pipeline : BaseEntity
         Guid projectId,
         string name,
         PipelineTriggerType triggerType = PipelineTriggerType.Manual,
-        Guid? triggerWorkspaceId = null,
         JsonDocument? triggerConfig = null
     )
     {
         ProjectId = projectId;
         Name = name;
         TriggerType = triggerType;
-        TriggerWorkspaceId = triggerWorkspaceId;
         TriggerConfig = triggerConfig;
     }
 
-    public void UpdateTrigger(PipelineTriggerType triggerType, Guid? triggerWorkspaceId = null, JsonDocument? triggerConfig = null)
+    public void UpdateTrigger(PipelineTriggerType triggerType, JsonDocument? triggerConfig = null)
     {
         TriggerType = triggerType;
-        TriggerWorkspaceId = triggerWorkspaceId;
         TriggerConfig = triggerConfig;
     }
 

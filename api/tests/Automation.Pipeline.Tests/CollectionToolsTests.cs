@@ -8,7 +8,7 @@ namespace Automation.Pipeline.Tests;
 
 public class CollectionToolsTests
 {
-    private readonly ToolExecutionContext _context = new(Guid.NewGuid(), Guid.NewGuid(), Guid.Empty, CancellationToken.None);
+    private readonly ToolExecutionContext _context = new(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
     [Fact]
     public async Task GetMapKeysTool_ShouldExtractAllKeys()

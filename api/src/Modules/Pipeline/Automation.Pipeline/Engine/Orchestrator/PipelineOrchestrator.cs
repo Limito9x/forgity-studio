@@ -21,7 +21,7 @@ public class PipelineOrchestrator(
     IExecutionMemoryStore memoryStore,
     IExecutionStateStore stateStore,
     DotNetSegmentDispatcher dotNetDispatcher,
-    AgentSegmentDispatcher agentDispatcher,
+    RunnerSegmentDispatcher runnerDispatcher,
     ForEachDispatcher forEachDispatcher,
     SubPipelineDispatcher subPipelineDispatcher,
     IToolRegistry toolRegistry,
@@ -171,13 +171,51 @@ public class PipelineOrchestrator(
                 var cycleError = $"Pipeline contains cycle involving nodes: {string.Join(", ", plan.CycleNodeIds)}";
                 execution.MarkFailed(cycleError, execution.ExecutionState ?? JsonDocument.Parse("{}"));
                 await db.SaveChangesAsync(ct);
+
+                if (hubContext != null)
+                {
+                    await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
+                        "PipelineExecutionFinished",
+                        new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = cycleError, executionState = execution.ExecutionState },
+                        ct
+                    );
+                }
+
                 return Result.Fail<PipelineExecution>(cycleError);
             }
 
             if (plan.UnresolvedPins.Count > 0)
             {
+                var unresolvedMsg = $"Pipeline execution has {plan.UnresolvedPins.Count} unresolved required pin(s): {string.Join(", ", plan.UnresolvedPins.Select(p => $"{p.NodeLabel}.{p.PinLabel}"))}";
+                execution.MarkFailed(unresolvedMsg, execution.ExecutionState ?? JsonDocument.Parse("{}"));
+                await db.SaveChangesAsync(ct);
+
+                if (hubContext != null)
+                {
+                    await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
+                        "PipelineExecutionFinished",
+                        new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = unresolvedMsg, executionState = execution.ExecutionState },
+                        ct
+                    );
+                }
+
                 return Result.Fail<PipelineExecution>(new UnresolvedPinsError(plan.UnresolvedPins));
             }
+
+            var generalPlanError = "Pipeline execution plan is invalid.";
+            execution.MarkFailed(generalPlanError, execution.ExecutionState ?? JsonDocument.Parse("{}"));
+            await db.SaveChangesAsync(ct);
+
+            if (hubContext != null)
+            {
+                await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
+                    "PipelineExecutionFinished",
+                    new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = generalPlanError, executionState = execution.ExecutionState },
+                    ct
+                );
+            }
+
+            return Result.Fail<PipelineExecution>(generalPlanError);
         }
 
         if (execution.Status == ExecutionStatus.Pending)
@@ -277,8 +315,8 @@ public class PipelineOrchestrator(
             }
             else
             {
-                // Agent Segment (Blender / Unreal / Python)
-                var agentRes = await agentDispatcher.DispatchAsync(
+                // Worker Segment on Runner (Blender / Unreal / Python)
+                var agentRes = await runnerDispatcher.DispatchAsync(
                     execution,
                     segment,
                     segIdx + 1,
@@ -417,9 +455,9 @@ public class PipelineOrchestrator(
         {
             contextDict["projectId"] = execution.Pipeline.ProjectId;
             contextDict["triggerType"] = execution.Pipeline.TriggerType.ToString();
-            if (execution.Pipeline.TriggerWorkspaceId.HasValue)
+            if (execution.Pipeline.TriggerConfig != null)
             {
-                contextDict["triggerWorkspaceId"] = execution.Pipeline.TriggerWorkspaceId.Value;
+                contextDict["triggerConfig"] = execution.Pipeline.TriggerConfig;
             }
         }
 

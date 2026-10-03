@@ -52,7 +52,7 @@ export const CompareRepositoryResourcesResponse = /*#__PURE__*/ zod.object({
   "name": /*#__PURE__*/ zod.string(),
   "localHash": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "localFileSize": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
-  "platformExtensionId": /*#__PURE__*/ zod.uuid(),
+  "extension": /*#__PURE__*/ zod.string(),
   "remoteVersion": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "versionNo": /*#__PURE__*/ zod.int(),
@@ -70,7 +70,20 @@ export const CompareRepositoryResourcesResponse = /*#__PURE__*/ zod.object({
   "tagDescription": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "targetSubPath": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "metadataJson": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
-}))))
+})))),
+  "locations": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "resourceVersionId": /*#__PURE__*/ zod.uuid(),
+  "repositoryRunnerId": /*#__PURE__*/ zod.uuid(),
+  "relativePath": /*#__PURE__*/ zod.string(),
+  "isOrigin": /*#__PURE__*/ zod.boolean(),
+  "discoveredAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "machineKey": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "runnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "rootPath": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "workspaceAgentId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid())
+})))
 }))
 })),
   "modified": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
@@ -78,7 +91,7 @@ export const CompareRepositoryResourcesResponse = /*#__PURE__*/ zod.object({
   "name": /*#__PURE__*/ zod.string(),
   "localHash": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "localFileSize": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
-  "platformExtensionId": /*#__PURE__*/ zod.uuid(),
+  "extension": /*#__PURE__*/ zod.string(),
   "remoteVersion": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "versionNo": /*#__PURE__*/ zod.int(),
@@ -96,7 +109,20 @@ export const CompareRepositoryResourcesResponse = /*#__PURE__*/ zod.object({
   "tagDescription": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "targetSubPath": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "metadataJson": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
-}))))
+})))),
+  "locations": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "resourceVersionId": /*#__PURE__*/ zod.uuid(),
+  "repositoryRunnerId": /*#__PURE__*/ zod.uuid(),
+  "relativePath": /*#__PURE__*/ zod.string(),
+  "isOrigin": /*#__PURE__*/ zod.boolean(),
+  "discoveredAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "machineKey": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "runnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "rootPath": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "workspaceAgentId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid())
+})))
 }))
 })),
   "deleted": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
@@ -104,7 +130,7 @@ export const CompareRepositoryResourcesResponse = /*#__PURE__*/ zod.object({
   "name": /*#__PURE__*/ zod.string(),
   "localHash": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "localFileSize": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
-  "platformExtensionId": /*#__PURE__*/ zod.uuid(),
+  "extension": /*#__PURE__*/ zod.string(),
   "remoteVersion": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "versionNo": /*#__PURE__*/ zod.int(),
@@ -122,7 +148,20 @@ export const CompareRepositoryResourcesResponse = /*#__PURE__*/ zod.object({
   "tagDescription": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "targetSubPath": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "metadataJson": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
-}))))
+})))),
+  "locations": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "resourceVersionId": /*#__PURE__*/ zod.uuid(),
+  "repositoryRunnerId": /*#__PURE__*/ zod.uuid(),
+  "relativePath": /*#__PURE__*/ zod.string(),
+  "isOrigin": /*#__PURE__*/ zod.boolean(),
+  "discoveredAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "machineKey": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "runnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "rootPath": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "workspaceAgentId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid())
+})))
 }))
 })),
   "missing": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
@@ -130,7 +169,7 @@ export const CompareRepositoryResourcesResponse = /*#__PURE__*/ zod.object({
   "name": /*#__PURE__*/ zod.string(),
   "localHash": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "localFileSize": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
-  "platformExtensionId": /*#__PURE__*/ zod.uuid(),
+  "extension": /*#__PURE__*/ zod.string(),
   "remoteVersion": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "versionNo": /*#__PURE__*/ zod.int(),
@@ -148,7 +187,20 @@ export const CompareRepositoryResourcesResponse = /*#__PURE__*/ zod.object({
   "tagDescription": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "targetSubPath": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "metadataJson": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
-}))))
+})))),
+  "locations": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "resourceVersionId": /*#__PURE__*/ zod.uuid(),
+  "repositoryRunnerId": /*#__PURE__*/ zod.uuid(),
+  "relativePath": /*#__PURE__*/ zod.string(),
+  "isOrigin": /*#__PURE__*/ zod.boolean(),
+  "discoveredAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "machineKey": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "runnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "rootPath": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "workspaceAgentId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid())
+})))
 }))
 })),
   "workspaceAgentId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid())

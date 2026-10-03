@@ -5,7 +5,9 @@ using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Engine.DataResolver;
 using Automation.Pipeline.Engine.DataResolver.Resolvers;
 using Automation.Pipeline.Engine.Models;
+using Automation.Pipeline.Hubs;
 using Automation.Pipeline.Infrastructure.Persistence;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -17,7 +19,8 @@ public class ForEachDispatcher(
     IExecutionMemoryStore memoryStore,
     IExecutionStateStore stateStore,
     DotNetSegmentDispatcher dotNetDispatcher,
-    ILogger<ForEachDispatcher> logger
+    ILogger<ForEachDispatcher> logger,
+    IHubContext<PipelineExecutionHub>? hubContext = null
 )
 {
     public async Task<Result> DispatchAsync(
@@ -31,6 +34,9 @@ public class ForEachDispatcher(
         var step = segment.Steps.FirstOrDefault();
         if (step == null) return Result.Ok();
 
+        // 0. Mark ForEach node as Running and broadcast
+        await RecordNodeRunningAsync(execution.Id, execution.PipelineId, step.NodeId, ct);
+
         // 1. Pull the input Array on-demand
         var arrayVal = await pinResolver.ResolvePinAsync(execution.Id, step.NodeId, "Array", parentScope, ct)
                        ?? await pinResolver.ResolvePinAsync(execution.Id, step.NodeId, "Collection", parentScope, ct)
@@ -39,6 +45,12 @@ public class ForEachDispatcher(
         var items = ExtractItemsAsList(arrayVal);
         logger.LogInformation("ForEach Node [{NodeLabel}] ({NodeId}) pulled {Count} items to iterate.",
             step.Label, step.NodeId, items.Count);
+
+        if (items.Count == 0)
+        {
+            logger.LogWarning("ForEach Node [{NodeLabel}] ({NodeId}): Input Array is empty (0 items). Loop body will be skipped.",
+                step.Label, step.NodeId);
+        }
 
         var resultList = new List<object?>();
         var resultMap = new Dictionary<string, object?>();
@@ -64,6 +76,8 @@ public class ForEachDispatcher(
                         var segRes = await dotNetDispatcher.DispatchAsync(execution, bodySeg, iterScope, orchestrator, ct);
                         if (segRes.IsFailed)
                         {
+                            var errMsg = segRes.Errors.FirstOrDefault()?.Message ?? "Step in ForEach body failed";
+                            await RecordNodeFailedAsync(execution.Id, execution.PipelineId, step.NodeId, errMsg, ct);
                             return segRes;
                         }
                     }
@@ -113,10 +127,96 @@ public class ForEachDispatcher(
 
         await memoryStore.SetNodeAllOutputsAsync(execution.Id, step.NodeId, outputs, parentScope, ct);
 
-        // 4. Mark node success in state store
-        await stateStore.SetNodeStatusAsync(execution.Id, step.NodeId, "succeeded", ct);
-        await stateStore.SetNodeOutputsAsync(execution.Id, step.NodeId, outputs, ct);
+        // 4. Mark node success in state store and broadcast
+        await RecordNodeSuccessAsync(execution.Id, execution.PipelineId, step.NodeId, outputs, ct);
         return Result.Ok();
+    }
+
+    private async Task RecordNodeRunningAsync(Guid executionId, Guid pipelineId, Guid nodeId, CancellationToken ct)
+    {
+        await stateStore.SetNodeStatusAsync(executionId, nodeId, "running", ct);
+
+        if (hubContext != null)
+        {
+            try
+            {
+                await hubContext.Clients.Group($"pipeline_{pipelineId}").SendAsync(
+                    "PipelineNodeExecutionUpdated",
+                    new
+                    {
+                        executionId,
+                        pipelineId,
+                        nodeId,
+                        status = "running",
+                        startedAt = DateTimeOffset.UtcNow
+                    },
+                    ct
+                );
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to broadcast PipelineNodeExecutionUpdated via SignalR for {NodeId}", nodeId);
+            }
+        }
+    }
+
+    private async Task RecordNodeSuccessAsync(Guid executionId, Guid pipelineId, Guid nodeId, Dictionary<string, object?> outputs, CancellationToken ct)
+    {
+        await stateStore.SetNodeStatusAsync(executionId, nodeId, "succeeded", ct);
+        await stateStore.SetNodeOutputsAsync(executionId, nodeId, outputs, ct);
+
+        if (hubContext != null)
+        {
+            try
+            {
+                await hubContext.Clients.Group($"pipeline_{pipelineId}").SendAsync(
+                    "PipelineNodeExecutionUpdated",
+                    new
+                    {
+                        executionId,
+                        pipelineId,
+                        nodeId,
+                        status = "succeeded",
+                        finishedAt = DateTimeOffset.UtcNow,
+                        outputs
+                    },
+                    ct
+                );
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to broadcast PipelineNodeExecutionUpdated via SignalR for {NodeId}", nodeId);
+            }
+        }
+    }
+
+    private async Task RecordNodeFailedAsync(Guid executionId, Guid pipelineId, Guid nodeId, string error, CancellationToken ct)
+    {
+        await stateStore.SetNodeStatusAsync(executionId, nodeId, "failed", ct);
+
+        if (hubContext != null)
+        {
+            try
+            {
+                await hubContext.Clients.Group($"pipeline_{pipelineId}").SendAsync(
+                    "PipelineNodeExecutionUpdated",
+                    new
+                    {
+                        executionId,
+                        pipelineId,
+                        nodeId,
+                        status = "failed",
+                        finishedAt = DateTimeOffset.UtcNow,
+                        error
+                    },
+                    ct
+                );
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to broadcast PipelineNodeExecutionUpdated via SignalR for {NodeId}", nodeId);
+            }
+        }
     }
 
     private static List<object?> ExtractItemsAsList(object? raw)

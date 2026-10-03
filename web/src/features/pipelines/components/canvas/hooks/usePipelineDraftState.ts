@@ -23,6 +23,7 @@ import {
   expandStageBoundsIfNeeded,
   expandStageLiveWhileDragging,
 } from "./canvasUtils";
+import { getStructPins, getStartNodeEventTriggerPins } from "../constants/structPins";
 
 export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
   // 1. Initial nodes mapping from DTO (Unified Nodes architecture)
@@ -99,6 +100,31 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
           } as CapsuleNodeData,
         });
       } else {
+        let initialOutputs = n.outputs || [];
+        if (refIdStr === "breakstruct") {
+          const structType = n.configValues?.["StructType"] || "Resource";
+          const dynamicPins = getStructPins(structType);
+          if (dynamicPins.length > 0) {
+            const execOutputs = initialOutputs.filter(isExecPin);
+            initialOutputs = [...execOutputs, ...dynamicPins];
+          }
+        } else if (isStart) {
+          const isEventTrigger =
+            graph.triggerType === 1 ||
+            graph.triggerType === 2 ||
+            (graph.triggerType as unknown) === "OnResourceCreated" ||
+            (graph.triggerType as unknown) === "OnResourceVersionUpdated";
+
+          if (isEventTrigger) {
+            const hasResources = initialOutputs.some((p: any) => p.id === "Resources");
+            if (!hasResources) {
+              const execOutputs = initialOutputs.filter(isExecPin);
+              const otherOutputs = initialOutputs.filter((p: any) => !isExecPin(p));
+              initialOutputs = [...execOutputs, ...getStartNodeEventTriggerPins(), ...otherOutputs];
+            }
+          }
+        }
+
         regularNodes.push({
           id: n.id,
           type: "pipelineNode",
@@ -112,7 +138,7 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
             category: n.category,
             executor: n.executor,
             inputs: n.inputs || [],
-            outputs: n.outputs || [],
+            outputs: initialOutputs,
             configValues: n.configValues || {},
             pipelineId: graph.id,
           } as CustomPipelineNodeData,
@@ -178,6 +204,12 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
         (p) => p.kind === 2 || (p.kind as unknown) === "Output",
       );
 
+      const isEventTrigger =
+        graph.triggerType === 1 ||
+        graph.triggerType === 2 ||
+        (graph.triggerType as unknown) === "OnResourceCreated" ||
+        (graph.triggerType as unknown) === "OnResourceVersionUpdated";
+
       setNodes((currentNodes) => {
         let hasChanges = false;
         const updatedNodes = currentNodes.map((node) => {
@@ -197,11 +229,8 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
             refIdStr === "endexecute";
 
           if (isStart) {
-            // Keep Exec out and context pins (Resource, Workspace)
-            const systemPins = (nodeData.outputs || []).filter(
-              (p) =>
-                isExecPin(p) || p.id === "Resource" || p.id === "Workspace",
-            );
+            // Keep Exec pin
+            const systemPins = (nodeData.outputs || []).filter(isExecPin);
             if (systemPins.length === 0) {
               systemPins.push({
                 id: "exec_out",
@@ -210,6 +239,9 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
                 isRequired: false,
               });
             }
+
+            // Automatic event trigger outputs (Resources[], Repository, Runner)
+            const eventPins = isEventTrigger ? getStartNodeEventTriggerPins() : [];
 
             const paramPins: PinDefinition[] = inputParams.map((p) => ({
               id: p.key,
@@ -222,8 +254,15 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
               defaultValue: p.defaultValue,
             }));
 
-            const nextOutputs = [...systemPins, ...paramPins];
+            const nextOutputs = [...systemPins, ...eventPins, ...paramPins];
+            const nextLabel = isEventTrigger
+              ? (graph.triggerType === 2 || (graph.triggerType as unknown) === "OnResourceVersionUpdated"
+                  ? "On Resource Version Updated"
+                  : "On Resource Created")
+              : "Start Pipeline";
+
             const isSame =
+              nodeData.label === nextLabel &&
               nodeData.outputs?.length === nextOutputs.length &&
               nodeData.outputs.every(
                 (p, idx) =>
@@ -238,6 +277,7 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
                 ...node,
                 data: {
                   ...nodeData,
+                  label: nextLabel,
                   outputs: nextOutputs,
                 },
               };
@@ -295,7 +335,7 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
         return hasChanges ? updatedNodes : currentNodes;
       });
     },
-    [setNodes],
+    [setNodes, graph.triggerType],
   );
 
   // Parameters state
@@ -308,8 +348,10 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
       const nextParams = graph.parameters as PipelineParameterDto[];
       setParameters(nextParams);
       syncParametersToNodes(nextParams);
+    } else {
+      syncParametersToNodes(parameters);
     }
-  }, [graph.parameters, syncParametersToNodes]);
+  }, [graph.parameters, graph.triggerType, syncParametersToNodes]);
 
   const handleAddParameter = useCallback(
     (param: PipelineParameterDto) => {
@@ -651,11 +693,34 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
           const nodeData = n.data as any;
           const currentConfig = nodeData.configValues || {};
           const updatedConfig = { ...currentConfig, [pinId]: value };
+
+          let nextOutputs = nodeData.outputs;
+          let nextInputs = nodeData.inputs;
+
+          // If BreakStruct struct type is updated, dynamically update output pins
+          if (pinId === "StructType" && String(nodeData.refId || "").toLowerCase() === "breakstruct") {
+            const dynamicPins = getStructPins(String(value));
+            if (dynamicPins.length > 0) {
+              const execOutputs = (nodeData.outputs || []).filter(isExecPin);
+              nextOutputs = [...execOutputs, ...dynamicPins];
+            }
+          }
+          // If MakeStruct struct type is updated, dynamically update input data pins
+          if (pinId === "StructType" && String(nodeData.refId || "").toLowerCase() === "makestruct") {
+            const dynamicPins = getStructPins(String(value));
+            if (dynamicPins.length > 0) {
+              const execInputs = (nodeData.inputs || []).filter(isExecPin);
+              nextInputs = [...execInputs, ...dynamicPins];
+            }
+          }
+
           return {
             ...n,
             data: {
               ...n.data,
               configValues: updatedConfig,
+              outputs: nextOutputs,
+              inputs: nextInputs,
             },
           };
         }),
@@ -700,6 +765,15 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
           }
         : { x: flowCoordinates.x, y: flowCoordinates.y };
 
+      let initialOutputs = (item.outputs as PinDefinition[]) || [];
+      if (item.key?.toLowerCase() === "breakstruct") {
+        const dynamicPins = getStructPins("Resource");
+        if (dynamicPins.length > 0) {
+          const execOutputs = initialOutputs.filter(isExecPin);
+          initialOutputs = [...execOutputs, ...dynamicPins];
+        }
+      }
+
       const newNode: Node = {
         id: newNodeId,
         type: "pipelineNode",
@@ -712,7 +786,7 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
           category: item.category,
           executor: item.executor,
           inputs: (item.inputs as PinDefinition[]) || [],
-          outputs: (item.outputs as PinDefinition[]) || [],
+          outputs: initialOutputs,
           configValues: {},
           pipelineId: graph.id,
         } as CustomPipelineNodeData,

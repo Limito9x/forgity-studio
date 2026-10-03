@@ -68,7 +68,7 @@ public class PipelineOrchestratorTests
         var config = Substitute.For<IConfiguration>();
         var subPipelineDispatcher = new SubPipelineDispatcher(_db, pinResolver, _memoryStore, _stateStore, NullLogger<SubPipelineDispatcher>.Instance);
         var dotNetDispatcher = new DotNetSegmentDispatcher(_db, _toolRegistry, pinResolver, _memoryStore, _stateStore, subPipelineDispatcher, NullLogger<DotNetSegmentDispatcher>.Instance);
-        var agentDispatcher = new AgentSegmentDispatcher(_messageBus, _runnerApi, _assetApi, config, NullLogger<AgentSegmentDispatcher>.Instance);
+        var runnerDispatcher = new RunnerSegmentDispatcher(_messageBus, _runnerApi, _assetApi, config, NullLogger<RunnerSegmentDispatcher>.Instance);
         var forEachDispatcher = new ForEachDispatcher(_db, pinResolver, _memoryStore, _stateStore, dotNetDispatcher, NullLogger<ForEachDispatcher>.Instance);
 
         _orchestrator = new PipelineOrchestrator(
@@ -77,7 +77,7 @@ public class PipelineOrchestratorTests
             _memoryStore,
             _stateStore,
             dotNetDispatcher,
-            agentDispatcher,
+            runnerDispatcher,
             forEachDispatcher,
             subPipelineDispatcher,
             _toolRegistry,
@@ -103,7 +103,7 @@ public class PipelineOrchestratorTests
 
         _db.Pipelines.Add(pipeline);
 
-        var execution = new PipelineExecution(pipeline.Id, Guid.NewGuid());
+        var execution = new PipelineExecution(pipeline.Id);
         _db.PipelineExecutions.Add(execution);
         await _db.SaveChangesAsync();
 
@@ -143,7 +143,7 @@ public class PipelineOrchestratorTests
 
         _db.Pipelines.Add(pipeline);
 
-        var execution = new PipelineExecution(pipeline.Id, Guid.NewGuid());
+        var execution = new PipelineExecution(pipeline.Id);
         _db.PipelineExecutions.Add(execution);
         await _db.SaveChangesAsync();
 
@@ -190,7 +190,7 @@ public class PipelineOrchestratorTests
         var mockEndpoint = Substitute.For<IDestinationEndpoint>();
         _messageBus.EndpointFor(Arg.Any<Uri>()).Returns(mockEndpoint);
 
-        var execution = new PipelineExecution(pipeline.Id, Guid.NewGuid());
+        var execution = new PipelineExecution(pipeline.Id);
         _db.PipelineExecutions.Add(execution);
         await _db.SaveChangesAsync();
 
@@ -245,7 +245,7 @@ public class PipelineOrchestratorTests
         var mockEndpoint = Substitute.For<IDestinationEndpoint>();
         _messageBus.EndpointFor(Arg.Any<Uri>()).Returns(mockEndpoint);
 
-        var execution = new PipelineExecution(pipeline.Id, Guid.NewGuid());
+        var execution = new PipelineExecution(pipeline.Id);
         _db.PipelineExecutions.Add(execution);
         await _db.SaveChangesAsync();
 
@@ -308,7 +308,7 @@ public class PipelineOrchestratorTests
 
         _db.Pipelines.Add(pipeline);
 
-        var execution = new PipelineExecution(pipeline.Id, Guid.NewGuid());
+        var execution = new PipelineExecution(pipeline.Id);
         _db.PipelineExecutions.Add(execution);
         await _db.SaveChangesAsync();
 

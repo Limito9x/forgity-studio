@@ -13,7 +13,7 @@ export interface ResourceDiffItem {
   localHash: string | null;
   /** @nullable */
   localFileSize: number | null;
-  platformExtensionId: string;
+  extension: string;
   /** @nullable */
   remoteVersion: ResourceVersionDto | null;
 }

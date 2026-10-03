@@ -14,8 +14,6 @@ export interface PipelineGraphDto {
   projectId: string;
   name: string;
   triggerType: PipelineTriggerType;
-  /** @nullable */
-  triggerWorkspaceId: string | null;
   nodes: IReadOnlyListOfPipelineNodeGraphDto;
   edges: IReadOnlyListOfPipelineEdgeGraphDto;
   parameters: IReadOnlyListOfPipelineParameterDto;

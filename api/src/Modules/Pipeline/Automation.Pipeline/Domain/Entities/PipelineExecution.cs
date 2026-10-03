@@ -7,7 +7,6 @@ public class PipelineExecution : BaseEntity
 {
     public Guid PipelineId { get; set; }
     public Pipeline Pipeline { get; set; } = null!;
-    public Guid AgentId { get; set; }
     public Guid? ParentExecutionId { get; set; }
     public PipelineExecution? ParentExecution { get; set; }
     public Guid? TriggeredByNodeId { get; set; }
@@ -21,20 +20,13 @@ public class PipelineExecution : BaseEntity
 
     public PipelineExecution() { }
 
-    public PipelineExecution(Guid pipelineId, Guid? parentExecutionId = null, Guid? triggeredByNodeId = null)
+    public PipelineExecution(
+        Guid pipelineId,
+        Guid? parentExecutionId = null,
+        Guid? triggeredByNodeId = null
+    )
     {
         PipelineId = pipelineId;
-        AgentId = Guid.Empty;
-        ParentExecutionId = parentExecutionId;
-        TriggeredByNodeId = triggeredByNodeId;
-        Status = ExecutionStatus.Pending;
-        NextNodeIndex = 0;
-    }
-
-    public PipelineExecution(Guid pipelineId, Guid agentId, Guid? parentExecutionId = null, Guid? triggeredByNodeId = null)
-    {
-        PipelineId = pipelineId;
-        AgentId = agentId;
         ParentExecutionId = parentExecutionId;
         TriggeredByNodeId = triggeredByNodeId;
         Status = ExecutionStatus.Pending;

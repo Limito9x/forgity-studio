@@ -75,7 +75,7 @@ public class ExecutionStateGrpcServiceTests : IDisposable
         pipeline.AddNode(node);
         _db.Pipelines.Add(pipeline);
 
-        var execution = new PipelineExecution(pipeline.Id, Guid.NewGuid());
+        var execution = new PipelineExecution(pipeline.Id);
         _db.PipelineExecutions.Add(execution);
         await _db.SaveChangesAsync();
 
@@ -107,7 +107,7 @@ public class ExecutionStateGrpcServiceTests : IDisposable
         pipeline.AddNode(node);
         _db.Pipelines.Add(pipeline);
 
-        var execution = new PipelineExecution(pipeline.Id, Guid.NewGuid());
+        var execution = new PipelineExecution(pipeline.Id);
         _db.PipelineExecutions.Add(execution);
         await _db.SaveChangesAsync();
 

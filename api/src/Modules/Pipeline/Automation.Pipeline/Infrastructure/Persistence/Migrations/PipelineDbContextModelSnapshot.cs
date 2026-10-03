@@ -144,9 +144,6 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.Property<Guid?>("TriggerWorkspaceId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -219,9 +216,6 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AgentId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
@@ -302,7 +296,8 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Kind")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.Property<JsonDocument>("Metadata")
                         .HasColumnType("jsonb");

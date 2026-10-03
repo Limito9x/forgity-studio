@@ -8,7 +8,5 @@ import type { PipelineTriggerType } from "./pipelineTriggerType";
 
 export interface UpdatePipelineTriggerRequest {
   triggerType: PipelineTriggerType;
-  /** @nullable */
-  triggerWorkspaceId: string | null;
   triggerConfig?: unknown;
 }

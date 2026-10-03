@@ -41,7 +41,8 @@ public class GetRepositoriesHandler(RepositoryDbContext db)
                 x.Description,
                 x.RepositoryRunners.Count,
                 x.Resources.Count,
-                x.CreatedAt
+                x.CreatedAt,
+                x.SupportedExtensions
             ))
             .ToListAsync(ct);
 

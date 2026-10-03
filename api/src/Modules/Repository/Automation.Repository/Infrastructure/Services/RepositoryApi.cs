@@ -1,8 +1,8 @@
-using Automation.Tag.Contracts;
-using Automation.Tag.Contracts.Dtos;
 using Automation.Repository.Contracts;
 using Automation.Repository.Contracts.Extensions;
 using Automation.Repository.Infrastructure.Persistence;
+using Automation.Tag.Contracts;
+using Automation.Tag.Contracts.Dtos;
 using FluentResults;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
@@ -224,6 +224,56 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
         return Result.Ok(repoRunner.RootPath);
     }
 
+    public async Task<Result<Dictionary<string, Guid>>> ResolveResourceVersionIdsByPathsAsync(
+        Guid repositoryId,
+        IEnumerable<string> filePaths,
+        CancellationToken ct = default
+    )
+    {
+        var pathsList = filePaths.Where(p => !string.IsNullOrWhiteSpace(p)).Distinct().ToList();
+        if (pathsList.Count == 0)
+        {
+            return Result.Ok(new Dictionary<string, Guid>());
+        }
+
+        var resources = await db
+            .ResourceItems.AsNoTracking()
+            .Where(r => r.RepositoryId == repositoryId)
+            .Include(r => r.Versions)
+            .ToListAsync(ct);
+
+        var result = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var path in pathsList)
+        {
+            var normalizedPath = path.Replace('\\', '/').TrimStart('/');
+            var matched = resources.FirstOrDefault(r =>
+            {
+                var rRel = r.RelativePath.Replace('\\', '/').TrimStart('/');
+                return string.Equals(rRel, normalizedPath, StringComparison.OrdinalIgnoreCase)
+                    || normalizedPath.EndsWith("/" + rRel, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(
+                        Path.GetFileName(rRel),
+                        Path.GetFileName(normalizedPath),
+                        StringComparison.OrdinalIgnoreCase
+                    );
+            });
+
+            if (matched != null)
+            {
+                var latestVersion = matched
+                    .Versions.OrderByDescending(v => v.VersionNo)
+                    .FirstOrDefault();
+                if (latestVersion != null)
+                {
+                    result[path] = latestVersion.Id;
+                }
+            }
+        }
+
+        return Result.Ok(result);
+    }
+
     public async Task<Result> UpdateMetadataAsync(
         Guid resourceVersionId,
         System.Text.Json.JsonDocument? metadata,
@@ -287,15 +337,21 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
         if (version == null)
             return Result.Fail("Resource version not found.");
 
-        var resourceTagResult = await tagApi.GetTagsByEntityAsync("Resource", version.ResourceId, ct);
-        var resourceLinks = resourceTagResult.IsSuccess && resourceTagResult.Value != null
-            ? resourceTagResult.Value
-            : [];
+        var resourceTagResult = await tagApi.GetTagsByEntityAsync(
+            "Resource",
+            version.ResourceId,
+            ct
+        );
+        var resourceLinks =
+            resourceTagResult.IsSuccess && resourceTagResult.Value != null
+                ? resourceTagResult.Value
+                : [];
 
         var versionTagResult = await tagApi.GetTagsByEntityAsync("ResourceVersion", version.Id, ct);
-        var versionLinks = versionTagResult.IsSuccess && versionTagResult.Value != null
-            ? versionTagResult.Value
-            : [];
+        var versionLinks =
+            versionTagResult.IsSuccess && versionTagResult.Value != null
+                ? versionTagResult.Value
+                : [];
 
         var combinedLinks = resourceLinks
             .Where(t => !string.IsNullOrEmpty(t.TargetSubPath))
@@ -496,8 +552,9 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
             await db
                 .ResourceItems.Where(r => distinctIds.Contains(r.Id))
                 .ExecuteUpdateAsync(
-                    s => s.SetProperty(r => r.ContentId, ContentId)
-                          .SetProperty(r => r.UpdatedAt, DateTimeOffset.UtcNow),
+                    s =>
+                        s.SetProperty(r => r.ContentId, ContentId)
+                            .SetProperty(r => r.UpdatedAt, DateTimeOffset.UtcNow),
                     ct
                 );
         }

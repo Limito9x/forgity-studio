@@ -38,7 +38,8 @@ export function CreateRepositoryDialog({
                 projectId,
                 name: values.name,
                 description: values.description || undefined,
-              },
+                supportedExtensions: values.supportedExtensions,
+              } as any,
             },
             {
               onSuccess: (res) => {

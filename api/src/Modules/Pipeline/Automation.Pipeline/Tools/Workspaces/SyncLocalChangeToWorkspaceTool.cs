@@ -27,6 +27,16 @@ public class SyncLocalChangeToWorkspaceTool(IRepositoryApi workspaceApi) : IReso
             },
             new PinDefinition
             {
+                Id = "RunnerId",
+                Label = "Target Runner",
+                PrimitiveType = PinPrimitiveType.EntityRef,
+                EntityTarget = "runner",
+                Cardinality = PinCardinality.Single,
+                IsRequired = false,
+                Metadata = """{"type": "entity-select", "properties": {"entity": "Runner"}}""",
+            },
+            new PinDefinition
+            {
                 Id = "RelativePaths",
                 Label = "Relative Paths",
                 PrimitiveType = PinPrimitiveType.Path,
@@ -121,9 +131,12 @@ public class SyncLocalChangeToWorkspaceTool(IRepositoryApi workspaceApi) : IReso
         if (workspaceId == null)
             throw new ArgumentException("WorkspaceId is required.");
 
-        var agentId = context.AgentId;
-        if (agentId == Guid.Empty)
-            throw new ArgumentException("AgentId in execution context cannot be empty.");
+        var runnerId = inputs.TryGetValue("RunnerId", out var rVal) && rVal is Guid rGuid
+            ? rGuid
+            : EntityRefHelper.ExtractRefId(inputs.GetValueOrDefault("RunnerId") ?? inputs.GetValueOrDefault("Runner") ?? inputs.GetValueOrDefault("TargetRunnerId"));
+
+        if (runnerId == null || runnerId == Guid.Empty)
+            throw new ArgumentException("RunnerId is required to sync local changes.");
 
         var targetPaths = new List<string>();
         var rawPaths = inputs.GetValueOrDefault("RelativePaths")
@@ -176,7 +189,7 @@ public class SyncLocalChangeToWorkspaceTool(IRepositoryApi workspaceApi) : IReso
 
         var result = await workspaceApi.SyncLocalChangesAsync(
             workspaceId.Value,
-            agentId,
+            runnerId.Value,
             targetPaths,
             notes,
             context.CancellationToken
@@ -186,7 +199,7 @@ public class SyncLocalChangeToWorkspaceTool(IRepositoryApi workspaceApi) : IReso
             throw new InvalidOperationException(string.Join(", ", result.Errors.Select(e => e.Message)));
 
         // Lấy rootPath của workspace nếu có để xây dựng AbsolutePathMap
-        var rootResult = await workspaceApi.GetWorkspaceRootPathAsync(workspaceId.Value, agentId, context.CancellationToken);
+        var rootResult = await workspaceApi.GetWorkspaceRootPathAsync(workspaceId.Value, runnerId.Value, context.CancellationToken);
         var rootPath = rootResult.IsSuccess ? rootResult.Value : null;
 
         var syncedDict = result.Value.SyncedResources ?? new Dictionary<string, Guid>();

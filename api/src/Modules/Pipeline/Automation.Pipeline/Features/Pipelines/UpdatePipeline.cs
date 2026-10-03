@@ -87,10 +87,10 @@ public class UpdatePipelineHandler(PipelineDbContext db)
             pipeline.ProjectId,
             pipeline.Name,
             pipeline.TriggerType,
-            pipeline.TriggerWorkspaceId,
             pipeline.Nodes.Count,
             pipeline.Edges.Count,
-            pipeline.CreatedAt
+            pipeline.CreatedAt,
+            pipeline.TriggerConfig
         );
 
         return Result.Ok(dto);

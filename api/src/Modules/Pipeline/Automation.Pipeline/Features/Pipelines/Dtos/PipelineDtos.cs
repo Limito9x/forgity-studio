@@ -18,19 +18,21 @@ public record ValidatePipelineResponse(
     IReadOnlyList<UnresolvedPin> UnresolvedPins
 );
 
-public record RunPipelineRequest(
-    Dictionary<string, object?>? RuntimeInputs = null
-);
+public record RunPipelineRequest(Dictionary<string, object?>? RuntimeInputs = null);
 
 public record RunPipelineCommand(
     Guid PipelineId,
     Dictionary<string, object?>? RuntimeInputs = null
 );
 
+public record TriggerPipelineExecutionMessage(
+    Guid ExecutionId,
+    Dictionary<string, object?>? RuntimeInputs = null
+);
+
 public record PipelineExecutionDto(
     Guid Id,
     Guid PipelineId,
-    Guid AgentId,
     ExecutionStatus Status,
     DateTimeOffset? StartedAt,
     DateTimeOffset? FinishedAt,
@@ -57,7 +59,6 @@ public record PipelineSummaryDto(
     Guid ProjectId,
     string Name,
     PipelineTriggerType TriggerType,
-    Guid? TriggerWorkspaceId,
     int NodeCount,
     int EdgeCount,
     DateTimeOffset CreatedAt,
@@ -106,14 +107,12 @@ public record PipelineEdgeGraphDto(
 
 public record UpdatePipelineTriggerRequest(
     PipelineTriggerType TriggerType,
-    Guid? TriggerWorkspaceId,
     JsonDocument? TriggerConfig = null
 );
 
 public record UpdatePipelineTriggerCommand(
     Guid PipelineId,
     PipelineTriggerType TriggerType,
-    Guid? TriggerWorkspaceId,
     JsonDocument? TriggerConfig = null
 );
 
@@ -122,7 +121,6 @@ public record PipelineGraphDto(
     Guid ProjectId,
     string Name,
     PipelineTriggerType TriggerType,
-    Guid? TriggerWorkspaceId,
     IReadOnlyList<PipelineNodeGraphDto> Nodes,
     IReadOnlyList<PipelineEdgeGraphDto> Edges,
     IReadOnlyList<PipelineParameterDto> Parameters,

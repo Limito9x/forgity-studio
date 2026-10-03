@@ -1,27 +1,30 @@
 using System.Text.Json;
-using Microsoft.EntityFrameworkCore;
-using Wolverine.Attributes;
 using Automation.Files.Contracts;
 using Automation.Pipeline.Domain.Entities;
-using Automation.Pipeline.Engine.Models;
+using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Engine;
+using Automation.Pipeline.Engine.Models;
 using Automation.Pipeline.Features.Pipelines.Dtos;
+using Automation.Pipeline.Hubs;
 using Automation.Pipeline.Infrastructure.Persistence;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Wolverine.Attributes;
 
 namespace Automation.Pipeline.Features.Pipelines;
 
-public class RunPipelineEndpoint(IMessageBus bus) : Endpoint<RunPipelineRequest, PipelineExecutionDto>
+public class RunPipelineEndpoint(IMessageBus bus)
+    : Endpoint<RunPipelineRequest, PipelineExecutionDto>
 {
     public override void Configure()
     {
         Post("{pipelineId:guid}/run");
         Group<PipelinesGroup>();
         Permissions(P.Pipeline.Update);
-        Description(d => d
-            .Produces<PipelineExecutionDto>(200)
-            .Produces(400)
-            .Produces(422)
-            .Produces(404));
+        Description(d =>
+            d.Produces<PipelineExecutionDto>(200).Produces(400).Produces(422).Produces(404)
+        );
     }
 
     public override async Task HandleAsync(RunPipelineRequest req, CancellationToken ct)
@@ -42,7 +45,7 @@ public class RunPipelineEndpoint(IMessageBus bus) : Endpoint<RunPipelineRequest,
                     {
                         error = "UNRESOLVED_PINS",
                         message = unresolvedError.Message,
-                        unresolvedPins = unresolvedError.UnresolvedPins
+                        unresolvedPins = unresolvedError.UnresolvedPins,
                     },
                     cancellationToken: ct
                 );
@@ -55,19 +58,15 @@ public class RunPipelineEndpoint(IMessageBus bus) : Endpoint<RunPipelineRequest,
 }
 
 [NonTransactional]
-public class RunPipelineHandler(
-    PipelineDbContext db,
-    IPipelineExecutionEngine executionEngine,
-    IAssetApi assetApi
-)
+public class RunPipelineHandler(PipelineDbContext db, IMessageBus bus, IAssetApi assetApi)
 {
     public async Task<Result<PipelineExecutionDto>> HandleAsync(
         RunPipelineCommand command,
         CancellationToken ct
     )
     {
-        var pipeline = await db.Pipelines
-            .Include(x => x.Nodes)
+        var pipeline = await db
+            .Pipelines.Include(x => x.Nodes)
             .FirstOrDefaultAsync(x => x.Id == command.PipelineId, ct);
 
         if (pipeline == null)
@@ -76,16 +75,30 @@ public class RunPipelineHandler(
         }
 
         // 1. Validate required Start Inputs
-        var requiredMissing = pipeline.Parameters
-            .Where(p => p.Kind == Domain.Enums.PipelineParameterKind.Input && p.IsRequired && p.DefaultValue == null)
-            .Where(i => command.RuntimeInputs == null ||
-                        (!command.RuntimeInputs.ContainsKey(i.Key) && !command.RuntimeInputs.ContainsKey(i.Label)))
+        var requiredMissing = pipeline
+            .Parameters.Where(p =>
+                p.Kind == Domain.Enums.PipelineParameterKind.Input
+                && p.IsRequired
+                && p.DefaultValue == null
+            )
+            .Where(i =>
+                command.RuntimeInputs == null
+                || (
+                    !command.RuntimeInputs.ContainsKey(i.Key)
+                    && !command.RuntimeInputs.ContainsKey(i.Label)
+                )
+            )
             .ToList();
 
         if (requiredMissing.Count > 0)
         {
-            var missingLabels = string.Join(", ", requiredMissing.Select(i => $"'{i.Label}' ({i.Key})"));
-            return Result.Fail<PipelineExecutionDto>($"Missing required pipeline start input(s): {missingLabels}.");
+            var missingLabels = string.Join(
+                ", ",
+                requiredMissing.Select(i => $"'{i.Label}' ({i.Key})")
+            );
+            return Result.Fail<PipelineExecutionDto>(
+                $"Missing required pipeline start input(s): {missingLabels}."
+            );
         }
 
         // 2. Create Execution record and pre-save initial RuntimeInputs in ExecutionState
@@ -107,28 +120,23 @@ public class RunPipelineHandler(
         // Link any uploaded runtime input assets so they don't get cleaned up
         if (command.RuntimeInputs != null && command.RuntimeInputs.Count > 0)
         {
-            await PipelineAssetHelper.LinkRuntimeInputAssetsAsync(assetApi, execution.Id, command.RuntimeInputs, null, ct);
+            await PipelineAssetHelper.LinkRuntimeInputAssetsAsync(
+                assetApi,
+                execution.Id,
+                command.RuntimeInputs,
+                null,
+                ct
+            );
         }
 
-        // 3. Trigger Execution Engine asynchronously (Direct in-process invocation)
-        var executionId = execution.Id;
-        var inputs = command.RuntimeInputs;
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await executionEngine.ExecuteOrResumeAsync(executionId, inputs);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Pipeline Execution {executionId} Error] {ex.Message}");
-            }
-        });
+        // 3. Publish message to Wolverine durable background queue
+        await bus.PublishAsync(
+            new TriggerPipelineExecutionMessage(execution.Id, command.RuntimeInputs)
+        );
 
         var dto = new PipelineExecutionDto(
             execution.Id,
             execution.PipelineId,
-            execution.AgentId,
             execution.Status,
             execution.StartedAt,
             execution.FinishedAt,
@@ -139,5 +147,99 @@ public class RunPipelineHandler(
         );
 
         return Result.Ok(dto);
+    }
+}
+
+[NonTransactional]
+public class TriggerPipelineExecutionHandler(
+    IPipelineExecutionEngine executionEngine,
+    PipelineDbContext db,
+    IHubContext<PipelineExecutionHub> hubContext,
+    ILogger<TriggerPipelineExecutionHandler> logger
+)
+{
+    public async Task HandleAsync(TriggerPipelineExecutionMessage message, CancellationToken ct)
+    {
+        logger.LogInformation(
+            "Processing TriggerPipelineExecutionMessage for execution {ExecutionId}",
+            message.ExecutionId
+        );
+
+        try
+        {
+            var execResult = await executionEngine.ExecuteOrResumeAsync(
+                message.ExecutionId,
+                message.RuntimeInputs,
+                ct
+            );
+            if (execResult.IsFailed)
+            {
+                var errMsg = string.Join("; ", execResult.Errors.Select(e => e.Message));
+                logger.LogWarning(
+                    "Pipeline execution {ExecutionId} completed with failure: {Error}",
+                    message.ExecutionId,
+                    errMsg
+                );
+                await HandleExecutionFailureAsync(message.ExecutionId, errMsg, ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "Unexpected background error while executing pipeline {ExecutionId}",
+                message.ExecutionId
+            );
+            await HandleExecutionFailureAsync(message.ExecutionId, ex.Message, ct);
+        }
+    }
+
+    private async Task HandleExecutionFailureAsync(
+        Guid executionId,
+        string errorMessage,
+        CancellationToken _
+    )
+    {
+        try
+        {
+            var exec = await db.PipelineExecutions.FirstOrDefaultAsync(
+                x => x.Id == executionId,
+                CancellationToken.None
+            );
+            if (
+                exec != null
+                && exec.Status != ExecutionStatus.Failed
+                && exec.Status != ExecutionStatus.Succeeded
+            )
+            {
+                var failSnapshot = exec.ExecutionState ?? JsonDocument.Parse("{}");
+                exec.MarkFailed(errorMessage, failSnapshot);
+                await db.SaveChangesAsync(CancellationToken.None);
+
+                await hubContext
+                    .Clients.Group($"pipeline_{exec.PipelineId}")
+                    .SendAsync(
+                        "PipelineExecutionFinished",
+                        new
+                        {
+                            executionId = exec.Id,
+                            pipelineId = exec.PipelineId,
+                            status = (int)exec.Status,
+                            finishedAt = exec.FinishedAt,
+                            errorMessage,
+                            executionState = failSnapshot,
+                        },
+                        CancellationToken.None
+                    );
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "Failed to persist error state for execution {ExecutionId}",
+                executionId
+            );
+        }
     }
 }

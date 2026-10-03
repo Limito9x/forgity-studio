@@ -118,8 +118,28 @@ public class ExecPlanner : IExecPlanner
 
             var intraTargets = intraExecEdges.Select(e => e.TargetPipelineNodeId).ToHashSet();
 
-            // Implicit Entry Point: Action step inside this container with no incoming intra-exec edge
-            var entryStep = containerSteps.Values.FirstOrDefault(s => !intraTargets.Contains(s.NodeId));
+            // Entry Point của Container:
+            // 1. Ưu tiên cao nhất: Step trong container nhận incoming Exec edge từ bên ngoài (từ Start hoặc container trước)
+            var externalExecIncoming = execEdges.Where(e =>
+                !containerSteps.ContainsKey(e.SourcePipelineNodeId) &&
+                containerSteps.ContainsKey(e.TargetPipelineNodeId)).ToList();
+
+            ExecStep? entryStep = null;
+            if (externalExecIncoming.Count > 0)
+            {
+                entryStep = containerSteps.Values.FirstOrDefault(s =>
+                    externalExecIncoming.Any(e => e.TargetPipelineNodeId == s.NodeId));
+            }
+
+            // 2. Ưu tiên nhì: Action step trong container không có incoming intra-exec edge
+            if (entryStep == null)
+            {
+                entryStep = containerSteps.Values
+                    .Where(s => !intraTargets.Contains(s.NodeId))
+                    // Ưu tiên step có outgoing Exec edge (loop_body, completed, exec_out)
+                    .OrderByDescending(s => execEdges.Any(e => e.SourcePipelineNodeId == s.NodeId))
+                    .FirstOrDefault();
+            }
 
             if (entryStep == null)
             {
@@ -142,17 +162,27 @@ public class ExecPlanner : IExecPlanner
                 intraExecEdges,
                 visited,
                 recursionStack,
-                cycleNodeIds
+                cycleNodeIds,
+                stepsLookup,
+                execEdges
             );
 
             segments.AddRange(stageSegments);
         }
 
+        // Loại bỏ các node đã được bao hàm trong BodyPlan của FlowControl (tránh chạy trùng lặp ở root)
+        var coveredByBodyPlan = segments
+            .Where(s => s.BodyPlan != null)
+            .SelectMany(s => s.BodyPlan!.GetAllSteps())
+            .Select(s => s.NodeId)
+            .ToHashSet();
+
         // 3b. Trace root action steps (if pipeline has nodes outside containers)
         var rootActionSteps = stepsLookup.Values
             .Where(s => s.StageId == null &&
                         s.Kind != PipelineNodeKind.Start &&
-                        s.Kind != PipelineNodeKind.Return)
+                        s.Kind != PipelineNodeKind.Return &&
+                        !coveredByBodyPlan.Contains(s.NodeId))
             .ToDictionary(s => s.NodeId);
 
         if (rootActionSteps.Count > 0)
@@ -179,7 +209,9 @@ public class ExecPlanner : IExecPlanner
                     rootExecEdges,
                     visited,
                     recursionStack,
-                    cycleNodeIds
+                    cycleNodeIds,
+                    stepsLookup,
+                    execEdges
                 );
                 segments.AddRange(rootSegments);
             }
@@ -266,7 +298,9 @@ public class ExecPlanner : IExecPlanner
         List<PipelineEdge> intraExecEdges,
         HashSet<Guid> visited,
         HashSet<Guid> recursionStack,
-        List<string> cycleNodeIds
+        List<string> cycleNodeIds,
+        Dictionary<Guid, ExecStep>? allStepsLookup = null,
+        List<PipelineEdge>? allExecEdges = null
     )
     {
         var segments = new List<ExecSegment>();
@@ -303,6 +337,10 @@ public class ExecPlanner : IExecPlanner
             containerName = labelProp.GetString() ?? containerName;
         }
 
+        var effectiveSteps = allStepsLookup != null && !containerStepsLookup.ContainsKey(startNodeId ?? Guid.Empty) && allStepsLookup.ContainsKey(startNodeId ?? Guid.Empty)
+            ? allStepsLookup
+            : containerStepsLookup;
+
         while (currentNodeId.HasValue)
         {
             var cId = currentNodeId.Value;
@@ -313,7 +351,7 @@ public class ExecPlanner : IExecPlanner
                 break;
             }
 
-            if (!containerStepsLookup.TryGetValue(cId, out var step) || !visited.Add(cId))
+            if (!effectiveSteps.TryGetValue(cId, out var step) || !visited.Add(cId))
             {
                 break;
             }
@@ -341,7 +379,9 @@ public class ExecPlanner : IExecPlanner
                     Steps = [step]
                 };
 
-                var loopBodyEdge = intraExecEdges.FirstOrDefault(e =>
+                // Tìm loopBodyEdge trên toàn cục (để hỗ trợ nối ra node bên ngoài như SetVariable)
+                var availableEdges = allExecEdges ?? intraExecEdges;
+                var loopBodyEdge = availableEdges.FirstOrDefault(e =>
                     e.SourcePipelineNodeId == cId &&
                     IsLoopBodyPin(e.SourcePin));
 
@@ -349,15 +389,28 @@ public class ExecPlanner : IExecPlanner
                 {
                     var bodyVisited = new HashSet<Guid>(visited);
                     var bodyStack = new HashSet<Guid>(recursionStack);
+
+                    var allSteps = allStepsLookup ?? containerStepsLookup;
+                    var targetStepNode = allSteps.TryGetValue(loopBodyEdge.TargetPipelineNodeId, out var ts) ? ts : null;
+                    var bodyContainer = container;
+                    if (targetStepNode != null && targetStepNode.StageId != container.Id)
+                    {
+                        bodyContainer = graph.NodesById.TryGetValue(targetStepNode.StageId ?? Guid.Empty, out var bc)
+                            ? bc
+                            : new PipelineNode(Guid.Empty, container.PipelineId, "RootScope", PipelineNodeKind.Container, 0, 0);
+                    }
+
                     var bodySegments = TraceIntraContainerChain(
-                        container,
+                        bodyContainer,
                         graph,
                         loopBodyEdge.TargetPipelineNodeId,
-                        containerStepsLookup,
-                        intraExecEdges,
+                        allSteps,
+                        availableEdges,
                         bodyVisited,
                         bodyStack,
-                        cycleNodeIds
+                        cycleNodeIds,
+                        allSteps,
+                        availableEdges
                     );
                     fcSegment.BodyPlan = new ExecPlan { Segments = bodySegments };
                 }

@@ -1,6 +1,5 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData } from "@tanstack/react-query";
 import { createMutationHook } from "@/lib/query-utils";
-import { customInstance } from "@/lib/api-client";
 import * as PipelinesApi from "@/gen/endpoints/pipelines/pipelines";
 import type {
   PipelineGraphDto,
@@ -21,6 +20,7 @@ import type {
   NodeExecutionDto,
   PipelineSummaryDto,
   CreatePipelineCommand,
+  UpdatePipelineTriggerRequest,
   EdgeKind,
   ExecutionStatus,
 } from "@/gen/model";
@@ -235,23 +235,20 @@ export const useValidatePipeline = (pipelineId?: string) => {
 };
 
 export const useUpdatePipelineTrigger = (pipelineId?: string) => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: { triggerType: number; triggerWorkspaceId?: string | null; triggerConfig?: unknown }) =>
-      customInstance<any>({
-        url: `/api/pipelines/${pipelineId}/trigger`,
-        method: "PUT",
-        data,
-      }),
-    onSuccess: () => {
-      if (pipelineId) {
-        queryClient.invalidateQueries({
-          queryKey: PipelinesApi.getGetPipelineGraphQueryKey(pipelineId),
-        });
-      }
-      queryClient.invalidateQueries({ queryKey: ["pipelines"] });
-    },
-  });
+  const queryKeys = pipelineId
+    ? [
+        PipelinesApi.getGetPipelineGraphQueryKey(pipelineId),
+        ["pipelines"],
+      ]
+    : [["pipelines"]];
+  const mutation = createMutationHook(PipelinesApi.useUpdatePipelineTrigger, queryKeys)();
+  return {
+    ...mutation,
+    mutate: (data: UpdatePipelineTriggerRequest, options?: any) =>
+      mutation.mutate({ id: pipelineId!, data }, options),
+    mutateAsync: (data: UpdatePipelineTriggerRequest, options?: any) =>
+      mutation.mutateAsync({ id: pipelineId!, data }, options),
+  };
 };
 
 

@@ -43,8 +43,8 @@ export function ContextMenuPalette({
     ? isMacroStage
       ? "macro"
       : isServerStage
-      ? "server"
-      : targetStage.executorKey || "blender"
+        ? "server"
+        : targetStage.executorKey || "blender"
     : undefined;
 
   const { data: paletteItems = [], isLoading } = useNodePalette(projectId, executorParam);
@@ -86,6 +86,7 @@ export function ContextMenuPalette({
 
   // Stage Creation Options when right-clicking on empty canvas
   const stageOptions: StageCreationOption[] = useMemo(() => [
+    { type: "stage", name: "Python Stage", kind: "Worker", executorKey: "python" },
     { type: "stage", name: "Blender Stage", kind: "Worker", executorKey: "blender" },
     { type: "stage", name: "Unreal Stage", kind: "Worker", executorKey: "unreal" },
     { type: "stage", name: "Core Services", kind: "Server", executorKey: "dotNet" },
@@ -209,8 +210,8 @@ export function ContextMenuPalette({
                       stage.kind === "Worker"
                         ? "bg-amber-500/10 text-amber-500"
                         : stage.kind === "Server"
-                        ? "bg-emerald-500/10 text-emerald-500"
-                        : "bg-purple-500/10 text-purple-500";
+                          ? "bg-emerald-500/10 text-emerald-500"
+                          : "bg-purple-500/10 text-purple-500";
                     return (
                       <button
                         key={stage.name}

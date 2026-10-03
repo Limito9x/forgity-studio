@@ -150,7 +150,7 @@ public class PinValueResolverTests
         public void Register(Guid execId, PipelineEntity p) => _map[execId] = p;
 
         public Task<PipelineExecution?> GetExecutionByIdAsync(Guid executionId, CancellationToken ct = default)
-            => Task.FromResult<PipelineExecution?>(new PipelineExecution(_map.GetValueOrDefault(executionId)?.Id ?? Guid.NewGuid(), Guid.NewGuid()));
+            => Task.FromResult<PipelineExecution?>(new PipelineExecution(_map.GetValueOrDefault(executionId)?.Id ?? Guid.NewGuid()));
 
         public Task<PipelineEntity?> GetPipelineByExecutionIdAsync(Guid executionId, CancellationToken ct = default)
             => Task.FromResult(_map.GetValueOrDefault(executionId));

@@ -95,21 +95,30 @@ public class PipelineGraphDtoBuilder(
                 {
                     startOutputs.Add(new PinDefinition
                     {
-                        Id = "Resource",
-                        Label = "Resource",
+                        Id = "Resources",
+                        Label = "Resources",
                         Kind = PinKind.Data,
                         PrimitiveType = PinPrimitiveType.EntityRef,
-                        Cardinality = PinCardinality.Single,
+                        Cardinality = PinCardinality.Array,
                         Metadata = "Resource"
                     });
                     startOutputs.Add(new PinDefinition
                     {
-                        Id = "Workspace",
-                        Label = "Workspace",
+                        Id = "Repository",
+                        Label = "Repository",
                         Kind = PinKind.Data,
                         PrimitiveType = PinPrimitiveType.EntityRef,
                         Cardinality = PinCardinality.Single,
-                        Metadata = "Workspace"
+                        Metadata = "Repository"
+                    });
+                    startOutputs.Add(new PinDefinition
+                    {
+                        Id = "Runner",
+                        Label = "Runner",
+                        Kind = PinKind.Data,
+                        PrimitiveType = PinPrimitiveType.EntityRef,
+                        Cardinality = PinCardinality.Single,
+                        Metadata = "Runner"
                     });
                 }
 
@@ -321,7 +330,6 @@ public class PipelineGraphDtoBuilder(
             pipeline.ProjectId,
             pipeline.Name,
             pipeline.TriggerType,
-            pipeline.TriggerWorkspaceId,
             nodeDtos,
             edgeDtos,
             parameterDtos,

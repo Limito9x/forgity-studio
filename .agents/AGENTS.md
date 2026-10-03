@@ -21,7 +21,7 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 
 1. **Toàn Cục (Toàn bộ workspace)**:
    👉 Đọc [rules/general.md](file:///d:/FullStack/Automation/.agents/rules/general.md)
-   - _CodeGraph MCP Priority, Quản lý Terminal/Kill Background Process, Ngôn ngữ giao tiếp/Code._
+   - _CodeGraph MCP Bắt buộc kèm `projectPath` (Top Priority), Quản lý Terminal/Kill Background Process, Ngôn ngữ giao tiếp/Code._
 
 2. **Khi thao tác với Backend (`api/`)**:
    👉 Đọc [rules/backend.md](file:///d:/FullStack/Automation/.agents/rules/backend.md)
@@ -85,3 +85,10 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 
 - [build-dotnet](file:///d:/FullStack/Automation/.agents/workflows/build-dotnet.md): Quy trình build và kiểm tra Backend .NET.
 - [suggest-fix-template](file:///d:/FullStack/Automation/.agents/workflows/suggest-fix-template.md): Mẫu đề xuất sửa lỗi tự động.
+
+---
+
+## 6. Kế Hoạch Kỹ Thuật (Plans)
+
+- [refactor-repository-trigger-deprecate-platform](file:///d:/FullStack/Automation/.agents/plans/2026-10-02-refactor-repository-trigger-deprecate-platform.md): Kế hoạch loại bỏ module Platform, chuẩn hóa Repository Trigger, batch Resource list & bổ sung RunnerId.
+

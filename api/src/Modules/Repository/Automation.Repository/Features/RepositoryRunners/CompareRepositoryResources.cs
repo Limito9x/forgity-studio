@@ -1,4 +1,3 @@
-using Automation.Platform.Contracts;
 using Automation.Runner.Contracts;
 using Automation.Repository.Infrastructure.Persistence;
 using Automation.Repository.Shared.Dtos;
@@ -40,8 +39,7 @@ public class CompareRepositoryResourcesEndpoint(IMessageBus bus)
 [NonTransactional]
 public class CompareRepositoryResourcesHandler(
     RepositoryDbContext dbContext,
-    IRunnerApi runnerApi,
-    IPlatformApi platformApi
+    IRunnerApi runnerApi
 )
 {
     public async Task<Result<DiffResult>> HandleAsync(
@@ -49,33 +47,33 @@ public class CompareRepositoryResourcesHandler(
         CancellationToken ct
     )
     {
-        var repositoryRunner = await dbContext.RepositoryRunners.FirstOrDefaultAsync(
-            x => x.RunnerId == command.RunnerId && x.RepositoryId == command.RepositoryId,
-            ct
-        );
+        var repositoryRunner = await dbContext.RepositoryRunners
+            .Include(x => x.Repository)
+            .FirstOrDefaultAsync(
+                x => x.RunnerId == command.RunnerId && x.RepositoryId == command.RepositoryId,
+                ct
+            );
 
         if (repositoryRunner == null)
         {
             return Result.Fail("RepositoryRunner not found");
         }
 
-        var platformResult = await platformApi.GetExtensionMapAsync(
-            platformIds: null,
-            ct: ct
-        );
-
-        var platformExtensionMap = platformResult.Value ?? new Dictionary<string, Guid>();
+        // Lấy danh sách extension cho phép từ Repository (nếu rỗng thì quét tất cả)
+        var allowedExtensions = repositoryRunner.Repository?.SupportedExtensions ?? [];
+        var extensionsToScan = allowedExtensions.Count > 0
+            ? allowedExtensions.Select(e => e.TrimStart('.').ToLowerInvariant())
+            : [];
 
         // Tìm các file có trong thư mục của runner tại repo này
         var scanResult = await runnerApi.SendScanCommandAsync(
             command.RunnerId,
             repositoryRunner.RootPath,
-            platformExtensionMap.Keys,
+            extensionsToScan,
             ct
         );
 
         var files = scanResult.Value?.Items ?? [];
-
         var fileDictionary = files.ToDictionary(x => x.RelativePath, y => y);
 
         // Lấy các tài nguyên đã có trong repository runner (dữ liệu DB)
@@ -98,11 +96,7 @@ public class CompareRepositoryResourcesHandler(
         {
             var hasLocal = fileDictionary.TryGetValue(relativePath, out var localFile);
             var hasDb = resourceDictionary.TryGetValue(relativePath, out var dbResource);
-
-            var ext = ResourcePathHelper.GetExtension(relativePath);
-            var platformExtensionId = platformExtensionMap.TryGetValue(ext, out var pId)
-                ? pId
-                : Guid.Empty;
+            var ext = ResourcePathHelper.GetExtension(relativePath).TrimStart('.').ToLowerInvariant();
 
             if (hasLocal && !hasDb)
             {
@@ -112,7 +106,7 @@ public class CompareRepositoryResourcesHandler(
                         Path.GetFileName(relativePath),
                         localFile!.Hash,
                         localFile.SizeBytes,
-                        platformExtensionId,
+                        ext,
                         null
                     )
                 );
@@ -132,7 +126,7 @@ public class CompareRepositoryResourcesHandler(
                             dbResource.DisplayName,
                             null,
                             null,
-                            dbResource.PlatformExtensionId,
+                            dbResource.Extension,
                             latestVersion?.Adapt<ResourceVersionDto>()
                         )
                     );
@@ -145,7 +139,7 @@ public class CompareRepositoryResourcesHandler(
                             dbResource.DisplayName,
                             null,
                             null,
-                            dbResource.PlatformExtensionId,
+                            dbResource.Extension,
                             latestVersion?.Adapt<ResourceVersionDto>()
                         )
                     );
@@ -163,7 +157,7 @@ public class CompareRepositoryResourcesHandler(
                             dbResource.DisplayName,
                             localFile.Hash,
                             localFile.SizeBytes,
-                            dbResource.PlatformExtensionId,
+                            dbResource.Extension,
                             latestVersion.Adapt<ResourceVersionDto>()
                         )
                     );

@@ -17,4 +17,6 @@ export interface ResourceVersionDto {
   metadata?: unknown;
   /** @nullable */
   tagsByPath?: IReadOnlyDictionaryOfStringAndIReadOnlyListOfTagLinkDetailDto | null;
+  /** @nullable */
+  locations?: unknown[] | null;
 }

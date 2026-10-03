@@ -33,7 +33,6 @@ interface NodeConfigInspectorProps {
   pipelineId?: string;
   node: Node | null;
   triggerType?: number | string;
-  triggerWorkspaceId?: string | null;
   triggerConfig?: any;
   onClose: () => void;
   onUpdateConfig: (nodeId: string, pinId: string, value: any) => void;
@@ -44,7 +43,6 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
   pipelineId = "",
   node,
   triggerType = 0,
-  triggerWorkspaceId = null,
   triggerConfig = null,
   onClose,
   onUpdateConfig,
@@ -240,7 +238,6 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
             pipelineId={pipelineId}
             projectId={projectId}
             triggerType={triggerType}
-            triggerWorkspaceId={triggerWorkspaceId}
             triggerConfig={triggerConfig}
           />
         ) : (
@@ -263,7 +260,8 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem id="Resource">Resource (File, BaseName, FullPath, Workspace)</SelectItem>
+                    <SelectItem id="Resource">Resource (File, BaseName, FullPath, Repository)</SelectItem>
+                    <SelectItem id="Repository">Repository (RootPath, RepositoryId, RepositoryName)</SelectItem>
                     <SelectItem id="Workspace">Workspace (RootPath, WorkspaceId)</SelectItem>
                     <SelectItem id="Inspection">Resource Metadata (MainObjects, SkeletonBones)</SelectItem>
                     <SelectItem id="TaggedAsset">Tagged Asset (AssetName, FilePath, TagMap, PathMap, ResourceTags)</SelectItem>
@@ -362,7 +360,6 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
   if (prev.node?.id !== next.node?.id) return false;
   if (prev.node?.data !== next.node?.data) return false;
   if (prev.triggerType !== next.triggerType) return false;
-  if (prev.triggerWorkspaceId !== next.triggerWorkspaceId) return false;
   if (prev.triggerConfig !== next.triggerConfig) return false;
   if (prev.pipelineId !== next.pipelineId) return false;
   return true; // Ignore node.position changes!

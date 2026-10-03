@@ -2,9 +2,8 @@ namespace Automation.Repository.Contracts;
 
 public record ResourceVersionCreatedInfo(
     Guid ResourceVersionId,
-    Guid PlatformExtensionId,
+    string Extension,
     Guid? ContentId = null,
-    string? Extension = null,
     string? RelativePath = null
 );
 

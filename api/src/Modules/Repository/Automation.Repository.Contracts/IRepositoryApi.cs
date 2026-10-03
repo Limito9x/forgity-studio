@@ -40,6 +40,12 @@ public interface IRepositoryApi
         CancellationToken ct = default
     );
 
+    Task<Result<Dictionary<string, Guid>>> ResolveResourceVersionIdsByPathsAsync(
+        Guid repositoryId,
+        IEnumerable<string> filePaths,
+        CancellationToken ct = default
+    );
+
     Task<Result> UpdateMetadataAsync(
         Guid resourceVersionId,
         System.Text.Json.JsonDocument? metadata,

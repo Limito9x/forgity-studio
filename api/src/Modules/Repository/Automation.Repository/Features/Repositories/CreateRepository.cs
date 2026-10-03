@@ -8,7 +8,8 @@ namespace Automation.Repository.Features.Repositories;
 public record CreateRepositoryCommand(
     Guid ProjectId,
     string Name,
-    string? Description = null
+    string? Description = null,
+    List<string>? SupportedExtensions = null
 );
 
 public class CreateRepositoryValidator : AbstractValidator<CreateRepositoryCommand>
@@ -44,7 +45,12 @@ public class CreateRepositoryHandler(RepositoryDbContext db)
 {
     public async Task<Result<RepositoryDto>> HandleAsync(CreateRepositoryCommand command, CancellationToken ct)
     {
-        var repo = new Domain.Entities.Repository(command.ProjectId, command.Name, command.Description);
+        var repo = new Domain.Entities.Repository(
+            command.ProjectId,
+            command.Name,
+            command.Description,
+            command.SupportedExtensions
+        );
         db.Repositories.Add(repo);
         await db.SaveChangesAsync(ct);
 
@@ -55,7 +61,8 @@ public class CreateRepositoryHandler(RepositoryDbContext db)
             repo.Description,
             0,
             0,
-            repo.CreatedAt
+            repo.CreatedAt,
+            repo.SupportedExtensions
         );
 
         return Result.Ok(dto);

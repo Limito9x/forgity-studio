@@ -6,41 +6,37 @@ using Automation.Repository.Contracts;
 
 namespace Automation.Pipeline.Tools.Workspaces;
 
+/// <summary>
+/// Tool batch cập nhật metadata cho nhiều ResourceVersion cùng lúc thông qua Map (Key: Resource ID / File Path -> Value: Metadata).
+/// </summary>
 public class UpdateResourceMetadataTool(IRepositoryApi workspaceApi) : IResolverTool
 {
     public string Key => "UpdateResourceMetadata";
     public string Label => "Update Resource Metadata";
     public string? Category => "Workspace & Files";
-    public string? Description => "Updates metadata for a single Resource / Version or a batch Map of Resource IDs -> Metadata.";
+    public string? Description => "Batch updates metadata for resources using a Map of Resource Version IDs or File Paths -> Metadata.";
     public bool IsPure => false;
 
     public IReadOnlyList<PinDefinition> Inputs =>
     [
         new()
         {
-            Id = "Target",
-            Label = "Resource / Version",
-            PrimitiveType = PinPrimitiveType.EntityRef,
-            EntityTarget = "resource",
-            Cardinality = PinCardinality.Single,
-            IsRequired = false,
-            Metadata = """{"type": "entity-select", "properties": {"entity": "Resource"}}"""
-        },
-        new()
-        {
-            Id = "Metadata",
-            Label = "Metadata JSON",
-            PrimitiveType = PinPrimitiveType.String,
-            Cardinality = PinCardinality.Single,
-            IsRequired = false
-        },
-        new()
-        {
             Id = "MetadataMap",
             Label = "Metadata Map",
             PrimitiveType = PinPrimitiveType.String,
             Cardinality = PinCardinality.Map,
-            IsRequired = false
+            IsRequired = true,
+            Metadata = """{"description": "Map of Resource IDs, URNs, or File Paths to their metadata JSON/objects"}"""
+        },
+        new()
+        {
+            Id = "Repository",
+            Label = "Repository",
+            PrimitiveType = PinPrimitiveType.EntityRef,
+            EntityTarget = "Workspace",
+            Cardinality = PinCardinality.Single,
+            IsRequired = false,
+            Metadata = """{"type": "entity-select", "properties": {"entity": "Workspace"}}"""
         }
     ];
 
@@ -61,14 +57,6 @@ public class UpdateResourceMetadataTool(IRepositoryApi workspaceApi) : IResolver
             PrimitiveType = PinPrimitiveType.Number,
             Cardinality = PinCardinality.Single,
             IsRequired = true
-        },
-        new()
-        {
-            Id = "ResourceVersionId",
-            Label = "Resource Version ID",
-            PrimitiveType = PinPrimitiveType.EntityRef,
-            Cardinality = PinCardinality.Single,
-            IsRequired = false
         }
     ];
 
@@ -79,7 +67,7 @@ public class UpdateResourceMetadataTool(IRepositoryApi workspaceApi) : IResolver
     {
         var ct = context.CancellationToken;
 
-        // 1. Check Batch Mode: MetadataMap input provided
+        // 1. Resolve MetadataMap
         object? rawMap = null;
         foreach (var (k, v) in inputs)
         {
@@ -92,11 +80,12 @@ public class UpdateResourceMetadataTool(IRepositoryApi workspaceApi) : IResolver
         }
         rawMap ??= inputs.GetValueOrDefault("MetadataMap") ?? inputs.GetValueOrDefault("metadata_map");
 
-        // Fallback: If no explicit single Target but any input is a dictionary / JSON object, treat as Batch Map
-        if (rawMap == null && !inputs.ContainsKey("Target") && !inputs.ContainsKey("ResourceVersionId") && !inputs.ContainsKey("Resource"))
+        // Fallback: If any input is a dictionary or JSON object
+        if (rawMap == null)
         {
-            foreach (var (_, v) in inputs)
+            foreach (var (k, v) in inputs)
             {
+                if (string.Equals(k, "Repository", StringComparison.OrdinalIgnoreCase)) continue;
                 if (v is IDictionary || v is JsonElement { ValueKind: JsonValueKind.Object })
                 {
                     rawMap = v;
@@ -106,104 +95,99 @@ public class UpdateResourceMetadataTool(IRepositoryApi workspaceApi) : IResolver
         }
 
         var metadataMap = ExtractMap(rawMap);
-
-        if (metadataMap.Count > 0)
+        if (metadataMap.Count == 0)
         {
-            var updatedCount = 0;
-            foreach (var (resourceKey, metaVal) in metadataMap)
+            throw new ArgumentException("MetadataMap is required and cannot be empty for UpdateResourceMetadataTool.");
+        }
+
+        // 2. Resolve optional Repository ID for path resolution
+        Guid? repoId = null;
+        var rawRepo = inputs.GetValueOrDefault("Repository") ?? inputs.GetValueOrDefault("Workspace");
+        if (rawRepo != null)
+        {
+            var (_, parsedRepoId, isRepoValid) = EntityRefHelper.Parse(rawRepo);
+            if (isRepoValid && parsedRepoId != Guid.Empty)
             {
-                var targetGuid = EntityRefHelper.ExtractRefId(resourceKey);
-                if (targetGuid == null || targetGuid == Guid.Empty)
-                {
-                    var cleanKey = resourceKey.Trim();
-                    var lastColon = cleanKey.LastIndexOf(':');
-                    var candidate = lastColon >= 0 ? cleanKey[(lastColon + 1)..].Trim() : cleanKey;
-                    if (Guid.TryParse(candidate, out var parsedGuid) && parsedGuid != Guid.Empty)
-                    {
-                        targetGuid = parsedGuid;
-                    }
-                }
+                repoId = parsedRepoId;
+            }
+        }
 
-                if (targetGuid == null || targetGuid == Guid.Empty)
-                {
-                    throw new ArgumentException(
-                        $"Invalid Resource Reference in MetadataMap key '{resourceKey}'. Expected a valid GUID or EntityRef (e.g. 'urn:resource:...').");
-                }
+        // 3. Pre-resolve path keys if repoId is available
+        var pathKeys = new List<string>();
+        foreach (var key in metadataMap.Keys)
+        {
+            if (TryExtractGuid(key) == null)
+            {
+                pathKeys.Add(key);
+            }
+        }
 
-                var versionId = targetGuid.Value;
-                var locResult = await workspaceApi.GetResourceLocationAsync(targetGuid.Value, ct);
-                if (locResult.IsSuccess)
-                {
-                    versionId = locResult.Value.ResourceVersionId;
-                }
+        Dictionary<string, Guid>? resolvedPaths = null;
+        if (pathKeys.Count > 0 && repoId.HasValue)
+        {
+            var resolveRes = await workspaceApi.ResolveResourceVersionIdsByPathsAsync(repoId.Value, pathKeys, ct);
+            if (resolveRes.IsSuccess)
+            {
+                resolvedPaths = resolveRes.Value;
+            }
+        }
 
-                var jsonDoc = ParseToJsonDocument(metaVal, resourceKey);
+        // 4. Update each entry
+        var updatedCount = 0;
+        foreach (var (resourceKey, metaVal) in metadataMap)
+        {
+            var targetGuid = TryExtractGuid(resourceKey);
 
-                var updateResult = await workspaceApi.UpdateMetadataAsync(versionId, jsonDoc, ct);
-                if (updateResult.IsFailed)
-                {
-                    throw new InvalidOperationException(
-                        $"Failed to update metadata for ResourceVersion '{versionId}': {string.Join(", ", updateResult.Errors.Select(e => e.Message))}");
-                }
-
-                updatedCount++;
+            if (targetGuid == null && resolvedPaths != null && resolvedPaths.TryGetValue(resourceKey, out var pGuid))
+            {
+                targetGuid = pGuid;
             }
 
-            return new Dictionary<string, object>
+            if (targetGuid == null || targetGuid == Guid.Empty)
             {
-                ["Success"] = true,
-                ["UpdatedCount"] = updatedCount
-            };
-        }
+                throw new ArgumentException(
+                    $"Unable to resolve Resource Version for key '{resourceKey}'. Expected a GUID, EntityRef (e.g. 'urn:resource:...'), or a valid file path matching a repository resource.");
+            }
 
-        // 2. Fallback to Single Update Mode
-        var targetObj = inputs.GetValueOrDefault("Target") ??
-                        inputs.GetValueOrDefault("ResourceVersionId") ??
-                        inputs.GetValueOrDefault("Resource");
+            var versionId = targetGuid.Value;
+            var locResult = await workspaceApi.GetResourceLocationAsync(targetGuid.Value, ct);
+            if (locResult.IsSuccess)
+            {
+                versionId = locResult.Value.ResourceVersionId;
+            }
 
-        var metaObj = inputs.GetValueOrDefault("Metadata") ??
-                      inputs.GetValueOrDefault("metadata") ??
-                      inputs.GetValueOrDefault("metadata_json") ??
-                      inputs.GetValueOrDefault("MetadataJson") ??
-                      inputs.GetValueOrDefault("Data");
+            var jsonDoc = ParseToJsonDocument(metaVal, resourceKey);
+            var updateResult = await workspaceApi.UpdateMetadataAsync(versionId, jsonDoc, ct);
+            if (updateResult.IsFailed)
+            {
+                throw new InvalidOperationException(
+                    $"Failed to update metadata for ResourceVersion '{versionId}': {string.Join(", ", updateResult.Errors.Select(e => e.Message))}");
+            }
 
-        var singleTargetGuid = EntityRefHelper.ExtractRefId(targetObj);
-        if (singleTargetGuid == null || singleTargetGuid == Guid.Empty)
-        {
-            var rawStr = targetObj?.ToString();
-            var detail = string.IsNullOrWhiteSpace(rawStr)
-                ? "Target Reference is empty. Please provide a valid Resource / Version ID or connect a 'MetadataMap'."
-                : $"Invalid Target Reference: '{targetObj}'";
-            throw new ArgumentException(detail);
-        }
-
-        if (metaObj == null)
-        {
-            throw new ArgumentException("Metadata JSON is required in single update mode.");
-        }
-
-        var singleVersionId = singleTargetGuid.Value;
-        var singleLocResult = await workspaceApi.GetResourceLocationAsync(singleTargetGuid.Value, ct);
-        if (singleLocResult.IsSuccess)
-        {
-            singleVersionId = singleLocResult.Value.ResourceVersionId;
-        }
-
-        var singleJsonDoc = ParseToJsonDocument(metaObj, targetObj?.ToString() ?? "Target");
-
-        var singleUpdateResult = await workspaceApi.UpdateMetadataAsync(singleVersionId, singleJsonDoc, ct);
-        if (singleUpdateResult.IsFailed)
-        {
-            throw new InvalidOperationException(
-                $"Failed to update metadata for ResourceVersion '{singleVersionId}': {string.Join(", ", singleUpdateResult.Errors.Select(e => e.Message))}");
+            updatedCount++;
         }
 
         return new Dictionary<string, object>
         {
             ["Success"] = true,
-            ["UpdatedCount"] = 1,
-            ["ResourceVersionId"] = EntityRefHelper.Create("ResourceVersion", singleVersionId)
+            ["UpdatedCount"] = updatedCount
         };
+    }
+
+    private static Guid? TryExtractGuid(string key)
+    {
+        var targetGuid = EntityRefHelper.ExtractRefId(key);
+        if (targetGuid != null && targetGuid != Guid.Empty) return targetGuid;
+
+        var cleanKey = key.Trim();
+        var lastColon = cleanKey.LastIndexOf(':');
+        var candidate = lastColon >= 0 ? cleanKey[(lastColon + 1)..].Trim() : cleanKey;
+        if (Guid.TryParse(candidate, out var parsedGuid) && parsedGuid != Guid.Empty)
+        {
+            return parsedGuid;
+        }
+
+        return null;
     }
 
     private static Dictionary<string, object?> ExtractMap(object? source)
@@ -252,70 +236,50 @@ public class UpdateResourceMetadataTool(IRepositoryApi workspaceApi) : IResolver
             }
             catch
             {
-                // Fallback: empty map
+                // ignored
             }
         }
 
         return result;
     }
 
-    private static JsonDocument ParseToJsonDocument(object? metaObj, string contextKey)
+    private static JsonDocument ParseToJsonDocument(object? metaVal, string debugKey)
     {
-        if (metaObj is JsonDocument doc)
+        if (metaVal == null)
         {
-            return doc;
+            return JsonDocument.Parse("{}");
         }
 
-        if (metaObj is JsonElement elem)
+        if (metaVal is JsonDocument jDoc)
         {
-            if (elem.ValueKind == JsonValueKind.String)
+            return jDoc;
+        }
+
+        if (metaVal is JsonElement jElem)
+        {
+            return JsonDocument.Parse(jElem.GetRawText());
+        }
+
+        if (metaVal is string str)
+        {
+            var trimmed = str.Trim();
+            if (trimmed.StartsWith('{') || trimmed.StartsWith('['))
             {
-                var strVal = elem.GetString();
-                if (string.IsNullOrWhiteSpace(strVal))
-                {
-                    throw new ArgumentException(
-                        $"Metadata for '{contextKey}' is empty. Upstream node may have returned null or empty string.");
-                }
                 try
                 {
-                    return JsonDocument.Parse(strVal);
+                    return JsonDocument.Parse(trimmed);
                 }
                 catch (JsonException ex)
                 {
-                    throw new ArgumentException($"Failed to parse Metadata JSON string '{strVal}' for '{contextKey}': {ex.Message}");
+                    throw new ArgumentException($"Invalid JSON in Metadata for '{debugKey}': {ex.Message}");
                 }
             }
 
-            return JsonDocument.Parse(elem.GetRawText());
+            var wrapped = JsonSerializer.Serialize(new { raw_text = str });
+            return JsonDocument.Parse(wrapped);
         }
 
-        if (metaObj is string rawStr)
-        {
-            if (string.IsNullOrWhiteSpace(rawStr))
-            {
-                throw new ArgumentException(
-                    $"Metadata for '{contextKey}' is empty. Upstream node may have returned null or empty string.");
-            }
-
-            try
-            {
-                return JsonDocument.Parse(rawStr);
-            }
-            catch (JsonException ex)
-            {
-                throw new ArgumentException($"Failed to parse Metadata JSON string '{rawStr}' for '{contextKey}': {ex.Message}");
-            }
-        }
-
-        try
-        {
-            var json = JsonSerializer.Serialize(metaObj);
-            return JsonDocument.Parse(json);
-        }
-        catch (Exception ex)
-        {
-            throw new ArgumentException(
-                $"Failed to serialize metadata object of type '{metaObj?.GetType().Name}' for '{contextKey}' to JSON: {ex.Message}");
-        }
+        var serialized = JsonSerializer.Serialize(metaVal);
+        return JsonDocument.Parse(serialized);
     }
 }

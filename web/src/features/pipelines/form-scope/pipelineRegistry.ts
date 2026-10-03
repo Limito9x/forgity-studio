@@ -5,6 +5,7 @@ import { FormPinEntitySelect } from "../form-controls/FormPinEntitySelect";
 import { FormPinAssetUpload } from "../form-controls/FormPinAssetUpload";
 import { FormPinPathInput } from "../form-controls/FormPinPathInput";
 import { FormPinTagTreeSelect } from "../form-controls/FormPinTagTreeSelect";
+import { FormPinRunnerSelect } from "../form-controls/FormPinRunnerSelect";
 
 
 const createRequiredStringSchema = (props: any, field?: any) => {
@@ -87,5 +88,18 @@ pipelineRegistry.register({
       : z.array(z.string()).optional().nullable();
   },
 });
+
+pipelineRegistry.register({
+  type: "pin:runnerSelect",
+  component: FormPinRunnerSelect,
+  buildSchema: createRequiredStringSchema,
+});
+
+pipelineRegistry.register({
+  type: "runner",
+  component: FormPinRunnerSelect,
+  buildSchema: createRequiredStringSchema,
+});
+
 
 

@@ -30,14 +30,20 @@ export const CapsuleNode = memo(function CapsuleNode({
     nodeData.category === "Runner" ||
     nodeData.refId === "RunnerContext" ||
     nodeData.structType === "Runner";
-  const isWorkspace = nodeData.category === "Workspace" || nodeData.refId === "WorkspaceContext";
+  const isRepository =
+    nodeData.category === "Repository" ||
+    nodeData.refId === "RepositoryContext" ||
+    nodeData.structType === "Repository" ||
+    nodeData.category === "Workspace" ||
+    nodeData.refId === "WorkspaceContext" ||
+    nodeData.structType === "Workspace";
 
-  const IconComponent = isInput ? PlayCircle : isRunner ? Laptop : isWorkspace ? FolderGit2 : Variable;
+  const IconComponent = isInput ? PlayCircle : isRunner ? Laptop : isRepository ? FolderGit2 : Variable;
   const iconColor = isInput
     ? "text-emerald-400"
     : isRunner
     ? "text-sky-400"
-    : isWorkspace
+    : isRepository
     ? "text-amber-400"
     : "text-violet-400";
 

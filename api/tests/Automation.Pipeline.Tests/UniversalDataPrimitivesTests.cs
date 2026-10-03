@@ -16,7 +16,7 @@ namespace Automation.Pipeline.Tests;
 
 public class UniversalDataPrimitivesTests
 {
-    private readonly ToolExecutionContext _context = new(Guid.NewGuid(), Guid.NewGuid(), Guid.Empty, CancellationToken.None);
+    private readonly ToolExecutionContext _context = new(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
     private static (EntityStructRegistry registry, Guid projectId) CreateTestRegistryWithSlotBinding()
     {
@@ -329,7 +329,7 @@ public class UniversalDataPrimitivesTests
 
         var execId = Guid.NewGuid();
         var pipeId = Guid.NewGuid();
-        var context = new ToolExecutionContext(execId, pipeId, Guid.NewGuid(), CancellationToken.None);
+        var context = new ToolExecutionContext(execId, pipeId, CancellationToken.None);
 
         var inputs = new Dictionary<string, object>
         {

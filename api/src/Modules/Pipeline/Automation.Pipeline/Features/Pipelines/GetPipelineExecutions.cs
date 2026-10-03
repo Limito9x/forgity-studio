@@ -1,13 +1,14 @@
-using Microsoft.EntityFrameworkCore;
-using Wolverine.Attributes;
 using Automation.Pipeline.Features.Pipelines.Dtos;
 using Automation.Pipeline.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Wolverine.Attributes;
 
 namespace Automation.Pipeline.Features.Pipelines;
 
 public record GetPipelineExecutionsQuery(Guid PipelineId);
 
-public class GetPipelineExecutionsEndpoint(IMessageBus bus) : EndpointWithoutRequest<List<PipelineExecutionDto>>
+public class GetPipelineExecutionsEndpoint(IMessageBus bus)
+    : EndpointWithoutRequest<List<PipelineExecutionDto>>
 {
     public override void Configure()
     {
@@ -15,15 +16,16 @@ public class GetPipelineExecutionsEndpoint(IMessageBus bus) : EndpointWithoutReq
         Group<PipelinesGroup>();
         Permissions(P.Pipeline.GetById);
 
-        Description(d => d
-            .Produces<List<PipelineExecutionDto>>(200)
-            .Produces(404));
+        Description(d => d.Produces<List<PipelineExecutionDto>>(200).Produces(404));
     }
 
     public override async Task HandleAsync(CancellationToken ct)
     {
         var pipelineId = Route<Guid>("pipelineId");
-        var result = await bus.InvokeAsync<Result<List<PipelineExecutionDto>>>(new GetPipelineExecutionsQuery(pipelineId), ct);
+        var result = await bus.InvokeAsync<Result<List<PipelineExecutionDto>>>(
+            new GetPipelineExecutionsQuery(pipelineId),
+            ct
+        );
         await this.SendResultAsync(result, ct);
     }
 }
@@ -36,15 +38,14 @@ public class GetPipelineExecutionsHandler(PipelineDbContext db)
         CancellationToken ct
     )
     {
-        var executions = await db.PipelineExecutions
-            .AsNoTracking()
+        var executions = await db
+            .PipelineExecutions.AsNoTracking()
             .Where(x => x.PipelineId == query.PipelineId)
             .OrderByDescending(x => x.StartedAt)
             .Take(50)
             .Select(x => new PipelineExecutionDto(
                 x.Id,
                 x.PipelineId,
-                x.AgentId,
                 x.Status,
                 x.StartedAt,
                 x.FinishedAt,

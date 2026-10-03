@@ -18,6 +18,9 @@ public class RepositoryConfiguration : IEntityTypeConfiguration<Domain.Entities.
         builder.Property(x => x.Description)
             .HasMaxLength(500);
 
+        builder.Property(x => x.SupportedExtensions)
+            .HasColumnType("jsonb");
+
         builder.HasMany(x => x.Resources)
             .WithOne(x => x.Repository)
             .HasForeignKey(x => x.RepositoryId)

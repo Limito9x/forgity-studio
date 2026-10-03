@@ -36,7 +36,7 @@ interface PipelineParametersPanelProps {
   onAddParameter: (param: PipelineParameterDto) => void;
   onUpdateParameter?: (key: string, param: Partial<PipelineParameterDto>) => void;
   onDeleteParameter: (key: string) => void;
-  onSpawnCapsule: (key: string, kind: "Variable" | "Runner" | "Workspace" | "Context", type: any) => void;
+  onSpawnCapsule: (key: string, kind: "Variable" | "Runner" | "Repository" | "Workspace" | "Context", type: any) => void;
   onSpawnAction: (toolKey: "SetVariable", varName: string) => void;
   isOpen: boolean;
   onToggle: () => void;
@@ -125,7 +125,7 @@ export function PipelineParametersPanel({
       kind: kindMap[activeTab],
       type: Number(type) as any,
       cardinality: Number(cardinality) as any,
-      structType: type === "5" ? structType : null,
+      structType: (type === "4" || type === "5") ? structType : null,
       defaultValue: defaultValue.trim() || null,
       description: description.trim() || null,
       isRequired,
@@ -346,6 +346,7 @@ export function PipelineParametersPanel({
                       <SelectContent>
                         <SelectItem id="Runner">Runner</SelectItem>
                         <SelectItem id="Resource">Resource</SelectItem>
+                        <SelectItem id="Repository">Repository</SelectItem>
                         <SelectItem id="Workspace">Workspace</SelectItem>
                         <SelectItem id="ContentType">ContentType</SelectItem>
                         {projectStructs.map((s: any) => (

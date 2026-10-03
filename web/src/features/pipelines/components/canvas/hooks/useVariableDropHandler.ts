@@ -92,7 +92,7 @@ export function useVariableDropHandler({
   const handleSpawnCapsule = useCallback(
     (
       key: string,
-      category: "Variable" | "Runner" | "Workspace" | "Context" | "Input" = "Variable",
+      category: "Variable" | "Runner" | "Repository" | "Workspace" | "Context" | "Input" = "Variable",
       pinType: any = 0
     ) => {
       const newNodeId = crypto.randomUUID();
@@ -107,6 +107,8 @@ export function useVariableDropHandler({
           refId:
             category === "Runner"
               ? "RunnerContext"
+              : category === "Repository"
+              ? "RepositoryContext"
               : category === "Workspace"
               ? "WorkspaceContext"
               : category === "Input"

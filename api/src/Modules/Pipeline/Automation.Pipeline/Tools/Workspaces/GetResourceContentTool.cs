@@ -85,20 +85,7 @@ public class GetResourceContentTool(
 
         // 1. Resolve resource location info
         var singleResult = await workspaceApi.GetResourceLocationAsync(targetId, ct);
-        ResourceLocationInfoDto? locationInfo = null;
-
-        if (singleResult.IsSuccess)
-        {
-            locationInfo = singleResult.Value;
-        }
-        else
-        {
-            var listResult = await workspaceApi.GetResourceLocationsAsync([targetId], context.AgentId, ct);
-            if (listResult.IsSuccess && listResult.Value.TryGetValue(targetId.ToString(), out var loc))
-            {
-                locationInfo = loc;
-            }
-        }
+        var locationInfo = singleResult.IsSuccess ? singleResult.Value : null;
 
         var baseName = !string.IsNullOrEmpty(locationInfo?.RelativePath)
             ? Path.GetFileNameWithoutExtension(locationInfo.RelativePath)

@@ -68,7 +68,10 @@ public class SubPipelineDispatcher(
         {
             try
             {
-                if (step.Config.RootElement.TryGetProperty("pipelineId", out var pProp) && pProp.TryGetGuid(out var gid))
+                if (
+                    step.Config.RootElement.TryGetProperty("pipelineId", out var pProp)
+                    && pProp.TryGetGuid(out var gid)
+                )
                 {
                     targetPipelineId = gid;
                 }
@@ -84,8 +87,8 @@ public class SubPipelineDispatcher(
             return Result.Fail(err);
         }
 
-        var childPipeline = await db.Pipelines
-            .AsNoTracking()
+        var childPipeline = await db
+            .Pipelines.AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == targetPipelineId.Value, ct);
 
         if (childPipeline == null)
@@ -98,17 +101,23 @@ public class SubPipelineDispatcher(
 
         var childExecution = new PipelineExecution(
             childPipeline.Id,
-            execution.AgentId,
             parentExecutionId: execution.Id,
             triggeredByNodeId: step.NodeId
         );
         db.PipelineExecutions.Add(childExecution);
         await db.SaveChangesAsync(ct);
 
-        var childInputs = new Dictionary<string, object?>(subResolvedInputs, StringComparer.OrdinalIgnoreCase);
+        var childInputs = new Dictionary<string, object?>(
+            subResolvedInputs,
+            StringComparer.OrdinalIgnoreCase
+        );
 
-        logger.LogInformation("Executing Sub-Pipeline [{ChildName}] ({ChildPipelineId}) under Execution {ExecutionId}",
-            childPipeline.Name, childPipeline.Id, execution.Id);
+        logger.LogInformation(
+            "Executing Sub-Pipeline [{ChildName}] ({ChildPipelineId}) under Execution {ExecutionId}",
+            childPipeline.Name,
+            childPipeline.Id,
+            execution.Id
+        );
 
         if (orchestrator == null)
         {
@@ -118,11 +127,18 @@ public class SubPipelineDispatcher(
             return Result.Fail(err);
         }
 
-        var childResult = await orchestrator.ExecuteOrResumeAsync(childExecution.Id, childInputs, ct);
+        var childResult = await orchestrator.ExecuteOrResumeAsync(
+            childExecution.Id,
+            childInputs,
+            ct
+        );
 
         if (childResult.IsFailed || childResult.Value.Status == ExecutionStatus.Failed)
         {
-            var err = childResult.Errors.FirstOrDefault()?.Message ?? childResult.Value.ErrorMessage ?? "Sub-Pipeline execution failed.";
+            var err =
+                childResult.Errors.FirstOrDefault()?.Message
+                ?? childResult.Value.ErrorMessage
+                ?? "Sub-Pipeline execution failed.";
             logger.LogError(err);
             await RecordNodeFailureAsync(execution.Id, execution.PipelineId, step.NodeId, err, ct);
             return Result.Fail(err);
@@ -130,9 +146,12 @@ public class SubPipelineDispatcher(
 
         // Collect outputs from child Return node (if any) or memory store
         var subOutputs = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        var childReturnNode = await db.PipelineNodes
-            .AsNoTracking()
-            .FirstOrDefaultAsync(n => n.PipelineId == childPipeline.Id && n.Kind == PipelineNodeKind.Return, ct);
+        var childReturnNode = await db
+            .PipelineNodes.AsNoTracking()
+            .FirstOrDefaultAsync(
+                n => n.PipelineId == childPipeline.Id && n.Kind == PipelineNodeKind.Return,
+                ct
+            );
 
         // 1. Try reading outputs directly from child execution parameters snapshot
         if (childExecution.ExecutionState != null)
@@ -140,13 +159,17 @@ public class SubPipelineDispatcher(
             try
             {
                 var rootElem = childExecution.ExecutionState.RootElement;
-                if (rootElem.TryGetProperty("parameters", out var pElem) &&
-                    pElem.TryGetProperty("outputs", out var oElem) &&
-                    oElem.ValueKind == JsonValueKind.Object)
+                if (
+                    rootElem.TryGetProperty("parameters", out var pElem)
+                    && pElem.TryGetProperty("outputs", out var oElem)
+                    && oElem.ValueKind == JsonValueKind.Object
+                )
                 {
                     foreach (var prop in oElem.EnumerateObject())
                     {
-                        subOutputs[prop.Name] = InlineConfigResolver.NormalizeJsonElement(prop.Value);
+                        subOutputs[prop.Name] = InlineConfigResolver.NormalizeJsonElement(
+                            prop.Value
+                        );
                     }
                 }
             }
@@ -155,7 +178,11 @@ public class SubPipelineDispatcher(
 
         if (childReturnNode != null && subOutputs.Count == 0)
         {
-            var childOutputs = await stateStore.GetNodeAllOutputsAsync(childExecution.Id, childReturnNode.Id, ct);
+            var childOutputs = await stateStore.GetNodeAllOutputsAsync(
+                childExecution.Id,
+                childReturnNode.Id,
+                ct
+            );
             if (childOutputs.Count > 0)
             {
                 foreach (var (k, v) in childOutputs)
@@ -171,42 +198,70 @@ public class SubPipelineDispatcher(
         {
             successOutputs[k] = v ?? string.Empty;
         }
-        await RecordNodeSuccessAsync(execution.Id, execution.PipelineId, step.NodeId, successOutputs, ct);
+        await RecordNodeSuccessAsync(
+            execution.Id,
+            execution.PipelineId,
+            step.NodeId,
+            successOutputs,
+            ct
+        );
 
         return Result.Ok();
     }
 
-    private async Task RecordNodeSuccessAsync(Guid executionId, Guid pipelineId, Guid nodeId, Dictionary<string, object> outputs, CancellationToken ct)
+    private async Task RecordNodeSuccessAsync(
+        Guid executionId,
+        Guid pipelineId,
+        Guid nodeId,
+        Dictionary<string, object> outputs,
+        CancellationToken ct
+    )
     {
         await stateStore.SetNodeStatusAsync(executionId, nodeId, "succeeded", ct);
-        await stateStore.SetNodeOutputsAsync(executionId, nodeId, outputs.ToDictionary(k => k.Key, v => (object?)v.Value), ct);
+        await stateStore.SetNodeOutputsAsync(
+            executionId,
+            nodeId,
+            outputs.ToDictionary(k => k.Key, v => (object?)v.Value),
+            ct
+        );
 
         if (hubContext != null)
         {
             try
             {
-                await hubContext.Clients.Group($"pipeline_{pipelineId}").SendAsync(
-                    "PipelineNodeExecutionUpdated",
-                    new
-                    {
-                        executionId,
-                        pipelineId,
-                        nodeId,
-                        status = "succeeded",
-                        outputs,
-                        finishedAt = DateTimeOffset.UtcNow
-                    },
-                    ct
-                );
+                await hubContext
+                    .Clients.Group($"pipeline_{pipelineId}")
+                    .SendAsync(
+                        "PipelineNodeExecutionUpdated",
+                        new
+                        {
+                            executionId,
+                            pipelineId,
+                            nodeId,
+                            status = "succeeded",
+                            outputs,
+                            finishedAt = DateTimeOffset.UtcNow,
+                        },
+                        ct
+                    );
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to broadcast PipelineNodeExecutionUpdated via SignalR for {NodeId}", nodeId);
+                logger.LogWarning(
+                    ex,
+                    "Failed to broadcast PipelineNodeExecutionUpdated via SignalR for {NodeId}",
+                    nodeId
+                );
             }
         }
     }
 
-    private async Task RecordNodeRunningAsync(Guid executionId, Guid pipelineId, Guid nodeId, CancellationToken ct)
+    private async Task RecordNodeRunningAsync(
+        Guid executionId,
+        Guid pipelineId,
+        Guid nodeId,
+        CancellationToken ct
+    )
     {
         await stateStore.SetNodeStatusAsync(executionId, nodeId, "running", ct);
 
@@ -214,27 +269,39 @@ public class SubPipelineDispatcher(
         {
             try
             {
-                await hubContext.Clients.Group($"pipeline_{pipelineId}").SendAsync(
-                    "PipelineNodeExecutionUpdated",
-                    new
-                    {
-                        executionId,
-                        pipelineId,
-                        nodeId,
-                        status = "running",
-                        startedAt = DateTimeOffset.UtcNow
-                    },
-                    ct
-                );
+                await hubContext
+                    .Clients.Group($"pipeline_{pipelineId}")
+                    .SendAsync(
+                        "PipelineNodeExecutionUpdated",
+                        new
+                        {
+                            executionId,
+                            pipelineId,
+                            nodeId,
+                            status = "running",
+                            startedAt = DateTimeOffset.UtcNow,
+                        },
+                        ct
+                    );
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to broadcast PipelineNodeExecutionUpdated via SignalR for {NodeId}", nodeId);
+                logger.LogWarning(
+                    ex,
+                    "Failed to broadcast PipelineNodeExecutionUpdated via SignalR for {NodeId}",
+                    nodeId
+                );
             }
         }
     }
 
-    private async Task RecordNodeFailureAsync(Guid executionId, Guid pipelineId, Guid nodeId, string error, CancellationToken ct)
+    private async Task RecordNodeFailureAsync(
+        Guid executionId,
+        Guid pipelineId,
+        Guid nodeId,
+        string error,
+        CancellationToken ct
+    )
     {
         await stateStore.SetNodeStatusAsync(executionId, nodeId, "failed", ct);
 
@@ -242,23 +309,29 @@ public class SubPipelineDispatcher(
         {
             try
             {
-                await hubContext.Clients.Group($"pipeline_{pipelineId}").SendAsync(
-                    "PipelineNodeExecutionUpdated",
-                    new
-                    {
-                        executionId,
-                        pipelineId,
-                        nodeId,
-                        status = "failed",
-                        errorMessage = error,
-                        finishedAt = DateTimeOffset.UtcNow
-                    },
-                    ct
-                );
+                await hubContext
+                    .Clients.Group($"pipeline_{pipelineId}")
+                    .SendAsync(
+                        "PipelineNodeExecutionUpdated",
+                        new
+                        {
+                            executionId,
+                            pipelineId,
+                            nodeId,
+                            status = "failed",
+                            errorMessage = error,
+                            finishedAt = DateTimeOffset.UtcNow,
+                        },
+                        ct
+                    );
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to broadcast PipelineNodeExecutionUpdated via SignalR for {NodeId}", nodeId);
+                logger.LogWarning(
+                    ex,
+                    "Failed to broadcast PipelineNodeExecutionUpdated via SignalR for {NodeId}",
+                    nodeId
+                );
             }
         }
     }

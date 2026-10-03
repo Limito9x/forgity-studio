@@ -1,11 +1,12 @@
-using Microsoft.EntityFrameworkCore;
-using Wolverine.Attributes;
 using Automation.Pipeline.Features.Pipelines.Dtos;
 using Automation.Pipeline.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Wolverine.Attributes;
 
 namespace Automation.Pipeline.Features.Pipelines;
 
-public class GetPipelineExecutionEndpoint(IMessageBus bus) : EndpointWithoutRequest<PipelineExecutionDto>
+public class GetPipelineExecutionEndpoint(IMessageBus bus)
+    : EndpointWithoutRequest<PipelineExecutionDto>
 {
     public override void Configure()
     {
@@ -13,18 +14,18 @@ public class GetPipelineExecutionEndpoint(IMessageBus bus) : EndpointWithoutRequ
         Group<PipelinesGroup>();
         Permissions(P.Pipeline.GetById);
 
-        Description(d => d
-            .Produces<PipelineExecutionDto>(200)
-            .Produces(404));
+        Description(d => d.Produces<PipelineExecutionDto>(200).Produces(404));
     }
 
     public override async Task HandleAsync(CancellationToken ct)
     {
         var id = Route<Guid>("id");
-        var result = await bus.InvokeAsync<Result<PipelineExecutionDto>>(new GetPipelineExecutionQuery(id), ct);
+        var result = await bus.InvokeAsync<Result<PipelineExecutionDto>>(
+            new GetPipelineExecutionQuery(id),
+            ct
+        );
         await this.SendResultAsync(result, ct);
     }
-
 }
 
 public record GetPipelineExecutionQuery(Guid Id);
@@ -37,8 +38,8 @@ public class GetPipelineExecutionHandler(PipelineDbContext db)
         CancellationToken ct
     )
     {
-        var exec = await db.PipelineExecutions
-            .AsNoTracking()
+        var exec = await db
+            .PipelineExecutions.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == query.Id, ct);
 
         if (exec == null)
@@ -49,7 +50,6 @@ public class GetPipelineExecutionHandler(PipelineDbContext db)
         var dto = new PipelineExecutionDto(
             exec.Id,
             exec.PipelineId,
-            exec.AgentId,
             exec.Status,
             exec.StartedAt,
             exec.FinishedAt,

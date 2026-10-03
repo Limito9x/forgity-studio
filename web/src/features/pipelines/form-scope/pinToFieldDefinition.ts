@@ -25,7 +25,7 @@ export function resolveEntityTargetFromPin(
 
   // Nếu defaultValue là tên một Entity Target đã biết ("Resource", "Workspace", v.v.)
   const defaultValStr = typeof pin.defaultValue === "string" ? pin.defaultValue.trim() : "";
-  const knownTargets = ["resource", "workspace", "contenttype", "agent", "tag", "taggroup", "variable"];
+  const knownTargets = ["resource", "repository", "workspace", "contenttype", "runner", "agent", "tag", "taggroup", "variable"];
   if (knownTargets.includes(defaultValStr.toLowerCase())) {
     return defaultValStr;
   }
@@ -59,8 +59,21 @@ export function resolveEntityTargetFromPin(
   if (idLower.includes("resource") || labelLower.includes("resource")) {
     return "Resource";
   }
-  if (idLower.includes("workspace") || labelLower.includes("workspace")) {
-    return "Workspace";
+  if (
+    idLower.includes("repository") ||
+    labelLower.includes("repository") ||
+    idLower.includes("workspace") ||
+    labelLower.includes("workspace")
+  ) {
+    return "Repository";
+  }
+  if (
+    idLower.includes("runner") ||
+    labelLower.includes("runner") ||
+    idLower.includes("agent") ||
+    labelLower.includes("agent")
+  ) {
+    return "Runner";
   }
 
   return "Resource";
@@ -198,6 +211,43 @@ export const PIN_RULES: PinFieldRule[] = [
         placeholder: "Type and press Enter to add tag...",
       },
     }),
+  },
+
+  // 3.5. Runner Pin → Dedicated Runner Select
+  {
+    predicate: (pin, _, idLower) => {
+      const entityTarget = (pin.entityTarget || "").toLowerCase();
+      const labelLower = (pin.label || "").toLowerCase();
+      return (
+        entityTarget === "runner" ||
+        entityTarget === "agent" ||
+        idLower === "runner" ||
+        idLower === "runnerid" ||
+        labelLower === "runner" ||
+        labelLower === "runner id"
+      );
+    },
+    create: (pin) => {
+      const cardStr = String(pin.cardinality ?? "").toLowerCase();
+      const idLower = (pin.id || "").toLowerCase();
+      const labelLower = (pin.label || "").toLowerCase();
+      const isMultiple =
+        cardStr === "array" ||
+        cardStr === "1" ||
+        idLower.endsWith("[]") ||
+        labelLower.endsWith("[]");
+
+      return {
+        name: pin.id!,
+        label: pin.label || pin.id!,
+        type: "pin:runnerSelect",
+        defaultValue: isMultiple ? [] : (pin.defaultValue ?? ""),
+        properties: {
+          placeholder: "Select runner...",
+          multiple: isMultiple,
+        },
+      };
+    },
   },
 
   // 4. EntityRef → Entity Select (Single or Multi-select)

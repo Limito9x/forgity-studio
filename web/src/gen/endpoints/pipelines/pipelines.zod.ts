@@ -17,7 +17,6 @@ export const CreatePipelineBody = /*#__PURE__*/ zod.object({
   "projectId": /*#__PURE__*/ zod.uuid().check(/*#__PURE__*/ zod.minLength(1)),
   "name": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(createPipelineBodyNameMin)).check(/*#__PURE__*/ zod.maxLength(createPipelineBodyNameMax)),
   "triggerType": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2)])),
-  "triggerWorkspaceId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
   "triggerConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
 })
 
@@ -26,7 +25,6 @@ export const CreatePipelineResponse = /*#__PURE__*/ zod.object({
   "projectId": /*#__PURE__*/ zod.uuid(),
   "name": /*#__PURE__*/ zod.string(),
   "triggerType": /*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2)]),
-  "triggerWorkspaceId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
   "nodeCount": /*#__PURE__*/ zod.int(),
   "edgeCount": /*#__PURE__*/ zod.int(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
@@ -42,7 +40,6 @@ export const GetPipelinesResponseItem = /*#__PURE__*/ zod.object({
   "projectId": /*#__PURE__*/ zod.uuid(),
   "name": /*#__PURE__*/ zod.string(),
   "triggerType": /*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2)]),
-  "triggerWorkspaceId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
   "nodeCount": /*#__PURE__*/ zod.int(),
   "edgeCount": /*#__PURE__*/ zod.int(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
@@ -57,7 +54,6 @@ export const GetPipelineExecutionParams = /*#__PURE__*/ zod.object({
 export const GetPipelineExecutionResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "pipelineId": /*#__PURE__*/ zod.uuid(),
-  "agentId": /*#__PURE__*/ zod.uuid(),
   "status": /*#__PURE__*/ zod.enum(['Pending', 'Running', 'WaitingForRunner', 'Succeeded', 'Failed', 'Cancelled']),
   "startedAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
   "finishedAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
@@ -134,7 +130,6 @@ export const UpdatePipelineResponse = /*#__PURE__*/ zod.object({
   "projectId": /*#__PURE__*/ zod.uuid(),
   "name": /*#__PURE__*/ zod.string(),
   "triggerType": /*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2)]),
-  "triggerWorkspaceId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
   "nodeCount": /*#__PURE__*/ zod.int(),
   "edgeCount": /*#__PURE__*/ zod.int(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
@@ -158,7 +153,6 @@ export const GetPipelineGraphResponse = /*#__PURE__*/ zod.object({
   "projectId": /*#__PURE__*/ zod.uuid(),
   "name": /*#__PURE__*/ zod.string(),
   "triggerType": /*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2)]),
-  "triggerWorkspaceId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
   "nodes": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "refId": /*#__PURE__*/ zod.string(),
@@ -286,7 +280,6 @@ export const SavePipelineGraphResponse = /*#__PURE__*/ zod.object({
   "projectId": /*#__PURE__*/ zod.uuid(),
   "name": /*#__PURE__*/ zod.string(),
   "triggerType": /*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2)]),
-  "triggerWorkspaceId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
   "nodes": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "refId": /*#__PURE__*/ zod.string(),
@@ -367,7 +360,6 @@ export const UpdatePipelineTriggerParams = /*#__PURE__*/ zod.object({
 
 export const UpdatePipelineTriggerBody = /*#__PURE__*/ zod.object({
   "triggerType": /*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2)]),
-  "triggerWorkspaceId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
   "triggerConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
 })
 
@@ -376,7 +368,6 @@ export const UpdatePipelineTriggerResponse = /*#__PURE__*/ zod.object({
   "projectId": /*#__PURE__*/ zod.uuid(),
   "name": /*#__PURE__*/ zod.string(),
   "triggerType": /*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2)]),
-  "triggerWorkspaceId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
   "nodeCount": /*#__PURE__*/ zod.int(),
   "edgeCount": /*#__PURE__*/ zod.int(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
@@ -425,7 +416,6 @@ export const GetPipelineExecutionsParams = /*#__PURE__*/ zod.object({
 export const GetPipelineExecutionsResponseItem = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "pipelineId": /*#__PURE__*/ zod.uuid(),
-  "agentId": /*#__PURE__*/ zod.uuid(),
   "status": /*#__PURE__*/ zod.enum(['Pending', 'Running', 'WaitingForRunner', 'Succeeded', 'Failed', 'Cancelled']),
   "startedAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
   "finishedAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
@@ -542,7 +532,6 @@ export const RunPipelineBody = /*#__PURE__*/ zod.object({
 export const RunPipelineResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "pipelineId": /*#__PURE__*/ zod.uuid(),
-  "agentId": /*#__PURE__*/ zod.uuid(),
   "status": /*#__PURE__*/ zod.enum(['Pending', 'Running', 'WaitingForRunner', 'Succeeded', 'Failed', 'Cancelled']),
   "startedAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
   "finishedAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),

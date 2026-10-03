@@ -1,3 +1,4 @@
+using Automation.Runner.Contracts;
 using Automation.Tag.Contracts;
 using Automation.Tag.Contracts.Dtos;
 using Automation.Repository.Constants;
@@ -36,7 +37,7 @@ public class GetResourceByIdEndpoint(IMessageBus bus) : EndpointWithoutRequest<R
 
 // 3. Handler
 [NonTransactional]
-public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi)
+public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi, IRunnerApi runnerApi)
 {
     public async Task<Result<ResourceItemDto>> HandleAsync(GetResourceByIdQuery query, CancellationToken ct)
     {
@@ -45,6 +46,8 @@ public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi)
             .Where(x => x.Id == query.Id)
             .Include(x => x.Repository)
             .Include(x => x.Versions)
+                .ThenInclude(v => v.Locations)
+                    .ThenInclude(l => l.RepositoryRunner)
             .FirstOrDefaultAsync(ct);
 
         if (resource is null)
@@ -67,6 +70,24 @@ public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi)
             }
         }
 
+        // 3. Query Runner metadata for all attached locations
+        var allRunnerIds = resource.Versions
+            .SelectMany(v => v.Locations)
+            .Where(l => l.RepositoryRunner != null)
+            .Select(l => l.RepositoryRunner.RunnerId)
+            .Distinct()
+            .ToList();
+
+        IReadOnlyDictionary<Guid, RunnerDto> runnerMap = new Dictionary<Guid, RunnerDto>();
+        if (allRunnerIds.Count > 0)
+        {
+            var runnerMapResult = await runnerApi.GetAgentsMapByIdsAsync(allRunnerIds, ct);
+            if (runnerMapResult.IsSuccess && runnerMapResult.Value != null)
+            {
+                runnerMap = runnerMapResult.Value;
+            }
+        }
+
         var versionDtos = resource.Versions
             .OrderByDescending(v => v.VersionNo)
             .Select(v =>
@@ -82,6 +103,29 @@ public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi)
                     .Where(g => !string.IsNullOrEmpty(g.Key))
                     .ToDictionary(g => g.Key, g => (IReadOnlyList<TagLinkDetailDto>)g.ToList());
 
+                var locationDtos = v.Locations.Select(l =>
+                {
+                    var rr = l.RepositoryRunner;
+                    RunnerDto? rDto = null;
+                    if (rr != null)
+                    {
+                        runnerMap.TryGetValue(rr.RunnerId, out rDto);
+                    }
+
+                    return new ResourceVersionLocationDto(
+                        l.Id,
+                        l.ResourceVersionId,
+                        l.RepositoryRunnerId,
+                        resource.RelativePath,
+                        l.IsOrigin,
+                        l.DiscoveredAt,
+                        l.CreatedAt,
+                        rDto?.MachineKey,
+                        rDto?.Name,
+                        rr?.RootPath
+                    );
+                }).ToList();
+
                 return new ResourceVersionDto(
                     v.Id,
                     v.VersionNo,
@@ -90,7 +134,8 @@ public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi)
                     v.Notes,
                     v.CreatedAt,
                     v.Metadata,
-                    tagsByPath
+                    tagsByPath,
+                    locationDtos
                 );
             })
             .ToList();
@@ -101,7 +146,7 @@ public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi)
             resource.RepositoryId,
             resource.DisplayName,
             resource.RelativePath,
-            resource.PlatformExtensionId,
+            resource.Extension,
             resource.ContentId,
             resource.CreatedAt,
             versionDtos

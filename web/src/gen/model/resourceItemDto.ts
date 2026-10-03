@@ -13,7 +13,7 @@ export interface ResourceItemDto {
   /** @nullable */
   filePath: string | null;
   /** @nullable */
-  platformExtensionId: string | null;
+  extension: string | null;
   /** @nullable */
   contentId: string | null;
   createdAt: string;

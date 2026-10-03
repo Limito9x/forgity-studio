@@ -12,7 +12,6 @@ public record CreatePipelineCommand(
     Guid ProjectId,
     string Name,
     PipelineTriggerType TriggerType = PipelineTriggerType.Manual,
-    Guid? TriggerWorkspaceId = null,
     System.Text.Json.JsonDocument? TriggerConfig = null
 );
 
@@ -67,7 +66,6 @@ public class CreatePipelineHandler(PipelineDbContext db)
             command.ProjectId,
             trimmedName,
             command.TriggerType,
-            command.TriggerWorkspaceId,
             command.TriggerConfig
         );
         db.Pipelines.Add(pipeline);
@@ -108,7 +106,6 @@ public class CreatePipelineHandler(PipelineDbContext db)
             pipeline.ProjectId,
             pipeline.Name,
             pipeline.TriggerType,
-            pipeline.TriggerWorkspaceId,
             2,
             0,
             pipeline.CreatedAt,

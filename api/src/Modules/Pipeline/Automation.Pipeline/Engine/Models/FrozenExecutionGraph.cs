@@ -1,9 +1,9 @@
 using System.Text.Json;
 using Automation.Pipeline.Constants;
-using Automation.Pipeline.Engine.Analysis;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
+using Automation.Pipeline.Engine.Analysis;
 using Automation.Pipeline.Tools;
 
 namespace Automation.Pipeline.Engine.Models;
@@ -18,25 +18,35 @@ public sealed class FrozenExecutionGraph
     public Guid PipelineId { get; init; }
     public Guid ProjectId { get; init; }
 
-    public IReadOnlyDictionary<Guid, PipelineNode> NodesById { get; init; } = new Dictionary<Guid, PipelineNode>();
-    public IReadOnlyDictionary<string, PipelineParameter> ParametersByKey { get; init; } = new Dictionary<string, PipelineParameter>(StringComparer.OrdinalIgnoreCase);
+    public IReadOnlyDictionary<Guid, PipelineNode> NodesById { get; init; } =
+        new Dictionary<Guid, PipelineNode>();
+    public IReadOnlyDictionary<string, PipelineParameter> ParametersByKey { get; init; } =
+        new Dictionary<string, PipelineParameter>(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyList<PipelineEdge> Edges { get; init; } = [];
 
     // Tra cứu dây nối vào 1 chân pin cụ thể của 1 node O(1)
-    public IReadOnlyDictionary<(Guid TargetNodeId, string CanonicalPin), PipelineEdge> InEdges { get; init; }
-        = new Dictionary<(Guid TargetNodeId, string CanonicalPin), PipelineEdge>();
+    public IReadOnlyDictionary<
+        (Guid TargetNodeId, string CanonicalPin),
+        PipelineEdge
+    > InEdges { get; init; } =
+        new Dictionary<(Guid TargetNodeId, string CanonicalPin), PipelineEdge>();
 
     // Tra cứu tất cả dây nối vào 1 node O(1)
-    public IReadOnlyDictionary<Guid, IReadOnlyList<PipelineEdge>> InEdgesByTargetNode { get; init; }
-        = new Dictionary<Guid, IReadOnlyList<PipelineEdge>>();
+    public IReadOnlyDictionary<
+        Guid,
+        IReadOnlyList<PipelineEdge>
+    > InEdgesByTargetNode { get; init; } = new Dictionary<Guid, IReadOnlyList<PipelineEdge>>();
 
     // Tra cứu các dây nối từ 1 chân pin ra ngoài O(1)
-    public IReadOnlyDictionary<(Guid SourceNodeId, string CanonicalPin), IReadOnlyList<PipelineEdge>> OutEdges { get; init; }
-        = new Dictionary<(Guid SourceNodeId, string CanonicalPin), IReadOnlyList<PipelineEdge>>();
+    public IReadOnlyDictionary<
+        (Guid SourceNodeId, string CanonicalPin),
+        IReadOnlyList<PipelineEdge>
+    > OutEdges { get; init; } =
+        new Dictionary<(Guid SourceNodeId, string CanonicalPin), IReadOnlyList<PipelineEdge>>();
 
     // Bản đồ Stage -> Worker Executor -> Runner máy trạm (Hỗ trợ Plug over Select)
-    public IReadOnlyDictionary<Guid, StageWorkerBinding> StageBindings { get; init; }
-        = new Dictionary<Guid, StageWorkerBinding>();
+    public IReadOnlyDictionary<Guid, StageWorkerBinding> StageBindings { get; init; } =
+        new Dictionary<Guid, StageWorkerBinding>();
 
     // Các pure node IDs được tính toán sẵn
     public HashSet<Guid> PureNodeIds { get; init; } = [];
@@ -54,7 +64,9 @@ public sealed class FrozenExecutionGraph
         var nodesById = pipeline.Nodes.ToDictionary(n => n.Id);
 
         // 1. Index Parameters by Key and Label
-        var paramsDict = new Dictionary<string, PipelineParameter>(StringComparer.OrdinalIgnoreCase);
+        var paramsDict = new Dictionary<string, PipelineParameter>(
+            StringComparer.OrdinalIgnoreCase
+        );
         foreach (var param in pipeline.Parameters)
         {
             if (!string.IsNullOrWhiteSpace(param.Key))
@@ -70,7 +82,8 @@ public sealed class FrozenExecutionGraph
         // 2. Index Edges
         var inEdges = new Dictionary<(Guid TargetNodeId, string CanonicalPin), PipelineEdge>();
         var inByTarget = new Dictionary<Guid, List<PipelineEdge>>();
-        var outEdges = new Dictionary<(Guid SourceNodeId, string CanonicalPin), List<PipelineEdge>>();
+        var outEdges =
+            new Dictionary<(Guid SourceNodeId, string CanonicalPin), List<PipelineEdge>>();
 
         foreach (var edge in pipeline.Edges)
         {
@@ -107,8 +120,8 @@ public sealed class FrozenExecutionGraph
 
         // 4. Build Stage-Worker-Runner Bindings (Hỗ trợ Plug over Select)
         var stageBindings = new Dictionary<Guid, StageWorkerBinding>();
-        var containerNodes = pipeline.Nodes
-            .Where(n => n.Kind == PipelineNodeKind.Container)
+        var containerNodes = pipeline
+            .Nodes.Where(n => n.Kind == PipelineNodeKind.Container)
             .ToList();
 
         foreach (var container in containerNodes)
@@ -116,40 +129,70 @@ public sealed class FrozenExecutionGraph
             var containerExecutor = "dotNet";
             Guid? configuredRunnerId = null;
 
-            if (container.Metadata != null && container.Metadata.RootElement.ValueKind == JsonValueKind.Object)
+            if (
+                container.Metadata != null
+                && container.Metadata.RootElement.ValueKind == JsonValueKind.Object
+            )
             {
                 if (container.Metadata.RootElement.TryGetProperty("executor", out var execProp))
                     containerExecutor = execProp.GetString() ?? "dotNet";
-                else if (container.Metadata.RootElement.TryGetProperty("executorKey", out var execKeyProp))
+                else if (
+                    container.Metadata.RootElement.TryGetProperty(
+                        "executorKey",
+                        out var execKeyProp
+                    )
+                )
                     containerExecutor = execKeyProp.GetString() ?? "dotNet";
 
-                if (container.Metadata.RootElement.TryGetProperty("targetRunnerId", out var runnerProp) &&
-                    runnerProp.GetString() is { } runnerStr &&
-                    Guid.TryParse(runnerStr, out var parsedRunnerId))
+                if (
+                    container.Metadata.RootElement.TryGetProperty(
+                        "targetRunnerId",
+                        out var runnerProp
+                    )
+                    && runnerProp.GetString() is { } runnerStr
+                    && Guid.TryParse(runnerStr, out var parsedRunnerId)
+                )
                 {
                     configuredRunnerId = parsedRunnerId;
                 }
             }
 
             var containerName = container.RefId;
-            if (container.Config != null && container.Config.RootElement.ValueKind == JsonValueKind.Object &&
-                container.Config.RootElement.TryGetProperty("label", out var labelProp))
+            if (
+                container.Config != null
+                && container.Config.RootElement.ValueKind == JsonValueKind.Object
+                && container.Config.RootElement.TryGetProperty("label", out var labelProp)
+            )
             {
                 containerName = labelProp.GetString() ?? containerName;
             }
 
             // Quét xem có dây nối nào cắm vào cổng "runner" của Container không (Plug over Select)
-            (Guid TargetNodeId, string CanonicalPin) runnerEdgeKey = (container.Id, CanonicalPinKey.Normalize("runner"));
-            PipelineEdge? incomingRunnerEdge = inEdges.TryGetValue(runnerEdgeKey, out var foundEdge) ? foundEdge : null;
+            (Guid TargetNodeId, string CanonicalPin) runnerEdgeKey = (
+                container.Id,
+                CanonicalPinKey.Normalize("runner")
+            );
+            PipelineEdge? incomingRunnerEdge = inEdges.TryGetValue(runnerEdgeKey, out var foundEdge)
+                ? foundEdge
+                : null;
 
-            // Nếu không tìm thấy bằng "runner", thử tìm bằng "runnerid"
+            // Nếu không tìm thấy bằng "runner", quét tất cả các incoming edge cắm vào container
             if (incomingRunnerEdge == null)
             {
-                (Guid TargetNodeId, string CanonicalPin) altKey = (container.Id, CanonicalPinKey.Normalize("runnerid"));
-                if (inEdges.TryGetValue(altKey, out var altFound))
-                {
-                    incomingRunnerEdge = altFound;
-                }
+                incomingRunnerEdge = pipeline.Edges.FirstOrDefault(e =>
+                    e.TargetPipelineNodeId == container.Id
+                    && (
+                        CanonicalPinKey.Normalize(e.TargetPin)
+                            is "runner"
+                                or "runnerid"
+                                or "agent"
+                                or "agentid"
+                                or "targetrunner"
+                                or "targetrunnerid"
+                        || e.TargetPin.ToLowerInvariant().Contains("runner")
+                        || e.TargetPin.ToLowerInvariant().Contains("agent")
+                    )
+                );
             }
 
             Guid? effectiveRunnerId = configuredRunnerId;
@@ -165,47 +208,231 @@ public sealed class FrozenExecutionGraph
 
                 if (nodesById.TryGetValue(incomingRunnerEdge.SourcePipelineNodeId, out var srcNode))
                 {
-                    if (srcNode.Kind == PipelineNodeKind.Start || srcNode.RefId.Equals("Start", StringComparison.OrdinalIgnoreCase))
+                    // Thu thập tất cả candidate keys từ Node nguồn (Start / Capsule / Input / Variable / Context)
+                    var candidateKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    if (!string.IsNullOrWhiteSpace(incomingRunnerEdge.SourcePin))
                     {
-                        // Lấy từ RuntimeInputs truyền vào khi bấm Run
-                        if (runtimeInputs != null)
+                        candidateKeys.Add(incomingRunnerEdge.SourcePin);
+                    }
+
+                    if (
+                        srcNode.Config != null
+                        && srcNode.Config.RootElement.ValueKind == JsonValueKind.Object
+                    )
+                    {
+                        foreach (
+                            var prop in new[] { "key", "VariableName", "name", "target", "id" }
+                        )
                         {
-                            var pinNorm = CanonicalPinKey.Normalize(incomingRunnerEdge.SourcePin);
+                            if (
+                                srcNode.Config.RootElement.TryGetProperty(prop, out var p)
+                                && p.GetString() is { } s
+                                && !string.IsNullOrWhiteSpace(s)
+                            )
+                            {
+                                candidateKeys.Add(s);
+                            }
+                        }
+                    }
+
+                    if (
+                        srcNode.Metadata != null
+                        && srcNode.Metadata.RootElement.ValueKind == JsonValueKind.Object
+                    )
+                    {
+                        foreach (var prop in new[] { "key", "VariableName", "name", "label" })
+                        {
+                            if (
+                                srcNode.Metadata.RootElement.TryGetProperty(prop, out var p)
+                                && p.GetString() is { } s
+                                && !string.IsNullOrWhiteSpace(s)
+                            )
+                            {
+                                candidateKeys.Add(s);
+                            }
+                        }
+                    }
+
+                    // 1. Đối chiếu candidate keys với RuntimeInputs
+                    if (runtimeInputs != null)
+                    {
+                        foreach (var candidate in candidateKeys)
+                        {
+                            var candNorm = CanonicalPinKey.Normalize(candidate);
                             foreach (var (k, v) in runtimeInputs)
                             {
-                                if (CanonicalPinKey.IsMatching(k, pinNorm) && v != null)
+                                if (CanonicalPinKey.IsMatching(k, candNorm) && v != null)
                                 {
-                                    if (Guid.TryParse(v.ToString(), out var parsedGuid))
+                                    var (_, parsedGuid, isValid) = EntityRefHelper.Parse(v);
+                                    if (isValid && parsedGuid != Guid.Empty)
                                     {
                                         effectiveRunnerId = parsedGuid;
+                                        break;
                                     }
+                                }
+                            }
+                            if (effectiveRunnerId.HasValue && effectiveRunnerId.Value != Guid.Empty)
+                                break;
+                        }
+
+                        // Nếu node nguồn liên quan đến Runner (RefId / Category chứa Runner/Agent), tìm fallback trong runtimeInputs
+                        if (
+                            (!effectiveRunnerId.HasValue || effectiveRunnerId.Value == Guid.Empty)
+                            && (
+                                srcNode.RefId.Contains("Runner", StringComparison.OrdinalIgnoreCase)
+                                || srcNode.RefId.Contains(
+                                    "Agent",
+                                    StringComparison.OrdinalIgnoreCase
+                                )
+                                || candidateKeys.Any(c =>
+                                    c.Contains("runner", StringComparison.OrdinalIgnoreCase)
+                                    || c.Contains("agent", StringComparison.OrdinalIgnoreCase)
+                                )
+                            )
+                        )
+                        {
+                            foreach (var (k, v) in runtimeInputs)
+                            {
+                                if (
+                                    (
+                                        k.Contains("runner", StringComparison.OrdinalIgnoreCase)
+                                        || k.Contains("agent", StringComparison.OrdinalIgnoreCase)
+                                    )
+                                    && v != null
+                                )
+                                {
+                                    var (_, parsedGuid, isValid) = EntityRefHelper.Parse(v);
+                                    if (isValid && parsedGuid != Guid.Empty)
+                                    {
+                                        effectiveRunnerId = parsedGuid;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 2. Thử lấy từ DefaultValue của Pipeline Parameters nếu chưa tìm thấy
+                    if (!effectiveRunnerId.HasValue || effectiveRunnerId.Value == Guid.Empty)
+                    {
+                        foreach (var candidate in candidateKeys)
+                        {
+                            var param = pipeline.Parameters.FirstOrDefault(p =>
+                                CanonicalPinKey.IsMatching(p.Key, candidate)
+                                || CanonicalPinKey.IsMatching(p.Label, candidate)
+                                || p.Id.ToString()
+                                    .Equals(candidate, StringComparison.OrdinalIgnoreCase)
+                            );
+
+                            if (param?.DefaultValue != null)
+                            {
+                                var (_, parsedGuid, isValid) = EntityRefHelper.Parse(
+                                    param.DefaultValue
+                                );
+                                if (isValid && parsedGuid != Guid.Empty)
+                                {
+                                    effectiveRunnerId = parsedGuid;
                                     break;
                                 }
                             }
                         }
                     }
-                    else if (srcNode.Kind == PipelineNodeKind.Variable)
+
+                    // 3. Thử lấy từ DefaultValue của Pipeline Variables nếu chưa tìm thấy
+                    if (!effectiveRunnerId.HasValue || effectiveRunnerId.Value == Guid.Empty)
                     {
-                        // Variable Capsule: giải quyết lúc runtime nếu chưa có
-                    }
-                    else
-                    {
-                        // Nguồn là một Node cố định: thử trích xuất runnerId từ Config
-                        if (srcNode.Config != null && srcNode.Config.RootElement.ValueKind == JsonValueKind.Object)
+                        foreach (var candidate in candidateKeys)
                         {
-                            if (srcNode.Config.RootElement.TryGetProperty("runnerId", out var rProp) &&
-                                Guid.TryParse(rProp.GetString(), out var rGuid))
+                            var variable = pipeline.Parameters.FirstOrDefault(v =>
+                                v.Kind == PipelineParameterKind.Variable
+                                && (
+                                    CanonicalPinKey.IsMatching(v.Key, candidate)
+                                    || CanonicalPinKey.IsMatching(v.Label, candidate)
+                                )
+                            );
+
+                            if (variable?.DefaultValue != null)
                             {
-                                effectiveRunnerId = rGuid;
+                                var (_, parsedGuid, isValid) = EntityRefHelper.Parse(
+                                    variable.DefaultValue
+                                );
+                                if (isValid && parsedGuid != Guid.Empty)
+                                {
+                                    effectiveRunnerId = parsedGuid;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // 4. Thử trích xuất từ Config của Node nguồn (runnerId, targetRunnerId)
+                    if (!effectiveRunnerId.HasValue || effectiveRunnerId.Value == Guid.Empty)
+                    {
+                        if (
+                            srcNode.Config != null
+                            && srcNode.Config.RootElement.ValueKind == JsonValueKind.Object
+                        )
+                        {
+                            foreach (
+                                var prop in new[]
+                                {
+                                    "runnerId",
+                                    "RunnerId",
+                                    "targetRunnerId",
+                                    "TargetRunnerId",
+                                    "value",
+                                }
+                            )
+                            {
+                                if (
+                                    srcNode.Config.RootElement.TryGetProperty(prop, out var rProp)
+                                    && rProp.GetString() is { } rStr
+                                )
+                                {
+                                    var (_, parsedGuid, isValid) = EntityRefHelper.Parse(rStr);
+                                    if (isValid && parsedGuid != Guid.Empty)
+                                    {
+                                        effectiveRunnerId = parsedGuid;
+                                        break;
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
 
-            var queueName = effectiveRunnerId.HasValue && effectiveRunnerId.Value != Guid.Empty
-                ? $"stage_tasks.{effectiveRunnerId.Value}"
-                : string.Empty;
+            // 5. Ultimate Fallback: Nếu Stage chưa có Runner mà RuntimeInputs có Runner (từ modal run), tự động gắn vào Stage
+            if (
+                (!effectiveRunnerId.HasValue || effectiveRunnerId.Value == Guid.Empty)
+                && runtimeInputs != null
+            )
+            {
+                foreach (var (k, v) in runtimeInputs)
+                {
+                    if (
+                        (
+                            k.Equals("Runner", StringComparison.OrdinalIgnoreCase)
+                            || k.Equals("runner", StringComparison.OrdinalIgnoreCase)
+                            || k.Equals("targetRunnerId", StringComparison.OrdinalIgnoreCase)
+                        )
+                        && v != null
+                    )
+                    {
+                        var (_, parsedGuid, isValid) = EntityRefHelper.Parse(v);
+                        if (isValid && parsedGuid != Guid.Empty)
+                        {
+                            effectiveRunnerId = parsedGuid;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            var queueName =
+                effectiveRunnerId.HasValue && effectiveRunnerId.Value != Guid.Empty
+                    ? $"stage_tasks.{effectiveRunnerId.Value}"
+                    : string.Empty;
 
             stageBindings[container.Id] = new StageWorkerBinding
             {
@@ -218,15 +445,25 @@ public sealed class FrozenExecutionGraph
                 EffectiveRunnerId = effectiveRunnerId,
                 BindingSource = bindingSource,
                 TargetQueueName = queueName,
-                IsValid = true
+                IsValid = true,
             };
         }
 
         var startNode = pipeline.Nodes.FirstOrDefault(n =>
-            n.ParentId == null && (n.Kind == PipelineNodeKind.Start || n.RefId.Equals("Start", StringComparison.OrdinalIgnoreCase)));
+            n.ParentId == null
+            && (
+                n.Kind == PipelineNodeKind.Start
+                || n.RefId.Equals("Start", StringComparison.OrdinalIgnoreCase)
+            )
+        );
 
         var returnNode = pipeline.Nodes.FirstOrDefault(n =>
-            n.ParentId == null && (n.Kind == PipelineNodeKind.Return || n.RefId.Equals("Return", StringComparison.OrdinalIgnoreCase)));
+            n.ParentId == null
+            && (
+                n.Kind == PipelineNodeKind.Return
+                || n.RefId.Equals("Return", StringComparison.OrdinalIgnoreCase)
+            )
+        );
 
         return new FrozenExecutionGraph
         {
@@ -236,13 +473,16 @@ public sealed class FrozenExecutionGraph
             ParametersByKey = paramsDict,
             Edges = pipeline.Edges,
             InEdges = inEdges,
-            InEdgesByTargetNode = inByTarget.ToDictionary(k => k.Key, k => (IReadOnlyList<PipelineEdge>)k.Value),
+            InEdgesByTargetNode = inByTarget.ToDictionary(
+                k => k.Key,
+                k => (IReadOnlyList<PipelineEdge>)k.Value
+            ),
             OutEdges = outEdges.ToDictionary(k => k.Key, k => (IReadOnlyList<PipelineEdge>)k.Value),
             StageBindings = stageBindings,
             PureNodeIds = pureIds,
             DynamicPureNodeIds = dynamicNodes,
             StartNode = startNode,
-            ReturnNode = returnNode
+            ReturnNode = returnNode,
         };
     }
 }

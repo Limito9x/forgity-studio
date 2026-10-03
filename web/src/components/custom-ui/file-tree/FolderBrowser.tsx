@@ -249,7 +249,7 @@ export function FolderBrowser({
   return (
     <div
       className={cn(
-        "flex flex-col border border-border/60 rounded-xl bg-card overflow-hidden shadow-xs text-xs",
+        "flex flex-col border border-border/60 rounded-xl bg-card overflow-hidden shadow-xs text-xs w-full",
         className
       )}
     >
@@ -313,7 +313,7 @@ export function FolderBrowser({
       </div>
 
       {/* Main 2-Panel Area: Left Sidebar (System & Pinned) + Right Explorer */}
-      <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] divide-y md:divide-y-0 md:divide-x divide-border/30">
+      <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] divide-y md:divide-y-0 md:divide-x divide-border/30 w-full">
         {/* Left Sidebar (Blender-style System & Drives) */}
         <div
           className="bg-muted/15 p-2 flex flex-col gap-3 overflow-y-auto"
@@ -511,7 +511,7 @@ export function FolderBrowser({
         </div>
 
         {/* Right Content Explorer */}
-        <div className="flex flex-col min-w-0">
+        <div className="flex flex-col min-w-0 w-full">
           {/* Search Input Bar */}
           <div className="px-2.5 py-1.5 border-b border-border/30 bg-background/50">
             <div className="relative">

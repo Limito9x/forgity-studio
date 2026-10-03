@@ -19,4 +19,6 @@ export interface CreateRepositoryCommand {
    * @nullable
    */
   description?: string | null;
+  /** @nullable */
+  supportedExtensions?: unknown[] | null;
 }

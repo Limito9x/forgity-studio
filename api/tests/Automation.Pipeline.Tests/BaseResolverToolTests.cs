@@ -9,7 +9,7 @@ namespace Automation.Pipeline.Tests;
 
 public class BaseResolverToolTests
 {
-    private readonly ToolExecutionContext _context = new(Guid.NewGuid(), Guid.NewGuid(), Guid.Empty, CancellationToken.None);
+    private readonly ToolExecutionContext _context = new(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
     public class SampleInputs
     {

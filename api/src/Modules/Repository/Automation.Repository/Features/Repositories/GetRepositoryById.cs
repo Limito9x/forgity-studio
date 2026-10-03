@@ -14,7 +14,8 @@ public record RepositoryDetailDto(
     string Name,
     string? Description,
     DateTimeOffset CreatedAt,
-    IReadOnlyList<RepositoryRunnerDto> Runners
+    IReadOnlyList<RepositoryRunnerDto> Runners,
+    IReadOnlyList<string> SupportedExtensions
 );
 
 public class GetRepositoryByIdEndpoint(IMessageBus bus)
@@ -75,7 +76,8 @@ public class GetRepositoryByIdHandler(RepositoryDbContext db, IRunnerApi runnerA
             repo.Name,
             repo.Description,
             repo.CreatedAt,
-            runners
+            runners,
+            repo.SupportedExtensions
         );
 
         return Result.Ok(detail);

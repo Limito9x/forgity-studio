@@ -207,10 +207,6 @@ export function RunPipelineModal({
     async (values: any) => {
       if (runMutation.isPending) return;
 
-      const finalAgentId =
-        selectedAgentId ||
-        (agents.length > 0 ? agents[0].id : "00000000-0000-0000-0000-000000000001");
-
       // Separate start inputs vs node overrides
       const runtimeInputs: Record<string, any> = {};
 
@@ -227,9 +223,22 @@ export function RunPipelineModal({
         }
       });
 
+      // Inject selectedAgentId vào runtimeInputs
+      if (selectedAgentId) {
+        const runnerRef = `runner:${selectedAgentId}`;
+        if (!runtimeInputs["Runner"] || runtimeInputs["Runner"] === "") {
+          runtimeInputs["Runner"] = runnerRef;
+        }
+        if (!runtimeInputs["runner"] || runtimeInputs["runner"] === "") {
+          runtimeInputs["runner"] = runnerRef;
+        }
+        if (!runtimeInputs["targetRunnerId"]) {
+          runtimeInputs["targetRunnerId"] = selectedAgentId;
+        }
+      }
+
       try {
         const execution = await runMutation.mutateAsync({
-          agentId: finalAgentId,
           runtimeInputs,
         });
 

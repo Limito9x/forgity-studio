@@ -20,9 +20,6 @@ public class PipelineConfiguration : IEntityTypeConfiguration<Domain.Entities.Pi
             .HasMaxLength(50)
             .IsRequired();
 
-        builder.Property(x => x.TriggerWorkspaceId)
-            .IsRequired(false);
-
         builder.Property(x => x.TriggerConfig)
             .HasColumnType("jsonb")
             .IsRequired(false);

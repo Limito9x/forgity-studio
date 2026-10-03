@@ -2,7 +2,6 @@
 
     <ItemGroup>
       <ProjectReference Include="..\..\..\SharedKernel\Automation.SharedKernel\Automation.SharedKernel.csproj" />
-      <ProjectReference Include="..\..\Platform\Automation.Platform.Contracts\Automation.Platform.Contracts.csproj" />
       <ProjectReference Include="..\..\Files\Automation.Files.Contracts\Automation.Files.Contracts.csproj" />
       <ProjectReference Include="..\..\Runner\Automation.Runner.Contracts\Automation.Runner.Contracts.csproj" />
       <ProjectReference Include="..\Automation.Repository.Contracts\Automation.Repository.Contracts.csproj" />
