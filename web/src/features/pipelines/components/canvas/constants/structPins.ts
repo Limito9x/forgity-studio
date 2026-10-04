@@ -45,18 +45,12 @@ export const BUILTIN_STRUCT_PINS: Record<string, PinDefinition[]> = {
       cardinality: "Single" as any,
     },
     {
-      id: "DirectoryPath",
-      label: "Directory Path",
+      id: "RepositoryId",
+      label: "Repository ID",
       kind: "Data" as any,
-      primitiveType: "Path" as any,
+      primitiveType: "EntityRef" as any,
       cardinality: "Single" as any,
-    },
-    {
-      id: "FullPath",
-      label: "Full Path",
-      kind: "Data" as any,
-      primitiveType: "Path" as any,
-      cardinality: "Single" as any,
+      entityTarget: "Repository" as any,
     },
     {
       id: "FileHash",

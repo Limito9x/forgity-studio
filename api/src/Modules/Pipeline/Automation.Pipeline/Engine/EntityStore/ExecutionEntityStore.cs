@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Automation.Content.Contracts;
 using Automation.Repository.Contracts;
 using Microsoft.Extensions.Logging;
 
@@ -16,7 +17,8 @@ namespace Automation.Pipeline.Engine.EntityStore;
 /// </summary>
 public class ExecutionEntityStore(
     IRepositoryApi repositoryApi,
-    ILogger<ExecutionEntityStore> logger
+    ILogger<ExecutionEntityStore> logger,
+    IContentApi? contentApi = null
 ) : IExecutionEntityStore
 {
     private readonly ConcurrentDictionary<(string EntityType, Guid Id), Dictionary<string, object?>> _store = new();
@@ -72,6 +74,23 @@ public class ExecutionEntityStore(
                 return;
             }
 
+            // Batch fetch assigned contents if any
+            var contentIds = result.Value
+                .Where(r => r.ContentId.HasValue && r.ContentId.Value != Guid.Empty)
+                .Select(r => r.ContentId!.Value)
+                .Distinct()
+                .ToList();
+
+            IReadOnlyDictionary<Guid, ContentSummaryDto> contentMap = new Dictionary<Guid, ContentSummaryDto>();
+            if (contentApi != null && contentIds.Count > 0)
+            {
+                var contentRes = await contentApi.GetContentsByIdsAsync(contentIds, ct);
+                if (contentRes.IsSuccess && contentRes.Value != null)
+                {
+                    contentMap = contentRes.Value;
+                }
+            }
+
             foreach (var item in result.Value)
             {
                 var relPath = item.RelativePath ?? string.Empty;
@@ -79,10 +98,20 @@ public class ExecutionEntityStore(
                 var baseName = Path.GetFileNameWithoutExtension(relPath);
                 var extension = item.Extension ?? Path.GetExtension(relPath).TrimStart('.').ToLowerInvariant();
 
+                var contentName = baseName;
+                var contentType = string.Empty;
+                if (item.ContentId.HasValue && contentMap.TryGetValue(item.ContentId.Value, out var cSummary))
+                {
+                    contentName = cSummary.Name;
+                    contentType = cSummary.ContentTypeName ?? string.Empty;
+                }
+
                 var props = new Dictionary<string, object?>
                 {
                     ["ResourceId"] = item.ResourceId,
                     ["ResourceVersionId"] = item.ResourceVersionId,
+                    ["RepositoryId"] = item.RepositoryId != Guid.Empty ? item.RepositoryId : null,
+                    ["Repository"] = item.RepositoryId != Guid.Empty ? item.RepositoryId : null,
                     ["DisplayName"] = item.DisplayName,
                     ["FileName"] = fileName,
                     ["BaseName"] = baseName,
@@ -90,6 +119,8 @@ public class ExecutionEntityStore(
                     ["RelativePath"] = relPath,
                     ["FileHash"] = item.FileHash ?? string.Empty,
                     ["ContentId"] = item.ContentId?.ToString() ?? string.Empty,
+                    ["ContentName"] = contentName,
+                    ["ContentType"] = contentType,
                     ["Metadata"] = item.MetadataJson ?? string.Empty
                 };
 

@@ -20,13 +20,15 @@ export function resolveEntityTargetFromPin(
   configValues: Record<string, any>
 ): string {
   if (pin.entityTarget) {
+    if (pin.entityTarget.toLowerCase() === "workspace") return "Repository";
     return pin.entityTarget;
   }
 
-  // Nếu defaultValue là tên một Entity Target đã biết ("Resource", "Workspace", v.v.)
+  // Nếu defaultValue là tên một Entity Target đã biết ("Resource", "Repository", "Workspace", v.v.)
   const defaultValStr = typeof pin.defaultValue === "string" ? pin.defaultValue.trim() : "";
   const knownTargets = ["resource", "repository", "workspace", "contenttype", "runner", "agent", "tag", "taggroup", "variable"];
   if (knownTargets.includes(defaultValStr.toLowerCase())) {
+    if (defaultValStr.toLowerCase() === "workspace") return "Repository";
     return defaultValStr;
   }
 
@@ -62,6 +64,8 @@ export function resolveEntityTargetFromPin(
   if (
     idLower.includes("repository") ||
     labelLower.includes("repository") ||
+    idLower.includes("repo") ||
+    labelLower.includes("repo") ||
     idLower.includes("workspace") ||
     labelLower.includes("workspace")
   ) {
@@ -250,6 +254,54 @@ export const PIN_RULES: PinFieldRule[] = [
     },
   },
 
+  // 3.6. Repository Pin → Dedicated Repository Select
+  {
+    predicate: (pin, _, idLower) => {
+      const entityTarget = (pin.entityTarget || "").toLowerCase();
+      const labelLower = (pin.label || "").toLowerCase();
+      // If it specifically mentions resource, let resource rule handle it
+      if (idLower.includes("resource") || labelLower.includes("resource")) {
+        return false;
+      }
+      return (
+        entityTarget === "repository" ||
+        entityTarget === "workspace" ||
+        entityTarget === "repo" ||
+        idLower === "repository" ||
+        idLower === "repositoryid" ||
+        idLower === "repo" ||
+        idLower === "repoid" ||
+        idLower.includes("repository") ||
+        idLower.includes("repo") ||
+        idLower.includes("workspace") ||
+        labelLower.includes("repository") ||
+        labelLower.includes("repo") ||
+        labelLower.includes("workspace")
+      );
+    },
+    create: (pin) => {
+      const cardStr = String(pin.cardinality ?? "").toLowerCase();
+      const idLower = (pin.id || "").toLowerCase();
+      const labelLower = (pin.label || "").toLowerCase();
+      const isMultiple =
+        cardStr === "array" ||
+        cardStr === "1" ||
+        idLower.endsWith("[]") ||
+        labelLower.endsWith("[]");
+
+      return {
+        name: pin.id!,
+        label: pin.label || pin.id!,
+        type: "pin:repositorySelect",
+        defaultValue: isMultiple ? [] : (pin.defaultValue ?? ""),
+        properties: {
+          placeholder: "Select repository...",
+          multiple: isMultiple,
+        },
+      };
+    },
+  },
+
   // 4. EntityRef → Entity Select (Single or Multi-select)
   {
     predicate: (pin, normType, idLower) => {
@@ -277,7 +329,7 @@ export const PIN_RULES: PinFieldRule[] = [
     create: (pin, _, configValues) => {
       const entityTarget = resolveEntityTargetFromPin(pin, configValues);
       const valStr = typeof pin.defaultValue === "string" ? pin.defaultValue.trim().toLowerCase() : "";
-      const isPlaceholder = ["resource", "workspace", "contenttype", "agent", "tag", "taggroup", "variable", "none"].includes(valStr);
+      const isPlaceholder = ["resource", "repository", "workspace", "contenttype", "runner", "agent", "tag", "taggroup", "variable", "none"].includes(valStr);
       const cleanDefault = isPlaceholder ? "" : (pin.defaultValue ?? "");
 
       const cardStr = String(pin.cardinality ?? "").toLowerCase();
@@ -434,6 +486,12 @@ export function pipelineInputToFieldDefinition(
   input: PipelineParameterDto | PipelineInputLike,
   configValues: Record<string, any> = {}
 ): FieldDefinition<any> {
+  const structType = (input as any).structType || (input as any).entityTarget;
+  const normalizedStructType =
+    structType && typeof structType === "string" && structType.toLowerCase() === "workspace"
+      ? "Repository"
+      : structType;
+
   const pinDef: PinDefinition = {
     id: input.key,
     label: (input as any).label || (input as any).name || input.key,
@@ -441,6 +499,7 @@ export function pipelineInputToFieldDefinition(
     cardinality: (input.cardinality ?? 0) as any,
     isRequired: input.isRequired,
     defaultValue: input.defaultValue,
+    entityTarget: normalizedStructType,
   };
   return pinToFieldDefinition(pinDef, configValues);
 }

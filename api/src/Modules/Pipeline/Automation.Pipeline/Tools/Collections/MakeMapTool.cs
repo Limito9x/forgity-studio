@@ -84,20 +84,36 @@ public class MakeMapTool : IResolverTool
         ToolExecutionContext context
     )
     {
-        var map = new Dictionary<string, string>();
+        var map = new Dictionary<string, object>();
 
-        var keyPins = inputs.Keys.Where(k => k.StartsWith("Key_", StringComparison.OrdinalIgnoreCase)).ToList();
+        // Tìm tất cả các keys có dạng Key_X hoặc Key X
+        var keyPins = inputs.Keys.Where(k =>
+        {
+            var norm = k.Replace(" ", "_");
+            return norm.StartsWith("Key_", StringComparison.OrdinalIgnoreCase);
+        }).ToList();
+
         foreach (var keyPin in keyPins)
         {
-            var suffix = keyPin[4..];
-            var valPin = inputs.Keys.FirstOrDefault(k => string.Equals(k, $"Value_{suffix}", StringComparison.OrdinalIgnoreCase));
+            var normKey = keyPin.Replace(" ", "_");
+            var suffix = normKey[4..];
             
+            var valPin = inputs.Keys.FirstOrDefault(k =>
+            {
+                var normVal = k.Replace(" ", "_");
+                return string.Equals(normVal, $"Value_{suffix}", StringComparison.OrdinalIgnoreCase);
+            });
+
             var keyStr = inputs[keyPin]?.ToString();
-            var valStr = valPin != null ? inputs[valPin]?.ToString() ?? string.Empty : string.Empty;
+            object? valObj = null;
+            if (valPin != null && inputs.TryGetValue(valPin, out var rawVal))
+            {
+                valObj = rawVal;
+            }
 
             if (!string.IsNullOrEmpty(keyStr))
             {
-                map[keyStr] = valStr;
+                map[keyStr] = valObj ?? string.Empty;
             }
         }
 

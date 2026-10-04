@@ -188,6 +188,27 @@ public static class MetadataExtensions
     /// </summary>
     public static object? ExtractJsonValue(this JsonElement root, string path)
     {
+        if (root.ValueKind == JsonValueKind.String)
+        {
+            var str = root.GetString();
+            if (!string.IsNullOrWhiteSpace(str))
+            {
+                var trimmed = str.TrimStart();
+                if (trimmed.StartsWith('{') || trimmed.StartsWith('['))
+                {
+                    try
+                    {
+                        using var innerDoc = JsonDocument.Parse(str);
+                        return innerDoc.RootElement.ExtractJsonValue(path);
+                    }
+                    catch
+                    {
+                        // Fall back to normal behavior
+                    }
+                }
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(path))
             return GetElementValue(root);
 

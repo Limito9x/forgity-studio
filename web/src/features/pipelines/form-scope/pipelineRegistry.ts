@@ -6,7 +6,7 @@ import { FormPinAssetUpload } from "../form-controls/FormPinAssetUpload";
 import { FormPinPathInput } from "../form-controls/FormPinPathInput";
 import { FormPinTagTreeSelect } from "../form-controls/FormPinTagTreeSelect";
 import { FormPinRunnerSelect } from "../form-controls/FormPinRunnerSelect";
-
+import { FormPinRepositorySelect } from "../form-controls/FormPinRepositorySelect";
 
 const createRequiredStringSchema = (props: any, field?: any) => {
   const isReq = props?.required === true;
@@ -30,7 +30,7 @@ pipelineRegistry.register({
   buildSchema: createRequiredStringSchema,
 });
 
-const KNOWN_PLACEHOLDERS = ["resource", "workspace", "contenttype", "agent", "tag", "taggroup", "variable", "none"];
+const KNOWN_PLACEHOLDERS = ["resource", "repository", "workspace", "contenttype", "runner", "agent", "tag", "taggroup", "variable", "none"];
 
 pipelineRegistry.register({
   type: "pin:entitySelect",
@@ -99,6 +99,42 @@ pipelineRegistry.register({
   type: "runner",
   component: FormPinRunnerSelect,
   buildSchema: createRequiredStringSchema,
+});
+
+pipelineRegistry.register({
+  type: "pin:repositorySelect",
+  component: FormPinRepositorySelect,
+  buildSchema: (props: any, field?: any) => {
+    const isReq = props?.required === true;
+    const msg = `${field?.label || field?.name || "Repository"} is required`;
+    return isReq
+      ? z
+          .string({ message: msg })
+          .min(1, msg)
+          .refine(
+            (val) => Boolean(val) && !KNOWN_PLACEHOLDERS.includes(val.trim().toLowerCase()),
+            { message: msg }
+          )
+      : z.string().optional().nullable();
+  },
+});
+
+pipelineRegistry.register({
+  type: "repository",
+  component: FormPinRepositorySelect,
+  buildSchema: (props: any, field?: any) => {
+    const isReq = props?.required === true;
+    const msg = `${field?.label || field?.name || "Repository"} is required`;
+    return isReq
+      ? z
+          .string({ message: msg })
+          .min(1, msg)
+          .refine(
+            (val) => Boolean(val) && !KNOWN_PLACEHOLDERS.includes(val.trim().toLowerCase()),
+            { message: msg }
+          )
+      : z.string().optional().nullable();
+  },
 });
 
 

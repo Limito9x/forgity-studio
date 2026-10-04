@@ -104,7 +104,8 @@ public record ResourceDto(
     string RelativePath,
     string? FileHash,
     Guid? ContentId,
-    string? MetadataJson = null
+    string? MetadataJson = null,
+    Guid RepositoryId = default
 );
 
 
@@ -129,7 +130,8 @@ public record ResourceLocationInfoDto(
     string? FileHash,
     Guid? RunnerId,
     string? RunnerRootPath,
-    Guid? ContentId = null
+    Guid? ContentId = null,
+    Guid RepositoryId = default
 )
 {
     public Guid? AgentId => RunnerId;

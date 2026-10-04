@@ -15,14 +15,12 @@ import {
   Clock,
   HardDrive,
   Cpu,
-  Hash,
-  Copy,
-  Check,
   Calendar,
   Layers,
   Loader2,
   FolderGit2,
-  Tag as TagIcon,
+  Boxes,
+  History,
   RefreshCw,
 } from "lucide-react";
 import {
@@ -31,8 +29,9 @@ import {
   type ResourceVersionLocationDto,
 } from "../hooks/useRepositories";
 import { ResourceTagDropZone } from "../components/ResourceTagDropZone";
+import { ResourceMetadataTab } from "../components/ResourceMetadataTab";
 import { TagTool } from "@/features/tags/components/TagTool";
-import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface ResourceDetailPageProps {
   projectId: string;
@@ -40,11 +39,11 @@ interface ResourceDetailPageProps {
   resourceId: string;
 }
 
-function formatBytes(bytes: number, decimals = 2): string {
-  if (bytes === 0) return "0 Bytes";
+function formatBytes(bytes?: number, decimals = 2): string {
+  if (!bytes || bytes === 0) return "0 B";
   const k = 1024;
   const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
@@ -57,24 +56,23 @@ export function ResourceDetailPage({
   const navigate = useNavigate();
   const { data: resource, isLoading, isError, refetch } = useResourceDetail(resourceId);
 
-  const [copiedHash, setCopiedHash] = useState<string | null>(null);
-
-  const handleCopyHash = (hash: string) => {
-    navigator.clipboard.writeText(hash);
-    setCopiedHash(hash);
-    toast.success("File checksum hash copied to clipboard");
-    setTimeout(() => setCopiedHash(null), 2000);
-  };
+  const [activeTab, setActiveTab] = useState<"metadata" | "versions">("metadata");
 
   const versions: ResourceVersionDto[] = (resource?.versions || []) as ResourceVersionDto[];
+  const [selectedVersionId, setSelectedVersionId] = useState<string>("");
+
   const latestVersion = versions[0];
+  const currentActiveVersionId = selectedVersionId || latestVersion?.id || "";
   const fileExtension = resource?.name ? resource.name.split(".").pop() : "";
 
   return (
     <div className="p-6 space-y-6 w-full min-w-0">
+      {/* TagTool on the right dock for dragging tags */}
+      <TagTool projectId={projectId} contextTitle={resource?.name || "Resource Detail"} />
+
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <Button
             variant="outline"
             size="icon"
@@ -98,8 +96,8 @@ export function ResourceDetailPage({
           </Button>
 
           <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5 truncate">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2 truncate">
                 <FileText className="size-6 text-primary shrink-0" />
                 <span className="truncate">{resource?.name || "Resource Detail"}</span>
               </h1>
@@ -113,22 +111,60 @@ export function ResourceDetailPage({
                   v{latestVersion?.versionNo ?? 1} Latest
                 </Badge>
               )}
+              <ResourceTagDropZone
+                resourceId={resourceId}
+                projectId={projectId}
+                className="py-1 px-2.5 min-h-[30px] border-dashed"
+              />
             </div>
+
             <p className="text-xs font-mono text-muted-foreground mt-0.5 truncate">
               {resource?.filePath || `ID: ${resourceId}`}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Tab Navigation in Header & Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <div className="flex items-center p-1 rounded-xl bg-muted/60 border">
+            <button
+              type="button"
+              onClick={() => setActiveTab("metadata")}
+              className={cn(
+                "inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer",
+                activeTab === "metadata"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Boxes className="size-3.5" />
+              <span>Metadata & Tagging</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("versions")}
+              className={cn(
+                "inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer",
+                activeTab === "versions"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <History className="size-3.5" />
+              <span>Version History ({versions.length})</span>
+            </button>
+          </div>
+
           <Button
             variant="outline"
             size="sm"
             onClick={() => refetch()}
-            className="gap-1.5 cursor-pointer text-xs"
+            className="gap-1.5 cursor-pointer text-xs h-8"
           >
             <RefreshCw className="size-3.5" /> Refresh
           </Button>
+
           {workspaceId && (
             <Button
               variant="outline"
@@ -139,9 +175,9 @@ export function ResourceDetailPage({
                   params: { projectId, repositoryId: workspaceId },
                 })
               }
-              className="gap-1.5 cursor-pointer text-xs"
+              className="gap-1.5 cursor-pointer text-xs h-8"
             >
-              <FolderGit2 className="size-3.5 text-primary" /> View Repository
+              <FolderGit2 className="size-3.5 text-primary" /> Repository
             </Button>
           )}
         </div>
@@ -175,320 +211,182 @@ export function ResourceDetailPage({
         </Card>
       ) : (
         <>
-          {/* Stats & Summary Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="rounded-xl border-border/60">
-              <CardHeader className="pb-2">
-                <CardDescription className="text-xs">Latest File Size</CardDescription>
-                <CardTitle className="text-2xl font-bold font-mono">
-                  {latestVersion ? formatBytes(latestVersion.sizeBytes) : "0 B"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs text-muted-foreground">
-                Current version footprint
-              </CardContent>
-            </Card>
+          {/* Quick Metrics (Clean & Focused, No Checksum clutters) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="p-3.5 rounded-xl border border-border/60 bg-card/60 space-y-1">
+              <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5">
+                <HardDrive className="size-3 text-primary" /> Latest File Size
+              </span>
+              <p className="text-lg font-bold font-mono text-foreground">
+                {latestVersion ? formatBytes(latestVersion.sizeBytes) : "0 B"}
+              </p>
+            </div>
 
-            <Card className="rounded-xl border-border/60">
-              <CardHeader className="pb-2">
-                <CardDescription className="text-xs">Total Versions</CardDescription>
-                <CardTitle className="text-2xl font-bold flex items-center gap-2">
-                  <Layers className="size-5 text-primary" />
-                  {versions.length}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs text-muted-foreground">
-                Synchronized revisions
-              </CardContent>
-            </Card>
+            <div className="p-3.5 rounded-xl border border-border/60 bg-card/60 space-y-1">
+              <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5">
+                <Layers className="size-3 text-emerald-500" /> Recorded Versions
+              </span>
+              <p className="text-lg font-bold font-mono text-foreground">
+                {versions.length} {versions.length === 1 ? "revision" : "revisions"}
+              </p>
+            </div>
 
-            <Card className="rounded-xl border-border/60">
-              <CardHeader className="pb-2">
-                <CardDescription className="text-xs">Physical Copies</CardDescription>
-                <CardTitle className="text-2xl font-bold flex items-center gap-2">
-                  <HardDrive className="size-5 text-emerald-500" />
-                  {latestVersion?.locations?.length ?? 0}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs text-muted-foreground">
-                Runner machines hosting file
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-xl border-border/60">
-              <CardHeader className="pb-2">
-                <CardDescription className="text-xs">First Discovered</CardDescription>
-                <CardTitle className="text-sm font-medium mt-1">
-                  {new Date(resource.createdAt).toLocaleDateString()}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs text-muted-foreground">
-                {new Date(resource.createdAt).toLocaleTimeString()}
-              </CardContent>
-            </Card>
+            <div className="p-3.5 rounded-xl border border-border/60 bg-card/60 space-y-1 min-w-0">
+              <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5">
+                <Cpu className="size-3 text-primary" /> Physical Runner Mounts
+              </span>
+              <p className="text-lg font-bold font-mono text-foreground">
+                {latestVersion?.locations?.length ?? 0} {latestVersion?.locations?.length === 1 ? "machine" : "machines"}
+              </p>
+            </div>
           </div>
 
-          {/* Quick Metadata & Tags Card */}
-          <Card className="rounded-2xl border-border/60 bg-card">
-            <CardHeader className="flex flex-row items-center justify-between border-b px-6 py-4">
-              <div>
-                <CardTitle className="text-base font-semibold">Resource Overview</CardTitle>
-                <CardDescription className="text-xs">
-                  Storage location and semantic categorizations
-                </CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                <div className="p-3.5 rounded-xl border border-border/60 bg-muted/20 space-y-1.5">
-                  <span className="text-muted-foreground font-medium flex items-center gap-1.5">
-                    <FileText className="size-3.5 text-primary" /> Relative File Path
-                  </span>
-                  <p className="font-mono text-foreground font-semibold break-all text-xs bg-card px-2.5 py-1.5 rounded-md border border-border/40 select-all">
-                    {resource.filePath || "Root level item"}
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-xl border border-border/60 bg-muted/20 space-y-1.5">
-                  <span className="text-muted-foreground font-medium flex items-center gap-1.5">
-                    <Hash className="size-3.5 text-primary" /> Latest Checksum (SHA-256)
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <p className="font-mono text-foreground text-[11px] truncate flex-1 bg-card px-2.5 py-1.5 rounded-md border border-border/40 select-all">
-                      {latestVersion?.fileHash || "No hash recorded"}
-                    </p>
-                    {latestVersion?.fileHash && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-7 cursor-pointer shrink-0"
-                        onClick={() => handleCopyHash(latestVersion.fileHash)}
-                        aria-label="Copy SHA-256 Hash"
-                      >
-                        {copiedHash === latestVersion.fileHash ? (
-                          <Check className="size-3.5 text-emerald-500" />
-                        ) : (
-                          <Copy className="size-3.5" />
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Tagging Zone */}
-              <div className="p-3.5 rounded-xl border border-border/60 bg-muted/10 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                    <TagIcon className="size-3.5 text-primary" /> Semantic Resource Tags
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    Drag tags from the right panel to tag this resource
-                  </span>
-                </div>
+          {/* Main Tab Content */}
+          {activeTab === "metadata" ? (
+            <Card className="rounded-2xl border-border/60 bg-card p-6 shadow-xs">
+              <ResourceMetadataTab
+                versions={versions}
+                selectedVersionId={currentActiveVersionId}
+                onSelectVersionId={(verId) => setSelectedVersionId(verId)}
+                projectId={projectId}
+                workspaceId={workspaceId}
+                resourceId={resourceId}
+                resourceName={resource.name}
+                filePath={resource.filePath || undefined}
+              />
+            </Card>
+          ) : (
+            <Card className="rounded-2xl border-border/60 bg-card shadow-xs">
+              <CardHeader className="flex flex-row items-center justify-between border-b px-6 py-4">
                 <div>
-                  <ResourceTagDropZone
-                    resourceId={resourceId}
-                    projectId={projectId}
-                    className="w-full min-h-[38px] p-2 bg-card/60"
-                  />
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Clock className="size-4 text-primary" />
+                    Version History & Locations
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    List of synchronized revisions and physical runner machine mount paths
+                  </CardDescription>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+                <Badge variant="secondary" className="font-mono text-xs">
+                  {versions.length} {versions.length === 1 ? "Version" : "Versions"}
+                </Badge>
+              </CardHeader>
+              <CardContent className="p-0">
+                {versions.length === 0 ? (
+                  <div className="text-center py-16 px-4 space-y-2">
+                    <Clock className="size-8 text-muted-foreground mx-auto stroke-1" />
+                    <p className="text-sm font-medium text-foreground">No versions recorded</p>
+                    <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                      This resource has not been synchronized through any attached runner.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border/60">
+                    {versions.map((ver, idx) => {
+                      const isLatest = idx === 0;
+                      const locations: ResourceVersionLocationDto[] =
+                        (ver.locations || []) as ResourceVersionLocationDto[];
 
-          {/* Version History & Physical Locations Section */}
-          <Card className="rounded-2xl border-border/60 bg-card">
-            <CardHeader className="flex flex-row items-center justify-between border-b px-6 py-4">
-              <div>
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <Clock className="size-4 text-primary" />
-                  Version History & Locations
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Immutable record of file states, sync memos, and distributed runner machine copies
-                </CardDescription>
-              </div>
-              <Badge variant="secondary" className="font-mono text-xs">
-                {versions.length} {versions.length === 1 ? "Version" : "Versions"}
-              </Badge>
-            </CardHeader>
-            <CardContent className="p-0">
-              {versions.length === 0 ? (
-                <div className="text-center py-16 px-4 space-y-2">
-                  <Clock className="size-8 text-muted-foreground mx-auto stroke-1" />
-                  <p className="text-sm font-medium text-foreground">No versions recorded</p>
-                  <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                    This resource has not been synchronized through any attached runner.
-                  </p>
-                </div>
-              ) : (
-                <div className="divide-y divide-border/60">
-                  {versions.map((ver, idx) => {
-                    const isLatest = idx === 0;
-                    const locations: ResourceVersionLocationDto[] =
-                      (ver.locations || []) as ResourceVersionLocationDto[];
-
-                    return (
-                      <div key={ver.id} className="p-6 space-y-4 hover:bg-muted/10 transition-colors">
-                        {/* Version Main Header */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="flex items-center gap-2.5">
-                            <Badge
-                              variant={isLatest ? "default" : "outline"}
-                              className="font-mono text-xs px-2.5 py-0.5"
-                            >
-                              v{ver.versionNo}
-                            </Badge>
-                            {isLatest && (
+                      return (
+                        <div key={ver.id} className="p-6 space-y-4 hover:bg-muted/10 transition-colors">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5">
                               <Badge
-                                variant="outline"
-                                className="text-emerald-500 border-emerald-500/30 text-[10px]"
+                                variant={isLatest ? "default" : "outline"}
+                                className="font-mono text-xs px-2.5 py-0.5"
                               >
-                                Current Release
+                                v{ver.versionNo}
                               </Badge>
-                            )}
-                            <span className="font-mono text-xs font-semibold text-foreground">
-                              {formatBytes(ver.sizeBytes)}
-                            </span>
-                            <span className="text-muted-foreground text-xs">•</span>
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Calendar className="size-3" />
-                              <span>{new Date(ver.createdAt).toLocaleString()}</span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="flex items-center gap-1.5 font-mono text-[11px] bg-muted/40 px-2.5 py-1 rounded-md border border-border/50 max-w-xs truncate"
-                              title={ver.fileHash}
-                            >
-                              <Hash className="size-3 text-muted-foreground shrink-0" />
-                              <span className="truncate">{ver.fileHash}</span>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="size-7 cursor-pointer shrink-0"
-                              onClick={() => handleCopyHash(ver.fileHash)}
-                              aria-label="Copy Hash"
-                            >
-                              {copiedHash === ver.fileHash ? (
-                                <Check className="size-3 text-emerald-500" />
-                              ) : (
-                                <Copy className="size-3" />
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-
-                        {/* Notes if present */}
-                        {ver.notes && (
-                          <div className="text-xs bg-muted/30 border-l-2 border-primary/60 px-3 py-2 rounded-r-md text-muted-foreground italic">
-                            "{ver.notes}"
-                          </div>
-                        )}
-
-                        {/* Physical Locations on Runners */}
-                        <div className="space-y-2 pt-1">
-                          <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-                            <Cpu className="size-3.5 text-primary" />
-                            <span>Physical Runner Locations ({locations.length})</span>
-                          </div>
-
-                          {locations.length === 0 ? (
-                            <div className="p-3 rounded-xl border border-dashed border-border/60 bg-muted/10 text-xs text-muted-foreground flex items-center gap-2">
-                              <HardDrive className="size-4 text-muted-foreground" />
-                              <span>No active runner locations registered for this version.</span>
-                            </div>
-                          ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              {locations.map((loc) => (
-                                <div
-                                  key={loc.id}
-                                  className="p-3 rounded-xl border border-border/60 bg-card/80 space-y-2 text-xs"
+                              {isLatest && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-emerald-500 border-emerald-500/30 text-[10px]"
                                 >
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      <div className="size-6 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                                        <Cpu className="size-3" />
-                                      </div>
-                                      <span className="font-semibold text-foreground truncate">
-                                        {loc.runnerName || loc.machineKey || "Runner Machine"}
-                                      </span>
-                                    </div>
-                                    {loc.isOrigin && (
-                                      <Badge
-                                        variant="outline"
-                                        className="text-amber-500 border-amber-500/30 text-[10px] shrink-0"
-                                      >
-                                        Origin Host
-                                      </Badge>
-                                    )}
-                                  </div>
+                                  Current Active
+                                </Badge>
+                              )}
+                              <span className="font-mono text-xs font-semibold text-foreground">
+                                {formatBytes(ver.sizeBytes)}
+                              </span>
+                              <span className="text-muted-foreground text-xs">•</span>
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Calendar className="size-3" />
+                                <span>{new Date(ver.createdAt).toLocaleString()}</span>
+                              </div>
+                            </div>
+                          </div>
 
-                                  <div
-                                    className="font-mono text-[11px] bg-muted/30 p-2 rounded-md border border-border/40 text-muted-foreground truncate"
-                                    title={`${loc.rootPath || ""}/${loc.relativePath}`}
-                                  >
-                                    <span className="text-foreground">{loc.rootPath || "Mount"}</span>
-                                    <span>/{loc.relativePath}</span>
-                                  </div>
-
-                                  <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-0.5">
-                                    <span>Discovered:</span>
-                                    <span>{new Date(loc.discoveredAt).toLocaleString()}</span>
-                                  </div>
-                                </div>
-                              ))}
+                          {ver.notes && (
+                            <div className="text-xs bg-muted/30 border-l-2 border-primary/60 px-3 py-2 rounded-r-md text-muted-foreground italic">
+                              "{ver.notes}"
                             </div>
                           )}
-                        </div>
 
-                        {/* Semantic Sub-Path Tags if present */}
-                        {ver.tagsByPath && Object.keys(ver.tagsByPath).length > 0 && (
-                          <div className="space-y-1.5 pt-2">
-                            <span className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
-                              <TagIcon className="size-3" /> Sub-path Semantic Tags
-                            </span>
-                            <div className="flex flex-wrap gap-2">
-                              {Object.entries(ver.tagsByPath).map(([path, tags]) => (
-                                <div
-                                  key={path}
-                                  className="flex items-center gap-1.5 bg-muted/40 px-2 py-1 rounded-md border text-[11px]"
-                                >
-                                  <span className="font-mono text-muted-foreground">{path}:</span>
-                                  {tags.map((t) => (
-                                    <Badge
-                                      key={t.tagLinkId || t.tagId}
-                                      variant="secondary"
-                                      style={{
-                                        backgroundColor: t.tagColor ? `${t.tagColor}20` : undefined,
-                                        borderColor: t.tagColor || undefined,
-                                        color: t.tagColor || undefined,
-                                      }}
-                                      className="text-[10px] px-1.5 py-0"
-                                    >
-                                      {t.tagName}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              ))}
+                          {/* Physical Locations on Runners */}
+                          <div className="space-y-2 pt-1">
+                            <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                              <Cpu className="size-3.5 text-primary" />
+                              <span>Physical Runner Mounts ({locations.length})</span>
                             </div>
+
+                            {locations.length === 0 ? (
+                              <div className="p-3 rounded-xl border border-dashed border-border/60 bg-muted/10 text-xs text-muted-foreground flex items-center gap-2">
+                                <HardDrive className="size-4 text-muted-foreground" />
+                                <span>No active runner locations registered for this version.</span>
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {locations.map((loc) => (
+                                  <div
+                                    key={loc.id}
+                                    className="p-3 rounded-xl border border-border/60 bg-card/80 space-y-2 text-xs"
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <div className="size-6 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                                          <Cpu className="size-3" />
+                                        </div>
+                                        <span className="font-semibold text-foreground truncate">
+                                          {loc.runnerName || loc.machineKey || "Runner Machine"}
+                                        </span>
+                                      </div>
+                                      {loc.isOrigin && (
+                                        <Badge
+                                          variant="outline"
+                                          className="text-amber-500 border-amber-500/30 text-[10px] shrink-0"
+                                        >
+                                          Origin Host
+                                        </Badge>
+                                      )}
+                                    </div>
+
+                                    <div
+                                      className="font-mono text-[11px] bg-muted/30 p-2 rounded-md border border-border/40 text-muted-foreground truncate"
+                                      title={`${loc.rootPath || ""}/${loc.relativePath}`}
+                                    >
+                                      <span className="text-foreground">{loc.rootPath || "Mount"}</span>
+                                      <span>/{loc.relativePath}</span>
+                                    </div>
+
+                                    <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-0.5">
+                                      <span>Discovered:</span>
+                                      <span>{new Date(loc.discoveredAt).toLocaleString()}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
-
-      {/* Floating TagTool for easy drag-and-drop onto ResourceTagDropZone */}
-      <TagTool projectId={projectId} />
     </div>
   );
 }

@@ -137,3 +137,15 @@ export const useResourceDetail = (resourceId: string) => {
     },
   });
 };
+
+export const useAssignResourcesContent = (repositoryId?: string) => {
+  const queryKeys = repositoryId
+    ? [
+        RepositoriesApi.getGetRepositoryByIdQueryKey(repositoryId),
+        ["repositories", repositoryId, "resources"],
+        [`/api/repositories/${repositoryId}/resources`],
+      ]
+    : [["repositories"]];
+  return createMutationHook(ResourcesApi.useAssignResourcesContent, queryKeys)();
+};
+

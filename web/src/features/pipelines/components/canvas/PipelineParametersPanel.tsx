@@ -347,7 +347,6 @@ export function PipelineParametersPanel({
                         <SelectItem id="Runner">Runner</SelectItem>
                         <SelectItem id="Resource">Resource</SelectItem>
                         <SelectItem id="Repository">Repository</SelectItem>
-                        <SelectItem id="Workspace">Workspace</SelectItem>
                         <SelectItem id="ContentType">ContentType</SelectItem>
                         {projectStructs.map((s: any) => (
                           <SelectItem key={s.name} id={s.name}>

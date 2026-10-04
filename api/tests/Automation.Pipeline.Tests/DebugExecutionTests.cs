@@ -10,6 +10,7 @@ using Automation.Pipeline.Infrastructure.Persistence;
 using Automation.Pipeline.Infrastructure.Redis;
 using Automation.Pipeline.Tools;
 using Automation.Repository.Contracts;
+using Automation.Repository.Contracts.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -183,4 +184,5 @@ public class DebugExecutionTests(ITestOutputHelper output)
         }
     }
 }
+
 

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Automation.Repository.Contracts;
 using Automation.Repository.Contracts.Extensions;
 using Automation.Repository.Infrastructure.Persistence;
@@ -65,7 +66,8 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
                 version.FileHash,
                 runnerId,
                 rootPath,
-                version.Resource?.ContentId
+                version.Resource?.ContentId,
+                version.Resource?.RepositoryId ?? Guid.Empty
             )
         );
     }
@@ -98,7 +100,8 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
                 loc.Value.ResourceVersion.FileHash,
                 loc.Value.RepositoryRunner.RunnerId,
                 loc.Value.RepositoryRunner.RootPath,
-                loc.Value.ResourceVersion.Resource?.ContentId
+                loc.Value.ResourceVersion.Resource?.ContentId,
+                loc.Value.ResourceVersion.Resource?.RepositoryId ?? Guid.Empty
             );
             result[loc.Key] = dto;
             result[loc.Value.ResourceVersion.ResourceId.ToString()] = dto;
@@ -132,7 +135,8 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
                     latest.FileHash,
                     loc?.RepositoryRunner?.RunnerId,
                     loc?.RepositoryRunner?.RootPath,
-                    latest.Resource?.ContentId
+                    latest.Resource?.ContentId,
+                    latest.Resource?.RepositoryId ?? Guid.Empty
                 );
                 result[group.Key.ToString()] = dto;
                 result[latest.Id.ToString()] = dto;
@@ -288,7 +292,7 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
         if (version == null)
             return Result.Fail($"ResourceVersion with ID '{resourceVersionId}' not found.");
 
-        version.UpdateMetadata(metadata);
+        version.UpdateMetadata(UnwrapMetadataIfNeeded(metadata));
         await db.SaveChangesAsync(ct);
         return Result.Ok();
     }
@@ -314,7 +318,7 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
                 .FirstOrDefaultAsync(ct);
         }
 
-        return Result.Ok(version);
+        return Result.Ok(UnwrapMetadataIfNeeded(version));
     }
 
     public async Task<
@@ -367,8 +371,31 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
             .ToDictionary(g => g.Key, g => (IReadOnlyList<TagLinkDetailDto>)g.ToList());
 
         return Result.Ok(
-            new Contracts.Dtos.ResourceMetadataDetailDto(version.Id, version.Metadata, tagsByPath)
+            new Contracts.Dtos.ResourceMetadataDetailDto(version.Id, UnwrapMetadataIfNeeded(version.Metadata), tagsByPath)
         );
+    }
+
+    /// <summary>
+    /// Unwrap JsonDocument nếu JSONB column lưu metadata dưới dạng JSON string thay vì JSON object.
+    /// Trường hợp này xảy ra khi worker lưu json.dumps(obj) thay vì obj trực tiếp vào JSONB.
+    /// </summary>
+    private static JsonDocument? UnwrapMetadataIfNeeded(JsonDocument? doc)
+    {
+        if (doc == null) return null;
+        if (doc.RootElement.ValueKind != JsonValueKind.String) return doc;
+
+        var inner = doc.RootElement.GetString();
+        if (string.IsNullOrWhiteSpace(inner)) return doc;
+
+        try
+        {
+            return JsonDocument.Parse(inner);
+        }
+        catch
+        {
+            // Nếu không parse được, trả nguyên gốc
+            return doc;
+        }
     }
 
     public async Task<
@@ -509,7 +536,7 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
                 resName,
                 relPath,
                 fullPath,
-                v.Metadata,
+                UnwrapMetadataIfNeeded(v.Metadata),
                 rootResourceTags,
                 tagMap
             );
@@ -585,7 +612,7 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
             var latestVersion = item.Versions.OrderByDescending(v => v.VersionNo).FirstOrDefault();
             var versionId = latestVersion?.Id ?? Guid.Empty;
             var fileHash = latestVersion?.FileHash ?? string.Empty;
-            var metaJson = latestVersion?.Metadata?.RootElement.GetRawText();
+            var metaJson = UnwrapMetadataIfNeeded(latestVersion?.Metadata)?.RootElement.GetRawText();
 
             result.Add(new ResourceDto(
                 item.Id,
@@ -595,7 +622,8 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
                 item.RelativePath,
                 fileHash,
                 item.ContentId,
-                metaJson
+                metaJson,
+                item.RepositoryId
             ));
         }
 

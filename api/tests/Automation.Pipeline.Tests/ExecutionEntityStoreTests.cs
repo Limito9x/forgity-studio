@@ -137,4 +137,51 @@ public class ExecutionEntityStoreTests
         result.Should().NotBeNull();
         result!["Metadata"].Should().Be("{\"processed\": true, \"count\": 42}");
     }
+
+    [Fact]
+    public async Task PrefetchResourcesAsync_ShouldPopulateContentNameAndContentType_WhenContentAssigned()
+    {
+        // Arrange
+        var resourceId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var contentId = Guid.NewGuid();
+
+        var dto = new ResourceDto(
+            ResourceId: resourceId,
+            ResourceVersionId: versionId,
+            DisplayName: "eva.duf",
+            Extension: ".duf",
+            RelativePath: "Eva/eva.duf",
+            FileHash: "hash123",
+            ContentId: contentId,
+            MetadataJson: "{}"
+        );
+
+        _repositoryApi.GetResourcesByIdsAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok<IReadOnlyList<ResourceDto>>([dto]));
+
+        var contentSummary = new ContentSummaryDto(contentId, "Eva", Guid.NewGuid(), "Characters", null, null);
+        _contentApi.GetContentsByIdsAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok<IReadOnlyDictionary<Guid, ContentSummaryDto>>(new Dictionary<Guid, ContentSummaryDto>
+            {
+                [contentId] = contentSummary
+            }));
+
+        var store = new ExecutionEntityStore(_repositoryApi, _logger, _contentApi);
+
+        // Act
+        await store.PrefetchResourcesAsync([resourceId], CancellationToken.None);
+
+        // Assert
+        var byResource = store.GetProperties("resource", resourceId);
+        byResource.Should().NotBeNull();
+        byResource!["ContentId"].Should().Be(contentId.ToString());
+        byResource["ContentName"].Should().Be("Eva");
+        byResource["ContentType"].Should().Be("Characters");
+
+        var structDef = new ResourceStructDefinition(_repositoryApi, _contentApi, store);
+        var resolved = await structDef.ResolveAsync($"urn:resource:{resourceId}", _context);
+        resolved["ContentName"].Should().Be("Eva");
+        resolved["ContentType"].Should().Be("Characters");
+    }
 }

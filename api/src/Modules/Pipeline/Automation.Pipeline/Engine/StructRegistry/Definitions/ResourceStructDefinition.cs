@@ -55,9 +55,10 @@ public class ResourceStructDefinition(
             },
             new()
             {
-                Id = "DirectoryPath",
-                Label = "Directory Path",
-                PrimitiveType = PinPrimitiveType.Path,
+                Id = "RepositoryId",
+                Label = "Repository ID",
+                PrimitiveType = PinPrimitiveType.EntityRef,
+                EntityTarget = "Repository",
                 Cardinality = PinCardinality.Single,
             },
             new()
@@ -166,6 +167,29 @@ public class ResourceStructDefinition(
             {
                 if (v != null) inMemoryResult[k] = v;
             }
+
+            var hasContentName = inMemoryResult.TryGetValue("ContentName", out var cn) && !string.IsNullOrWhiteSpace(cn?.ToString());
+            var hasContentType = inMemoryResult.TryGetValue("ContentType", out var ctProp) && !string.IsNullOrWhiteSpace(ctProp?.ToString());
+
+            var contentIdStr = inMemoryResult.GetValueOrDefault("ContentId")?.ToString();
+            if (contentApi != null && Guid.TryParse(contentIdStr, out var cId) && cId != Guid.Empty && (!hasContentName || !hasContentType))
+            {
+                var contentResult = await contentApi.GetContentByIdAsync(cId, context.CancellationToken);
+                if (contentResult?.IsSuccess == true && contentResult.Value != null)
+                {
+                    inMemoryResult["ContentName"] = contentResult.Value.Name;
+                    inMemoryResult["ContentType"] = contentResult.Value.ContentTypeName ?? string.Empty;
+                    cachedProps["ContentName"] = contentResult.Value.Name;
+                    cachedProps["ContentType"] = contentResult.Value.ContentTypeName ?? string.Empty;
+                }
+            }
+
+            if (!inMemoryResult.ContainsKey("ContentName") || string.IsNullOrWhiteSpace(inMemoryResult["ContentName"]?.ToString()))
+            {
+                var fallbackBaseName = inMemoryResult.GetValueOrDefault("BaseName")?.ToString() ?? string.Empty;
+                inMemoryResult["ContentName"] = fallbackBaseName;
+            }
+
             return inMemoryResult;
         }
 
@@ -227,12 +251,12 @@ public class ResourceStructDefinition(
         {
             ["ResourceId"] = locationInfo.ResourceId,
             ["ResourceVersionId"] = locationInfo.ResourceVersionId,
+            ["RepositoryId"] = locationInfo.RepositoryId,
+            ["Repository"] = locationInfo.RepositoryId,
             ["FileName"] = fileName,
             ["BaseName"] = baseName,
             ["Extension"] = extension,
-            ["DirectoryPath"] = dirPath,
             ["RelativePath"] = relPath,
-            ["FullPath"] = fullPath,
             ["FileHash"] = locationInfo.FileHash ?? string.Empty,
             ["ContentId"] = contentId.HasValue ? contentId.Value.ToString() : string.Empty,
             ["ContentName"] = contentName,

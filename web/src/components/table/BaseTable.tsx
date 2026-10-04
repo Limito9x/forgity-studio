@@ -19,6 +19,7 @@ export interface BaseTableProps<TData> {
     columns: ColumnDef<TData>[];
     isLoading?: boolean;
     caption?: string;
+    selectionMode?: "none" | "single" | "multiple";
 }
 
 export function BaseTable<TData>({
@@ -26,6 +27,7 @@ export function BaseTable<TData>({
     columns,
     isLoading,
     caption,
+    selectionMode,
 }: BaseTableProps<TData>) {
     const { sorting, pagination } = table.getState();
 
@@ -53,6 +55,13 @@ export function BaseTable<TData>({
 
     const flatHeaders = table.getHeaderGroups().flatMap(hg => hg.headers);
 
+    const hasSelectColumn = useMemo(
+        () => flatHeaders.some(h => h.id === "select"),
+        [flatHeaders]
+    );
+
+    const effectiveSelectionMode = selectionMode ?? (hasSelectColumn ? "multiple" : undefined);
+
     const rowHeaderId = useMemo(() => {
         const explicitHeader = flatHeaders.find(h => (h.column.columnDef.meta as any)?.isRowHeader);
         return explicitHeader
@@ -72,6 +81,7 @@ export function BaseTable<TData>({
                     aria-label={caption || "Data table"}
                     sortDescriptor={sortDescriptor}
                     onSortChange={handleSortChange}
+                    selectionMode={effectiveSelectionMode}
                 >
                     <TableHeader>
                         {flatHeaders.map((header) => (

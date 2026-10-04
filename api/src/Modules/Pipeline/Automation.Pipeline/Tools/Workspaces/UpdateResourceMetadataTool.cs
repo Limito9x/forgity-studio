@@ -271,11 +271,27 @@ public class UpdateResourceMetadataTool(
 
         if (metaVal is JsonDocument jDoc)
         {
+            if (jDoc.RootElement.ValueKind == JsonValueKind.String)
+            {
+                var s = jDoc.RootElement.GetString();
+                if (!string.IsNullOrWhiteSpace(s) && (s.TrimStart().StartsWith('{') || s.TrimStart().StartsWith('[')))
+                {
+                    try { return JsonDocument.Parse(s); } catch { }
+                }
+            }
             return jDoc;
         }
 
         if (metaVal is JsonElement jElem)
         {
+            if (jElem.ValueKind == JsonValueKind.String)
+            {
+                var s = jElem.GetString();
+                if (!string.IsNullOrWhiteSpace(s) && (s.TrimStart().StartsWith('{') || s.TrimStart().StartsWith('[')))
+                {
+                    try { return JsonDocument.Parse(s); } catch { }
+                }
+            }
             return JsonDocument.Parse(jElem.GetRawText());
         }
 

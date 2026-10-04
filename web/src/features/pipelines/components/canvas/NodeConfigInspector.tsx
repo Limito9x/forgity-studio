@@ -260,7 +260,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem id="Resource">Resource (File, BaseName, FullPath, Repository)</SelectItem>
+                    <SelectItem id="Resource">Resource (File, BaseName, RelativePath, Repository)</SelectItem>
                     <SelectItem id="Repository">Repository (RootPath, RepositoryId, RepositoryName)</SelectItem>
                     <SelectItem id="Workspace">Workspace (RootPath, WorkspaceId)</SelectItem>
                     <SelectItem id="Inspection">Resource Metadata (MainObjects, SkeletonBones)</SelectItem>
