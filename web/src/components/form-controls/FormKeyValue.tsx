@@ -26,8 +26,8 @@ function KeyValueInputContent({
     value,
     onChange,
     isDisabled,
-    keyPlaceholder = "Tag (e.g. ALBEDO)",
-    valuePlaceholder = "Param Name (e.g. T_BaseColor)",
+    keyPlaceholder,
+    valuePlaceholder,
 }: {
     value?: Record<string, string> | null;
     onChange: (val: Record<string, string>) => void;
@@ -106,7 +106,7 @@ function KeyValueInputContent({
             {rows.length === 0 ? (
                 <div className="flex flex-col items-center justify-center p-4 border border-dashed rounded-lg border-border/70 bg-card/30 text-center">
                     <p className="text-xs text-muted-foreground mb-2">
-                        No mappings configured yet. Add one below to map tags to shader parameters.
+                        No entries yet. Click Add to create a new row.
                     </p>
                     <Button
                         type="button"
@@ -117,7 +117,7 @@ function KeyValueInputContent({
                         className="h-8 gap-1.5 text-xs"
                     >
                         <Plus className="w-3.5 h-3.5" />
-                        Add Mapping
+                        Add Row
                     </Button>
                 </div>
             ) : (
@@ -135,7 +135,7 @@ function KeyValueInputContent({
                                     type="text"
                                     list={datalistId}
                                     value={row.key}
-                                    placeholder={keyPlaceholder}
+                                    placeholder={keyPlaceholder ?? ""}
                                     disabled={isDisabled}
                                     onChange={(e) => handleKeyChange(row.id, e.target.value)}
                                     className="h-8 text-xs font-mono"
@@ -143,7 +143,7 @@ function KeyValueInputContent({
                                 <Input
                                     type="text"
                                     value={row.value}
-                                    placeholder={valuePlaceholder}
+                                    placeholder={valuePlaceholder ?? ""}
                                     disabled={isDisabled}
                                     onChange={(e) => handleValueChange(row.id, e.target.value)}
                                     className="h-8 text-xs font-mono"
