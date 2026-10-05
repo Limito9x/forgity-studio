@@ -231,26 +231,18 @@ function stripObjectPrefix(path: string): string {
 
 function getTagsForPath(
     targetPath: string,
-    tagsByPath: Record<string, TagLinkDetailDto[]>,
-    fallbackPath: string = ""
+    tagsByPath: Record<string, TagLinkDetailDto[]>
 ): TagLinkDetailDto[] {
-    // 1. Direct exact match
+    // 1. Direct exact match (e.g. "slots[0].textures.BASE_COLOR")
     if (tagsByPath[targetPath]?.length) {
         return tagsByPath[targetPath];
     }
-    if (fallbackPath && tagsByPath[fallbackPath]?.length) {
-        return tagsByPath[fallbackPath];
-    }
 
-    // 2. Semantic matching: Strip object namespace prefix (e.g. "objects.Genesis 9 Mouth Mesh.slots" -> "slots")
-    // This ensures tags assigned on v1 remain visible on v2, v3, v4 even if Blender object name changed!
+    // 2. Fallback: Strip object namespace prefix (e.g. "objects.Genesis 9.slots[0]" -> "slots[0]")
     const cleanTarget = stripObjectPrefix(targetPath);
-    const cleanFallback = fallbackPath ? stripObjectPrefix(fallbackPath) : "";
-
     for (const [registeredPath, tags] of Object.entries(tagsByPath)) {
         if (!tags?.length) continue;
-        const cleanReg = stripObjectPrefix(registeredPath);
-        if (cleanReg === cleanTarget || (cleanFallback && cleanReg === cleanFallback)) {
+        if (stripObjectPrefix(registeredPath) === cleanTarget) {
             return tags;
         }
     }
@@ -467,19 +459,6 @@ function ArrayOfObjectsTable({
     );
 }
 
-function getSemanticRowPath(basePath: string, row: any, rowIdx: number): string {
-    if (typeof row === "object" && row !== null) {
-        const identityKeys = ["name", "slot", "id", "key", "type", "label"];
-        for (const k of identityKeys) {
-            const val = row[k];
-            if (val !== undefined && val !== null && String(val).trim().length > 0) {
-                return `${basePath}[${k}='${String(val).trim()}']`;
-            }
-        }
-    }
-    return `${basePath}[${rowIdx}]`;
-}
-
 function ArrayOfObjectsTableRow({
     row,
     rowIdx,
@@ -498,8 +477,7 @@ function ArrayOfObjectsTableRow({
     ctx: RenderContext;
 }) {
     const [isExpanded, setIsExpanded] = useState(true);
-    const rowPath = getSemanticRowPath(basePath, row, rowIdx);
-    const legacyRowPath = `${basePath}[${rowIdx}]`;
+    const rowPath = `${basePath}[${rowIdx}]`;
     const hasNested = nestedCols.length > 0;
     const hasActiveNestedData = nestedCols.some((k) => {
         const v = row[k];
@@ -536,8 +514,7 @@ function ArrayOfObjectsTableRow({
                 {scalarCols.map((col) => {
                     const cellVal = row[col];
                     const cellPath = `${rowPath}.${col}`;
-                    const legacyCellPath = `${legacyRowPath}.${col}`;
-                    const existingTags = getTagsForPath(cellPath, ctx.tagsByPath, legacyCellPath);
+                    const existingTags = getTagsForPath(cellPath, ctx.tagsByPath);
 
                     return (
                         <td

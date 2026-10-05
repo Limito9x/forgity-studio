@@ -170,16 +170,11 @@ poetry.toml
 # ruff
 .ruff_cache/
 
-/pipeline/
 tests/
 agent_config.json
 cache/
 
 # LSP config files
 pyrightconfig.json
-
-blender
-daz
-unreal
 
 # End of https://www.toptal.com/developers/gitignore/api/python
