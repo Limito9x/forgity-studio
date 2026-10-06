@@ -16,6 +16,7 @@ import {
     GripVertical,
     Trash2,
     Sparkles,
+    Layers,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -136,6 +137,20 @@ export function TagPanel({ projectId, contextTitle }: TagPanelProps) {
                 </div>
 
                 <div className="flex items-center gap-1 ml-auto">
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 rounded-lg text-xs gap-1"
+                        onClick={() =>
+                            openDialog("bulk-create-tag", {
+                                projectId,
+                            })
+                        }
+                        aria-label="Bulk Create Tags"
+                    >
+                        <Layers className="w-3.5 h-3.5" />
+                        Bulk
+                    </Button>
                     <Button
                         size="icon"
                         variant="default"
@@ -307,6 +322,14 @@ function TagTreeNodeItem({
         });
     };
 
+    const handleBulkAddChild = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        openDialog("bulk-create-tag", {
+            projectId,
+            parentPath: node.path,
+        });
+    };
+
     return (
         <div className="flex flex-col select-none">
             {/* Node Row */}
@@ -382,6 +405,14 @@ function TagTreeNodeItem({
 
                 {/* Hover Quick Actions */}
                 <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity ml-auto shrink-0">
+                    <button
+                        type="button"
+                        onClick={handleBulkAddChild}
+                        title={`Bulk add under ${node.path}`}
+                        className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                    >
+                        <Layers className="w-3 h-3" />
+                    </button>
                     <button
                         type="button"
                         onClick={handleAddChild}

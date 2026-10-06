@@ -102,7 +102,7 @@ class UnrealEngineExecutor(BaseSubprocessExecutor):
         if not project_path:
             raise ValueError(
                 "UnrealEngineExecutor requires 'fullPathProject' in environment_config. "
-                "Please configure ProjectExecutorConfig for this Agent in the Project settings."
+                "Please configure Runner → Unreal executor → Registered Unreal Projects (.uproject) for this Studio project."
             )
 
         if not os.path.isfile(project_path):

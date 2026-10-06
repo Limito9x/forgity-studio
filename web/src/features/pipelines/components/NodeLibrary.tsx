@@ -1,48 +1,35 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useNodePalette, usePipelineNodeMutations } from "../hooks/usePipelines";
+import { useNodeLibraryTable } from "../hooks/useNodeLibraryTable";
+import { NodeLibraryTable } from "./NodeLibraryTable";
 import { PinBadge } from "./PinBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Plus,
   Search,
   Box,
-  Sparkles,
-  Trash2,
   Workflow,
   ArrowRight,
   UploadCloud,
-  Zap,
   X,
   Layers,
-  FileCode,
-  SlidersHorizontal,
+  Trash2,
 } from "lucide-react";
-import type { NodePaletteItemDto, PinDefinition } from "@/gen/model";
+import { toast } from "sonner";
+import type { NodePaletteItemDto } from "@/gen/model";
 import { cn } from "@/lib/utils";
-import { getSoftwareMetadata } from "@/features/runners/constants/dccEngines";
 
 interface NodeLibraryProps {
   projectId: string;
-}
-
-function isExecPin(pin: PinDefinition): boolean {
-  return (
-    pin.kind === 1 ||
-    String(pin.id || "").toLowerCase() === "exec" ||
-    String(pin.id || "").toLowerCase() === "exec_in" ||
-    String(pin.id || "").toLowerCase() === "exec_out" ||
-    String(pin.id || "").toLowerCase() === "loop_body" ||
-    String(pin.id || "").toLowerCase() === "completed"
-  );
 }
 
 export function NodeLibrary({ projectId }: NodeLibraryProps) {
@@ -53,6 +40,8 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [inspectingNode, setInspectingNode] = useState<NodePaletteItemDto | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -71,6 +60,9 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
         node.label?.toLowerCase() === "start pipeline";
       if (isStart) return false;
 
+      // Hide sub-pipelines from the script library — they live in the canvas picker.
+      if (node.source === "SubPipeline") return false;
+
       const q = search.trim().toLowerCase();
       const matchSearch =
         q === "" ||
@@ -82,23 +74,69 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
       const matchCategory =
         selectedCategory === "All" ||
         (selectedCategory === "Custom" && node.source === "Custom") ||
-        (selectedCategory === "BuiltIn" && node.source === "BuiltIn") ||
+        (selectedCategory === "BuiltIn" && node.source !== "Custom") ||
         node.category === selectedCategory;
 
       return matchSearch && matchCategory;
     });
   }, [nodes, search, selectedCategory]);
 
-  const handleDelete = async (node: NodePaletteItemDto) => {
-    if (!node.id) return;
-    if (confirm(`Are you sure you want to delete custom node "${node.label || node.key}"?`)) {
-      await deleteNode(node.id);
+  const handleDelete = useCallback(
+    async (node: NodePaletteItemDto) => {
+      if (!node.id) return;
+      if (confirm(`Are you sure you want to delete custom node "${node.label || node.key}"?`)) {
+        await deleteNode(node.id);
+      }
+    },
+    [deleteNode]
+  );
+
+  const handleEdit = useCallback(
+    (node: NodePaletteItemDto) => {
+      if (!node.id) return;
+      navigate({
+        to: "/projects/$projectId/pipeline/nodes/new",
+        params: { projectId },
+        search: { editNodeId: node.id } as any,
+      });
+    },
+    [navigate, projectId]
+  );
+
+  const handleInspect = useCallback((node: NodePaletteItemDto) => {
+    setInspectingNode(node);
+  }, []);
+
+  const { table, columns, selectedNodes, setRowSelection } = useNodeLibraryTable({
+    data: filteredNodes,
+    onInspect: handleInspect,
+    onEdit: handleEdit,
+    onDelete: handleDelete,
+  });
+
+  const handleBulkDelete = async () => {
+    const ids = selectedNodes.map((n) => n.id).filter(Boolean) as string[];
+    if (ids.length === 0) return;
+    setIsBulkDeleting(true);
+    try {
+      // No bulk endpoint yet — sequential delete keeps behaviour atomic per node
+      // and reuses the existing invalidation. Replace with bulk API when available.
+      for (const id of ids) {
+        await deleteNode(id);
+      }
+      toast.success(`Deleted ${ids.length} custom node(s).`);
+      setRowSelection({});
+      setBulkDeleteOpen(false);
+    } catch {
+      // per-node toast already handled in usePipelineNodeMutations
+    } finally {
+      setIsBulkDeleting(false);
     }
   };
 
   return (
     <div className="space-y-4 max-w-full">
-      {/* Header Bar */}
+      {/* Header Bar — Batch Upload is the primary action, single create stays secondary */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3.5">
         <div>
           <h1 className="text-xl font-bold tracking-tight flex items-center gap-2 text-foreground">
@@ -106,13 +144,12 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
             Node Library
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Built-in pipeline tools and isolated automation nodes for this project.
+            Built-in pipeline tools and custom automation nodes for this project.
           </p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
           <Button
-            variant="outline"
             size="sm"
             className="h-8 gap-1.5 text-xs shadow-xs"
             onPress={() =>
@@ -122,11 +159,12 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
               })
             }
           >
-            <UploadCloud className="size-3.5 text-primary" />
+            <UploadCloud className="size-3.5" />
             Batch Upload
           </Button>
 
           <Button
+            variant="outline"
             size="sm"
             className="h-8 gap-1.5 text-xs shadow-xs"
             onPress={() =>
@@ -136,7 +174,7 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
               })
             }
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-3.5 text-primary" />
             Create Custom Node
           </Button>
         </div>
@@ -198,7 +236,10 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
                     ? "shadow-xs font-semibold"
                     : "text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted/50"
                 )}
-                onPress={() => setSelectedCategory(cat)}
+                onPress={() => {
+                  setSelectedCategory(cat);
+                  setRowSelection({});
+                }}
               >
                 {cat}
               </Button>
@@ -207,15 +248,37 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
         </div>
       </div>
 
-      {/* Node Grid */}
+      {/* Batch toolbar — only Custom rows are selectable */}
+      {selectedNodes.length > 0 && (
+        <div className="flex items-center gap-1.5 animate-in fade-in zoom-in-95 duration-150">
+          <button
+            type="button"
+            onClick={() => setRowSelection({})}
+            className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold transition-colors cursor-pointer"
+            title="Click to clear selection"
+          >
+            <span>{selectedNodes.length} selected</span>
+            <span className="text-[10px] opacity-70">✕</span>
+          </button>
+
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => setBulkDeleteOpen(true)}
+            isDisabled={isDeletingNode || isBulkDeleting}
+            className="h-8 text-xs gap-1 px-2.5 cursor-pointer"
+          >
+            <Trash2 className="size-3.5" />
+            Delete ({selectedNodes.length})
+          </Button>
+        </div>
+      )}
+
+      {/* Node Table */}
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <div key={i} className="h-40 rounded-xl border bg-card/60 animate-pulse p-3 space-y-2.5">
-              <div className="h-4 bg-muted rounded w-3/4" />
-              <div className="h-3 bg-muted/60 rounded w-1/2" />
-              <div className="h-12 bg-muted/30 rounded mt-4" />
-            </div>
+        <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden p-4 space-y-2.5">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="h-10 bg-muted/40 rounded animate-pulse" />
           ))}
         </div>
       ) : filteredNodes.length === 0 ? (
@@ -238,195 +301,48 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
-          {filteredNodes.map((node) => {
-            const isCustom = node.source === "Custom";
-            const dataInputs = (node.inputs || []).filter((p) => !isExecPin(p));
-            const dataOutputs = (node.outputs || []).filter((p) => !isExecPin(p));
-            const hasExec = (node.inputs || []).some(isExecPin) || (node.outputs || []).some(isExecPin);
-
-            const dccMeta = node.executor ? getSoftwareMetadata(node.executor) : null;
-            const executorName =
-              node.executor?.toLowerCase() === "dotnet" || node.executor?.toLowerCase() === "builtin"
-                ? "Core"
-                : dccMeta?.name || node.executor;
-
-            return (
-              <Card
-                key={node.key}
-                className="group relative flex flex-col justify-between border border-border/70 bg-card/80 hover:border-primary/50 hover:bg-card hover:shadow-md transition-all duration-150 rounded-xl overflow-hidden"
-              >
-                {/* Header */}
-                <CardHeader className="p-3 pb-2 space-y-1.5">
-                  {/* Top metadata tags */}
-                  <div className="flex items-center justify-between gap-1">
-                    <div className="flex items-center gap-1 truncate min-w-0">
-                      <Badge
-                        variant="secondary"
-                        className="text-[9px] h-4.5 px-1.5 font-semibold shrink-0 uppercase tracking-wider"
-                      >
-                        {isCustom ? (
-                          <span className="flex items-center gap-1 text-primary">
-                            <Sparkles className="size-2" /> Custom
-                          </span>
-                        ) : (
-                          "Built-in"
-                        )}
-                      </Badge>
-
-                      {hasExec && (
-                        <Badge
-                          variant="outline"
-                          className="text-[9px] h-4.5 px-1 font-mono text-amber-500 border-amber-500/30 bg-amber-500/10 shrink-0"
-                          title="Has Execution Flow"
-                        >
-                          <Zap className="size-2.5 mr-0.5" /> Flow
-                        </Badge>
-                      )}
-
-                      {node.category && (
-                        <span className="text-[10px] text-muted-foreground/80 truncate font-medium">
-                          {node.category}
-                        </span>
-                      )}
-                    </div>
-
-                    {executorName && (
-                      <Badge
-                        variant="outline"
-                        className="text-[9px] h-4.5 px-1.5 font-mono shrink-0"
-                        style={dccMeta?.brandColor ? { borderColor: `${dccMeta.brandColor}55`, color: dccMeta.brandColor } : undefined}
-                      >
-                        {dccMeta?.iconUrl ? (
-                          <img src={dccMeta.iconUrl} alt={executorName} className="size-2.5 mr-1 object-contain" />
-                        ) : null}
-                        {executorName}
-                      </Badge>
-                    )}
-                  </div>
-
-                  {/* Node Name & Key */}
-                  <div className="min-w-0 pt-0.5">
-                    <CardTitle
-                      className="text-xs font-bold truncate text-foreground group-hover:text-primary transition-colors"
-                      title={node.label || node.key}
-                    >
-                      {node.label || node.key}
-                    </CardTitle>
-                    <div className="text-[10px] font-mono text-muted-foreground truncate" title={node.key}>
-                      {node.key}
-                    </div>
-                  </div>
-                </CardHeader>
-
-                {/* Content: Compact Data Pins */}
-                <CardContent className="p-3 pt-0 text-xs flex-1 flex flex-col justify-between space-y-2">
-                  <div className="space-y-1.5 pt-2 border-t border-border/40">
-                    {/* Inputs */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[10px] text-muted-foreground font-medium">
-                        <span className="flex items-center gap-1">
-                          <ArrowRight className="size-2.5 text-blue-500" />
-                          In ({dataInputs.length})
-                        </span>
-                        {dataInputs.length > 2 && (
-                          <button
-                            onClick={() => setInspectingNode(node)}
-                            className="text-[10px] text-primary hover:underline font-mono"
-                          >
-                            +{dataInputs.length - 2} more
-                          </button>
-                        )}
-                      </div>
-
-                      {dataInputs.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {dataInputs.slice(0, 2).map((pin) => (
-                            <PinBadge key={pin.id} pin={pin} direction="in" compact />
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-[10px] text-muted-foreground/60 italic">None</div>
-                      )}
-                    </div>
-
-                    {/* Outputs */}
-                    <div className="space-y-1 pt-1">
-                      <div className="flex items-center justify-between text-[10px] text-muted-foreground font-medium">
-                        <span className="flex items-center gap-1">
-                          <ArrowRight className="size-2.5 text-emerald-500" />
-                          Out ({dataOutputs.length})
-                        </span>
-                        {dataOutputs.length > 2 && (
-                          <button
-                            onClick={() => setInspectingNode(node)}
-                            className="text-[10px] text-primary hover:underline font-mono"
-                          >
-                            +{dataOutputs.length - 2} more
-                          </button>
-                        )}
-                      </div>
-
-                      {dataOutputs.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {dataOutputs.slice(0, 2).map((pin) => (
-                            <PinBadge key={pin.id} pin={pin} direction="out" compact />
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-[10px] text-muted-foreground/60 italic">None</div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Card Bottom Actions */}
-                  <div className="flex items-center justify-between gap-1 pt-2 border-t border-border/40 text-[11px]">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 text-[10px] px-1.5 text-muted-foreground hover:text-foreground gap-1"
-                      onPress={() => setInspectingNode(node)}
-                    >
-                      <SlidersHorizontal className="size-3" />
-                      Inspect
-                    </Button>
-
-                    {isCustom && node.id && (
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 text-[10px] px-1.5 text-muted-foreground hover:text-foreground gap-0.5"
-                          onPress={() =>
-                            navigate({
-                              to: "/projects/$projectId/pipeline/nodes/new",
-                              params: { projectId },
-                              search: { editNodeId: node.id } as any,
-                            })
-                          }
-                        >
-                          <FileCode className="size-3" />
-                          Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                          isDisabled={isDeletingNode}
-                          onPress={() => handleDelete(node)}
-                          aria-label="Delete node"
-                        >
-                          <Trash2 className="size-3" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+        <NodeLibraryTable table={table} columns={columns} isLoading={isLoading} />
       )}
+
+      {/* Bulk delete confirmation */}
+      <Dialog
+        isOpen={bulkDeleteOpen}
+        onOpenChange={(open) => !open && setBulkDeleteOpen(false)}
+        className="sm:max-w-md"
+      >
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base font-semibold text-destructive">
+            <Trash2 className="h-4 w-4" />
+            <span>Delete {selectedNodes.length} custom node(s)?</span>
+          </DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground pt-1">
+            This permanently deletes the selected custom nodes and their linked scripts:
+            <span className="block mt-2 font-mono text-foreground max-h-32 overflow-y-auto">
+              {selectedNodes.map((n) => n.label || n.key).join(", ")}
+            </span>
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onPress={() => setBulkDeleteOpen(false)}
+            isDisabled={isBulkDeleting}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            onPress={handleBulkDelete}
+            isDisabled={isBulkDeleting}
+          >
+            {isBulkDeleting ? "Deleting..." : `Delete ${selectedNodes.length}`}
+          </Button>
+        </DialogFooter>
+      </Dialog>
 
       {/* Inspect Node Specification Modal */}
       {inspectingNode && (
