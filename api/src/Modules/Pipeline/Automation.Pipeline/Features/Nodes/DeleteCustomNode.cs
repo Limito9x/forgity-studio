@@ -29,8 +29,7 @@ public class DeleteCustomNodeEndpoint(IMessageBus bus)
 
 [Transactional(typeof(PipelineDbContext))]
 public class DeleteCustomNodeHandler(
-    PipelineDbContext db,
-    IAssetApi assetApi
+    PipelineDbContext db
 )
 {
     public async Task<Result> HandleAsync(
@@ -48,14 +47,6 @@ public class DeleteCustomNodeHandler(
 
         db.NodeDefinitions.Remove(node);
         await db.SaveChangesAsync(ct);
-
-        // Remove linked script asset
-        await assetApi.RemoveLinkAsync(
-            ownerEntityId: node.Id.ToString(),
-            ownerEntityType: "NodeDefinition",
-            slotKey: PipelineAssetSlots.CustomScript,
-            ct: ct
-        );
 
         return Result.Ok();
     }

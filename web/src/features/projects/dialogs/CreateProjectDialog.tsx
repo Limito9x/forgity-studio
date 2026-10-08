@@ -3,9 +3,11 @@ import { BaseFormDialog } from "@/components/custom-ui/overlays/dialog/BaseFormD
 import type { DialogProps } from "@/lib/dialog-registry";
 import { useTranslation } from "react-i18next";
 import { useCreateProject } from "../hooks/useProjects";
+import { useStudioStore } from "@/stores/studioStore";
 
 export function CreateProjectDialog({ open, onOpenChange }: DialogProps<undefined>) {
     const { t } = useTranslation("projects");
+    const activeStudioId = useStudioStore((state) => state.activeStudioId);
     const createProject = useCreateProject();
     const isPending = createProject.isPending;
 
@@ -20,7 +22,12 @@ export function CreateProjectDialog({ open, onOpenChange }: DialogProps<undefine
         >
             <CreateProjectForm
                 onSubmit={(values) => {
-                    createProject.mutate({ data: values }, {
+                    createProject.mutate({
+                        data: {
+                            ...values,
+                            studioId: activeStudioId || undefined,
+                        },
+                    }, {
                         onSuccess: () => onOpenChange(false)
                     });
                 }}

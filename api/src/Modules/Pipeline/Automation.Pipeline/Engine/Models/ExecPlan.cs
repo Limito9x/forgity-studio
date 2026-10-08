@@ -5,6 +5,7 @@ public class ExecPlan
     public List<ExecSegment> Segments { get; init; } = [];
     public List<string> CycleNodeIds { get; init; } = [];
     public List<UnresolvedPin> UnresolvedPins { get; init; } = [];
+    public FrozenExecutionGraph? Graph { get; init; }
 
     public bool IsValid => CycleNodeIds.Count == 0 && UnresolvedPins.Count == 0;
 

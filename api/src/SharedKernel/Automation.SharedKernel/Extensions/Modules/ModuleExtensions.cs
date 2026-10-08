@@ -1,4 +1,5 @@
-﻿using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Model;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,6 +36,7 @@ public static class ModuleBuilderExtensions
         {
             options.Durability.Mode = DurabilityMode.Solo;
             options.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+            options.ServiceLocationPolicy = ServiceLocationPolicy.AllowedButWarn;
             
             var connectionString = builder.Configuration.GetConnectionString("Default");
             if (!string.IsNullOrWhiteSpace(connectionString))

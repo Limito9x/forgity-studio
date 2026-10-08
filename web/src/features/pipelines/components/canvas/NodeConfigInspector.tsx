@@ -1,4 +1,4 @@
-import { useMemo, memo, useEffect, useRef, useCallback } from "react";
+import { useMemo, memo, useEffect } from "react";
 import type { Node } from "@xyflow/react";
 import { useForm } from "react-hook-form";
 import type { CustomPipelineNodeData } from "./CustomPipelineNode";
@@ -33,7 +33,6 @@ interface NodeConfigInspectorProps {
   pipelineId?: string;
   node: Node | null;
   triggerType?: number | string;
-  triggerWorkspaceId?: string | null;
   triggerConfig?: any;
   onClose: () => void;
   onUpdateConfig: (nodeId: string, pinId: string, value: any) => void;
@@ -44,7 +43,6 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
   pipelineId = "",
   node,
   triggerType = 0,
-  triggerWorkspaceId = null,
   triggerConfig = null,
   onClose,
   onUpdateConfig,
@@ -54,19 +52,23 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
   const { data: projectStructs = [] } = useGetProjectStructs(projectId);
 
   const data = (node?.data as unknown as CustomPipelineNodeData) || {};
+  const refIdLower = String(data.refId || "").toLowerCase();
+  const kindLower = String(data.kind || "").toLowerCase();
+  const labelLower = String(data.label || "").toLowerCase();
+
   const isPipelineInputNode =
-    data.refId?.toLowerCase() === "pipelineinput" ||
-    data.refId?.toLowerCase() === "pipelineinputs" ||
-    data.refId?.toLowerCase() === "start" ||
-    data.refId?.toLowerCase() === "beginexecute" ||
-    data.kind?.toLowerCase() === "start" ||
-    data.kind?.toLowerCase() === "entry" ||
-    data.kind?.toLowerCase() === "pipelineinput" ||
-    data.label?.toLowerCase() === "start" ||
-    data.label?.toLowerCase() === "pipeline inputs" ||
-    data.label?.toLowerCase() === "pipeline input" ||
-    data.label?.toLowerCase() === "on resource created" ||
-    data.label?.toLowerCase() === "on resource version updated";
+    refIdLower === "pipelineinput" ||
+    refIdLower === "pipelineinputs" ||
+    refIdLower === "start" ||
+    refIdLower === "beginexecute" ||
+    kindLower === "start" ||
+    kindLower === "entry" ||
+    kindLower === "pipelineinput" ||
+    labelLower === "start" ||
+    labelLower === "pipeline inputs" ||
+    labelLower === "pipeline input" ||
+    labelLower === "on resource created" ||
+    labelLower === "on resource version updated";
 
 
   const inputs = data.inputs || [];
@@ -77,41 +79,22 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
     defaultValues: configValues,
   });
 
-  const lastNodeIdRef = useRef(node?.id);
   useEffect(() => {
-    if (node && lastNodeIdRef.current !== node.id) {
-      lastNodeIdRef.current = node.id;
-      form.reset(node.data?.configValues || {});
+    if (JSON.stringify(form.getValues()) !== JSON.stringify(configValues)) {
+      form.reset(configValues);
     }
-  }, [node, form]);
-
-  // Debounced update to backend
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const debouncedUpdate = useCallback(
-    (nodeId: string, pinId: string, value: any) => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      debounceTimerRef.current = setTimeout(() => {
-        onUpdateConfig(nodeId, pinId, value);
-      }, 250);
-    },
-    [onUpdateConfig]
-  );
+  }, [node?.id, configValues, form]);
 
   useEffect(() => {
     const subscription = form.watch((values, { name, type }) => {
       if (name && node && type !== undefined) {
-        debouncedUpdate(node.id, name, values[name]);
+        onUpdateConfig(node.id, name, values[name]);
       }
     });
     return () => {
       subscription.unsubscribe();
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
     };
-  }, [form, node, debouncedUpdate]);
+  }, [form, node?.id, onUpdateConfig]);
 
   // Find incoming wired edges
   const wiredInputPinIds = useMemo(() => {
@@ -158,8 +141,13 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
 
   // Map unwired inputs to dynamic form fields via Pure Adapter
   const formFields = useMemo(() => {
-    return unwiredInputs.map((pin) => pinToFieldDefinition(pin, configValues));
-  }, [unwiredInputs, configValues]);
+    return unwiredInputs.map((pin) => {
+      const field = pinToFieldDefinition(pin, configValues);
+      return field.type === "pin:assetUpload"
+        ? { ...field, properties: { ...field.properties, persistAsLink: true, fileAsset: data.fileAssets?.[pin.id!] } }
+        : field;
+    });
+  }, [unwiredInputs, configValues, data.fileAssets]);
 
   if (!node) return null;
 
@@ -236,15 +224,14 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
             pipelineId={pipelineId}
             projectId={projectId}
             triggerType={triggerType}
-            triggerWorkspaceId={triggerWorkspaceId}
             triggerConfig={triggerConfig}
           />
         ) : (
           <div className="space-y-4">
             {/* BreakStruct / MakeStruct / CastToStruct Special Configuration */}
-            {(data.refId?.toLowerCase() === "breakstruct" ||
-              data.refId?.toLowerCase() === "makestruct" ||
-              data.refId?.toLowerCase() === "casttostruct") && (
+            {(refIdLower === "breakstruct" ||
+              refIdLower === "makestruct" ||
+              refIdLower === "casttostruct") && (
               <div className="rounded-xl border border-sky-500/30 bg-sky-500/5 p-3 space-y-2 shadow-sm">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-sky-600 dark:text-sky-400">
                   <Box className="h-3.5 w-3.5" />
@@ -259,7 +246,8 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem id="Resource">Resource (File, BaseName, FullPath, Workspace)</SelectItem>
+                    <SelectItem id="Resource">Resource (File, BaseName, RelativePath, Repository)</SelectItem>
+                    <SelectItem id="Repository">Repository (RootPath, RepositoryId, RepositoryName)</SelectItem>
                     <SelectItem id="Workspace">Workspace (RootPath, WorkspaceId)</SelectItem>
                     <SelectItem id="Inspection">Resource Metadata (MainObjects, SkeletonBones)</SelectItem>
                     <SelectItem id="TaggedAsset">Tagged Asset (AssetName, FilePath, TagMap, PathMap, ResourceTags)</SelectItem>
@@ -272,7 +260,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
                 </Select>
                 <p className="text-[10px] text-muted-foreground leading-tight">
                   Selecting a struct type dynamically updates{" "}
-                  {data.refId?.toLowerCase() === "makestruct" ? "input" : "output"} pins to match the entity schema.
+                  {refIdLower === "makestruct" ? "input" : "output"} pins to match the entity schema.
                 </p>
               </div>
             )}
@@ -340,6 +328,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
                     )}
                     <div className="rounded-xl border border-border/70 bg-card p-3 shadow-sm">
                       <FormRenderer
+                        key={node.id}
                         registry={pipelineRegistry}
                         control={form.control}
                         fields={formFields}
@@ -358,7 +347,6 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
   if (prev.node?.id !== next.node?.id) return false;
   if (prev.node?.data !== next.node?.data) return false;
   if (prev.triggerType !== next.triggerType) return false;
-  if (prev.triggerWorkspaceId !== next.triggerWorkspaceId) return false;
   if (prev.triggerConfig !== next.triggerConfig) return false;
   if (prev.pipelineId !== next.pipelineId) return false;
   return true; // Ignore node.position changes!

@@ -27,6 +27,7 @@ export interface ResourcePageShellProps {
     /** Filter panel config. If not provided, filter panel is hidden. */
     filterConfig?: ResolvedFilterConfig;
     searchPlaceholder?: string;
+    hideAdvancedFilters?: boolean;
     renderViewOptions?: React.ReactNode;
 
     children: React.ReactNode;
@@ -43,6 +44,7 @@ export function ResourcePageShell({
     resource,
     filterConfig,
     searchPlaceholder,
+    hideAdvancedFilters = false,
     renderViewOptions,
     children,
 }: ResourcePageShellProps) {
@@ -59,7 +61,7 @@ export function ResourcePageShell({
     };
 
     return (
-        <div className="p-6 mx-auto space-y-6 w-full min-w-0">
+        <div className="page-container space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2.5">
@@ -100,6 +102,7 @@ export function ResourcePageShell({
                             filters={resource.search.filters}
                             onFiltersApply={resource.onFiltersApply}
                             searchPlaceholder={searchPlaceholder}
+                            hideAdvanced={hideAdvancedFilters}
                         />
                     </div>
                     {renderViewOptions && (

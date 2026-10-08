@@ -5,7 +5,7 @@ public class ResourceItem : BaseEntity
     public Guid RepositoryId { get; set; }
     public Repository Repository { get; set; } = null!;
     public string DisplayName { get; set; } = string.Empty;
-    public Guid PlatformExtensionId { get; set; }
+    public string Extension { get; set; } = string.Empty;
 
     // Định danh duy nhất trong repository - không thể thay đổi
     public string RelativePath { get; set; } = string.Empty;
@@ -19,14 +19,14 @@ public class ResourceItem : BaseEntity
     public ResourceItem(
         Guid repositoryId,
         string displayName,
-        Guid platformExtensionId,
+        string extension,
         string relativePath,
         Guid? contentId = null
     )
     {
         RepositoryId = repositoryId;
         DisplayName = displayName;
-        PlatformExtensionId = platformExtensionId;
+        Extension = extension;
         ContentId = contentId;
         RelativePath = relativePath;
     }
@@ -34,7 +34,7 @@ public class ResourceItem : BaseEntity
     public static ResourceItem Create(
         Guid repositoryId,
         Guid repositoryRunnerId,
-        Guid platformExtensionId,
+        string extension,
         string name,
         string relativePath,
         string fileHash,
@@ -42,7 +42,7 @@ public class ResourceItem : BaseEntity
         string? notes = null
     )
     {
-        var resource = new ResourceItem(repositoryId, name, platformExtensionId, relativePath);
+        var resource = new ResourceItem(repositoryId, name, extension, relativePath);
         resource.AddNewVersion(repositoryRunnerId, fileHash, sizeBytes, notes);
         return resource;
     }
@@ -69,6 +69,12 @@ public class ResourceItem : BaseEntity
     public void AssignContent(Guid? contentId)
     {
         ContentId = contentId;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void RemoveContent()
+    {
+        ContentId = null;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 }

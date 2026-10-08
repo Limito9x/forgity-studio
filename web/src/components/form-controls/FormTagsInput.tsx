@@ -8,10 +8,14 @@ import { TagsInput, type TagsInputProps } from "@/components/custom-ui/inputs/ta
 export interface FormTagsInputProps<T extends FieldValues>
     extends BaseFormControlProps<T>,
     OmitFormProps<Omit<TagsInputProps, "value" | "onChange">> {
+    transformTag?: (tag: string) => string;
+    renderTagLabel?: (tag: string) => React.ReactNode;
 }
 
 export function FormTagsInput<T extends FieldValues>({
     disabled,
+    transformTag,
+    renderTagLabel,
     ...rest
 }: FormTagsInputProps<T>) {
     return (
@@ -24,6 +28,8 @@ export function FormTagsInput<T extends FieldValues>({
                     value={value || []}
                     onChange={onChange}
                     disabled={disabled}
+                    transformTag={transformTag}
+                    renderTagLabel={renderTagLabel}
                     id={rest.id}
                 />
             )}

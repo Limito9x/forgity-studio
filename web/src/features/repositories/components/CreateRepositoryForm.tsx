@@ -1,5 +1,5 @@
 import { Form, FormGrid, zodResolver, useForm } from "@/components/form";
-import { FormInput, FormTextarea } from "@/components/form-controls";
+import { FormInput, FormTextarea, FormTagsInput } from "@/components/form-controls";
 import {
   createRepositorySchema,
   type CreateRepositoryInput,
@@ -22,6 +22,7 @@ export function CreateRepositoryForm({
     defaultValues: {
       name: defaultValues?.name || "",
       description: defaultValues?.description || "",
+      supportedExtensions: defaultValues?.supportedExtensions || [],
     },
   });
 
@@ -43,6 +44,16 @@ export function CreateRepositoryForm({
           name="description"
           placeholder="Describe the resources managed in this repository..."
           rows={3}
+        />
+
+        <FormTagsInput
+          control={form.control}
+          label="Supported Extensions"
+          name="supportedExtensions"
+          placeholder="e.g. blend, fbx, obj (press Enter or comma)"
+          description="Extensions tracked by this repository. Leave empty to allow all files. Stored without dot."
+          transformTag={(tag) => tag.replace(/^\.+/, "").toLowerCase().trim()}
+          renderTagLabel={(tag) => `.${tag}`}
         />
       </FormGrid>
     </Form>

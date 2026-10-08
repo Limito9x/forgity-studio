@@ -37,6 +37,7 @@ export function FormSelect<T extends FieldValues>({ options = [], ...rest }: For
                     selectedKey={field.value?.toString() || null}
                     onSelectionChange={field.onChange}
                     isDisabled={field.disabled}
+                    className="w-full"
                 >
                     <SelectTrigger id={field.field_id}>
                         <SelectValue>
@@ -44,15 +45,21 @@ export function FormSelect<T extends FieldValues>({ options = [], ...rest }: For
                         </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                        {normalizedOptions.map((option) => (
-                            <SelectItem
-                                key={option.value}
-                                id={option.value}
-                                isDisabled={option.disabled}
-                            >
-                                {option.label}
+                        {normalizedOptions.length > 0 ? (
+                            normalizedOptions.map((option) => (
+                                <SelectItem
+                                    key={option.value}
+                                    id={option.value}
+                                    isDisabled={option.disabled}
+                                >
+                                    {option.label}
+                                </SelectItem>
+                            ))
+                        ) : (
+                            <SelectItem id="__empty__" isDisabled className="text-muted-foreground italic text-xs">
+                                No available options
                             </SelectItem>
-                        ))}
+                        )}
                     </SelectContent>
                 </Select>
             )}

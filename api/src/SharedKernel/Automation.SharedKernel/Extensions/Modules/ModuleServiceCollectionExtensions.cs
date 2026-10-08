@@ -18,9 +18,11 @@ public static class ModuleServiceCollectionExtensions
         services.AddHttpContextAccessor();
         services.AddSingleton<AuditingInterceptor>();
         services.AddSingleton<AuditLogInterceptor>();
-        services.AddSingleton<EntityDeletedInterceptor>();
+        services.AddScoped<EntityDeletedInterceptor>();
 
-        services.AddDbContextWithWolverineIntegration<TContext>((sp, options) =>
+        // Register scoped options first: they contain a scoped, outbox-aware interceptor.
+        // Wolverine's convenience registration otherwise defaults options to singleton.
+        services.AddDbContext<TContext>((sp, options) =>
         {
 
             options.UseNpgsql(
@@ -36,7 +38,8 @@ public static class ModuleServiceCollectionExtensions
                 sp.GetRequiredService<AuditLogInterceptor>(),
                 sp.GetRequiredService<EntityDeletedInterceptor>()
             );
-        });
+        }, optionsLifetime: ServiceLifetime.Scoped);
+        services.AddDbContextWithWolverineIntegration<TContext>(_ => { });
 
         return services;
     }

@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
 using Automation.Studio.Domain.Entities;
 using Automation.Studio.Infrastructure.Persistence;
@@ -33,13 +33,23 @@ public class CreateProjectEndpoint(IMessageBus bus)
         CreateProjectCommand req,
         CancellationToken ct)
     {
+        if ((!req.StudioId.HasValue || req.StudioId.Value == Guid.Empty) &&
+            HttpContext.Request.Headers.TryGetValue("X-Studio-Id", out var studioHeader) &&
+            Guid.TryParse(studioHeader, out var sId) &&
+            sId != Guid.Empty)
+        {
+            req = req with { StudioId = sId };
+        }
+
         var result = await bus.InvokeAsync<Result<ProjectDto>>(req, ct);
         await this.SendResultAsync(result, ct);
     }
 }
 
 [Transactional(typeof(StudioDbContext))]
-public class CreateProjectHandler(StudioDbContext db, ICurrentUserProvider userProvider)
+public class CreateProjectHandler(
+    StudioDbContext db,
+    ICurrentUserProvider userProvider)
 {
     public async Task<Result<ProjectDto>> HandleAsync(
         CreateProjectCommand request,
@@ -50,17 +60,27 @@ public class CreateProjectHandler(StudioDbContext db, ICurrentUserProvider userP
             return Result.Fail<ProjectDto>(new UnauthorizedError("User is not authenticated"));
         }
 
-        var project = request.Adapt<Project>();
-        project.OwnerId = userProvider.UserId.Value;
+        var targetStudioId = request.StudioId;
 
-        if (project.StudioId == Guid.Empty)
+        if (!targetStudioId.HasValue || targetStudioId.Value == Guid.Empty)
         {
             var defaultStudio = await db.Studios.FirstOrDefaultAsync(ct);
             if (defaultStudio is not null)
             {
-                project.StudioId = defaultStudio.Id;
+                targetStudioId = defaultStudio.Id;
+            }
+            else
+            {
+                return Result.Fail<ProjectDto>("No active studio found to associate project with.");
             }
         }
+
+        var project = new Project
+        {
+            Name = request.Name,
+            StudioId = targetStudioId.Value,
+            OwnerId = userProvider.UserId.Value,
+        };
 
         db.Projects.Add(project);
         await db.SaveChangesAsync(ct);

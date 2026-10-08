@@ -58,6 +58,10 @@ namespace Automation.Repository.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uuid");
 
+                    b.PrimitiveCollection<string>("SupportedExtensions")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -132,8 +136,10 @@ namespace Automation.Repository.Infrastructure.Persistence.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
-                    b.Property<Guid>("PlatformExtensionId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("Extension")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
 
                     b.Property<string>("RelativePath")
                         .IsRequired()
@@ -153,7 +159,7 @@ namespace Automation.Repository.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ContentId");
 
-                    b.HasIndex("PlatformExtensionId");
+                    b.HasIndex("Extension");
 
                     b.HasIndex("RepositoryId", "DisplayName");
 

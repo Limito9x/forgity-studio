@@ -7,7 +7,9 @@ public class PipelineExecution : BaseEntity
 {
     public Guid PipelineId { get; set; }
     public Pipeline Pipeline { get; set; } = null!;
-    public Guid AgentId { get; set; }
+    public Guid? ParentExecutionId { get; set; }
+    public PipelineExecution? ParentExecution { get; set; }
+    public Guid? TriggeredByNodeId { get; set; }
     public ExecutionStatus Status { get; set; }
     public DateTimeOffset? StartedAt { get; set; }
     public DateTimeOffset? FinishedAt { get; set; }
@@ -18,10 +20,15 @@ public class PipelineExecution : BaseEntity
 
     public PipelineExecution() { }
 
-    public PipelineExecution(Guid pipelineId, Guid agentId)
+    public PipelineExecution(
+        Guid pipelineId,
+        Guid? parentExecutionId = null,
+        Guid? triggeredByNodeId = null
+    )
     {
         PipelineId = pipelineId;
-        AgentId = agentId;
+        ParentExecutionId = parentExecutionId;
+        TriggeredByNodeId = triggeredByNodeId;
         Status = ExecutionStatus.Pending;
         NextNodeIndex = 0;
     }
@@ -41,9 +48,9 @@ public class PipelineExecution : BaseEntity
         CurrentBatchId = batchId;
     }
 
-    public void MarkWaitingForAgent(string batchId, int nextIndex, JsonDocument state)
+    public void MarkWaitingForRunner(string batchId, int nextIndex, JsonDocument state)
     {
-        Status = ExecutionStatus.WaitingForAgent;
+        Status = ExecutionStatus.WaitingForRunner;
         CurrentBatchId = batchId;
         NextNodeIndex = nextIndex;
         ExecutionState = state;
@@ -79,4 +86,6 @@ public class PipelineExecution : BaseEntity
         Status = ExecutionStatus.Cancelled;
         FinishedAt = DateTimeOffset.UtcNow;
     }
+
+    public void Cancel() => MarkCancelled();
 }

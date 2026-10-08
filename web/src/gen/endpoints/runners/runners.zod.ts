@@ -14,12 +14,40 @@ export const GetRunnersResponseItem = /*#__PURE__*/ zod.object({
   "isActive": /*#__PURE__*/ zod.boolean(),
   "lastSeenAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "osPlatform": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "cpuModel": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "totalRamBytes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
+  "primaryGpuName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "primaryGpuVramBytes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
+  "lastHardwareScannedAt": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
+  "hardwareDetails": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.object({
+  "gpus": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "name": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "vramBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "driverVersion": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "pciBus": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string())
+}))),
+  "disks": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "mount": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "label": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "totalBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "freeBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "fsType": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string())
+}))),
+  "architecture": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "pythonRuntimeVersion": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "logicalCores": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "physicalCores": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "environmentVariables": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.string()))
+})),
   "executorConfigs": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "runnerId": /*#__PURE__*/ zod.uuid(),
   "executorKey": /*#__PURE__*/ zod.string(),
   "executablePath": /*#__PURE__*/ zod.string(),
   "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isEnabled": /*#__PURE__*/ zod.boolean(),
+  "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 })))
 })
@@ -43,12 +71,40 @@ export const GetStudioRunnersResponseItem = /*#__PURE__*/ zod.object({
   "isActive": /*#__PURE__*/ zod.boolean(),
   "lastSeenAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "osPlatform": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "cpuModel": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "totalRamBytes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
+  "primaryGpuName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "primaryGpuVramBytes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
+  "lastHardwareScannedAt": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
+  "hardwareDetails": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.object({
+  "gpus": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "name": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "vramBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "driverVersion": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "pciBus": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string())
+}))),
+  "disks": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "mount": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "label": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "totalBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "freeBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "fsType": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string())
+}))),
+  "architecture": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "pythonRuntimeVersion": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "logicalCores": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "physicalCores": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "environmentVariables": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.string()))
+})),
   "executorConfigs": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "runnerId": /*#__PURE__*/ zod.uuid(),
   "executorKey": /*#__PURE__*/ zod.string(),
   "executablePath": /*#__PURE__*/ zod.string(),
   "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isEnabled": /*#__PURE__*/ zod.boolean(),
+  "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 })))
 }))
@@ -72,12 +128,40 @@ export const GetMyRunnerResponse = /*#__PURE__*/ zod.object({
   "isActive": /*#__PURE__*/ zod.boolean(),
   "lastSeenAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "osPlatform": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "cpuModel": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "totalRamBytes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
+  "primaryGpuName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "primaryGpuVramBytes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
+  "lastHardwareScannedAt": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
+  "hardwareDetails": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.object({
+  "gpus": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "name": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "vramBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "driverVersion": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "pciBus": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string())
+}))),
+  "disks": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "mount": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "label": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "totalBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "freeBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "fsType": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string())
+}))),
+  "architecture": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "pythonRuntimeVersion": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "logicalCores": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "physicalCores": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "environmentVariables": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.string()))
+})),
   "executorConfigs": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "runnerId": /*#__PURE__*/ zod.uuid(),
   "executorKey": /*#__PURE__*/ zod.string(),
   "executablePath": /*#__PURE__*/ zod.string(),
   "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isEnabled": /*#__PURE__*/ zod.boolean(),
+  "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 })))
 })
@@ -125,10 +209,14 @@ export const DiscoverRunnerFoldersParams = /*#__PURE__*/ zod.object({
 })
 
 export const DiscoverRunnerFoldersQueryParams = /*#__PURE__*/ zod.object({
-  "path": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+  "path": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "includeFiles": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean()),
+  "extensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 export const discoverRunnerFoldersResponseItemsItemHasChildrenDefault = false;
+export const discoverRunnerFoldersResponseItemsItemIsDirectoryDefault = true;
+export const discoverRunnerFoldersResponseItemsItemSizeBytesDefault = 0;
 
 export const DiscoverRunnerFoldersResponse = /*#__PURE__*/ zod.object({
   "currentPath": /*#__PURE__*/ zod.string(),
@@ -137,7 +225,21 @@ export const DiscoverRunnerFoldersResponse = /*#__PURE__*/ zod.object({
   "items": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "name": /*#__PURE__*/ zod.string(),
   "path": /*#__PURE__*/ zod.string(),
-  "hasChildren": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), discoverRunnerFoldersResponseItemsItemHasChildrenDefault)
+  "hasChildren": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), discoverRunnerFoldersResponseItemsItemHasChildrenDefault),
+  "isDirectory": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), discoverRunnerFoldersResponseItemsItemIsDirectoryDefault),
+  "sizeBytes": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.int(), discoverRunnerFoldersResponseItemsItemSizeBytesDefault),
+  "extension": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+})),
+  "systemPlaces": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "name": /*#__PURE__*/ zod.string(),
+  "path": /*#__PURE__*/ zod.string()
+})),
+  "pinnedFolders": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()),
+  "drives": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "mount": /*#__PURE__*/ zod.string(),
+  "label": /*#__PURE__*/ zod.string(),
+  "totalBytes": /*#__PURE__*/ zod.int(),
+  "freeBytes": /*#__PURE__*/ zod.int()
 }))
 })
 
@@ -165,6 +267,8 @@ export const ReportExecutorConfigsResponseItem = /*#__PURE__*/ zod.object({
   "executorKey": /*#__PURE__*/ zod.string(),
   "executablePath": /*#__PURE__*/ zod.string(),
   "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isEnabled": /*#__PURE__*/ zod.boolean(),
+  "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 })
 export const ReportExecutorConfigsResponse = /*#__PURE__*/ zod.array(ReportExecutorConfigsResponseItem)
@@ -173,10 +277,14 @@ export const ConfigureRunnerExecutorParams = /*#__PURE__*/ zod.object({
   "runnerId": /*#__PURE__*/ zod.uuid()
 })
 
+export const configureRunnerExecutorBodyIsEnabledDefault = true;
+
 export const ConfigureRunnerExecutorBody = /*#__PURE__*/ zod.object({
   "executorKey": /*#__PURE__*/ zod.string(),
   "executablePath": /*#__PURE__*/ zod.string(),
-  "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+  "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isEnabled": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.boolean()), configureRunnerExecutorBodyIsEnabledDefault),
+  "settings": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
 })
 
 export const ConfigureRunnerExecutorResponse = /*#__PURE__*/ zod.object({
@@ -185,6 +293,8 @@ export const ConfigureRunnerExecutorResponse = /*#__PURE__*/ zod.object({
   "executorKey": /*#__PURE__*/ zod.string(),
   "executablePath": /*#__PURE__*/ zod.string(),
   "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isEnabled": /*#__PURE__*/ zod.boolean(),
+  "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 })
 
@@ -202,6 +312,132 @@ export const ScanExecutorsResponseItem = /*#__PURE__*/ zod.object({
   "version": /*#__PURE__*/ zod.string()
 })
 export const ScanExecutorsResponse = /*#__PURE__*/ zod.array(ScanExecutorsResponseItem)
+
+export const UpdateRunnerHardwareProfileParams = /*#__PURE__*/ zod.object({
+  "runnerId": /*#__PURE__*/ zod.uuid()
+})
+
+export const UpdateRunnerHardwareProfileBody = /*#__PURE__*/ zod.object({
+  "osPlatform": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "cpuModel": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "totalRamBytes": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
+  "primaryGpuName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "primaryGpuVramBytes": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
+  "hardwareDetails": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.object({
+  "gpus": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "name": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "vramBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "driverVersion": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "pciBus": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string())
+}))),
+  "disks": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "mount": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "label": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "totalBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "freeBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "fsType": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string())
+}))),
+  "architecture": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "pythonRuntimeVersion": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "logicalCores": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "physicalCores": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "environmentVariables": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.string()))
+}))
+})
+
+export const UpdateRunnerHardwareProfileResponse = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "name": /*#__PURE__*/ zod.string(),
+  "machineKey": /*#__PURE__*/ zod.string(),
+  "isActive": /*#__PURE__*/ zod.boolean(),
+  "lastSeenAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "osPlatform": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "cpuModel": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "totalRamBytes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
+  "primaryGpuName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "primaryGpuVramBytes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
+  "lastHardwareScannedAt": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
+  "hardwareDetails": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.object({
+  "gpus": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "name": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "vramBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "driverVersion": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "pciBus": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string())
+}))),
+  "disks": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "mount": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "label": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "totalBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "freeBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "fsType": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string())
+}))),
+  "architecture": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "pythonRuntimeVersion": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "logicalCores": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "physicalCores": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "environmentVariables": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.string()))
+})),
+  "executorConfigs": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "runnerId": /*#__PURE__*/ zod.uuid(),
+  "executorKey": /*#__PURE__*/ zod.string(),
+  "executablePath": /*#__PURE__*/ zod.string(),
+  "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isEnabled": /*#__PURE__*/ zod.boolean(),
+  "settings": /*#__PURE__*/ zod.unknown(),
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
+})))
+})
+
+export const ScanRunnerHardwareParams = /*#__PURE__*/ zod.object({
+  "runnerId": /*#__PURE__*/ zod.uuid()
+})
+
+export const ScanRunnerHardwareResponse = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "name": /*#__PURE__*/ zod.string(),
+  "machineKey": /*#__PURE__*/ zod.string(),
+  "isActive": /*#__PURE__*/ zod.boolean(),
+  "lastSeenAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "osPlatform": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "cpuModel": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "totalRamBytes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
+  "primaryGpuName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "primaryGpuVramBytes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
+  "lastHardwareScannedAt": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
+  "hardwareDetails": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.object({
+  "gpus": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "name": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "vramBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "driverVersion": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "pciBus": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string())
+}))),
+  "disks": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "mount": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "label": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "totalBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "freeBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "fsType": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string())
+}))),
+  "architecture": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "pythonRuntimeVersion": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "logicalCores": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "physicalCores": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "environmentVariables": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.string()))
+})),
+  "executorConfigs": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "runnerId": /*#__PURE__*/ zod.uuid(),
+  "executorKey": /*#__PURE__*/ zod.string(),
+  "executablePath": /*#__PURE__*/ zod.string(),
+  "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isEnabled": /*#__PURE__*/ zod.boolean(),
+  "settings": /*#__PURE__*/ zod.unknown(),
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
+})))
+})
 
 export const AttachRunnerToStudioParams = /*#__PURE__*/ zod.object({
   "runnerId": /*#__PURE__*/ zod.uuid()
@@ -226,12 +462,40 @@ export const AttachRunnerToStudioResponse = /*#__PURE__*/ zod.object({
   "isActive": /*#__PURE__*/ zod.boolean(),
   "lastSeenAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "osPlatform": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "cpuModel": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "totalRamBytes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
+  "primaryGpuName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "primaryGpuVramBytes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
+  "lastHardwareScannedAt": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
+  "hardwareDetails": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.object({
+  "gpus": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "name": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "vramBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "driverVersion": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "pciBus": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string())
+}))),
+  "disks": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "mount": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "label": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "totalBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "freeBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "fsType": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string())
+}))),
+  "architecture": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "pythonRuntimeVersion": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "logicalCores": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "physicalCores": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "environmentVariables": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.string()))
+})),
   "executorConfigs": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "runnerId": /*#__PURE__*/ zod.uuid(),
   "executorKey": /*#__PURE__*/ zod.string(),
   "executablePath": /*#__PURE__*/ zod.string(),
   "version": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isEnabled": /*#__PURE__*/ zod.boolean(),
+  "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 })))
 }))

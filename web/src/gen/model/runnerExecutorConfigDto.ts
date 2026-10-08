@@ -4,6 +4,7 @@
  * Automation.Api | v1
  * OpenAPI spec version: 1.0.0
  */
+import type { JsonDocument } from "./jsonDocument";
 
 export interface RunnerExecutorConfigDto {
   id: string;
@@ -12,5 +13,7 @@ export interface RunnerExecutorConfigDto {
   executablePath: string;
   /** @nullable */
   version: string | null;
+  isEnabled: boolean;
+  settings: JsonDocument;
   createdAt: string;
 }

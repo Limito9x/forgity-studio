@@ -27,7 +27,7 @@ public class ExecutionStateGrpcServiceTests : IDisposable
     private readonly SqliteConnection _connection;
     private readonly PipelineDbContext _db;
     private readonly IExecutionMemoryStore _memoryStore = new RedisExecutionMemoryStore(NullLogger<RedisExecutionMemoryStore>.Instance);
-    private readonly IExecutionStateStore _legacyStore = Substitute.For<IExecutionStateStore>();
+    private readonly IExecutionStateStore _stateStore = new RedisExecutionStateStore(NullLogger<RedisExecutionStateStore>.Instance);
     private readonly FakeToolRegistry _toolRegistry = new();
     private readonly IAssetApi _assetApi = Substitute.For<IAssetApi>();
     private readonly ExecutionStateGrpcService _grpcService;
@@ -59,7 +59,7 @@ public class ExecutionStateGrpcServiceTests : IDisposable
         _grpcService = new ExecutionStateGrpcService(
             pinResolver,
             _memoryStore,
-            _legacyStore,
+            _stateStore,
             _db,
             NullLogger<ExecutionStateGrpcService>.Instance
         );
@@ -75,7 +75,7 @@ public class ExecutionStateGrpcServiceTests : IDisposable
         pipeline.AddNode(node);
         _db.Pipelines.Add(pipeline);
 
-        var execution = new PipelineExecution(pipeline.Id, Guid.NewGuid());
+        var execution = new PipelineExecution(pipeline.Id);
         _db.PipelineExecutions.Add(execution);
         await _db.SaveChangesAsync();
 
@@ -107,7 +107,7 @@ public class ExecutionStateGrpcServiceTests : IDisposable
         pipeline.AddNode(node);
         _db.Pipelines.Add(pipeline);
 
-        var execution = new PipelineExecution(pipeline.Id, Guid.NewGuid());
+        var execution = new PipelineExecution(pipeline.Id);
         _db.PipelineExecutions.Add(execution);
         await _db.SaveChangesAsync();
 
@@ -131,10 +131,9 @@ public class ExecutionStateGrpcServiceTests : IDisposable
         var savedPath = await _memoryStore.GetNodePinValueAsync(execution.Id, node.Id, "ExportedPath");
         savedPath.Should().Be("D:/exports/final_model.glb");
 
-        // Verify DB record
-        var nodeExec = await _db.NodeExecutions.FirstOrDefaultAsync(x => x.PipelineExecutionId == execution.Id && x.PipelineNodeId == node.Id);
-        nodeExec.Should().NotBeNull();
-        nodeExec!.Status.Should().Be(ExecutionStatus.Succeeded);
+        // Verify Redis StateStore status
+        var status = await _stateStore.GetNodeStatusAsync(execution.Id, node.Id);
+        status.Should().Be("Succeeded");
     }
 
     public void Dispose()

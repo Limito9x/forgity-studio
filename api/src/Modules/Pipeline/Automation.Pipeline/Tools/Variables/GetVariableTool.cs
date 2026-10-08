@@ -99,9 +99,16 @@ public class GetVariableTool(
         logger?.LogInformation("GetVariableTool: Read variable '{VarName}' for execution {ExecutionId} -> {Value}",
             varName, context.PipelineExecutionId, val != null ? System.Text.Json.JsonSerializer.Serialize(val) : "null");
 
-        return new Dictionary<string, object>
+        var outputs = new Dictionary<string, object>
         {
             ["Value"] = val!
         };
+
+        if (!string.IsNullOrWhiteSpace(varName) && !outputs.ContainsKey(varName))
+        {
+            outputs[varName] = val!;
+        }
+
+        return outputs;
     }
 }

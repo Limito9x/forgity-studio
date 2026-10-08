@@ -61,7 +61,7 @@ export function PinCardList({
               No input pins detected. Upload script or click &quot;Add Input&quot; to define parameters.
             </div>
           ) : (
-            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+            <div className="space-y-2">
               {inputs.map((pin, index) => {
                 const isSelected =
                   selectedPin?.direction === "in" && selectedPin.index === index;
@@ -111,7 +111,7 @@ export function PinCardList({
               No output pins detected. Define return dictionary keys for downstream nodes.
             </div>
           ) : (
-            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+            <div className="space-y-2">
               {outputs.map((pin, index) => {
                 const isSelected =
                   selectedPin?.direction === "out" && selectedPin.index === index;

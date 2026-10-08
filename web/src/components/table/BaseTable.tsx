@@ -11,6 +11,7 @@ import { Skeleton } from "../ui/skeleton";
 import { type ColumnDef, useReactTable, flexRender } from "@tanstack/react-table"
 import { BasePagination } from "./BasePagination";
 import { useMemo } from "react";
+import { cn } from "@/lib/utils";
 
 import type { SortDescriptor } from "react-aria-components";
 
@@ -19,6 +20,7 @@ export interface BaseTableProps<TData> {
     columns: ColumnDef<TData>[];
     isLoading?: boolean;
     caption?: string;
+    selectionMode?: "none" | "single" | "multiple";
 }
 
 export function BaseTable<TData>({
@@ -26,6 +28,7 @@ export function BaseTable<TData>({
     columns,
     isLoading,
     caption,
+    selectionMode,
 }: BaseTableProps<TData>) {
     const { sorting, pagination } = table.getState();
 
@@ -53,6 +56,13 @@ export function BaseTable<TData>({
 
     const flatHeaders = table.getHeaderGroups().flatMap(hg => hg.headers);
 
+    const hasSelectColumn = useMemo(
+        () => flatHeaders.some(h => h.id === "select"),
+        [flatHeaders]
+    );
+
+    const effectiveSelectionMode = selectionMode ?? (hasSelectColumn ? "multiple" : undefined);
+
     const rowHeaderId = useMemo(() => {
         const explicitHeader = flatHeaders.find(h => (h.column.columnDef.meta as any)?.isRowHeader);
         return explicitHeader
@@ -72,31 +82,37 @@ export function BaseTable<TData>({
                     aria-label={caption || "Data table"}
                     sortDescriptor={sortDescriptor}
                     onSortChange={handleSortChange}
+                    selectionMode={effectiveSelectionMode}
                 >
                     <TableHeader>
-                        {flatHeaders.map((header) => (
-                            <TableHead
-                                key={header.id}
-                                id={header.id}
-                                className="font-semibold py-3"
-                                isRowHeader={header.id === rowHeaderId}
-                                allowsSorting={header.column.getCanSort()}
-                            >
-                                {header.column.getCanSort() ? (
-                                    <div className="flex items-center gap-2 select-none hover:text-foreground">
-                                        {flexRender(header.column.columnDef.header, header.getContext())}
-                                        {{
-                                            asc: <ArrowUp className="h-4 w-4" />,
-                                            desc: <ArrowDown className="h-4 w-4" />,
-                                        }[header.column.getIsSorted() as string] ?? (
-                                                <ArrowUpDown className="h-4 w-4 opacity-50" />
-                                            )}
-                                    </div>
-                                ) : (
-                                    flexRender(header.column.columnDef.header, header.getContext())
-                                )}
-                            </TableHead>
-                        ))}
+                        {flatHeaders.map((header) => {
+                            const meta = header.column.columnDef.meta as any;
+                            const size = header.column.columnDef.size;
+                            return (
+                                <TableHead
+                                    key={header.id}
+                                    id={header.id}
+                                    className={cn("font-semibold py-3", meta?.headerClassName)}
+                                    style={size ? { width: `${size}px`, maxWidth: `${size}px` } : undefined}
+                                    isRowHeader={header.id === rowHeaderId}
+                                    allowsSorting={header.column.getCanSort()}
+                                >
+                                    {header.column.getCanSort() ? (
+                                        <div className="flex items-center gap-2 select-none hover:text-foreground">
+                                            {flexRender(header.column.columnDef.header, header.getContext())}
+                                            {{
+                                                asc: <ArrowUp className="h-4 w-4" />,
+                                                desc: <ArrowDown className="h-4 w-4" />,
+                                            }[header.column.getIsSorted() as string] ?? (
+                                                    <ArrowUpDown className="h-4 w-4 opacity-50" />
+                                                )}
+                                        </div>
+                                    ) : (
+                                        flexRender(header.column.columnDef.header, header.getContext())
+                                    )}
+                                </TableHead>
+                            );
+                        })}
                     </TableHeader>
                     <TableBody renderEmptyState={() => (
                         <div className="flex h-32 w-full items-center justify-center text-muted-foreground">
@@ -106,20 +122,38 @@ export function BaseTable<TData>({
                         {isLoading
                             ? Array.from({ length: pagination.pageSize }).map((_, i) => (
                                 <TableRow key={`skeleton-${i}`} id={`skeleton-${i}`}>
-                                    {columns.map((_, colIndex) => (
-                                        <TableCell key={`skeleton-cell-${colIndex}`} id={`skeleton-${i}-cell-${colIndex}`} className="py-4">
-                                            <Skeleton className="h-5 w-full max-w-[80%]" />
-                                        </TableCell>
-                                    ))}
+                                    {columns.map((col, colIndex) => {
+                                        const meta = col.meta as any;
+                                        const size = col.size;
+                                        return (
+                                            <TableCell
+                                                key={`skeleton-cell-${colIndex}`}
+                                                id={`skeleton-${i}-cell-${colIndex}`}
+                                                className={cn("py-4", meta?.cellClassName)}
+                                                style={size ? { width: `${size}px`, maxWidth: `${size}px` } : undefined}
+                                            >
+                                                <Skeleton className="h-5 w-full max-w-[80%]" />
+                                            </TableCell>
+                                        );
+                                    })}
                                 </TableRow>
                             ))
                             : table.getRowModel().rows.map((item: any) => (
                                 <TableRow key={item.id} id={item.id} className="hover:bg-muted/30 transition-colors">
-                                    {item.getVisibleCells().map((cell: any) => (
-                                        <TableCell key={cell.id} id={cell.id} className="py-3">
-                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                        </TableCell>
-                                    ))}
+                                    {item.getVisibleCells().map((cell: any) => {
+                                        const meta = cell.column.columnDef.meta as any;
+                                        const size = cell.column.columnDef.size;
+                                        return (
+                                            <TableCell
+                                                key={cell.id}
+                                                id={cell.id}
+                                                className={cn("py-3", meta?.cellClassName)}
+                                                style={size ? { width: `${size}px`, maxWidth: `${size}px` } : undefined}
+                                            >
+                                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                            </TableCell>
+                                        );
+                                    })}
                                 </TableRow>
                             ))
                         }

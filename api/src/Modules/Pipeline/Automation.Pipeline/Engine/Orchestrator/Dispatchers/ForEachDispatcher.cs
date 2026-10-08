@@ -2,10 +2,13 @@ using System.Collections;
 using System.Text.Json;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
+using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Engine.DataResolver;
 using Automation.Pipeline.Engine.DataResolver.Resolvers;
 using Automation.Pipeline.Engine.Models;
+using Automation.Pipeline.Hubs;
 using Automation.Pipeline.Infrastructure.Persistence;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -15,8 +18,11 @@ public class ForEachDispatcher(
     PipelineDbContext db,
     IPinValueResolver pinResolver,
     IExecutionMemoryStore memoryStore,
+    IExecutionStateStore stateStore,
     DotNetSegmentDispatcher dotNetDispatcher,
-    ILogger<ForEachDispatcher> logger
+    ILogger<ForEachDispatcher> logger,
+    IHubContext<PipelineExecutionHub>? hubContext = null,
+    Engine.EntityStore.IExecutionEntityStore? entityStore = null
 )
 {
     public async Task<Result> DispatchAsync(
@@ -30,6 +36,9 @@ public class ForEachDispatcher(
         var step = segment.Steps.FirstOrDefault();
         if (step == null) return Result.Ok();
 
+        // 0. Mark ForEach node as Running and broadcast
+        await RecordNodeRunningAsync(execution.Id, execution.PipelineId, step.NodeId, ct);
+
         // 1. Pull the input Array on-demand
         var arrayVal = await pinResolver.ResolvePinAsync(execution.Id, step.NodeId, "Array", parentScope, ct)
                        ?? await pinResolver.ResolvePinAsync(execution.Id, step.NodeId, "Collection", parentScope, ct)
@@ -39,13 +48,44 @@ public class ForEachDispatcher(
         logger.LogInformation("ForEach Node [{NodeLabel}] ({NodeId}) pulled {Count} items to iterate.",
             step.Label, step.NodeId, items.Count);
 
+        if (items.Count == 0)
+        {
+            logger.LogWarning("ForEach Node [{NodeLabel}] ({NodeId}): Input Array is empty (0 items). Loop body will be skipped.",
+                step.Label, step.NodeId);
+        }
+
+        // 1b. Batch prefetch any resource entities in items array into ExecutionEntityStore
+        if (entityStore != null && items.Count > 0)
+        {
+            var candidateGuids = new List<Guid>();
+            foreach (var it in items)
+            {
+                var (_, parsedGuid, isValid) = EntityRefHelper.Parse(it);
+                if (isValid && parsedGuid != Guid.Empty)
+                {
+                    candidateGuids.Add(parsedGuid);
+                }
+            }
+
+            if (candidateGuids.Count > 0)
+            {
+                await entityStore.PrefetchResourcesAsync(candidateGuids, ct);
+            }
+        }
+
         var resultList = new List<object?>();
         var resultMap = new Dictionary<string, object?>();
 
         // 2. Iterate through items with isolated ScopeContext
+        logger.LogInformation("ForEach [{NodeLabel}]: Starting iteration loop. BodyPlan has {SegCount} segments.",
+            step.Label, segment.BodyPlan?.Segments.Count ?? 0);
+
         for (var i = 0; i < items.Count; i++)
         {
             var item = items[i];
+            logger.LogInformation("ForEach [{NodeLabel}]: >>> Iteration {Index}/{Total} | Item = {Item}",
+                step.Label, i, items.Count, item);
+
             var iterScope = (parentScope ?? new ScopeContext("root"))
                 .BuildChildScope($"foreach_{step.NodeId:N}", iterationIndex: i);
 
@@ -58,21 +98,59 @@ public class ForEachDispatcher(
             {
                 foreach (var bodySeg in segment.BodyPlan.Segments)
                 {
+                    logger.LogInformation("ForEach [{NodeLabel}] iter {Index}: Executing body segment [{Executor}] steps={Steps}",
+                        step.Label, i, bodySeg.Executor, bodySeg.Steps.Count);
+
                     if (bodySeg.Executor == "dotNet")
                     {
-                        var segRes = await dotNetDispatcher.DispatchAsync(execution, bodySeg, iterScope, orchestrator, ct);
+                        Result segRes;
+                        try
+                        {
+                            segRes = await dotNetDispatcher.DispatchAsync(execution, bodySeg, iterScope, orchestrator, ct);
+                        }
+                        catch (Exception ex)
+                        {
+                            var exMsg = $"ForEach body segment threw unhandled exception at iteration {i}: {ex.GetType().Name}: {ex.Message}";
+                            logger.LogError(ex, exMsg);
+                            await RecordNodeFailedAsync(execution.Id, execution.PipelineId, step.NodeId, exMsg, ct);
+                            return Result.Fail(exMsg);
+                        }
+
                         if (segRes.IsFailed)
                         {
+                            var errMsg = segRes.Errors.FirstOrDefault()?.Message ?? "Step in ForEach body failed";
+                            logger.LogError("ForEach [{NodeLabel}] iter {Index}: Body segment FAILED: {Error}", step.Label, i, errMsg);
+                            await RecordNodeFailedAsync(execution.Id, execution.PipelineId, step.NodeId, errMsg, ct);
                             return segRes;
                         }
+
+                        logger.LogInformation("ForEach [{NodeLabel}] iter {Index}: Body segment succeeded.", step.Label, i);
+                    }
+                    else
+                    {
+                        logger.LogWarning("ForEach [{NodeLabel}] iter {Index}: Body segment executor '{Executor}' is not dotNet - skipped!",
+                            step.Label, i, bodySeg.Executor);
                     }
                 }
             }
+            else
+            {
+                logger.LogWarning("ForEach [{NodeLabel}] iter {Index}: BodyPlan is NULL - no body to execute.", step.Label, i);
+            }
 
             // Collect Yield value for this iteration
-            var yieldVal = await pinResolver.ResolvePinAsync(execution.Id, step.NodeId, "YieldValue", iterScope, ct)
+            object? yieldVal;
+            try
+            {
+                yieldVal = await pinResolver.ResolvePinAsync(execution.Id, step.NodeId, "YieldValue", iterScope, ct)
                            ?? await pinResolver.ResolvePinAsync(execution.Id, step.NodeId, "Yield", iterScope, ct)
                            ?? await pinResolver.ResolvePinAsync(execution.Id, step.NodeId, "Yield_Value", iterScope, ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "ForEach [{NodeLabel}] iter {Index}: Failed to resolve Yield pin (non-fatal).", step.Label, i);
+                yieldVal = null;
+            }
 
             if (yieldVal != null)
             {
@@ -97,7 +175,12 @@ public class ForEachDispatcher(
                     resultMap[i.ToString()] = yieldVal;
                 }
             }
+
+            logger.LogInformation("ForEach [{NodeLabel}]: Iteration {Index} completed.", step.Label, i);
         }
+
+        logger.LogInformation("ForEach [{NodeLabel}]: All {Total} iterations done. ResultList={RCount}, ResultMap={MCount}",
+            step.Label, items.Count, resultList.Count, resultMap.Count);
 
         // 3. Save aggregated outputs to Memory Store (ResultArray, Result, ResultMap, Count)
         var outputs = new Dictionary<string, object?>
@@ -112,24 +195,96 @@ public class ForEachDispatcher(
 
         await memoryStore.SetNodeAllOutputsAsync(execution.Id, step.NodeId, outputs, parentScope, ct);
 
-        // 4. Mark node success in DB
-        var nodeExec = await db.NodeExecutions
-            .FirstOrDefaultAsync(x => x.PipelineExecutionId == execution.Id && x.PipelineNodeId == step.NodeId, ct);
-
-        var outputDoc = JsonDocument.Parse(JsonSerializer.Serialize(outputs));
-        if (nodeExec == null)
-        {
-            nodeExec = new NodeExecution(execution.Id, step.NodeId, status: ExecutionStatus.Running);
-            nodeExec.MarkSucceeded(outputDoc);
-            db.NodeExecutions.Add(nodeExec);
-        }
-        else
-        {
-            nodeExec.MarkSucceeded(outputDoc);
-        }
-
-        await db.SaveChangesAsync(ct);
+        // 4. Mark node success in state store and broadcast
+        await RecordNodeSuccessAsync(execution.Id, execution.PipelineId, step.NodeId, outputs, ct);
         return Result.Ok();
+    }
+
+    private async Task RecordNodeRunningAsync(Guid executionId, Guid pipelineId, Guid nodeId, CancellationToken ct)
+    {
+        await stateStore.SetNodeStatusAsync(executionId, nodeId, "running", ct);
+
+        if (hubContext != null)
+        {
+            try
+            {
+                await hubContext.Clients.Group($"pipeline_{pipelineId}").SendAsync(
+                    "PipelineNodeExecutionUpdated",
+                    new
+                    {
+                        executionId,
+                        pipelineId,
+                        nodeId,
+                        status = "running",
+                        startedAt = DateTimeOffset.UtcNow
+                    },
+                    ct
+                );
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to broadcast PipelineNodeExecutionUpdated via SignalR for {NodeId}", nodeId);
+            }
+        }
+    }
+
+    private async Task RecordNodeSuccessAsync(Guid executionId, Guid pipelineId, Guid nodeId, Dictionary<string, object?> outputs, CancellationToken ct)
+    {
+        await stateStore.SetNodeStatusAsync(executionId, nodeId, "succeeded", ct);
+        await stateStore.SetNodeOutputsAsync(executionId, nodeId, outputs, ct);
+
+        if (hubContext != null)
+        {
+            try
+            {
+                await hubContext.Clients.Group($"pipeline_{pipelineId}").SendAsync(
+                    "PipelineNodeExecutionUpdated",
+                    new
+                    {
+                        executionId,
+                        pipelineId,
+                        nodeId,
+                        status = "succeeded",
+                        finishedAt = DateTimeOffset.UtcNow,
+                        outputs
+                    },
+                    ct
+                );
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to broadcast PipelineNodeExecutionUpdated via SignalR for {NodeId}", nodeId);
+            }
+        }
+    }
+
+    private async Task RecordNodeFailedAsync(Guid executionId, Guid pipelineId, Guid nodeId, string error, CancellationToken ct)
+    {
+        await stateStore.SetNodeStatusAsync(executionId, nodeId, "failed", ct);
+
+        if (hubContext != null)
+        {
+            try
+            {
+                await hubContext.Clients.Group($"pipeline_{pipelineId}").SendAsync(
+                    "PipelineNodeExecutionUpdated",
+                    new
+                    {
+                        executionId,
+                        pipelineId,
+                        nodeId,
+                        status = "failed",
+                        finishedAt = DateTimeOffset.UtcNow,
+                        error
+                    },
+                    ct
+                );
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to broadcast PipelineNodeExecutionUpdated via SignalR for {NodeId}", nodeId);
+            }
+        }
     }
 
     private static List<object?> ExtractItemsAsList(object? raw)

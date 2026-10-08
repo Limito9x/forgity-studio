@@ -166,3 +166,35 @@
   fill: var(--muted) !important;
   opacity: 0.6 !important;
 }
+
+/* Custom Sleek Dark Scrollbar (Eliminates ugly Windows default white scrollbars) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: oklch(1 0 0 / 14%);
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(1 0 0 / 28%);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(1 0 0 / 18%) transparent;
+}
+
+/* Standard Page Layout Utilities */
+@utility page-container {
+  padding: 1.5rem;
+  width: 100%;
+  min-width: 0;
+}

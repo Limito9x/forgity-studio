@@ -10,7 +10,6 @@ import type { JsonDocument } from "./jsonDocument";
 export interface PipelineExecutionDto {
   id: string;
   pipelineId: string;
-  agentId: string;
   status: ExecutionStatus;
   /** @nullable */
   startedAt: string | null;

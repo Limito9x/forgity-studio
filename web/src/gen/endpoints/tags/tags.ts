@@ -23,6 +23,8 @@ import type {
 import type {
   CreateTagCommand,
   CreateTagLinkCommand,
+  CreateTagsBulkCommand,
+  CreateTagsBulkResult,
   DeleteTagCommand,
   ErrorResponse,
   GetTagLinksParams,
@@ -533,6 +535,83 @@ export function useGetTags<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+export const createTagsBulk = (
+  createTagsBulkCommand: CreateTagsBulkCommand,
+  signal?: AbortSignal,
+) => {
+  return customInstance<CreateTagsBulkResult>({
+    url: `/api/tags/bulk`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: createTagsBulkCommand,
+    signal,
+  });
+};
+
+export const getCreateTagsBulkMutationOptions = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTagsBulk>>,
+    TError,
+    { data: CreateTagsBulkCommand },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createTagsBulk>>,
+  TError,
+  { data: CreateTagsBulkCommand },
+  TContext
+> => {
+  const mutationKey = ["createTagsBulk"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createTagsBulk>>,
+    { data: CreateTagsBulkCommand }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createTagsBulk(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateTagsBulkMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createTagsBulk>>
+>;
+export type CreateTagsBulkMutationBody = CreateTagsBulkCommand;
+export type CreateTagsBulkMutationError = ErrorResponse | void;
+
+export const useCreateTagsBulk = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof createTagsBulk>>,
+      TError,
+      { data: CreateTagsBulkCommand },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof createTagsBulk>>,
+  TError,
+  { data: CreateTagsBulkCommand },
+  TContext
+> => {
+  return useMutation(getCreateTagsBulkMutationOptions(options), queryClient);
+};
 export const getTagTree = (params: GetTagTreeParams, signal?: AbortSignal) => {
   return customInstance<IReadOnlyListOfTagTreeNodeDto>({
     url: `/api/tags/tree`,

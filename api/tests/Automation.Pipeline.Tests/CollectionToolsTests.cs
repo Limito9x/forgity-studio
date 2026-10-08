@@ -8,7 +8,7 @@ namespace Automation.Pipeline.Tests;
 
 public class CollectionToolsTests
 {
-    private readonly ToolExecutionContext _context = new(Guid.NewGuid(), Guid.NewGuid(), Guid.Empty, CancellationToken.None);
+    private readonly ToolExecutionContext _context = new(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
     [Fact]
     public async Task GetMapKeysTool_ShouldExtractAllKeys()
@@ -147,9 +147,9 @@ public class CollectionToolsTests
 
         var result = await tool.ExecuteAsync(inputs, _context);
 
-        var map = result["Map"] as Dictionary<string, string>;
+        var map = result["Map"] as Dictionary<string, object>;
         map.Should().NotBeNull();
-        map!["Diffuse"].Should().Be("diffuse.png");
+        map!["Diffuse"]?.ToString().Should().Be("diffuse.png");
     }
 
     [Fact]

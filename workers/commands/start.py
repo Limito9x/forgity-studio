@@ -1,11 +1,17 @@
 import threading
 import time
 import logging
-from core.config import load_config, save_config
+from core.config import load_config, save_config, get_rabbitmq_parameters
+from core.runtime_storage import settings
 from core.system.hardware import get_hardware_snapshot
 from commands import connect
 from commands.rescan_hardware import sync_hardware_to_backend
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%H:%M:%S"
+)
 logger = logging.getLogger(__name__)
 
 try:
@@ -38,13 +44,15 @@ def check_and_sync_hardware_diff():
 
         if has_diff:
             print("[INFO] Hardware configuration change detected. Updating local profile snapshot...")
+            from datetime import datetime, timezone
             config["hardwareProfile"] = {
                 "osPlatform": current_hw["os_platform"],
                 "cpuModel": current_hw["cpu_model"],
                 "totalRamBytes": current_hw["total_ram_bytes"],
                 "primaryGpuName": current_hw["primary_gpu_name"],
                 "primaryGpuVramBytes": current_hw["primary_gpu_vram_bytes"],
-                "lastScannedAt": current_hw["scanned_at"],
+                "hardwareDetails": current_hw.get("hardware_details"),
+                "lastScannedAt": datetime.now(timezone.utc).isoformat(),
             }
             save_config(config)
 
@@ -72,6 +80,9 @@ def run_pipeline_worker():
 
 def run():
     print("[INFO] Starting Automation Runner Daemon...")
+    # Fail invalid deployment settings before entering the reconnect loop.
+    settings()
+    get_rabbitmq_parameters()
 
     # 1. Hardware auto-diff check
     check_and_sync_hardware_diff()

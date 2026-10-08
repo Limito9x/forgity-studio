@@ -9,4 +9,6 @@ export interface UpdateRepositoryRequest {
   name: string;
   /** @nullable */
   description?: string | null;
+  /** @nullable */
+  supportedExtensions?: unknown[] | null;
 }

@@ -52,6 +52,8 @@ export function CreateContentItemPage() {
         );
     };
 
+    const formId = `create-content-item-form-${typeKey}`;
+
     if (!contentType) {
         return null;
     }
@@ -60,7 +62,7 @@ export function CreateContentItemPage() {
         <FormPageShell
             title={t("actions.createTitle", { defaultValue: `Create ${contentType.displayName || 'Content Item'}` })}
             description={t("actions.createDescription", { defaultValue: `Fill in the details to create a new ${contentType.displayName || 'content item'}.` })}
-            formId="create-content-item-form"
+            formId={formId}
             isPending={createContentItem.isPending}
             onCancel={() =>
                 navigate({
@@ -70,7 +72,7 @@ export function CreateContentItemPage() {
             }
         >
             <ContentItemForm
-                formId="create-content-item-form"
+                formId={formId}
                 contentType={contentType}
                 onSubmit={handleSubmit}
             />

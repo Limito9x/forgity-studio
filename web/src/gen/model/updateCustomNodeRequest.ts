@@ -4,6 +4,7 @@
  * Automation.Api | v1
  * OpenAPI spec version: 1.0.0
  */
+import type { EdgeReconciliationStrategy } from "./edgeReconciliationStrategy";
 
 export interface UpdateCustomNodeRequest {
   name: string;
@@ -19,4 +20,7 @@ export interface UpdateCustomNodeRequest {
   inputs: unknown[] | null;
   /** @nullable */
   outputs: unknown[] | null;
+  edgeReconciliationStrategy?: EdgeReconciliationStrategy;
+  /** @nullable */
+  contentHash?: string | null;
 }

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "@tanstack/react-router";
 import { useDialogStore } from "@/stores/dialogStore";
 import { useAuthStore } from "@/stores/authStore";
 import { DataTableRowActions, type ActionItem } from "@/components/table/DataTableRowActions";
@@ -26,11 +27,18 @@ export function useProjectTable({ data, totalCount, resource }: UseProjectTableO
                 accessorKey: "name",
                 header: () => t("fields.name", { defaultValue: "Name" }),
                 meta: { label: t("fields.name", { defaultValue: "Name" }), icon: TypeIcon },
-                cell: (info) => (
-                    <span className="font-semibold text-foreground">
-                        {info.getValue() as string}
-                    </span>
-                ),
+                cell: ({ row }) => {
+                    const project = row.original;
+                    return (
+                        <Link
+                            to="/projects/$projectId/pipeline"
+                            params={{ projectId: project.id! }}
+                            className="font-semibold text-foreground hover:text-primary hover:underline transition-colors"
+                        >
+                            {project.name}
+                        </Link>
+                    );
+                },
             },
             {
                 id: "actions",

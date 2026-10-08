@@ -11,8 +11,6 @@ export interface PipelineSummaryDto {
   projectId: string;
   name: string;
   triggerType: PipelineTriggerType;
-  /** @nullable */
-  triggerWorkspaceId: string | null;
   nodeCount: number;
   edgeCount: number;
   createdAt: string;

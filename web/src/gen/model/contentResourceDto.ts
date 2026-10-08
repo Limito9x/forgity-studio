@@ -11,7 +11,7 @@ export interface ContentResourceDto {
   workspaceName: string;
   displayName: string;
   relativePath: string;
-  platformExtensionId: string;
+  extension: string;
   latestVersionNo: number;
   latestSizeBytes: number;
   versionCount: number;

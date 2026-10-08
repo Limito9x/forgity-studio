@@ -17,6 +17,7 @@ export interface FilterPanelProps {
   onFiltersApply: (filters: FilterField[]) => void
 
   searchPlaceholder?: string
+  hideAdvanced?: boolean
   className?: string
 }
 
@@ -27,6 +28,7 @@ export function FilterPanel({
   filters,
   onFiltersApply,
   searchPlaceholder,
+  hideAdvanced = false,
   className,
 }: FilterPanelProps) {
   const advancedValues = useMemo(
@@ -57,12 +59,14 @@ export function FilterPanel({
         onClear={() => onKeywordChange("")}
         placeholder={searchPlaceholder}
       />
-      <AdvancedFilters
-        form={form}
-        fields={config.formFields}
-        onChange={handleAdvancedChange}
-        isActive={isAdvancedActive}
-      />
+      {!hideAdvanced && config.formFields && config.formFields.length > 0 && (
+        <AdvancedFilters
+          form={form}
+          fields={config.formFields}
+          onChange={handleAdvancedChange}
+          isActive={isAdvancedActive}
+        />
+      )}
     </div>
   )
 }

@@ -35,33 +35,69 @@ public class PinValueResolver(
             return cached;
         }
 
-        var pipeline = await graphProvider.GetPipelineByExecutionIdAsync(executionId, ct);
-        if (pipeline == null)
+        var frozenGraph = graphProvider.GetFrozenGraph(executionId);
+        PipelineNode? node = null;
+        IReadOnlyList<PipelineEdge> edges = [];
+
+        if (frozenGraph != null)
         {
-            logger.LogWarning("Pipeline not found for execution {ExecutionId}", executionId);
-            return null;
+            frozenGraph.NodesById.TryGetValue(nodeId, out node);
+            if (frozenGraph.InEdgesByTargetNode.TryGetValue(nodeId, out var targetEdges))
+            {
+                edges = targetEdges;
+            }
+        }
+        else
+        {
+            var pipeline = await graphProvider.GetPipelineByExecutionIdAsync(executionId, ct);
+            if (pipeline == null)
+            {
+                logger.LogWarning("Pipeline not found for execution {ExecutionId}", executionId);
+                return null;
+            }
+
+            node = pipeline.Nodes.FirstOrDefault(n => n.Id == nodeId);
+            edges = pipeline.Edges.Where(e => e.TargetPipelineNodeId == nodeId).ToList();
         }
 
-        var node = pipeline.Nodes.FirstOrDefault(n => n.Id == nodeId);
         if (node == null)
         {
-            logger.LogWarning("Node {NodeId} not found in pipeline {PipelineId}", nodeId, pipeline.Id);
+            logger.LogWarning("Node {NodeId} not found in execution {ExecutionId}", nodeId, executionId);
             return null;
         }
 
         object? resolvedValue = null;
 
         // 1. Check Upstream Connections -> Recursive Pull (Wires have highest priority)
-        var normalizedTarget = NormalizePin(pinKey);
+        var canonicalTarget = CanonicalPinKey.Normalize(pinKey);
         var pinDef = FindPinDefinition(node, pinKey);
-        var normalizedLabel = pinDef?.Label != null ? NormalizePin(pinDef.Label) : null;
+        if (pinDef == null)
+        {
+            var customInputs = await graphProvider.GetCustomNodeInputsAsync(node, ct);
+            pinDef = customInputs.FirstOrDefault(x => CanonicalPinKey.IsMatching(x.Id, pinKey) ||
+                CanonicalPinKey.IsMatching(x.Label, pinKey));
+        }
+        var canonicalLabel = pinDef?.Label != null ? CanonicalPinKey.Normalize(pinDef.Label) : null;
 
         async Task<object?> ResolveConnectionAsync(PipelineEdge conn)
         {
-            var srcNode = pipeline.Nodes.FirstOrDefault(n => n.Id == conn.SourcePipelineNodeId);
+            PipelineNode? srcNode = null;
+            if (frozenGraph != null)
+            {
+                frozenGraph.NodesById.TryGetValue(conn.SourcePipelineNodeId, out srcNode);
+            }
+            else
+            {
+                var pipe = await graphProvider.GetPipelineByExecutionIdAsync(executionId, ct);
+                srcNode = pipe?.Nodes.FirstOrDefault(n => n.Id == conn.SourcePipelineNodeId);
+            }
+
             if (srcNode == null) return null;
 
-            var isPure = toolRegistry.Get(srcNode.RefId) is { IsPure: true };
+            var isPure = frozenGraph != null
+                ? frozenGraph.PureNodeIds.Contains(srcNode.Id)
+                : toolRegistry.Get(srcNode.RefId) is { IsPure: true };
+
             if (isPure)
             {
                 return await pureNodeResolver.ResolvePureNodeOutputAsync(
@@ -93,22 +129,50 @@ public class PinValueResolver(
                 val = ScopeContextResolver.ResolveFromScope(scope, conn.SourcePin);
             }
 
-            if (val == null && (string.Equals(srcNode.Kind, PipelineNodeKind.Start, StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(srcNode.RefId, "Start", StringComparison.OrdinalIgnoreCase)))
+            if (val == null && (srcNode.Kind == PipelineNodeKind.Start ||
+                                string.Equals(srcNode.RefId, "Start", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(srcNode.RefId, "GetInput", StringComparison.OrdinalIgnoreCase) ||
+                                (srcNode.Kind == PipelineNodeKind.Capsule && srcNode.Metadata != null && srcNode.Metadata.RootElement.TryGetProperty("category", out var catProp) && string.Equals(catProp.GetString(), "Input", StringComparison.OrdinalIgnoreCase))))
             {
-                val = await memoryStore.GetStartInputAsync(executionId, conn.SourcePin, ct);
-
-                if (val == null && pipeline.Inputs != null)
+                var targetInputKey = conn.SourcePin;
+                if (srcNode.Config != null && srcNode.Config.RootElement.ValueKind == JsonValueKind.Object)
                 {
-                    var startInputDef = pipeline.Inputs.FirstOrDefault(i =>
-                        string.Equals(i.Key, conn.SourcePin, StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(i.Label, conn.SourcePin, StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(NormalizePin(i.Key), NormalizePin(conn.SourcePin), StringComparison.OrdinalIgnoreCase) ||
-                        (normalizedLabel != null && string.Equals(NormalizePin(i.Key), normalizedLabel, StringComparison.OrdinalIgnoreCase)));
-
-                    if (startInputDef?.DefaultValue != null)
+                    if (srcNode.Config.RootElement.TryGetProperty("key", out var kProp) ||
+                        srcNode.Config.RootElement.TryGetProperty("VariableName", out kProp))
                     {
-                        val = startInputDef.DefaultValue;
+                        var extractedKey = kProp.GetString();
+                        if (!string.IsNullOrEmpty(extractedKey)) targetInputKey = extractedKey;
+                    }
+                }
+
+                val = await memoryStore.GetStartInputAsync(executionId, targetInputKey, ct);
+
+                if (val == null)
+                {
+                    if (frozenGraph != null)
+                    {
+                        if (frozenGraph.ParametersByKey.TryGetValue(targetInputKey, out var pDef) && pDef.DefaultValue != null)
+                        {
+                            val = pDef.DefaultValue;
+                        }
+                    }
+                    else
+                    {
+                        var pipe = await graphProvider.GetPipelineByExecutionIdAsync(executionId, ct);
+                        if (pipe?.Parameters != null)
+                        {
+                            var startInputDef = pipe.Parameters
+                                .Where(p => p.Kind == PipelineParameterKind.Input)
+                                .FirstOrDefault(i =>
+                                    CanonicalPinKey.IsMatching(i.Key, targetInputKey) ||
+                                    CanonicalPinKey.IsMatching(i.Label, targetInputKey) ||
+                                    (canonicalLabel != null && CanonicalPinKey.IsMatching(i.Key, canonicalLabel)));
+
+                            if (startInputDef?.DefaultValue != null)
+                            {
+                                val = startInputDef.DefaultValue;
+                            }
+                        }
                     }
                 }
             }
@@ -117,13 +181,12 @@ public class PinValueResolver(
         }
 
         var isArrayPin = pinDef?.Cardinality == PinCardinality.Array;
-        var matchingConnections = pipeline.Edges.Where(e =>
-            e.TargetPipelineNodeId == nodeId &&
-            (string.Equals(e.TargetPin, pinKey, StringComparison.OrdinalIgnoreCase) ||
-             string.Equals(NormalizePin(e.TargetPin), normalizedTarget, StringComparison.OrdinalIgnoreCase) ||
-             (normalizedLabel != null && string.Equals(NormalizePin(e.TargetPin), normalizedLabel, StringComparison.OrdinalIgnoreCase)) ||
-             (pinDef?.Id != null && string.Equals(e.TargetPin, pinDef.Id, StringComparison.OrdinalIgnoreCase)) ||
-             (pinDef?.Label != null && string.Equals(e.TargetPin, pinDef.Label, StringComparison.OrdinalIgnoreCase)))).ToList();
+        var matchingConnections = edges.Where(e =>
+            CanonicalPinKey.IsMatching(e.TargetPin, pinKey) ||
+            CanonicalPinKey.IsMatching(e.TargetPin, canonicalTarget) ||
+            (canonicalLabel != null && CanonicalPinKey.IsMatching(e.TargetPin, canonicalLabel)) ||
+            (pinDef?.Id != null && CanonicalPinKey.IsMatching(e.TargetPin, pinDef.Id)) ||
+            (pinDef?.Label != null && CanonicalPinKey.IsMatching(e.TargetPin, pinDef.Label))).ToList();
 
         if (matchingConnections.Count > 0)
         {
@@ -156,10 +219,12 @@ public class PinValueResolver(
             }
         }
 
+        var fromInlineConfig = false;
         // 2. Check Inline Node Config (if not wired)
         if (resolvedValue == null && node.Config != null)
         {
             resolvedValue = InlineConfigResolver.ResolveFromConfig(node.Config, pinKey);
+            fromInlineConfig = resolvedValue != null;
         }
 
         // 3. Check Scope Context (ForEach Key, Value, Index, Iteration Variables - if not wired)
@@ -175,7 +240,7 @@ public class PinValueResolver(
                             ?? await memoryStore.GetStartInputAsync(executionId, $"{nodeId}:{pinKey}", ct);
         }
 
-        // 6. Check Default Value from Pin Definition
+        // 5. Check Default Value from Pin Definition
         if (resolvedValue == null)
         {
             pinDef ??= FindPinDefinition(node, pinKey);
@@ -185,14 +250,21 @@ public class PinValueResolver(
             }
         }
 
-        // 7. Post-Processing: Asset resolution & Cardinality boxing
+        // 6. Post-Processing: Asset resolution & Cardinality boxing
         if (resolvedValue != null)
         {
-            resolvedValue = await assetResolver.ResolveAssetIfApplicableAsync(resolvedValue, ct);
+            if (PipelineFileValue.IsFilePin(pinDef) || PipelineFileValue.TryGetLinkId(resolvedValue, out _))
+            {
+                var configKey = node.Config?.RootElement.EnumerateObject()
+                    .Where(x => CanonicalPinKey.IsMatching(x.Name, pinKey)).Select(x => x.Name).FirstOrDefault();
+                resolvedValue = !fromInlineConfig && resolvedValue is string runtimeAsset && Guid.TryParse(runtimeAsset, out var runtimeAssetId)
+                    ? await assetResolver.ResolveRuntimeAssetAsync(runtimeAssetId, ct)
+                    : await assetResolver.ResolveFileAsync(resolvedValue,
+                        PipelineFileValue.Owner(node.Id, configKey ?? pinDef?.Id ?? pinKey), ct);
+            }
 
             pinDef ??= FindPinDefinition(node, pinKey);
             resolvedValue = PinTypeCoercer.Coerce(resolvedValue, pinDef);
-
 
             // Memoize resolved value in memory store
             await memoryStore.SetNodePinValueAsync(executionId, nodeId, pinKey, resolvedValue, scope, ct);
@@ -210,74 +282,88 @@ public class PinValueResolver(
     )
     {
         var result = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+        var frozenGraph = graphProvider.GetFrozenGraph(executionId);
+        PipelineNode? node = null;
+        if (frozenGraph != null)
+        {
+            frozenGraph.NodesById.TryGetValue(nodeId, out node);
+        }
+        else
+        {
+            var pipeline = await graphProvider.GetPipelineByExecutionIdAsync(executionId, ct);
+            node = pipeline?.Nodes.FirstOrDefault(n => n.Id == nodeId);
+        }
+
+        if (node == null)
+        {
+            logger.LogWarning("Node {NodeId} not found in execution {ExecutionId}", nodeId, executionId);
+            return result;
+        }
+
         var pinKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         if (requestedPinKeys != null)
         {
-            foreach (var k in requestedPinKeys)
-            {
-                if (!string.IsNullOrWhiteSpace(k)) pinKeys.Add(k);
-            }
+            foreach (var pk in requestedPinKeys) pinKeys.Add(pk);
         }
 
-        var pipeline = await graphProvider.GetPipelineByExecutionIdAsync(executionId, ct);
-        var node = pipeline?.Nodes.FirstOrDefault(n => n.Id == nodeId);
-
-        if (node != null)
+        // Add pins from node.Config
+        if (node.Config != null && node.Config.RootElement.ValueKind == JsonValueKind.Object)
         {
-            // 1. From Built-in Tool Registry
-            var tool = toolRegistry.Get(node.RefId);
-            if (tool != null)
+            foreach (var prop in node.Config.RootElement.EnumerateObject())
             {
-                foreach (var input in tool.Inputs)
-                {
-                    pinKeys.Add(input.Id);
-                }
+                pinKeys.Add(prop.Name);
             }
+        }
 
-            // 2. From Incoming Edges (wires connected to this node)
-            if (pipeline?.Edges != null)
+        // Add pins from incoming connections
+        IReadOnlyList<PipelineEdge> inEdges = [];
+        if (frozenGraph != null)
+        {
+            if (frozenGraph.InEdgesByTargetNode.TryGetValue(nodeId, out var targetEdges))
             {
-                foreach (var edge in pipeline.Edges.Where(e => e.TargetPipelineNodeId == nodeId))
-                {
-                    if (!string.IsNullOrWhiteSpace(edge.TargetPin))
-                    {
-                        pinKeys.Add(edge.TargetPin);
-                    }
-                }
+                inEdges = targetEdges;
             }
-
-            // 3. From Inline Node Config JSON keys
-            if (node.Config != null)
+        }
+        else
+        {
+            var pipe = await graphProvider.GetPipelineByExecutionIdAsync(executionId, ct);
+            if (pipe != null)
             {
-                try
+                inEdges = pipe.Edges.Where(e => e.TargetPipelineNodeId == nodeId).ToList();
+            }
+        }
+
+        foreach (var conn in inEdges)
+        {
+            if (!string.IsNullOrEmpty(conn.TargetPin))
+            {
+                pinKeys.Add(conn.TargetPin);
+            }
+        }
+
+        // Add pins from Tool definition if registered
+        var tool = toolRegistry.Get(node.RefId);
+        if (tool != null)
+        {
+            foreach (var inPin in tool.Inputs)
+            {
+                pinKeys.Add(inPin.Id);
+                if (!string.IsNullOrEmpty(inPin.Label))
                 {
-                    if (node.Config.RootElement.ValueKind == JsonValueKind.Object)
-                    {
-                        foreach (var prop in node.Config.RootElement.EnumerateObject())
-                        {
-                            pinKeys.Add(prop.Name);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "Failed to enumerate node config keys for node {NodeId}", nodeId);
+                    pinKeys.Add(inPin.Label);
                 }
             }
         }
 
-        logger.LogInformation("Resolving all pins for node {NodeId} in execution {ExecId}. Found keys: [{Keys}]",
-            nodeId, executionId, string.Join(", ", pinKeys));
-
+        // Resolve each pin
         foreach (var pinKey in pinKeys)
         {
-            var val = await ResolvePinAsync(executionId, nodeId, pinKey, scope, ct);
-            if (val != null)
+            var value = await ResolvePinAsync(executionId, nodeId, pinKey, scope, ct);
+            if (value != null)
             {
-                result[pinKey] = val;
-                logger.LogInformation("Resolved pin '{PinKey}' for node {NodeId} -> {Value}",
-                    pinKey, nodeId, val is string s && s.Length > 100 ? s[..100] + "..." : val);
+                result[pinKey] = value;
             }
         }
 
@@ -287,20 +373,16 @@ public class PinValueResolver(
     private PinDefinition? FindPinDefinition(PipelineNode node, string pinKey)
     {
         var tool = toolRegistry.Get(node.RefId);
-        if (tool != null)
-        {
-            var normalized = NormalizePin(pinKey);
-            return tool.Inputs.FirstOrDefault(p =>
-                string.Equals(p.Id, pinKey, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(p.Label, pinKey, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(NormalizePin(p.Id), normalized, StringComparison.OrdinalIgnoreCase));
-        }
+        if (tool == null) return null;
 
-        return null;
-    }
+        var input = tool.Inputs.FirstOrDefault(i =>
+            CanonicalPinKey.IsMatching(i.Id, pinKey) ||
+            CanonicalPinKey.IsMatching(i.Label, pinKey));
 
-    private static string NormalizePin(string pinKey)
-    {
-        return pinKey.Replace(" ", "").Replace("_", "").Replace("-", "");
+        if (input != null) return input;
+
+        return tool.Outputs.FirstOrDefault(o =>
+            CanonicalPinKey.IsMatching(o.Id, pinKey) ||
+            CanonicalPinKey.IsMatching(o.Label, pinKey));
     }
 }

@@ -19,7 +19,8 @@ export const createRepositoryBodyDescriptionMax = 500;
 export const CreateRepositoryBody = /*#__PURE__*/ zod.object({
   "projectId": /*#__PURE__*/ zod.uuid().check(/*#__PURE__*/ zod.minLength(1)),
   "name": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(createRepositoryBodyNameMin)).check(/*#__PURE__*/ zod.maxLength(createRepositoryBodyNameMax)),
-  "description": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(createRepositoryBodyDescriptionMin)).check(/*#__PURE__*/ zod.maxLength(createRepositoryBodyDescriptionMax)))
+  "description": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(createRepositoryBodyDescriptionMin)).check(/*#__PURE__*/ zod.maxLength(createRepositoryBodyDescriptionMax))),
+  "supportedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()))
 })
 
 export const CreateRepositoryResponse = /*#__PURE__*/ zod.object({
@@ -29,7 +30,8 @@ export const CreateRepositoryResponse = /*#__PURE__*/ zod.object({
   "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "runnerCount": /*#__PURE__*/ zod.int(),
   "resourceCount": /*#__PURE__*/ zod.int(),
-  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "supportedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()))
 })
 
 export const GetRepositoriesQueryParams = /*#__PURE__*/ zod.object({
@@ -43,7 +45,8 @@ export const GetRepositoriesResponseItem = /*#__PURE__*/ zod.object({
   "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "runnerCount": /*#__PURE__*/ zod.int(),
   "resourceCount": /*#__PURE__*/ zod.int(),
-  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "supportedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()))
 })
 export const GetRepositoriesResponse = /*#__PURE__*/ zod.array(GetRepositoriesResponseItem)
 
@@ -77,7 +80,8 @@ export const GetRepositoryByIdResponse = /*#__PURE__*/ zod.object({
   "lastSeenAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 }))
-}))
+})),
+  "supportedExtensions": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())
 })
 
 export const UpdateRepositoryParams = /*#__PURE__*/ zod.object({
@@ -86,7 +90,8 @@ export const UpdateRepositoryParams = /*#__PURE__*/ zod.object({
 
 export const UpdateRepositoryBody = /*#__PURE__*/ zod.object({
   "name": /*#__PURE__*/ zod.string(),
-  "description": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+  "description": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "supportedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()))
 })
 
 export const UpdateRepositoryResponse = /*#__PURE__*/ zod.object({
@@ -96,7 +101,8 @@ export const UpdateRepositoryResponse = /*#__PURE__*/ zod.object({
   "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "runnerCount": /*#__PURE__*/ zod.int(),
   "resourceCount": /*#__PURE__*/ zod.int(),
-  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "supportedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()))
 })
 
 export const GetRepositoryResourcesParams = /*#__PURE__*/ zod.object({
@@ -122,7 +128,7 @@ export const GetRepositoryResourcesResponse = /*#__PURE__*/ zod.object({
   "workspaceId": /*#__PURE__*/ zod.uuid(),
   "displayName": /*#__PURE__*/ zod.string(),
   "relativePath": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
-  "platformExtensionId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "extension": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "contentId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
   "contentName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "contentTypeName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),

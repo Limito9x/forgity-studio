@@ -8,7 +8,10 @@ using Automation.Pipeline.Tools;
 
 namespace Automation.Pipeline.Features.Nodes;
 
-public record GetNodePaletteQuery(Guid? ProjectId = null);
+public record GetNodePaletteQuery(
+    Guid? ProjectId = null,
+    string? Executor = null
+);
 
 public class GetNodePaletteEndpoint(IMessageBus bus)
     : Endpoint<GetNodePaletteQuery, IReadOnlyList<NodePaletteItemDto>>
@@ -54,7 +57,7 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
                 tool.Key,
                 tool.Label,
                 category,
-                "BuiltIn",
+                Constants.PipelineNodeKind.Tool.ToString(),
                 "builtin",
                 pInputs,
                 pOutputs,
@@ -68,7 +71,7 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
             "Return",
             "Return",
             "Flow Control",
-            Constants.PipelineNodeKind.Return,
+            Constants.PipelineNodeKind.Return.ToString(),
             "builtin",
             returnInputs,
             returnOutputs,
@@ -106,33 +109,39 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
         {
             var pipelines = await db.Pipelines
                 .AsNoTracking()
-                .Include(p => p.Inputs)
-                .Include(p => p.Outputs)
                 .Where(p => p.ProjectId == query.ProjectId.Value)
                 .OrderBy(p => p.Name)
                 .ToListAsync(ct);
 
             foreach (var p in pipelines)
             {
-                var subInputs = p.Inputs.OrderBy(i => i.Order).Select(i => new PinDefinition
-                {
-                    Id = i.Key,
-                    Label = i.Label,
-                    Kind = PinKind.Data,
-                    PrimitiveType = i.Type,
-                    Cardinality = i.Cardinality,
-                    IsRequired = i.IsRequired,
-                    DefaultValue = i.DefaultValue
-                }).ToList();
+                var subInputs = p.Parameters
+                    .Where(param => param.Kind == Domain.Enums.PipelineParameterKind.Input)
+                    .OrderBy(i => i.Order)
+                    .Select(i => new PinDefinition
+                    {
+                        Id = i.Key,
+                        Label = i.Label,
+                        Kind = PinKind.Data,
+                        PrimitiveType = i.Type,
+                        Cardinality = i.Cardinality,
+                        Metadata = i.StructType,
+                        IsRequired = i.IsRequired,
+                        DefaultValue = i.DefaultValue
+                    }).ToList();
 
-                var subOutputs = p.Outputs.OrderBy(i => i.Order).Select(i => new PinDefinition
-                {
-                    Id = i.Key,
-                    Label = i.Label,
-                    Kind = PinKind.Data,
-                    PrimitiveType = i.Type,
-                    Cardinality = i.Cardinality
-                }).ToList();
+                var subOutputs = p.Parameters
+                    .Where(param => param.Kind == Domain.Enums.PipelineParameterKind.Output)
+                    .OrderBy(i => i.Order)
+                    .Select(i => new PinDefinition
+                    {
+                        Id = i.Key,
+                        Label = i.Label,
+                        Kind = PinKind.Data,
+                        PrimitiveType = i.Type,
+                        Cardinality = i.Cardinality,
+                        Metadata = i.StructType
+                    }).ToList();
 
                 var (pInputs, pOutputs) = FlowPinHelper.WithExecPins(Constants.PipelineNodeKind.SubPipeline, isPure: false, subInputs, subOutputs);
 
@@ -140,12 +149,41 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
                     p.Id.ToString(),
                     p.Name,
                     "Pipelines",
-                    Constants.PipelineNodeKind.SubPipeline,
+                    Constants.PipelineNodeKind.SubPipeline.ToString(),
                     "builtin",
                     pInputs,
                     pOutputs,
                     p.Id
                 ));
+            }
+        }
+
+        // 4. Filter by Executor if specified
+        if (!string.IsNullOrWhiteSpace(query.Executor))
+        {
+            var exec = query.Executor.Trim().ToLowerInvariant();
+            if (exec == "macro")
+            {
+                result = result
+                    .Where(r => r.Source == Constants.PipelineNodeKind.SubPipeline.ToString() ||
+                                string.Equals(r.Category, "Flow Control", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(r.Key, "Return", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+            else if (exec == "server" || exec == "dotnet" || exec == "builtin")
+            {
+                result = result
+                    .Where(r => r.Source == Constants.PipelineNodeKind.Tool.ToString() ||
+                                r.Source == "BuiltIn" ||
+                                string.Equals(r.Executor, "builtin", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(r.Executor, "dotnet", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+            else
+            {
+                result = result
+                    .Where(r => string.Equals(r.Executor, exec, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
             }
         }
 

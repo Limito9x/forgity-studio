@@ -3,6 +3,7 @@ import { z } from "zod";
 export const createRepositorySchema = z.object({
   name: z.string().min(1, "Repository name is required").max(100),
   description: z.string().max(500).optional().or(z.literal("")),
+  supportedExtensions: z.array(z.string()).default([]),
 });
 
 export type CreateRepositoryInput = z.input<typeof createRepositorySchema>;

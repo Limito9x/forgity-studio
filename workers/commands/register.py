@@ -5,7 +5,7 @@ import socket
 import urllib.request
 import urllib.error
 import uuid
-from core.config import save_config, DEFAULT_API_URL, CONFIG_FILE
+from core.config import save_config, load_config, DEFAULT_API_URL, CONFIG_FILE
 from core.system.hardware import get_hardware_snapshot
 
 
@@ -91,9 +91,14 @@ def run():
     # Gather initial hardware profile snapshot
     print("\nScanning local hardware profile...")
     hw_snapshot = get_hardware_snapshot()
+    from datetime import datetime, timezone
+    from commands.rescan_hardware import sync_hardware_to_backend
+
+    now_iso = datetime.now(timezone.utc).isoformat()
 
     # Save to local configuration
     config = {
+        **(load_config() or {}),
         "apiUrl": api_url,
         "runnerId": runner_id,
         "agentId": runner_id,  # backward compatibility
@@ -107,11 +112,17 @@ def run():
             "totalRamBytes": hw_snapshot["total_ram_bytes"],
             "primaryGpuName": hw_snapshot["primary_gpu_name"],
             "primaryGpuVramBytes": hw_snapshot["primary_gpu_vram_bytes"],
-            "lastScannedAt": hw_snapshot["scanned_at"],
+            "hardwareDetails": hw_snapshot.get("hardware_details"),
+            "lastScannedAt": now_iso,
         }
     }
 
     save_config(config)
     print(f"\n[OK] Configuration securely saved to: {os.path.abspath(CONFIG_FILE)}")
-    print("Runner is ready! Run 'runner.bat start' to launch background workers and gRPC stream.")
+
+    # Sync hardware specs to Backend API
+    print("[INFO] Uploading initial hardware profile to Automation Studio...")
+    sync_hardware_to_backend(api_url, runner_id, hw_snapshot)
+
+    print("\nRunner is ready! Run 'runner.bat start' to launch background workers and gRPC stream.")
 

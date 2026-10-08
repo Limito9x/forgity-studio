@@ -1,0 +1,20 @@
+{
+  "environment": "trial",
+  "agentId": "",
+  "apiUrl": "https://api.example.com/api",
+  "rabbitmq": {
+    "host": "mq.example.com",
+    "port": 5671,
+    "username": "worker-trial",
+    "virtual_host": "automation-trial",
+    "tls": true
+  },
+  "storage": {
+    "root": "worker/runtime",
+    "cleanup_interval_seconds": 1800,
+    "temp_ttl_hours": 24,
+    "cache_ttl_hours": 168,
+    "logs_ttl_hours": 168,
+    "cache_max_bytes": 2147483648
+  }
+}

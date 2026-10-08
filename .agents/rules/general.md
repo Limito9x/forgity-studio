@@ -4,11 +4,23 @@ Những quy tắc này áp dụng cho toàn bộ workspace Monorepo `Automation/
 
 ---
 
-## 1. Ưu Tiên Sử Dụng CodeGraph MCP (MANDATORY)
+## 1. Ưu Tiên Bậc Nhất: Sử Dụng CodeGraph MCP Kèm projectPath (TOP MANDATORY PRIORITY)
 
-- **Primary Tool:** Bắt buộc ưu tiên sử dụng MCP tool `codegraph_explore` (hoặc lệnh shell `codegraph explore`) là công cụ ĐẦU TIÊN để phân tích kiến trúc, dò tìm symbol, xem references/callers/callees, và đọc code chính xác.
-- **projectPath Parameter:** Khi gọi `codegraph_explore`, luôn truyền trực tiếp tham số `projectPath` trỏ tới root `D:/FullStack/Automation` (hoặc thư mục subproject).
-- **Hạn chế Grep/View mò mẫm:** Không dùng `grep_search`, `list_dir`, hoặc `view_file` để tìm kiếm mù mờ khi chưa dùng CodeGraph để nắm bức tranh tổng thể.
+- **Top Priority Tool:** Bắt buộc ưu tiên sử dụng MCP tool `call_mcp_tool` với `ServerName: "codegraph"`, `ToolName: "codegraph_explore"` là công cụ ĐẦU TIÊN và BẬC NHẤT trước khi làm bất kỳ thao tác phân tích kiến trúc, dò tìm symbol, xem references/callers/callees, hoặc đọc code chi tiết.
+- **BẮT BUỘC tham số `projectPath`:** Khi gọi `codegraph_explore`, LUÔN LUÔN truyền trực tiếp tham số `projectPath: "d:\\FullStack\\Automation"` (hoặc đường dẫn tuyệt đối tới subproject tương ứng). Không bao giờ được gọi `codegraph_explore` mà thiếu `projectPath` vì MCP client chạy ở môi trường ngoài project root và sẽ báo lỗi `No CodeGraph project is loaded`.
+- **Cú pháp chuẩn khi gọi tool:**
+  ```json
+  {
+    "ServerName": "codegraph",
+    "ToolName": "codegraph_explore",
+    "Arguments": {
+      "projectPath": "d:\\FullStack\\Automation",
+      "query": "<SymbolName hoặc câu hỏi>"
+    }
+  }
+  ```
+- **Lệnh shell thay thế (khi không dùng MCP):** `codegraph explore "<query>" --path "d:\\FullStack\\Automation"`.
+- **Tuyệt đối cấm mò mẫm bằng Grep/View:** Nghiêm cấm dùng `grep_search`, `list_dir`, hoặc `view_file` để tìm kiếm mò mẫm, phán đoán mù mờ khi chưa dùng CodeGraph để nắm toàn bộ bức tranh dependencies, blast radius và verbatim source code.
 
 ---
 
@@ -36,3 +48,12 @@ Khi thực hiện tác vụ, hãy xác định khu vực mã nguồn đang thao 
 - **`api/` (Backend)**: Tuân thủ nghiêm ngặt [rules/backend.md](file:///d:/FullStack/Automation/.agents/rules/backend.md).
 - **`web/` (Frontend)**: Tuân thủ nghiêm ngặt [rules/frontend.md](file:///d:/FullStack/Automation/.agents/rules/frontend.md).
 - **`workers/` (Workers)**: Tuân thủ nghiêm ngặt [rules/workers.md](file:///d:/FullStack/Automation/.agents/rules/workers.md).
+
+---
+
+## 5. Quy Chuẩn Tài Liệu, Kế Hoạch & Cẩm Nang Vận Hành (Single Source of Truth)
+
+- **Tập Trung Tuyệt Đối Trong `.agents/`:** Toàn bộ Kế hoạch kỹ thuật (`.agents/plans/`) và Cẩm nang vận hành cốt lõi (`.agents/playbooks/`) BẮT BUỘC phải đặt trong thư mục `.agents/`. Nghiêm cấm tạo file markdown rác, kế hoạch rác ngoài thư mục `docs/`.
+- **Bắt Buộc Đọc Playbook Trước Khi Code:** Trước khi can thiệp vào bất kỳ module/feature cốt lõi nào (như Pipeline Engine, Canvas Graph Sync, Worker Storage), Agent BẮT BUỘC phải đọc Playbook tương ứng trong `.agents/playbooks/` để nắm vững Mental Model và luồng vận hành thực tế (Lifecycle) từ A đến Z, tránh suy diễn hoặc over-engineer.
+- **Bắt Buộc Cập Nhật Liên Tục (Continuous Sync):** Sau khi hoàn thành hoặc sửa đổi luồng thực thi / hợp đồng dữ liệu, Agent BẮT BUỘC phải quay lại cập nhật Playbook tương ứng và đồng bộ Chỉ mục (Index) trong [AGENTS.md](file:///d:/FullStack/Automation/.agents/AGENTS.md). Tuyệt đối không để tài liệu bị lỗi thời làm sai lệch các Agent về sau.
+

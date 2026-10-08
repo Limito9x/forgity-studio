@@ -1,9 +1,11 @@
 using System.Text.Json;
 using Automation.Files.Contracts;
+using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Entities;
 using PipelineEntity = Automation.Pipeline.Domain.Entities.Pipeline;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
+using Automation.Pipeline.Engine;
 using Automation.Pipeline.Engine.DataResolver;
 using Automation.Pipeline.Engine.DataResolver.Resolvers;
 using Automation.Pipeline.Engine.ExecPlanner;
@@ -14,8 +16,9 @@ using Automation.Pipeline.Engine.Orchestrator.Dispatchers;
 using Automation.Pipeline.Infrastructure.Persistence;
 using Automation.Pipeline.Infrastructure.Redis;
 using Automation.Pipeline.Tools;
-using Automation.Studio.Contracts;
+using Automation.Runner.Contracts;
 using FluentAssertions;
+using FluentResults;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -29,10 +32,11 @@ public class PipelineOrchestratorTests
 {
     private readonly PipelineDbContext _db;
     private readonly IExecutionMemoryStore _memoryStore = new RedisExecutionMemoryStore(NullLogger<RedisExecutionMemoryStore>.Instance);
+    private readonly IExecutionStateStore _stateStore = new RedisExecutionStateStore(NullLogger<RedisExecutionStateStore>.Instance);
     private readonly IExecPlanner _execPlanner = new ExecPlanner();
     private readonly FakeToolRegistry _toolRegistry = new();
     private readonly IMessageBus _messageBus = Substitute.For<IMessageBus>();
-    private readonly IStudioApi _studioApi = Substitute.For<IStudioApi>();
+    private readonly IRunnerApi _runnerApi = Substitute.For<IRunnerApi>();
     private readonly IAssetApi _assetApi = Substitute.For<IAssetApi>();
     private readonly PipelineOrchestrator _orchestrator;
 
@@ -50,6 +54,13 @@ public class PipelineOrchestratorTests
         _db = new TestPipelineDbContext(options);
         _db.Database.EnsureCreated();
 
+        _assetApi.GetFilesAsync(Arg.Any<IEnumerable<string>>(), "NodeDefinition", PipelineAssetSlots.CustomScript,
+            Arg.Any<CancellationToken>()).Returns(call =>
+            Task.FromResult(Result.Ok(call.Arg<IEnumerable<string>>().ToDictionary(id => id,
+                id => (IReadOnlyList<AssetLinkDto>)[new AssetLinkDto(Guid.NewGuid(), Guid.NewGuid(),
+                    "https://storage.example/custom_import.py", "custom_import.py", "text/x-python", 10, 0,
+                    PipelineAssetSlots.CustomScript, DateTimeOffset.UtcNow, new string('a', 64))]))));
+
         var graphProvider = new PipelineGraphProvider(_db);
         var assetResolver = new AssetResolver(_assetApi, NullLogger<AssetResolver>.Instance);
         var pureNodeResolver = new PureNodeResolver(_toolRegistry, _memoryStore, graphProvider, NullLogger<PureNodeResolver>.Instance);
@@ -63,17 +74,20 @@ public class PipelineOrchestratorTests
         );
 
         var config = Substitute.For<IConfiguration>();
-        var dotNetDispatcher = new DotNetSegmentDispatcher(_db, _toolRegistry, pinResolver, _memoryStore, NullLogger<DotNetSegmentDispatcher>.Instance);
-        var agentDispatcher = new AgentSegmentDispatcher(_messageBus, _studioApi, _assetApi, config, NullLogger<AgentSegmentDispatcher>.Instance);
-        var forEachDispatcher = new ForEachDispatcher(_db, pinResolver, _memoryStore, dotNetDispatcher, NullLogger<ForEachDispatcher>.Instance);
+        var subPipelineDispatcher = new SubPipelineDispatcher(_db, pinResolver, _memoryStore, _stateStore, NullLogger<SubPipelineDispatcher>.Instance);
+        var dotNetDispatcher = new DotNetSegmentDispatcher(_db, _toolRegistry, pinResolver, _memoryStore, _stateStore, subPipelineDispatcher, NullLogger<DotNetSegmentDispatcher>.Instance);
+        var runnerDispatcher = new RunnerSegmentDispatcher(_messageBus, _runnerApi, _assetApi, config, NullLogger<RunnerSegmentDispatcher>.Instance);
+        var forEachDispatcher = new ForEachDispatcher(_db, pinResolver, _memoryStore, _stateStore, dotNetDispatcher, NullLogger<ForEachDispatcher>.Instance);
 
         _orchestrator = new PipelineOrchestrator(
             _db,
             _execPlanner,
             _memoryStore,
+            _stateStore,
             dotNetDispatcher,
-            agentDispatcher,
+            runnerDispatcher,
             forEachDispatcher,
+            subPipelineDispatcher,
             _toolRegistry,
             null,
             NullLogger<PipelineOrchestrator>.Instance
@@ -84,18 +98,20 @@ public class PipelineOrchestratorTests
     public async Task ExecuteOrResumeAsync_DotNetActionSequence_ShouldExecuteAndSucceed()
     {
         var pipeline = new PipelineEntity(Guid.NewGuid(), "DotNetPipeline");
+        var stageServer = CreateContainer(pipeline.Id, "Server Stage", "dotNet", null, 0, 0);
+        pipeline.AddNode(stageServer);
+
         var startNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "Start", "Start", 0, 0);
 
         var toolConfig = JsonDocument.Parse("{\"Prefix\": \"User_\", \"Suffix\": \"_Avatar\"}");
-        var actionNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "AppendAction", "Tool", 0, 0, toolConfig);
+        var actionNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "AppendAction", "Tool", 0, 0, toolConfig, stageServer.Id);
 
         pipeline.AddNode(startNode);
         pipeline.AddNode(actionNode);
-        pipeline.AddEdge(startNode.Id, "exec_out", actionNode.Id, "exec_in");
 
         _db.Pipelines.Add(pipeline);
 
-        var execution = new PipelineExecution(pipeline.Id, Guid.NewGuid());
+        var execution = new PipelineExecution(pipeline.Id);
         _db.PipelineExecutions.Add(execution);
         await _db.SaveChangesAsync();
 
@@ -113,19 +129,21 @@ public class PipelineOrchestratorTests
     public async Task ExecuteOrResumeAsync_WithForEach_ShouldIterateAndAggregateYields()
     {
         var pipeline = new PipelineEntity(Guid.NewGuid(), "ForEachPipeline");
+        var macroStage = CreateContainer(pipeline.Id, "Macro Stage", "dotNet", null, 0, 0);
+        pipeline.AddNode(macroStage);
+
         var startNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "Start", "Start", 0, 0);
 
         var forEachConfig = JsonDocument.Parse("{\"Collection\": [\"Mesh_A\", \"Mesh_B\"]}");
-        var forEachNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "ForEach", "FlowControl", 0, 0, forEachConfig);
+        var forEachNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "ForEach", "FlowControl", 0, 0, forEachConfig, macroStage.Id);
 
         // Body action: takes Item from scope and outputs formatted name
-        var bodyActionNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "FormatItemAction", "Tool", 0, 0);
+        var bodyActionNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "FormatItemAction", "Tool", 0, 0, null, macroStage.Id);
 
         pipeline.AddNode(startNode);
         pipeline.AddNode(forEachNode);
         pipeline.AddNode(bodyActionNode);
 
-        pipeline.AddEdge(startNode.Id, "exec_out", forEachNode.Id, "exec_in");
         pipeline.AddEdge(forEachNode.Id, "loop_body", bodyActionNode.Id, "exec_in");
 
         // BodyAction.Result -> ForEach.YieldValue
@@ -133,7 +151,7 @@ public class PipelineOrchestratorTests
 
         _db.Pipelines.Add(pipeline);
 
-        var execution = new PipelineExecution(pipeline.Id, Guid.NewGuid());
+        var execution = new PipelineExecution(pipeline.Id);
         _db.PipelineExecutions.Add(execution);
         await _db.SaveChangesAsync();
 
@@ -159,15 +177,18 @@ public class PipelineOrchestratorTests
     }
 
     [Fact]
-    public async Task ExecuteOrResumeAsync_WithAgentNode_ShouldPublishMessageAndMarkWaitingForAgent()
+    public async Task ExecuteOrResumeAsync_WithAgentNode_ShouldPublishMessageAndMarkWaitingForRunner()
     {
         var pipeline = new PipelineEntity(Guid.NewGuid(), "AgentPipeline");
+        var runnerId = Guid.NewGuid();
+        var stageWorker = CreateContainer(pipeline.Id, "Blender Stage", "blender", runnerId, 0, 0);
+        pipeline.AddNode(stageWorker);
+
         var startNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "Start", "Start", 0, 0);
-        var agentNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "custom_import", "Tool", 0, 0);
+        var agentNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "custom_import", "Tool", 0, 0, null, stageWorker.Id);
 
         pipeline.AddNode(startNode);
         pipeline.AddNode(agentNode);
-        pipeline.AddEdge(startNode.Id, "exec_out", agentNode.Id, "exec_in");
 
         var customDef = new NodeDefinition(pipeline.ProjectId, "Import Mesh", "custom_import", "Import Mesh", "blender", [], []);
         _db.NodeDefinitions.Add(customDef);
@@ -177,20 +198,22 @@ public class PipelineOrchestratorTests
         var mockEndpoint = Substitute.For<IDestinationEndpoint>();
         _messageBus.EndpointFor(Arg.Any<Uri>()).Returns(mockEndpoint);
 
-        var execution = new PipelineExecution(pipeline.Id, Guid.NewGuid());
+        var execution = new PipelineExecution(pipeline.Id);
         _db.PipelineExecutions.Add(execution);
         await _db.SaveChangesAsync();
 
         var result = await _orchestrator.ExecuteOrResumeAsync(execution.Id);
 
         result.IsSuccess.Should().BeTrue();
-        execution.Status.Should().Be(ExecutionStatus.WaitingForAgent);
+        execution.Status.Should().Be(ExecutionStatus.WaitingForRunner);
 
         // Verify Wolverine sent StageTaskMessage to agent endpoint
         await mockEndpoint.Received(1).SendAsync(Arg.Is<StageTaskMessage>(msg =>
             msg.Executor == "blender" &&
             msg.Steps.Count == 1 &&
-            msg.Steps[0].ScriptPath == "custom_import"
+            msg.Steps[0].ScriptPath == "custom_import.py" &&
+            msg.Steps[0].ScriptUrl == "https://storage.example/custom_import.py" &&
+            msg.Steps[0].ScriptHash == new string('a', 64)
         ));
     }
 
@@ -198,24 +221,31 @@ public class PipelineOrchestratorTests
     public async Task ExecuteOrResumeAsync_OnResume_ShouldPreserveExistingVariablesWithoutWipeout()
     {
         var pipeline = new PipelineEntity(Guid.NewGuid(), "ResumeVariablePipeline");
-        pipeline.Variables =
+        pipeline.Parameters =
         [
-            new PipelineVariableDecl
+            new PipelineParameter
             {
-                Name = "File Maps",
+                Key = "File Maps",
+                Label = "File Maps",
+                Kind = PipelineParameterKind.Variable,
                 Type = PinPrimitiveType.String,
                 Cardinality = PinCardinality.Map
             }
         ];
 
+        var runnerId = Guid.NewGuid();
+        var stageBlender = CreateContainer(pipeline.Id, "Blender Stage", "blender", runnerId, 0, 0);
+        var stageServer = CreateContainer(pipeline.Id, "Server Stage", "dotNet", null, 500, 0);
+        pipeline.AddNode(stageBlender);
+        pipeline.AddNode(stageServer);
+
         var startNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "Start", "Start", 0, 0);
-        var agentNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "custom_import", "Tool", 0, 0);
-        var postActionNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "AppendAction", "Tool", 0, 0);
+        var agentNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "custom_import", "Tool", 0, 0, null, stageBlender.Id);
+        var postActionNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "AppendAction", "Tool", 0, 0, null, stageServer.Id);
 
         pipeline.AddNode(startNode);
         pipeline.AddNode(agentNode);
         pipeline.AddNode(postActionNode);
-        pipeline.AddEdge(startNode.Id, "exec_out", agentNode.Id, "exec_in");
         pipeline.AddEdge(agentNode.Id, "exec_out", postActionNode.Id, "exec_in");
 
         var customDef = new NodeDefinition(pipeline.ProjectId, "Import Mesh", "custom_import", "Import Mesh", "blender", [], []);
@@ -225,14 +255,14 @@ public class PipelineOrchestratorTests
         var mockEndpoint = Substitute.For<IDestinationEndpoint>();
         _messageBus.EndpointFor(Arg.Any<Uri>()).Returns(mockEndpoint);
 
-        var execution = new PipelineExecution(pipeline.Id, Guid.NewGuid());
+        var execution = new PipelineExecution(pipeline.Id);
         _db.PipelineExecutions.Add(execution);
         await _db.SaveChangesAsync();
 
-        // 1. Initial run -> executes Start, enters AgentNode, pauses at WaitingForAgent
+        // 1. Initial run -> executes Start, enters AgentNode, pauses at WaitingForRunner
         var initialRes = await _orchestrator.ExecuteOrResumeAsync(execution.Id);
         initialRes.IsSuccess.Should().BeTrue();
-        execution.Status.Should().Be(ExecutionStatus.WaitingForAgent);
+        execution.Status.Should().Be(ExecutionStatus.WaitingForRunner);
 
         // Simulate earlier step having written to "File Maps"
         var simulatedMap = new Dictionary<string, object?>
@@ -257,6 +287,67 @@ public class PipelineOrchestratorTests
         map.Should().NotBeNull();
         map["item1"]?.ToString().Should().Be("path/to/item1.fbx");
         map["item2"]?.ToString().Should().Be("path/to/item2.fbx");
+    }
+
+    [Fact]
+    public async Task ExecuteOrResumeAsync_ShouldCaptureExecutionStateSnapshot_WithParameters()
+    {
+        var pipeline = new PipelineEntity(Guid.NewGuid(), "SnapshotPipeline");
+        pipeline.Parameters =
+        [
+            new PipelineParameter { Key = "InputName", Kind = PipelineParameterKind.Input, Type = PinPrimitiveType.String, DefaultValue = "InitialInput" },
+            new PipelineParameter { Key = "VarName", Kind = PipelineParameterKind.Variable, Type = PinPrimitiveType.String, DefaultValue = "InitialVar" },
+            new PipelineParameter { Key = "OutputResult", Kind = PipelineParameterKind.Output, Type = PinPrimitiveType.String }
+        ];
+
+        var stageServer = CreateContainer(pipeline.Id, "Server Stage", "dotNet", null, 0, 0);
+        pipeline.AddNode(stageServer);
+
+        var startNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "Start", "Start", 0, 0);
+        var returnNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "Return", "Return", 0, 0);
+
+        var toolConfig = JsonDocument.Parse("{\"Prefix\": \"User_\", \"Suffix\": \"_Avatar\"}");
+        var actionNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "AppendAction", "Tool", 0, 0, toolConfig, stageServer.Id);
+
+        pipeline.AddNode(startNode);
+        pipeline.AddNode(actionNode);
+        pipeline.AddNode(returnNode);
+
+        // Edge: actionNode.Result -> returnNode.OutputResult
+        pipeline.AddEdge(actionNode.Id, "Result", returnNode.Id, "OutputResult");
+
+        _db.Pipelines.Add(pipeline);
+
+        var execution = new PipelineExecution(pipeline.Id);
+        _db.PipelineExecutions.Add(execution);
+        await _db.SaveChangesAsync();
+
+        var initialInputs = new Dictionary<string, object?> { ["InputName"] = "ProvidedInput" };
+        var result = await _orchestrator.ExecuteOrResumeAsync(execution.Id, initialInputs);
+
+        result.IsSuccess.Should().BeTrue();
+        execution.Status.Should().Be(ExecutionStatus.Succeeded);
+        execution.ExecutionState.Should().NotBeNull();
+
+        // Parse ExecutionState JSON and verify parameters snapshot
+        var root = execution.ExecutionState!.RootElement;
+        root.TryGetProperty("parameters", out var paramsElem).Should().BeTrue();
+
+        paramsElem.TryGetProperty("inputs", out var inputsElem).Should().BeTrue();
+        inputsElem.GetProperty("InputName").GetString().Should().Be("ProvidedInput");
+
+        paramsElem.TryGetProperty("variables", out var varsElem).Should().BeTrue();
+        varsElem.GetProperty("VarName").GetString().Should().Be("InitialVar");
+
+        paramsElem.TryGetProperty("outputs", out var outsElem).Should().BeTrue();
+        outsElem.GetProperty("OutputResult").GetString().Should().Be("User_Appended_Avatar");
+
+        paramsElem.TryGetProperty("context", out var ctxElem).Should().BeTrue();
+        ctxElem.TryGetProperty("projectId", out _).Should().BeTrue();
+
+        // Node executions snapshot from Redis hot-state
+        root.TryGetProperty("nodeExecutions", out var nodeExecElem).Should().BeTrue();
+        nodeExecElem.ValueKind.Should().Be(JsonValueKind.Array);
     }
 
     private class FakeToolRegistry : IToolRegistry
@@ -323,6 +414,13 @@ public class PipelineOrchestratorTests
 
         public Task<Dictionary<string, object>> ExecuteAsync(Dictionary<string, object> inputs, ToolExecutionContext context)
             => Task.FromResult(new Dictionary<string, object>());
+    }
+
+    private static PipelineNode CreateContainer(Guid pipelineId, string name, string executor = "dotNet", Guid? runnerId = null, float x = 0, float y = 0)
+    {
+        var metadataJson = JsonSerializer.Serialize(new { executor, targetRunnerId = runnerId });
+        var metadataDoc = JsonDocument.Parse(metadataJson);
+        return new PipelineNode(Guid.NewGuid(), pipelineId, name, PipelineNodeKind.Container, x, y, null, null, new NodeSize(400, 300), metadataDoc);
     }
 
     private class TestPipelineDbContext(DbContextOptions<PipelineDbContext> options) : PipelineDbContext(options)

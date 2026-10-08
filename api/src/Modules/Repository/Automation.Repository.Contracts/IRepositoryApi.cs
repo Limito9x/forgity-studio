@@ -40,6 +40,12 @@ public interface IRepositoryApi
         CancellationToken ct = default
     );
 
+    Task<Result<Dictionary<string, Guid>>> ResolveResourceVersionIdsByPathsAsync(
+        Guid repositoryId,
+        IEnumerable<string> filePaths,
+        CancellationToken ct = default
+    );
+
     Task<Result> UpdateMetadataAsync(
         Guid resourceVersionId,
         System.Text.Json.JsonDocument? metadata,
@@ -78,12 +84,29 @@ public interface IRepositoryApi
         CancellationToken ct = default
     ) => GetRepositoryNamesAsync(workspaceIds, ct);
 
+    Task<Result<IReadOnlyList<ResourceDto>>> GetResourcesByIdsAsync(
+        IEnumerable<Guid> resourceIds,
+        CancellationToken ct = default
+    );
+
     Task<Result<string>> GetWorkspaceRootPathAsync(
         Guid workspaceId,
         Guid runnerId,
         CancellationToken ct = default
     ) => GetRepositoryRootPathAsync(workspaceId, runnerId, ct);
 }
+
+public record ResourceDto(
+    Guid ResourceId,
+    Guid ResourceVersionId,
+    string DisplayName,
+    string Extension,
+    string RelativePath,
+    string? FileHash,
+    Guid? ContentId,
+    string? MetadataJson = null,
+    Guid RepositoryId = default
+);
 
 
 public record SyncLocalChangesResultDto(
@@ -107,7 +130,8 @@ public record ResourceLocationInfoDto(
     string? FileHash,
     Guid? RunnerId,
     string? RunnerRootPath,
-    Guid? ContentId = null
+    Guid? ContentId = null,
+    Guid RepositoryId = default
 )
 {
     public Guid? AgentId => RunnerId;

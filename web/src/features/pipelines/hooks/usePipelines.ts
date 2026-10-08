@@ -1,4 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import * as Api from "@/gen/endpoints/pipeline-nodes/pipeline-nodes";
+import { createMutationHook } from "@/lib/query-utils";
 import {
   getNodePalette,
   getGetNodePaletteQueryKey,
@@ -13,14 +15,18 @@ import type {
   CreateCustomNodeCommand,
   UpdateCustomNodeRequest,
   ParseScriptCommand,
-  NodePaletteItemDto,
-  ParseScriptResponseDto,
   CreatePipelineCommand,
   UpdatePipelineRequest,
-  PipelineSummaryDto,
 } from "@/gen/model";
 
 export type {
+  AnalyzeCustomNodesBatchCommand,
+  AnalyzeCustomNodesBatchResponseDto,
+  AnalyzedCustomNodeDto,
+  BatchUpsertCustomNodesCommand,
+  BatchUpsertCustomNodesResponseDto,
+  BatchUpsertItem,
+  BatchUpsertErrorDto,
   CreateCustomNodeCommand,
   UpdateCustomNodeRequest,
   ParseScriptCommand,
@@ -29,7 +35,7 @@ export type {
   CreatePipelineCommand,
   UpdatePipelineRequest,
   PipelineSummaryDto,
-};
+} from "@/gen/model";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
@@ -129,11 +135,19 @@ export function useDeletePipelineMutation(projectId?: string) {
   });
 }
 
-export function useNodePalette(projectId?: string) {
+export function useNodePalette(projectId?: string, executor?: string) {
   return useQuery({
-    queryKey: getGetNodePaletteQueryKey(projectId ? { projectId } : undefined),
-    queryFn: ({ signal }) => getNodePalette(projectId ? { projectId } : undefined, signal),
+    queryKey: getGetNodePaletteQueryKey({
+      projectId: projectId ?? null,
+      executor: executor ?? null,
+    }),
+    queryFn: ({ signal }) =>
+      getNodePalette(
+        { projectId: projectId ?? null, executor: executor ?? null },
+        signal
+      ),
     enabled: !!projectId,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -230,3 +244,12 @@ export function useCustomNodeById(id?: string) {
     enabled: !!id,
   });
 }
+
+export const useAnalyzeCustomNodesBatchMutation = () =>
+  createMutationHook(Api.useAnalyzeCustomNodesBatch, [])();
+
+export const useBatchUpsertCustomNodesMutation = (projectId?: string) =>
+  createMutationHook(Api.useBatchUpsertCustomNodes, [
+    Api.getGetNodePaletteQueryKey(projectId ? { projectId } : undefined),
+    ["/api/pipeline/nodes/custom/"],
+  ])();

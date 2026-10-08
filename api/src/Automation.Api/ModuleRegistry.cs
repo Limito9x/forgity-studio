@@ -2,7 +2,6 @@ using Automation.SharedKernel.Abstractions.Modules;
 using Automation.Identity;
 using Automation.Files;
 using Automation.Notifications;
-using Automation.Platform;
 using Automation.Studio;
 using Automation.Content;
 using Automation.Tag;
@@ -21,7 +20,6 @@ public static class ModuleRegistry
         new SystemModule.SystemModule(),
         new FilesModule(),
         new NotificationsModule(),
-        new PlatformModule(),
         new StudioModule(),
         new ContentModule(),
         new TagModule(),

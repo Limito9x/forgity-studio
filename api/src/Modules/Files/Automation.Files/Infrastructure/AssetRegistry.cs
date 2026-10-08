@@ -29,6 +29,15 @@ public class AssetRegistry
             return Result.Ok(options);
         }
 
+        var separator = slotKey.IndexOf('/');
+        if (separator > 0 && separator < slotKey.Length - 1 &&
+            _categories.TryGetValue(entityType, out entityCategories) &&
+            entityCategories.TryGetValue(slotKey[..separator], out options) &&
+            options.AllowSubSlots)
+        {
+            return Result.Ok(options);
+        }
+
         return Result.Fail($"Asset slot '{slotKey}' in entity type '{entityType}' is not registered.");
     }
 }

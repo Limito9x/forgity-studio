@@ -7,7 +7,6 @@
 import type { DictionaryOfStringAndObject } from "./dictionaryOfStringAndObject";
 
 export interface RunPipelineRequest {
-  agentId: string;
   /** @nullable */
   runtimeInputs?: DictionaryOfStringAndObject | null;
 }

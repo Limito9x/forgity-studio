@@ -11,7 +11,8 @@ public record AssetLinkDto(
     long SizeBytes,
     int SortOrder,
     string SlotKey,
-    DateTimeOffset LinkedAt
+    DateTimeOffset LinkedAt,
+    string HashSha256 = ""
 );
 
 

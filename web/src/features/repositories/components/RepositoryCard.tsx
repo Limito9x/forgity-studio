@@ -8,6 +8,7 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   FolderGit2,
   Cpu,
@@ -78,6 +79,8 @@ export function RepositoryCard({ repository }: RepositoryCardProps) {
                       id: repository.id,
                       name: repository.name,
                       description: repository.description || undefined,
+                      projectId: repository.projectId,
+                      supportedExtensions: (repository as any).supportedExtensions,
                     })
                   }
                   className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm cursor-pointer hover:bg-accent hover:text-accent-foreground outline-none"
@@ -105,6 +108,15 @@ export function RepositoryCard({ repository }: RepositoryCardProps) {
       </CardHeader>
 
       <CardContent className="px-6 py-3">
+        {(repository as any).supportedExtensions && (repository as any).supportedExtensions.length > 0 && (
+          <div className="flex flex-wrap gap-1 pb-2.5">
+            {(repository as any).supportedExtensions.map((ext: string) => (
+              <Badge key={ext} variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">
+                .{ext}
+              </Badge>
+            ))}
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/50 text-xs">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Cpu className="size-4 text-primary/70 shrink-0" />

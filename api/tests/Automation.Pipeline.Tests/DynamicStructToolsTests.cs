@@ -12,7 +12,7 @@ namespace Automation.Pipeline.Tests;
 
 public class DynamicStructToolsTests
 {
-    private readonly ToolExecutionContext _context = new(Guid.NewGuid(), Guid.NewGuid(), Guid.Empty, CancellationToken.None);
+    private readonly ToolExecutionContext _context = new(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
     private static (EntityStructRegistry registry, Guid projectId) CreateTestRegistryWithSlotBinding()
     {

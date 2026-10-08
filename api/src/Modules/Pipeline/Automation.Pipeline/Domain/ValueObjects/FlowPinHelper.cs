@@ -46,7 +46,7 @@ public static class FlowPinHelper
     ) => WithExecPins(PipelineNodeKind.Custom, isPure: false, customNode.Inputs, customNode.Outputs);
 
     public static (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) WithExecPins(
-        string nodeKind,
+        PipelineNodeKind nodeKind,
         bool isPure,
         IReadOnlyList<PinDefinition> inputs,
         IReadOnlyList<PinDefinition> outputs
@@ -54,7 +54,7 @@ public static class FlowPinHelper
     {
         if (isPure) return (inputs, outputs);
 
-        if (string.Equals(nodeKind, PipelineNodeKind.Start, StringComparison.OrdinalIgnoreCase))
+        if (nodeKind == PipelineNodeKind.Start)
         {
             var newStartOutputs = new List<PinDefinition>();
             if (!outputs.Any(p => p.Kind == PinKind.Exec || p.Id == "exec_out"))
@@ -65,7 +65,7 @@ public static class FlowPinHelper
             return (inputs, newStartOutputs);
         }
 
-        if (string.Equals(nodeKind, PipelineNodeKind.Return, StringComparison.OrdinalIgnoreCase))
+        if (nodeKind == PipelineNodeKind.Return)
         {
             var newReturnInputs = new List<PinDefinition>();
             if (!inputs.Any(p => p.Kind == PinKind.Exec || p.Id == "exec_in"))
@@ -92,4 +92,11 @@ public static class FlowPinHelper
 
         return (resultInputs, resultOutputs);
     }
+
+    public static (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) WithExecPins(
+        string nodeKind,
+        bool isPure,
+        IReadOnlyList<PinDefinition> inputs,
+        IReadOnlyList<PinDefinition> outputs
+    ) => WithExecPins(Enum.TryParse<PipelineNodeKind>(nodeKind, true, out var k) ? k : PipelineNodeKind.Custom, isPure, inputs, outputs);
 }

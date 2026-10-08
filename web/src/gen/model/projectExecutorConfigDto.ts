@@ -9,7 +9,7 @@ import type { JsonDocument } from "./jsonDocument";
 export interface ProjectExecutorConfigDto {
   id: string;
   projectId: string;
-  agentId: string;
+  runnerId: string;
   executorKey: string;
   settings: JsonDocument;
   createdAt: string;

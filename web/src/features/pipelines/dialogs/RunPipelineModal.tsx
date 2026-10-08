@@ -2,8 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import type { Node, Edge } from "@xyflow/react";
 import { useForm } from "react-hook-form";
 import { useGetRunners } from "@/gen/endpoints/runners/runners";
-import type { RunnerDto } from "@/gen/model";
-import { useRunPipeline, usePipelineInputSchema } from "../hooks/usePipelineGraph";
+import { useRunPipeline, type PipelineParameterDto } from "../hooks/usePipelineGraph";
 import {
   Dialog,
   DialogHeader,
@@ -11,15 +10,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Play, Server, Loader2, AlertCircle, Sparkles, Layers } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Play, Loader2, AlertCircle, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { buildDynamicSchema } from "@/lib/schema-builder";
 import { FormRenderer } from "@/components/dynamic-form/FormRenderer";
 import { pipelineRegistry } from "../form-scope/pipelineRegistry";
+import { PipelineFormScopeProvider } from "../form-scope/PipelineFormScope";
 import {
   pinToFieldDefinition,
   pipelineInputToFieldDefinition,
@@ -40,6 +37,7 @@ interface RunPipelineModalProps {
   projectId?: string;
   nodes?: Node[];
   edges?: Edge[];
+  parameters?: PipelineParameterDto[];
   isOpen: boolean;
   onClose: () => void;
   onExecutionStarted?: (executionId: string) => void;
@@ -48,14 +46,15 @@ interface RunPipelineModalProps {
 export function RunPipelineModal({
   pipelineId,
   pipelineName,
+  projectId = "",
   nodes = [],
   edges = [],
+  parameters = [],
   isOpen,
   onClose,
   onExecutionStarted,
 }: RunPipelineModalProps) {
-  const { data: agents = [], isLoading: isLoadingAgents } = useGetRunners();
-  const { data: schemaInputs = [], isLoading: isLoadingSchema } = usePipelineInputSchema(pipelineId);
+  const { data: agents = [] } = useGetRunners();
 
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const runMutation = useRunPipeline(pipelineId);
@@ -67,6 +66,21 @@ export function RunPipelineModal({
       setSelectedAgentId(active?.id || agents[0].id);
     }
   }, [agents, selectedAgentId]);
+
+  // Derived inputs: strictly rely on unified parameters (kind === 1 or "Input")
+  const pipelineInputs = useMemo(() => {
+    return (parameters || [])
+      .filter((p) => p.kind === 1 || (p.kind as unknown) === "Input")
+      .map((p) => ({
+        id: p.id,
+        key: p.key,
+        label: p.label || p.key,
+        type: typeof p.type === "number" ? p.type : Number(p.type) || 0,
+        cardinality: p.cardinality ? (typeof p.cardinality === "number" ? p.cardinality : Number(p.cardinality) || 0) : 0,
+        defaultValue: p.defaultValue,
+        isRequired: p.isRequired,
+      }));
+  }, [parameters]);
 
   // Compute unwired & unconfigured required inputs on internal nodes (excluding Start node)
   const additionalMissingInputs = useMemo<MissingRuntimeInput[]>(() => {
@@ -108,10 +122,10 @@ export function RunPipelineModal({
     return list;
   }, [nodes, edges]);
 
-  // Convert schema inputs (Start Node) to FieldDefinition[]
+  // Convert pipeline inputs (Start Node) to FieldDefinition[]
   const startFields = useMemo(() => {
-    return schemaInputs.map((input) => pipelineInputToFieldDefinition(input));
-  }, [schemaInputs]);
+    return pipelineInputs.map((input) => pipelineInputToFieldDefinition(input as any));
+  }, [pipelineInputs]);
 
   // Convert missing unwired inputs to FieldDefinition[]
   const missingFields = useMemo(() => {
@@ -149,8 +163,10 @@ export function RunPipelineModal({
     const defaults: Record<string, any> = {};
     const KNOWN_PLACEHOLDERS = [
       "resource",
+      "repository",
       "workspace",
       "contenttype",
+      "runner",
       "agent",
       "tag",
       "taggroup",
@@ -158,7 +174,7 @@ export function RunPipelineModal({
       "none",
     ];
 
-    schemaInputs.forEach((input) => {
+    pipelineInputs.forEach((input) => {
       const f = startFields.find((field) => field.name === input.key);
       const val = f?.defaultValue !== undefined ? f.defaultValue : input.defaultValue;
       const valStr = typeof val === "string" ? val.trim().toLowerCase() : "";
@@ -176,7 +192,7 @@ export function RunPipelineModal({
     });
 
     return defaults;
-  }, [schemaInputs, startFields, additionalMissingInputs]);
+  }, [pipelineInputs, startFields, additionalMissingInputs]);
 
   const form = useForm<any>({
     resolver: zodResolver(validationSchema as any),
@@ -191,14 +207,10 @@ export function RunPipelineModal({
     async (values: any) => {
       if (runMutation.isPending) return;
 
-      const finalAgentId =
-        selectedAgentId ||
-        (agents.length > 0 ? agents[0].id : "00000000-0000-0000-0000-000000000001");
-
       // Separate start inputs vs node overrides
       const runtimeInputs: Record<string, any> = {};
 
-      schemaInputs.forEach((input) => {
+      pipelineInputs.forEach((input) => {
         if (values[input.key] !== undefined) {
           runtimeInputs[input.key] = values[input.key];
         }
@@ -211,9 +223,22 @@ export function RunPipelineModal({
         }
       });
 
+      // Inject selectedAgentId vào runtimeInputs
+      if (selectedAgentId) {
+        const runnerRef = `runner:${selectedAgentId}`;
+        if (!runtimeInputs["Runner"] || runtimeInputs["Runner"] === "") {
+          runtimeInputs["Runner"] = runnerRef;
+        }
+        if (!runtimeInputs["runner"] || runtimeInputs["runner"] === "") {
+          runtimeInputs["runner"] = runnerRef;
+        }
+        if (!runtimeInputs["targetRunnerId"]) {
+          runtimeInputs["targetRunnerId"] = selectedAgentId;
+        }
+      }
+
       try {
         const execution = await runMutation.mutateAsync({
-          agentId: finalAgentId,
           runtimeInputs,
         });
 
@@ -251,147 +276,79 @@ export function RunPipelineModal({
           <span>Run Pipeline</span>
         </DialogTitle>
         <p className="text-xs text-muted-foreground">
-          Running <span className="font-semibold text-foreground">{pipelineName}</span> requires selecting an Execution Agent and specifying pipeline inputs.
+          Running <span className="font-semibold text-foreground">{pipelineName}</span> requires selecting an Execution Runner and specifying pipeline inputs.
         </p>
       </DialogHeader>
 
-      <form onSubmit={handleRun} className="space-y-4">
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
-          {/* 1. Pipeline Start Inputs Section (From Backend Schema) */}
-          {isLoadingSchema ? (
-            <div className="flex items-center justify-center py-4 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />
-              Loading input schema...
-            </div>
-          ) : schemaInputs.length > 0 ? (
-            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 space-y-3">
-              <div className="flex items-center gap-2 text-xs font-semibold text-primary">
-                <Sparkles className="h-4 w-4 shrink-0" />
-                <span>Pipeline Start Inputs ({schemaInputs.length})</span>
+      <PipelineFormScopeProvider value={{ projectId: projectId || "", pipelineId }}>
+        <form onSubmit={handleRun} className="space-y-4">
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+            {/* 1. Pipeline Start Inputs Section (From Unified Parameters) */}
+            {pipelineInputs.length > 0 ? (
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-semibold text-primary">
+                  <Sparkles className="h-4 w-4 shrink-0" />
+                  <span>Pipeline Start Inputs ({pipelineInputs.length})</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Configure runtime arguments for your pipeline execution entry point.
+                </p>
+                <div className="rounded-lg border border-border/70 bg-card p-3 shadow-sm">
+                  <FormRenderer
+                    registry={pipelineRegistry}
+                    control={form.control}
+                    fields={startFields}
+                  />
+                </div>
               </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Configure runtime arguments for your pipeline execution entry point.
-              </p>
-              <div className="rounded-lg border border-border/70 bg-card p-3 shadow-sm">
-                <FormRenderer
-                  registry={pipelineRegistry}
-                  control={form.control}
-                  fields={startFields}
-                />
-              </div>
-            </div>
-          ) : null}
+            ) : null}
 
-          {/* 2. Additional Unwired Required Inputs */}
-          {missingFields.length > 0 && (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3.5 space-y-3">
-              <div className="flex items-center gap-2 text-xs font-medium text-amber-600 dark:text-amber-400">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                <span>Additional Unconnected Inputs ({missingFields.length})</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Required inputs on internal nodes that are not connected to any wire.
-              </p>
-              <div className="rounded-lg border border-border/70 bg-card p-3 shadow-sm">
-                <FormRenderer
-                  registry={pipelineRegistry}
-                  control={form.control}
-                  fields={missingFields}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* 3. Select Agent Section */}
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-              <Layers className="h-3.5 w-3.5 text-muted-foreground" />
-              <span>Select Execution Agent</span>
-            </Label>
-            {isLoadingAgents ? (
-              <div className="flex items-center justify-center py-6 text-xs text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Loading registered agents...
-              </div>
-            ) : agents.length === 0 ? (
-              <div className="flex items-center gap-2 rounded-lg border border-dashed border-destructive/40 p-4 text-xs text-destructive">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                <span>No agents registered. Please start an Automation-Agent worker first.</span>
-              </div>
-            ) : (
-              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                {agents.map((agent: RunnerDto) => {
-                  const isSelected = selectedAgentId === agent.id;
-                  const isOnline = agent.isActive;
-
-                  return (
-                    <button
-                      key={agent.id}
-                      type="button"
-                      onClick={() => setSelectedAgentId(agent.id)}
-                      className={cn(
-                        "flex w-full items-center justify-between gap-3 rounded-lg border p-2.5 text-left text-xs transition-all",
-                        isSelected
-                          ? "border-primary bg-primary/5 shadow-sm"
-                          : "border-border/70 hover:border-border hover:bg-muted/30"
-                      )}
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div
-                          className={cn(
-                            "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
-                            isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                          )}
-                        >
-                          <Server className="h-3.5 w-3.5" />
-                        </div>
-                        <div className="min-w-0">
-                          <span className="block font-medium text-foreground truncate">{agent.name}</span>
-                          <span className="block text-[10px] text-muted-foreground font-mono truncate">{agent.id}</span>
-                        </div>
-                      </div>
-
-                      <Badge
-                        variant={isOnline ? "default" : "secondary"}
-                        className={cn(
-                          "h-5 text-[10px] shrink-0 capitalize",
-                          isOnline && "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border-emerald-500/30"
-                        )}
-                      >
-                        {isOnline ? "Active" : "Inactive"}
-                      </Badge>
-                    </button>
-                  );
-                })}
+            {/* 2. Additional Unwired Required Inputs */}
+            {missingFields.length > 0 && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3.5 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-medium text-amber-600 dark:text-amber-400">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>Additional Unconnected Inputs ({missingFields.length})</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Required inputs on internal nodes that are not connected to any wire.
+                </p>
+                <div className="rounded-lg border border-border/70 bg-card p-3 shadow-sm">
+                  <FormRenderer
+                    registry={pipelineRegistry}
+                    control={form.control}
+                    fields={missingFields}
+                  />
+                </div>
               </div>
             )}
           </div>
-        </div>
 
-        <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t">
-          <Button variant="outline" size="sm" onPress={onClose} isDisabled={isSubmitting}>
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            type="submit"
-            isDisabled={!selectedAgentId || isSubmitting}
-            className="gap-1.5"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span>Triggering...</span>
-              </>
-            ) : (
-              <>
-                <Play className="h-3.5 w-3.5 fill-current" />
-                <span>Execute Run</span>
-              </>
-            )}
-          </Button>
-        </DialogFooter>
-      </form>
+          <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t">
+            <Button variant="outline" size="sm" onPress={onClose} isDisabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              type="submit"
+              isDisabled={!selectedAgentId || isSubmitting}
+              className="gap-1.5"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>Triggering...</span>
+                </>
+              ) : (
+                <>
+                  <Play className="h-3.5 w-3.5 fill-current" />
+                  <span>Execute Run</span>
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </PipelineFormScopeProvider>
     </Dialog>
   );
 }

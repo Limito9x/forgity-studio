@@ -182,7 +182,7 @@ export function PipelineListPage({ projectId }: PipelineListPageProps) {
             </div>
             <h3 className="text-base font-semibold text-foreground">No pipelines created yet</h3>
             <p className="mt-1 text-xs text-muted-foreground max-w-sm">
-              Create your first visual pipeline to orchestrate multi-step tasks across Python, Blender, and .NET tools.
+              Create your first visual pipeline to orchestrate multi-step tasks across Blender, Unreal Engine, and background automation tasks.
             </p>
             <Button onPress={() => setIsCreateOpen(true)} size="sm" className="mt-5 gap-1.5 text-xs shadow-sm">
               <Plus className="h-3.5 w-3.5" />

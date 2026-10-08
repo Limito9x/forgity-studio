@@ -5,10 +5,16 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { IReadOnlyListOfDirectoryNodeDto } from "./iReadOnlyListOfDirectoryNodeDto";
+import type { IReadOnlyListOfDriveInfoDto } from "./iReadOnlyListOfDriveInfoDto";
+import type { IReadOnlyListOfString } from "./iReadOnlyListOfString";
+import type { IReadOnlyListOfSystemPlaceDto } from "./iReadOnlyListOfSystemPlaceDto";
 
 export interface DiscoverRunnerFolderResult {
   currentPath: string;
   parentPath: string;
   canNavigateUp: boolean;
   items: IReadOnlyListOfDirectoryNodeDto;
+  systemPlaces: IReadOnlyListOfSystemPlaceDto;
+  pinnedFolders: IReadOnlyListOfString;
+  drives: IReadOnlyListOfDriveInfoDto;
 }

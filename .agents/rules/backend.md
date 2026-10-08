@@ -78,3 +78,10 @@ Quy tắc áp dụng bắt buộc khi xây dựng hoặc sửa đổi mã nguồ
 15. **API cho Canvas / Đồ thị Tương tác:**
     - TUYỆT ĐỐI KHÔNG thiết kế 1 API monolithic nhận toàn bộ đồ thị để lưu mỗi khi có thay đổi nhỏ.
     - Phân rã thành Granular APIs (AddNode, UpdateNodePosition, ConnectEdge, DeleteEdge, UpdatePinValue...).
+
+16. **Ưu Tiên Sử Dụng Script CLI Dự Án (`api/cli.ps1`):**
+    - Khi thao tác với Database Migration hoặc chạy API, LUÔN ưu tiên sử dụng script `cli.ps1` tại thư mục `api/` để tránh sai sót đường dẫn:
+      - Tạo migration: `.\cli add-migration <ModuleName> <MigrationName>`
+      - Cập nhật database: `.\cli update-db [ModuleName]`
+      - Khởi động API: `.\cli start` hoặc `.\cli run` (Hot reload)
+    - Chỉ dùng lệnh `dotnet ef` gốc khi cần truyền cờ đặc thù hoặc chạy trong pipeline CI/CD.

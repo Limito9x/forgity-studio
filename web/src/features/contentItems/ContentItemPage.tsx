@@ -131,6 +131,7 @@ export function ContentItemPage({ useSearch, useNavigate }: ResourcePageProps) {
                 addLabel={contentType?.name ? `Add ${contentType.name}` : t("actions.create", { defaultValue: "Add Content Item" })}
                 resource={resourceQuery}
                 filterConfig={contentItemFilterConfig}
+                hideAdvancedFilters={true}
                 searchPlaceholder={t("page.searchPlaceholder", { defaultValue: "Search..." })}
                 renderViewOptions={
                     <div className="flex items-center gap-2">
@@ -163,6 +164,7 @@ export function ContentItemPage({ useSearch, useNavigate }: ResourcePageProps) {
                         table={table}
                         columns={columns}
                         isLoading={isLoading}
+                        content={contentType?.displayName}
                     />
                 ) : (
                     <BaseCardGrid
@@ -178,6 +180,7 @@ export function ContentItemPage({ useSearch, useNavigate }: ResourcePageProps) {
                                     title={title}
                                     description={description}
                                     thumbnailUrl={thumbnailUrl}
+                                    icon={contentType?.icon ? (props) => <DynamicIcon name={contentType.icon} {...props} /> : undefined}
                                     action={actions.length > 0 ? <DataTableRowActions actions={actions} /> : undefined}
                                     onClick={() => appNavigate({
                                         to: "/projects/$projectId/contents/$typeKey/$contentItemId/edit",

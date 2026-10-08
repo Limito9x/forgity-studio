@@ -6,6 +6,7 @@ from core.system.hardware import get_hardware_snapshot
 from core.executors.scanner import scan_all_executors
 from core.grpc_client import get_channel
 from core import agent_pb2, agent_pb2_grpc
+from core.config import get_rabbitmq_parameters
 
 logger = logging.getLogger(__name__)
 
@@ -14,16 +15,7 @@ def check_rabbitmq() -> tuple[bool, str]:
     """Test connection to RabbitMQ broker."""
     try:
         import pika
-        credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
-        params = pika.ConnectionParameters(
-            host=RABBITMQ_HOST,
-            port=RABBITMQ_PORT,
-            virtual_host=RABBITMQ_VHOST,
-            credentials=credentials,
-            connection_attempts=1,
-            retry_delay=1,
-            blocked_connection_timeout=5,
-        )
+        params = get_rabbitmq_parameters(heartbeat=60)
         conn = pika.BlockingConnection(params)
         conn.close()
         return True, f"Connected to {RABBITMQ_HOST}:{RABBITMQ_PORT} (vhost: '{RABBITMQ_VHOST}')"

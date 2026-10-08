@@ -3,14 +3,13 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Automation.SharedKernel.Domain.Events;
 using Automation.SharedKernel.Domain.Interfaces;
 using Wolverine;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Automation.SharedKernel.Infrastructure.Persistence;
 
 public sealed class EntityDeletedInterceptor(
     ILogger<EntityDeletedInterceptor> logger,
-    IServiceScopeFactory scopeFactory) : SaveChangesInterceptor
+    IMessageBus messageBus) : SaveChangesInterceptor
 {
     public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData eventData,
@@ -27,7 +26,8 @@ public sealed class EntityDeletedInterceptor(
             var isHardDeleted = entry.State == EntityState.Deleted;
             var isSoftDeleted = entry.Entity is ISoftDelete softDelete &&
                                 (entry.State == EntityState.Deleted || 
-                                 (entry.State == EntityState.Modified && softDelete.DeletedAt != null));
+                                (entry.State == EntityState.Modified && softDelete.DeletedAt != null &&
+                                 entry.Property(nameof(ISoftDelete.DeletedAt)).OriginalValue == null));
 
             if (!isHardDeleted && !isSoftDeleted)
                 continue;
@@ -46,25 +46,13 @@ public sealed class EntityDeletedInterceptor(
         if (deletedMessages.Count == 0)
             return await base.SavingChangesAsync(eventData, result, cancellationToken);
 
-        await using var scope = scopeFactory.CreateAsyncScope();
-        var messageBus = scope.ServiceProvider.GetService<IMessageBus>();
-
-        if (messageBus != null)
+        // Use the owning handler's scoped bus, enrolled in its transactional outbox.
+        // A new DI scope would publish independently of the entity deletion transaction.
+        foreach (var message in deletedMessages.Distinct())
         {
-            foreach (var message in deletedMessages)
-            {
-                try
-                {
-                    logger.LogInformation("Publishing EntityDeletedMessage for {OwnerEntityType} (ID: {OwnerEntityId})",
-                        message.OwnerEntityType, message.OwnerEntityId);
-                    await messageBus.PublishAsync(message);
-                }
-                catch (Wolverine.WolverineHasNotStartedException)
-                {
-                    logger.LogWarning("Wolverine has not started yet. Skipping EntityDeletedMessage for {OwnerEntityType} (ID: {OwnerEntityId})",
-                        message.OwnerEntityType, message.OwnerEntityId);
-                }
-            }
+            logger.LogInformation("Queueing EntityDeletedMessage for {OwnerEntityType} (ID: {OwnerEntityId})",
+                message.OwnerEntityType, message.OwnerEntityId);
+            await messageBus.PublishAsync(message);
         }
 
         return await base.SavingChangesAsync(eventData, result, cancellationToken);

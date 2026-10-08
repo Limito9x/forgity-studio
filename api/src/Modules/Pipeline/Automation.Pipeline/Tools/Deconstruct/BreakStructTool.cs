@@ -62,9 +62,66 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
         },
         new()
         {
-            Id = "FullPath",
-            Label = "Full Path",
-            PrimitiveType = PinPrimitiveType.Path,
+            Id = "BaseName",
+            Label = "Base Name",
+            PrimitiveType = PinPrimitiveType.String,
+            Cardinality = PinCardinality.Single
+        },
+        new()
+        {
+            Id = "Extension",
+            Label = "Extension",
+            PrimitiveType = PinPrimitiveType.String,
+            Cardinality = PinCardinality.Single
+        },
+        new()
+        {
+            Id = "RelativePath",
+            Label = "Relative Path",
+            PrimitiveType = PinPrimitiveType.String,
+            Cardinality = PinCardinality.Single
+        },
+        new()
+        {
+            Id = "RepositoryId",
+            Label = "Repository ID",
+            PrimitiveType = PinPrimitiveType.EntityRef,
+            EntityTarget = "Repository",
+            Cardinality = PinCardinality.Single
+        },
+        new()
+        {
+            Id = "FileHash",
+            Label = "File Hash",
+            PrimitiveType = PinPrimitiveType.String,
+            Cardinality = PinCardinality.Single
+        },
+        new()
+        {
+            Id = "ContentId",
+            Label = "Content ID",
+            PrimitiveType = PinPrimitiveType.EntityRef,
+            Cardinality = PinCardinality.Single
+        },
+        new()
+        {
+            Id = "ContentName",
+            Label = "Content Name",
+            PrimitiveType = PinPrimitiveType.String,
+            Cardinality = PinCardinality.Single
+        },
+        new()
+        {
+            Id = "ContentType",
+            Label = "Content Type",
+            PrimitiveType = PinPrimitiveType.String,
+            Cardinality = PinCardinality.Single
+        },
+        new()
+        {
+            Id = "Metadata",
+            Label = "Metadata JSON",
+            PrimitiveType = PinPrimitiveType.String,
             Cardinality = PinCardinality.Single
         }
     ];

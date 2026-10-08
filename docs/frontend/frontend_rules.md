@@ -21,69 +21,77 @@ Token system đảm bảo đổi theme toàn app chỉ cần sửa `index.css`, 
 
 ---
 
-## 2. API — hey-api + TanStack Query
+## 2. API — Orval + TanStack Query
 
-### Generated code
+### Generated code (KHÔNG SỬA TAY)
 ```
-src/api/generated/   ← KHÔNG SỬA TAY
+web/src/gen/endpoints/   ← hooks + fetcher (tags-split)
+web/src/gen/model/       ← TypeScript types + params
+web/orval.config.ts      ← input: http://localhost:5189/openapi/v1.json, client: react-query + axios, mutator: src/lib/api-client.ts#customInstance
+web/package.json         ← "gen:api": "orval" + "postgen:api": "rimraf src/gen/model/params.ts"
 ```
-Chỉ re-generate khi OpenAPI spec thay đổi bằng:
-```bash
-npx @hey-api/openapi-ts
-```
+
+### Workflow tạo endpoint mới (BẮT BUỘC — đúng thứ tự)
+1. **Backend slice**: tạo `api/src/Modules/<Module>/Features/<Group>/<Feature>.cs` theo Pragmatic Single-File VSA — `Command/Query + Validator + Endpoint(Group<...>) + Handler([Transactional]/[NonTransactional])`. Endpoint phải `await this.SendResultAsync(result, ct)` để Orval sinh type chuẩn.
+2. **Refresh OpenAPI**: chạy lại backend (`dotnet watch` / `dotnet run`) để `http://localhost:5189/openapi/v1.json` có `operationId` mới. Kiểm tra bằng `curl` hoặc mở URL.
+3. **Gen frontend**: `pnpm --filter web gen:api` (wrap `orval`, tự chạy `postgen:api`). KHÔNG sửa tay `src/gen/**`.
+4. **Hook**: import từ `@/gen/endpoints/<tag>/<tag>` + `@/gen/model`, wrap bằng `createMutationHook` trong `web/src/lib/query-utils.ts` — xem mẫu `features/tags/hooks/useTags.ts`.
 
 ### Hook convention
 ```ts
-// features/users/hooks/useUsers.ts
-export const useUsers = (filters: UserFilters) =>
-  useQuery({
-    queryKey: ['users', 'list', filters],
-    queryFn: () => getUsers({ query: filters }),
-  })
+// features/tags/hooks/useTags.ts — mẫu chuẩn
+import * as TagsApi from "@/gen/endpoints/tags/tags";
+import { createMutationHook } from "@/lib/query-utils";
 
-export const useCreateUser = () =>
-  useMutation({
-    mutationFn: (body: CreateUserBody) => createUser({ body }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
-  })
+export const useCreateTag = createMutationHook(TagsApi.useCreateTag, [
+  TagsApi.getGetTagsQueryKey(),
+  TagsApi.getGetTagTreeQueryKey(),
+]);
+
+// Query: giữ nguyên pattern Orval
+export const useTags = (params?: GetTagsParams) =>
+  TagsApi.useGetTags(params, { query: { placeholderData: keepPreviousData } });
 ```
 
 ### Query key convention
 ```ts
-['feature', 'action', params?]
-// Ví dụ:
-['users', 'list', { page: 1, search: 'abc' }]
-['users', 'detail', userId]
-['roles', 'list']
+// Dùng helper Orval gen sẵn, không tự đặt string
+TagsApi.getGetTagsQueryKey()
+TagsApi.getGetTagTreeQueryKey()
+// Chỉ khi cần custom: ['feature', 'action', params?]
 ```
 
 ### NGHIÊM CẤM
 - Gọi generated API function trực tiếp trong component — phải qua hook
+- Gọi `customInstance` / `axios` trực tiếp trong feature — phải qua Orval gen
+- Tự define type trùng với `src/gen/model` — luôn import từ gen
 - Dùng `useState` để cache data từ API — đó là việc của TanStack Query
 - Fetch trong `useEffect` — dùng `useQuery`
+
+### Ngoại lệ tạm thời (khi BE chưa restart để gen)
+Nếu cần ship trước khi `openapi/v1.json` cập nhật, được phép viết manual `customInstance` TẠM trong hook với comment bắt buộc:
+```ts
+// TODO: orval regen — manual until /openapi/v1.json updated (POST /api/tags/bulk)
+```
+Phải có task regen `pnpm --filter web gen:api` ngay sau khi BE restart, rồi xoá manual code và chuyển về `createMutationHook(TagsApi.useXxx, [...])`.
 
 ---
 
 ## 3. Error Handling
 
-Tập trung tại `src/lib/api-client.ts` qua hey-api middleware.
+Tập trung tại `web/src/lib/api-client.ts` (axios interceptors + `customInstance` làm Orval mutator).
 **Không** try-catch từng API call trong component hay hook.
 
 ```ts
-// lib/api-client.ts
-client.interceptors.response.use(
-  undefined,
-  (error) => {
-    if (error.response?.status === 401) { /* redirect login */ }
-    if (error.response?.status === 403) { /* toast permission denied */ }
-    // 4xx khác: toast message từ error.response.data.message
-    // 5xx: toast generic server error
-    return Promise.reject(error)
-  }
-)
+// lib/api-client.ts — interceptors đã xử lý 401 refresh, 403/4xx/5xx toast
+AXIOS_INSTANCE.interceptors.response.use(undefined, async (error) => {
+  if (shouldRefresh) return handleTokenRefresh(originalRequest);
+  if (status !== 401) handleApiError(status, data);
+  return Promise.reject(error);
+});
 ```
 
-Exception: mutation `onError` được dùng nếu cần xử lý lỗi đặc thù của từng form.
+Exception: mutation `onError` được dùng nếu cần xử lý lỗi đặc thù của từng form (ví dụ toast `Failed to create tag`).
 
 ---
 

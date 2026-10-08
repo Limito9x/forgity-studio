@@ -1,58 +1,92 @@
-import { useNavigate } from "@tanstack/react-router";
-import { useRepositoryDetail } from "../hooks/useRepositories";
-import { useGetRepositoryResources } from "@/gen/endpoints/repositories/repositories";
+import { useState } from "react";
+import { useParams, useNavigate } from "@tanstack/react-router";
+import {
+  useRepositoryDetail,
+  useRepositoryResources,
+  type RepositoryRunnerDto,
+} from "../hooks/useRepositories";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import {
   ArrowLeft,
   FolderGit2,
+  RefreshCw,
   Cpu,
   FileText,
   Loader2,
-  HardDrive,
-  RefreshCw,
+  MoreVertical,
+  Edit2,
 } from "lucide-react";
 import { useDialogStore } from "@/stores/dialogStore";
+import { AttachedRunnersCard } from "../components/AttachedRunnersCard";
+import { RepositorySyncTab } from "../components/RepositorySyncTab";
+import { RepositoryResourcesTab } from "../components/RepositoryResourcesTab";
+import { TagTool } from "@/features/tags/components/TagTool";
+import { cn } from "@/lib/utils";
+
+type RepositoryTab = "resources" | "sync" | "runners";
 
 interface RepositoryDetailPageProps {
-  projectId: string;
-  repositoryId: string;
+  projectId?: string;
+  repositoryId?: string;
 }
 
-export function RepositoryDetailPage({ projectId, repositoryId }: RepositoryDetailPageProps) {
+export function RepositoryDetailPage(props: RepositoryDetailPageProps = {}) {
+  const routeParams = useParams({
+    strict: false,
+  }) as { projectId?: string; repositoryId?: string };
+
+  const projectId = props.projectId || routeParams.projectId || "";
+  const repositoryId = props.repositoryId || routeParams.repositoryId || "";
+
   const navigate = useNavigate();
   const openDialog = useDialogStore((state) => state.openDialog);
-  const { data: repository, isLoading, isError, error, refetch } = useRepositoryDetail(repositoryId);
 
-  const { data: resourcesData, isLoading: isResourcesLoading } = useGetRepositoryResources(
-    repositoryId,
-    { projectId, workspaceId: repositoryId, page: 1, pageSize: 50 },
-    { query: { enabled: !!repositoryId } }
-  );
+  const [activeTab, setActiveTab] = useState<RepositoryTab>("resources");
 
-  if (isLoading) {
+  const {
+    data: repository,
+    isLoading: isRepoLoading,
+    refetch: refetchRepo,
+  } = useRepositoryDetail(repositoryId);
+
+  const {
+    data: resourcesData,
+    isLoading: isResourcesLoading,
+    refetch: refetchResources,
+  } = useRepositoryResources(repositoryId, projectId);
+
+  const handleRefreshAll = () => {
+    refetchRepo();
+    refetchResources();
+  };
+
+  const runners: RepositoryRunnerDto[] = repository?.runners || [];
+  const resources = resourcesData?.items || [];
+
+  if (isRepoLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 gap-3">
-        <Loader2 className="size-8 text-primary animate-spin" />
-        <p className="text-sm text-muted-foreground font-medium">Loading repository details...</p>
+      <div className="flex items-center justify-center min-h-[50vh] gap-3 text-muted-foreground text-sm">
+        <Loader2 className="size-5 animate-spin text-primary" />
+        <span>Loading repository workspace...</span>
       </div>
     );
   }
 
-  if (isError || !repository) {
+  if (!repository) {
     return (
-      <div className="p-8 max-w-xl mx-auto text-center space-y-4">
-        <div className="p-6 rounded-2xl border border-destructive/30 bg-destructive/5 text-destructive">
-          <h3 className="font-semibold text-lg">Failed to load repository</h3>
-          <p className="text-sm mt-1 text-muted-foreground">
-            {(error as any)?.message || "The repository could not be found or you do not have permission to view it."}
-          </p>
-        </div>
+      <div className="p-6 text-center space-y-4">
+        <p className="text-muted-foreground text-sm">Repository not found.</p>
         <Button
           variant="outline"
+          size="sm"
           onClick={() => navigate({ to: "/projects/$projectId/repositories", params: { projectId } })}
-          className="gap-2"
+          className="gap-2 cursor-pointer text-xs"
         >
           <ArrowLeft className="size-4" /> Back to Repositories
         </Button>
@@ -60,163 +94,208 @@ export function RepositoryDetailPage({ projectId, repositoryId }: RepositoryDeta
     );
   }
 
-  const runners = repository.runners || [];
-  const resources = resourcesData?.items || [];
+  const primaryRunner = runners[0];
+  const isOnline = primaryRunner?.runner?.isActive ?? true;
+
+  const tabs: Array<{ key: RepositoryTab; label: string; icon: React.ElementType; badge?: React.ReactNode }> = [
+    {
+      key: "resources",
+      label: "Resources",
+      icon: FileText,
+      badge: (
+        <Badge variant="secondary" className="text-[10px] font-mono px-1.5 py-0 h-4 min-w-4 flex items-center justify-center">
+          {resources.length}
+        </Badge>
+      ),
+    },
+    {
+      key: "sync",
+      label: "Changes & Sync",
+      icon: RefreshCw,
+    },
+    {
+      key: "runners",
+      label: "Attached Runners",
+      icon: Cpu,
+      badge: (
+        <Badge variant="secondary" className="text-[10px] font-mono px-1.5 py-0 h-4 min-w-4 flex items-center justify-center">
+          {runners.length}
+        </Badge>
+      ),
+    },
+  ];
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 w-full max-w-7xl mx-auto">
-      {/* Top Header */}
+    <div className="p-6 space-y-6 w-full min-w-0">
+      {/* Clean Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <Button
             variant="outline"
             size="icon"
-            className="size-9 rounded-xl cursor-pointer"
+            className="size-9 rounded-xl cursor-pointer shrink-0"
             onClick={() => navigate({ to: "/projects/$projectId/repositories", params: { projectId } })}
             aria-label="Back to repositories"
           >
             <ArrowLeft className="size-4" />
           </Button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
-                <FolderGit2 className="size-6 text-primary" />
-                {repository.name}
+
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5 truncate">
+                <FolderGit2 className="size-6 text-primary shrink-0" />
+                <span className="truncate">{repository.name}</span>
               </h1>
-              <Badge variant="outline" className="text-xs font-mono">
-                {runners.length > 0 ? "Connected" : "No Runner"}
+
+              <Badge
+                variant="outline"
+                className={
+                  runners.length > 0 && isOnline
+                    ? "text-emerald-500 border-emerald-500/30 bg-emerald-500/10 text-xs font-mono"
+                    : "text-muted-foreground border-border text-xs font-mono"
+                }
+              >
+                <span
+                  className={`size-1.5 rounded-full mr-1.5 ${
+                    runners.length > 0 && isOnline ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground"
+                  }`}
+                />
+                {runners.length > 0 ? `${runners.length} Runner Connected` : "No Runner"}
               </Badge>
             </div>
+
             {repository.description && (
-              <p className="text-sm text-muted-foreground mt-0.5">{repository.description}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-xl">{repository.description}</p>
+            )}
+
+            {(repository as any).supportedExtensions && (repository as any).supportedExtensions.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                <span className="text-[11px] text-muted-foreground">Extensions:</span>
+                {(repository as any).supportedExtensions.map((ext: string) => (
+                  <Badge key={ext} variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">
+                    .{ext}
+                  </Badge>
+                ))}
+              </div>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Header Right Actions: Clean & Minimal */}
+        <div className="flex items-center gap-2 shrink-0">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => refetch()}
-            className="gap-1.5 cursor-pointer text-xs"
+            onClick={handleRefreshAll}
+            className="gap-1.5 cursor-pointer text-xs h-8 px-3"
+            aria-label="Refresh repository and resource data"
           >
             <RefreshCw className="size-3.5" /> Refresh
           </Button>
-          <Button
-            size="sm"
-            onClick={() =>
-              openDialog("update-repository", {
-                id: repository.id,
-                name: repository.name,
-                description: repository.description || undefined,
-                projectId: repository.projectId,
-              })
-            }
-            className="gap-1.5 cursor-pointer text-xs"
-          >
-            Edit Repository
-          </Button>
+
+          <DropdownMenuTrigger>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8 rounded-lg cursor-pointer"
+              aria-label="Repository options"
+            >
+              <MoreVertical className="size-4" />
+            </Button>
+            <DropdownMenu placement="bottom end">
+              <DropdownMenuItem
+                onAction={() =>
+                  openDialog("update-repository", {
+                    id: repository.id,
+                    name: repository.name,
+                    description: repository.description || undefined,
+                    projectId: repository.projectId,
+                    supportedExtensions: (repository as any).supportedExtensions,
+                  })
+                }
+                className="gap-2 text-xs cursor-pointer"
+              >
+                <Edit2 className="size-3.5" /> Edit Repository
+              </DropdownMenuItem>
+            </DropdownMenu>
+          </DropdownMenuTrigger>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="rounded-2xl border-border/60 bg-card/60 backdrop-blur-sm">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase font-medium">Resources</CardDescription>
-            <CardTitle className="text-2xl font-bold flex items-center justify-between">
-              <span>{resources.length}</span>
-              <FileText className="size-5 text-primary/60" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
-            Synchronized assets & files
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border-border/60 bg-card/60 backdrop-blur-sm">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase font-medium">Attached Runners</CardDescription>
-            <CardTitle className="text-2xl font-bold flex items-center justify-between">
-              <span>{runners.length}</span>
-              <Cpu className="size-5 text-primary/60" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
-            Worker agents executing jobs
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border-border/60 bg-card/60 backdrop-blur-sm">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs uppercase font-medium">Storage Location</CardDescription>
-            <CardTitle className="text-base font-semibold truncate flex items-center justify-between">
-              <span className="font-mono text-xs truncate max-w-[200px]">
-                {runners[0]?.rootPath || "Cloud Managed"}
-              </span>
-              <HardDrive className="size-5 text-primary/60 shrink-0" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-muted-foreground truncate">
-            {runners[0]?.runner ? `Machine: ${runners[0].runner.machineKey}` : "No runner location bound"}
-          </CardContent>
-        </Card>
+      {/* Segmented Pill Tabs Navigation */}
+      <div className="flex items-center bg-muted/50 p-1 rounded-xl border border-border/60 gap-1 w-fit">
+        {tabs.map(({ key, label, icon: Icon, badge }) => {
+          const isActive = activeTab === key;
+          return (
+            <Button
+              key={key}
+              variant={isActive ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setActiveTab(key)}
+              className={cn(
+                "group h-8 flex items-center gap-2 px-3 text-xs font-medium rounded-lg transition-all select-none cursor-pointer",
+                isActive
+                  ? "bg-background text-foreground font-semibold shadow-xs border border-border/50 hover:bg-background"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
+              )}
+            >
+              <Icon className={cn("size-3.5", isActive ? "text-primary" : "text-muted-foreground")} />
+              <span>{label}</span>
+              {badge}
+            </Button>
+          );
+        })}
       </div>
 
-      {/* Resources Table / List */}
-      <Card className="rounded-2xl border-border/60 bg-card">
-        <CardHeader className="flex flex-row items-center justify-between border-b px-6 py-4">
-          <div>
-            <CardTitle className="text-base font-semibold">Repository Resources</CardTitle>
-            <CardDescription className="text-xs">
-              Files and directory items mapped from local runner directories
-            </CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {isResourcesLoading ? (
-            <div className="flex items-center justify-center py-12 gap-2 text-muted-foreground text-xs">
-              <Loader2 className="size-4 animate-spin text-primary" />
-              <span>Loading resources...</span>
-            </div>
-          ) : resources.length === 0 ? (
-            <div className="text-center py-16 px-4 space-y-2">
-              <FileText className="size-8 text-muted-foreground mx-auto stroke-1" />
-              <p className="text-sm font-medium text-foreground">No resources discovered yet</p>
-              <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                Attach a local runner to scan and synchronize files into this repository.
-              </p>
-            </div>
-          ) : (
-            <div className="divide-y divide-border/60">
-              {resources.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between px-6 py-3 hover:bg-muted/30 transition-colors text-xs"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <FileText className="size-4 text-primary/70 shrink-0" />
-                    <div className="min-w-0">
-                      <p className="font-medium text-foreground truncate">{item.displayName}</p>
-                      <p className="text-[11px] font-mono text-muted-foreground truncate">
-                        {item.relativePath}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 text-muted-foreground shrink-0">
-                    <span className="font-mono text-[11px]">
-                      v{item.versionCount ?? 1}
-                    </span>
-                    <Badge variant="outline" className="text-[10px]">
-                      {item.contentTypeName || "item"}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Tab 1: Resources & Assets */}
+      {activeTab === "resources" && (
+        <RepositoryResourcesTab
+          projectId={projectId}
+          repositoryId={repository.id}
+          repository={repository}
+          resources={resources}
+          isLoading={isResourcesLoading}
+          onNavigateToSync={() => setActiveTab("sync")}
+          onNavigateToRunners={() => setActiveTab("runners")}
+        />
+      )}
+
+      {/* Tab 2: Changes & Sync (In-page Diff & Commit Center) */}
+      {activeTab === "sync" && (
+        <RepositorySyncTab
+          repositoryId={repository.id}
+          repositoryName={repository.name}
+          runners={runners}
+          onAttachRunner={() =>
+            openDialog("attach-runner-to-repository", {
+              repositoryId: repository.id,
+              repositoryName: repository.name,
+            })
+          }
+          onSyncSuccess={handleRefreshAll}
+        />
+      )}
+
+      {/* Tab 3: Attached Runners */}
+      {activeTab === "runners" && (
+        <AttachedRunnersCard
+          repositoryId={repository.id}
+          repositoryName={repository.name}
+          runners={runners}
+          onAttachRunner={(initial) =>
+            openDialog("attach-runner-to-repository", {
+              repositoryId: repository.id,
+              repositoryName: repository.name,
+              runnerId: initial?.runnerId,
+              rootPath: initial?.rootPath,
+            })
+          }
+          onScanSyncRunner={() => setActiveTab("sync")}
+        />
+      )}
+
+      {/* Floating TagTool for easy drag-and-drop */}
+      <TagTool projectId={projectId} />
     </div>
   );
 }

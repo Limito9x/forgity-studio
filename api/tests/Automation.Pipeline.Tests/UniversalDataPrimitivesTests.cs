@@ -5,14 +5,18 @@ using Automation.Pipeline.Engine.StructRegistry.Definitions;
 using Automation.Pipeline.Tools;
 using Automation.Pipeline.Tools.Construct;
 using Automation.Pipeline.Tools.Utility;
+using Automation.Pipeline.Engine.DataResolver;
+using Automation.Pipeline.Hubs;
+using Automation.Pipeline.Tools.Variables;
 using FluentAssertions;
+using NSubstitute;
 using Xunit;
 
 namespace Automation.Pipeline.Tests;
 
 public class UniversalDataPrimitivesTests
 {
-    private readonly ToolExecutionContext _context = new(Guid.NewGuid(), Guid.NewGuid(), Guid.Empty, CancellationToken.None);
+    private readonly ToolExecutionContext _context = new(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
     private static (EntityStructRegistry registry, Guid projectId) CreateTestRegistryWithSlotBinding()
     {
@@ -269,18 +273,20 @@ public class UniversalDataPrimitivesTests
     public void VariableTools_ShouldResolvePins_MatchingDeclaredVariable()
     {
         var (registry, projectId) = CreateTestRegistryWithSlotBinding();
-        var declaredVariables = new List<Automation.Pipeline.Domain.ValueObjects.PipelineVariableDecl>
+        var declaredParameters = new List<Automation.Pipeline.Domain.ValueObjects.PipelineParameter>
         {
             new()
             {
-                Name = "ResolvedSlotsMap",
+                Key = "ResolvedSlotsMap",
+                Label = "Resolved Slots Map",
+                Kind = PipelineParameterKind.Variable,
                 Type = PinPrimitiveType.EntityRef,
                 Cardinality = PinCardinality.Map,
                 StructType = "SlotBinding"
             }
         };
 
-        var resolutionCtx = new PinResolutionContext(registry, projectId, declaredVariables);
+        var resolutionCtx = new PinResolutionContext(registry, projectId, declaredParameters);
 
         // 1. GetVariableTool
         var getVarTool = new Automation.Pipeline.Tools.Variables.GetVariableTool();
@@ -306,5 +312,35 @@ public class UniversalDataPrimitivesTests
         setOutputValuePin.PrimitiveType.Should().Be(PinPrimitiveType.EntityRef);
         setOutputValuePin.Cardinality.Should().Be(PinCardinality.Map);
         setOutputValuePin.Metadata.Should().Be("SlotBinding");
+    }
+
+    [Fact]
+    public async Task SetVariableTool_ExecuteAsync_ShouldSetVariableAndBroadcastSignalR()
+    {
+        var memoryStore = Substitute.For<IExecutionMemoryStore>();
+        var hubContext = Substitute.For<Microsoft.AspNetCore.SignalR.IHubContext<PipelineExecutionHub>>();
+        var hubClients = Substitute.For<Microsoft.AspNetCore.SignalR.IHubClients>();
+        var clientProxy = Substitute.For<Microsoft.AspNetCore.SignalR.IClientProxy>();
+
+        hubContext.Clients.Returns(hubClients);
+        hubClients.Group(Arg.Any<string>()).Returns(clientProxy);
+
+        var tool = new SetVariableTool(memoryStore, hubContext);
+
+        var execId = Guid.NewGuid();
+        var pipeId = Guid.NewGuid();
+        var context = new ToolExecutionContext(execId, pipeId, CancellationToken.None);
+
+        var inputs = new Dictionary<string, object>
+        {
+            ["VariableName"] = "TargetDir",
+            ["Value"] = "D:/Project/Assets"
+        };
+
+        var result = await tool.ExecuteAsync(inputs, context);
+
+        result["Value"].Should().Be("D:/Project/Assets");
+        await memoryStore.Received(1).SetVariableAsync(execId, "TargetDir", "D:/Project/Assets", Arg.Any<CancellationToken>());
+        await clientProxy.Received(2).SendCoreAsync("PipelineVariableChanged", Arg.Any<object?[]>(), Arg.Any<CancellationToken>());
     }
 }

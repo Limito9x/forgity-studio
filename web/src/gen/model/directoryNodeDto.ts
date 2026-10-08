@@ -9,4 +9,8 @@ export interface DirectoryNodeDto {
   name: string;
   path: string;
   hasChildren?: boolean;
+  isDirectory?: boolean;
+  sizeBytes?: number;
+  /** @nullable */
+  extension?: string | null;
 }

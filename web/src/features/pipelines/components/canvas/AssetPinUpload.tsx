@@ -1,12 +1,16 @@
-import { useState, useRef } from "react";
+import { useRef } from "react";
 import { Upload, FileCode, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { uploadAssetFlow } from "@/lib/upload-utils";
+import { usePipelineFileUpload } from "../../hooks/usePipelineFileUpload";
+import type { PipelineFileParameterValue, PipelineFileParameterDraft } from "../../types/file-parameter";
+import type { PipelineFileAssetDto } from "../../hooks/usePipelineGraph";
 import { cn } from "@/lib/utils";
 
 interface AssetPinUploadProps {
-  value?: string;
-  onChange: (assetId: string) => void;
+  value?: PipelineFileParameterValue | string;
+  onChange: (value: PipelineFileParameterDraft | string | null) => void;
+  persistAsLink?: boolean;
+  fileAsset?: PipelineFileAssetDto;
   accept?: string;
   placeholder?: string;
   disabled?: boolean;
@@ -15,43 +19,28 @@ interface AssetPinUploadProps {
 export function AssetPinUpload({
   value,
   onChange,
+  fileAsset,
+  persistAsLink = false,
   accept,
   placeholder = "Upload file (Preset / Script)",
   disabled = false,
 }: AssetPinUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [fileName, setFileName] = useState<string>("");
-  const [isUploading, setIsUploading] = useState<boolean>(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const upload = usePipelineFileUpload();
+  const isUploading = upload.isPending;
+  const uploadError = upload.error?.message;
+  const isDraft = !!value && typeof value === "object" && "assetId" in value;
+  const fileName = !value ? undefined : isDraft ? (value as PipelineFileParameterDraft).originalName :
+    fileAsset?.originalName || (value === upload.data?.assetId ? upload.data?.originalName : undefined);
+  const isAvailable = !!value && typeof value === "object" && "assetLinkId" in value &&
+    fileAsset?.assetLinkId === value.assetLinkId && fileAsset.status === "Available";
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setIsUploading(true);
-    setUploadError(null);
-    setFileName(file.name);
-
-    try {
-      const assetId = await uploadAssetFlow(file);
-      onChange(assetId);
-    } catch (err: any) {
-      setUploadError(err?.message || "Failed to upload file");
-      setFileName("");
-      onChange("");
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
-  };
-
-  const handleClear = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setFileName("");
-    setUploadError(null);
-    onChange("");
+    upload.mutate({ file, onUploaded: (draft) => onChange(persistAsLink ? draft : draft.assetId) });
+    e.target.value = "";
   };
 
   return (
@@ -71,10 +60,10 @@ export function AssetPinUpload({
             <FileCode className="h-4 w-4 text-primary shrink-0" />
             <div className="min-w-0">
               <span className="block font-medium text-foreground truncate">
-                {fileName || `Asset: ${value}`}
+                {fileName || "File needs to be relinked"}
               </span>
               <span className="block text-[10px] text-emerald-600 dark:text-emerald-400 font-mono">
-                Uploaded & Ready
+                {isUploading ? "Uploading..." : isDraft ? "Uploaded · waiting to save" : !persistAsLink ? "Uploaded" : isAvailable ? "Saved" : "Upload the file again"}
               </span>
             </div>
           </div>
@@ -92,7 +81,7 @@ export function AssetPinUpload({
             <Button
               variant="ghost"
               size="icon-xs"
-              onClick={handleClear}
+              onPress={() => { upload.reset(); onChange(null); }}
               isDisabled={disabled || isUploading}
               className="text-muted-foreground hover:text-destructive"
             >
@@ -125,6 +114,7 @@ export function AssetPinUpload({
           )}
         </button>
       )}
+      {uploadError && value && <p className="text-xs text-destructive">{uploadError}</p>}
     </div>
   );
 }

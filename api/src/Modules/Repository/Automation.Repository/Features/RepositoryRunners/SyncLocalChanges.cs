@@ -130,7 +130,7 @@ public class SyncLocalChangesHandler(RepositoryDbContext dbContext, IMessageBus 
                 ResourceItem.Create(
                     cmd.RepositoryId,
                     repositoryRunnerId,
-                    x.PlatformExtensionId,
+                    x.Extension,
                     GetNewResourceName(x.RelativePath, x.Name ?? Path.GetFileName(x.RelativePath) ?? "Unnamed"),
                     x.RelativePath,
                     x.LocalHash ?? "",
@@ -144,9 +144,8 @@ public class SyncLocalChangesHandler(RepositoryDbContext dbContext, IMessageBus 
             createdVersions.AddRange(
                 toAdd.Select(x => new ResourceVersionCreatedInfo(
                     x.LatestVersion!.Id,
-                    x.PlatformExtensionId,
+                    x.Extension,
                     x.ContentId,
-                    ResourcePathHelper.GetExtension(x.RelativePath),
                     x.RelativePath
                 ))
             );
@@ -180,9 +179,8 @@ public class SyncLocalChangesHandler(RepositoryDbContext dbContext, IMessageBus 
                 modCount++;
                 createdVersions.Add(new ResourceVersionCreatedInfo(
                     newVersion.Id,
-                    item.PlatformExtensionId,
+                    item.Extension,
                     item.ContentId,
-                    ResourcePathHelper.GetExtension(item.RelativePath),
                     item.RelativePath
                 ));
             }

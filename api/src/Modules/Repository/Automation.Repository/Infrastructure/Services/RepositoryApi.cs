@@ -1,8 +1,9 @@
-using Automation.Tag.Contracts;
-using Automation.Tag.Contracts.Dtos;
+using System.Text.Json;
 using Automation.Repository.Contracts;
 using Automation.Repository.Contracts.Extensions;
 using Automation.Repository.Infrastructure.Persistence;
+using Automation.Tag.Contracts;
+using Automation.Tag.Contracts.Dtos;
 using FluentResults;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
@@ -65,7 +66,8 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
                 version.FileHash,
                 runnerId,
                 rootPath,
-                version.Resource?.ContentId
+                version.Resource?.ContentId,
+                version.Resource?.RepositoryId ?? Guid.Empty
             )
         );
     }
@@ -98,7 +100,8 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
                 loc.Value.ResourceVersion.FileHash,
                 loc.Value.RepositoryRunner.RunnerId,
                 loc.Value.RepositoryRunner.RootPath,
-                loc.Value.ResourceVersion.Resource?.ContentId
+                loc.Value.ResourceVersion.Resource?.ContentId,
+                loc.Value.ResourceVersion.Resource?.RepositoryId ?? Guid.Empty
             );
             result[loc.Key] = dto;
             result[loc.Value.ResourceVersion.ResourceId.ToString()] = dto;
@@ -132,7 +135,8 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
                     latest.FileHash,
                     loc?.RepositoryRunner?.RunnerId,
                     loc?.RepositoryRunner?.RootPath,
-                    latest.Resource?.ContentId
+                    latest.Resource?.ContentId,
+                    latest.Resource?.RepositoryId ?? Guid.Empty
                 );
                 result[group.Key.ToString()] = dto;
                 result[latest.Id.ToString()] = dto;
@@ -224,6 +228,56 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
         return Result.Ok(repoRunner.RootPath);
     }
 
+    public async Task<Result<Dictionary<string, Guid>>> ResolveResourceVersionIdsByPathsAsync(
+        Guid repositoryId,
+        IEnumerable<string> filePaths,
+        CancellationToken ct = default
+    )
+    {
+        var pathsList = filePaths.Where(p => !string.IsNullOrWhiteSpace(p)).Distinct().ToList();
+        if (pathsList.Count == 0)
+        {
+            return Result.Ok(new Dictionary<string, Guid>());
+        }
+
+        var resources = await db
+            .ResourceItems.AsNoTracking()
+            .Where(r => r.RepositoryId == repositoryId)
+            .Include(r => r.Versions)
+            .ToListAsync(ct);
+
+        var result = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var path in pathsList)
+        {
+            var normalizedPath = path.Replace('\\', '/').TrimStart('/');
+            var matched = resources.FirstOrDefault(r =>
+            {
+                var rRel = r.RelativePath.Replace('\\', '/').TrimStart('/');
+                return string.Equals(rRel, normalizedPath, StringComparison.OrdinalIgnoreCase)
+                    || normalizedPath.EndsWith("/" + rRel, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(
+                        Path.GetFileName(rRel),
+                        Path.GetFileName(normalizedPath),
+                        StringComparison.OrdinalIgnoreCase
+                    );
+            });
+
+            if (matched != null)
+            {
+                var latestVersion = matched
+                    .Versions.OrderByDescending(v => v.VersionNo)
+                    .FirstOrDefault();
+                if (latestVersion != null)
+                {
+                    result[path] = latestVersion.Id;
+                }
+            }
+        }
+
+        return Result.Ok(result);
+    }
+
     public async Task<Result> UpdateMetadataAsync(
         Guid resourceVersionId,
         System.Text.Json.JsonDocument? metadata,
@@ -238,7 +292,7 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
         if (version == null)
             return Result.Fail($"ResourceVersion with ID '{resourceVersionId}' not found.");
 
-        version.UpdateMetadata(metadata);
+        version.UpdateMetadata(UnwrapMetadataIfNeeded(metadata));
         await db.SaveChangesAsync(ct);
         return Result.Ok();
     }
@@ -264,7 +318,7 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
                 .FirstOrDefaultAsync(ct);
         }
 
-        return Result.Ok(version);
+        return Result.Ok(UnwrapMetadataIfNeeded(version));
     }
 
     public async Task<
@@ -287,15 +341,21 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
         if (version == null)
             return Result.Fail("Resource version not found.");
 
-        var resourceTagResult = await tagApi.GetTagsByEntityAsync("Resource", version.ResourceId, ct);
-        var resourceLinks = resourceTagResult.IsSuccess && resourceTagResult.Value != null
-            ? resourceTagResult.Value
-            : [];
+        var resourceTagResult = await tagApi.GetTagsByEntityAsync(
+            "Resource",
+            version.ResourceId,
+            ct
+        );
+        var resourceLinks =
+            resourceTagResult.IsSuccess && resourceTagResult.Value != null
+                ? resourceTagResult.Value
+                : [];
 
         var versionTagResult = await tagApi.GetTagsByEntityAsync("ResourceVersion", version.Id, ct);
-        var versionLinks = versionTagResult.IsSuccess && versionTagResult.Value != null
-            ? versionTagResult.Value
-            : [];
+        var versionLinks =
+            versionTagResult.IsSuccess && versionTagResult.Value != null
+                ? versionTagResult.Value
+                : [];
 
         var combinedLinks = resourceLinks
             .Where(t => !string.IsNullOrEmpty(t.TargetSubPath))
@@ -311,8 +371,31 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
             .ToDictionary(g => g.Key, g => (IReadOnlyList<TagLinkDetailDto>)g.ToList());
 
         return Result.Ok(
-            new Contracts.Dtos.ResourceMetadataDetailDto(version.Id, version.Metadata, tagsByPath)
+            new Contracts.Dtos.ResourceMetadataDetailDto(version.Id, UnwrapMetadataIfNeeded(version.Metadata), tagsByPath)
         );
+    }
+
+    /// <summary>
+    /// Unwrap JsonDocument nếu JSONB column lưu metadata dưới dạng JSON string thay vì JSON object.
+    /// Trường hợp này xảy ra khi worker lưu json.dumps(obj) thay vì obj trực tiếp vào JSONB.
+    /// </summary>
+    private static JsonDocument? UnwrapMetadataIfNeeded(JsonDocument? doc)
+    {
+        if (doc == null) return null;
+        if (doc.RootElement.ValueKind != JsonValueKind.String) return doc;
+
+        var inner = doc.RootElement.GetString();
+        if (string.IsNullOrWhiteSpace(inner)) return doc;
+
+        try
+        {
+            return JsonDocument.Parse(inner);
+        }
+        catch
+        {
+            // Nếu không parse được, trả nguyên gốc
+            return doc;
+        }
     }
 
     public async Task<
@@ -453,7 +536,7 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
                 resName,
                 relPath,
                 fullPath,
-                v.Metadata,
+                UnwrapMetadataIfNeeded(v.Metadata),
                 rootResourceTags,
                 tagMap
             );
@@ -496,12 +579,54 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
             await db
                 .ResourceItems.Where(r => distinctIds.Contains(r.Id))
                 .ExecuteUpdateAsync(
-                    s => s.SetProperty(r => r.ContentId, ContentId)
-                          .SetProperty(r => r.UpdatedAt, DateTimeOffset.UtcNow),
+                    s =>
+                        s.SetProperty(r => r.ContentId, ContentId)
+                            .SetProperty(r => r.UpdatedAt, DateTimeOffset.UtcNow),
                     ct
                 );
         }
 
         return Result.Ok();
+    }
+
+    public async Task<Result<IReadOnlyList<ResourceDto>>> GetResourcesByIdsAsync(
+        IEnumerable<Guid> resourceIds,
+        CancellationToken ct = default
+    )
+    {
+        var idsList = resourceIds.Distinct().ToList();
+        if (idsList.Count == 0)
+        {
+            return Result.Ok<IReadOnlyList<ResourceDto>>([]);
+        }
+
+        var items = await db
+            .ResourceItems.AsNoTracking()
+            .Where(r => idsList.Contains(r.Id) || r.Versions.Any(v => idsList.Contains(v.Id)))
+            .Include(r => r.Versions)
+            .ToListAsync(ct);
+
+        var result = new List<ResourceDto>();
+        foreach (var item in items)
+        {
+            var latestVersion = item.Versions.OrderByDescending(v => v.VersionNo).FirstOrDefault();
+            var versionId = latestVersion?.Id ?? Guid.Empty;
+            var fileHash = latestVersion?.FileHash ?? string.Empty;
+            var metaJson = UnwrapMetadataIfNeeded(latestVersion?.Metadata)?.RootElement.GetRawText();
+
+            result.Add(new ResourceDto(
+                item.Id,
+                versionId,
+                item.DisplayName,
+                item.Extension,
+                item.RelativePath,
+                fileHash,
+                item.ContentId,
+                metaJson,
+                item.RepositoryId
+            ));
+        }
+
+        return Result.Ok<IReadOnlyList<ResourceDto>>(result);
     }
 }

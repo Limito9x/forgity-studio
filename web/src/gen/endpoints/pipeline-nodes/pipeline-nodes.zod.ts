@@ -13,13 +13,15 @@ export const createCustomNodeBodyNameMax = 100;
 
 
 
+
+
 export const CreateCustomNodeBody = /*#__PURE__*/ zod.object({
   "projectId": /*#__PURE__*/ zod.uuid().check(/*#__PURE__*/ zod.minLength(1)),
   "name": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(createCustomNodeBodyNameMin)).check(/*#__PURE__*/ zod.maxLength(createCustomNodeBodyNameMax)),
   "label": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "executor": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
-  "assetId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
-  "originalFileName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "assetId": /*#__PURE__*/ zod.uuid().check(/*#__PURE__*/ zod.minLength(1)),
+  "originalFileName": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(1)),
   "inputs": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
   "label": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
@@ -43,7 +45,8 @@ export const CreateCustomNodeBody = /*#__PURE__*/ zod.object({
   "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "entityTarget": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "allowedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
-})))
+}))),
+  "contentHash": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 export const CreateCustomNodeResponse = /*#__PURE__*/ zod.object({
@@ -77,7 +80,153 @@ export const CreateCustomNodeResponse = /*#__PURE__*/ zod.object({
   "entityTarget": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "allowedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })),
-  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "scriptAssetLinkId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "contentHash": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "assetId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "originalFileName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+})
+
+
+
+
+
+export const AnalyzeCustomNodesBatchBody = /*#__PURE__*/ zod.object({
+  "projectId": /*#__PURE__*/ zod.uuid().check(/*#__PURE__*/ zod.minLength(1)),
+  "scripts": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "fileName": /*#__PURE__*/ zod.string(),
+  "scriptContent": /*#__PURE__*/ zod.string()
+})).check(/*#__PURE__*/ zod.minLength(1))
+})
+
+export const AnalyzeCustomNodesBatchResponse = /*#__PURE__*/ zod.object({
+  "nodes": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "fileName": /*#__PURE__*/ zod.string(),
+  "key": /*#__PURE__*/ zod.string(),
+  "suggestedName": /*#__PURE__*/ zod.string(),
+  "suggestedLabel": /*#__PURE__*/ zod.string(),
+  "executor": /*#__PURE__*/ zod.string(),
+  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "contentHash": /*#__PURE__*/ zod.string(),
+  "isOverride": /*#__PURE__*/ zod.boolean(),
+  "existingNodeId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "inputs": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "label": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "kind": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1)])),
+  "primitiveType": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2),/*#__PURE__*/ zod.literal(3),/*#__PURE__*/ zod.literal(4),/*#__PURE__*/ zod.literal(5)])),
+  "cardinality": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2)])),
+  "isRequired": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean()),
+  "defaultValue": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "entityTarget": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "allowedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+})),
+  "outputs": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "label": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "kind": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1)])),
+  "primitiveType": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2),/*#__PURE__*/ zod.literal(3),/*#__PURE__*/ zod.literal(4),/*#__PURE__*/ zod.literal(5)])),
+  "cardinality": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2)])),
+  "isRequired": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean()),
+  "defaultValue": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "entityTarget": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "allowedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+})),
+  "inputPinDiffs": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "pinId": /*#__PURE__*/ zod.string(),
+  "label": /*#__PURE__*/ zod.string(),
+  "primitiveType": /*#__PURE__*/ zod.string(),
+  "cardinality": /*#__PURE__*/ zod.string(),
+  "diffKind": /*#__PURE__*/ zod.string()
+})),
+  "outputPinDiffs": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "pinId": /*#__PURE__*/ zod.string(),
+  "label": /*#__PURE__*/ zod.string(),
+  "primitiveType": /*#__PURE__*/ zod.string(),
+  "cardinality": /*#__PURE__*/ zod.string(),
+  "diffKind": /*#__PURE__*/ zod.string()
+})),
+  "impactReport": /*#__PURE__*/ zod.object({
+  "affectedPipelineCount": /*#__PURE__*/ zod.int(),
+  "affectedNodeCount": /*#__PURE__*/ zod.int(),
+  "affectedEdgeCount": /*#__PURE__*/ zod.int(),
+  "affectedPipelineNames": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())
+})
+}))
+})
+
+
+export const batchUpsertCustomNodesBodyItemsItemStrategyDefault = 0;
+
+
+export const BatchUpsertCustomNodesBody = /*#__PURE__*/ zod.object({
+  "projectId": /*#__PURE__*/ zod.uuid().check(/*#__PURE__*/ zod.minLength(1)),
+  "items": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "key": /*#__PURE__*/ zod.string(),
+  "name": /*#__PURE__*/ zod.string(),
+  "label": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "executor": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "contentHash": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "originalFileName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "assetId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "inputs": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "label": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "kind": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1)])),
+  "primitiveType": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2),/*#__PURE__*/ zod.literal(3),/*#__PURE__*/ zod.literal(4),/*#__PURE__*/ zod.literal(5)])),
+  "cardinality": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2)])),
+  "isRequired": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean()),
+  "defaultValue": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "entityTarget": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "allowedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+}))),
+  "outputs": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "label": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "kind": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1)])),
+  "primitiveType": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2),/*#__PURE__*/ zod.literal(3),/*#__PURE__*/ zod.literal(4),/*#__PURE__*/ zod.literal(5)])),
+  "cardinality": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2)])),
+  "isRequired": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean()),
+  "defaultValue": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "entityTarget": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "allowedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+}))),
+  "strategy": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1)]), batchUpsertCustomNodesBodyItemsItemStrategyDefault)
+})).check(/*#__PURE__*/ zod.minLength(1))
+})
+
+export const BatchUpsertCustomNodesResponse = /*#__PURE__*/ zod.object({
+  "results": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "key": /*#__PURE__*/ zod.string(),
+  "name": /*#__PURE__*/ zod.string(),
+  "executor": /*#__PURE__*/ zod.string(),
+  "isUpdated": /*#__PURE__*/ zod.boolean(),
+  "inputCount": /*#__PURE__*/ zod.int(),
+  "outputCount": /*#__PURE__*/ zod.int()
+})),
+  "errors": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "key": /*#__PURE__*/ zod.string(),
+  "fileName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "message": /*#__PURE__*/ zod.string()
+}))
+})
+
+
+
+
+export const DeleteCustomNodesBulkBody = /*#__PURE__*/ zod.object({
+  "projectId": /*#__PURE__*/ zod.uuid().check(/*#__PURE__*/ zod.minLength(1)),
+  "ids": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.uuid())
+})
+
+export const DeleteCustomNodesBulkResponse = /*#__PURE__*/ zod.object({
+  "deleted": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.uuid()),
+  "notFound": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.uuid())
 })
 
 export const GetCustomNodeByIdParams = /*#__PURE__*/ zod.object({
@@ -115,12 +264,18 @@ export const GetCustomNodeByIdResponse = /*#__PURE__*/ zod.object({
   "entityTarget": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "allowedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })),
-  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "scriptAssetLinkId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "contentHash": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "assetId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "originalFileName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 export const UpdateCustomNodeParams = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid()
 })
+
+export const updateCustomNodeBodyEdgeReconciliationStrategyDefault = 0;
 
 export const UpdateCustomNodeBody = /*#__PURE__*/ zod.object({
   "name": /*#__PURE__*/ zod.string(),
@@ -151,7 +306,9 @@ export const UpdateCustomNodeBody = /*#__PURE__*/ zod.object({
   "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "entityTarget": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "allowedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
-})))
+}))),
+  "edgeReconciliationStrategy": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1)]), updateCustomNodeBodyEdgeReconciliationStrategyDefault),
+  "contentHash": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 export const UpdateCustomNodeResponse = /*#__PURE__*/ zod.object({
@@ -185,11 +342,16 @@ export const UpdateCustomNodeResponse = /*#__PURE__*/ zod.object({
   "entityTarget": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "allowedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })),
-  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "scriptAssetLinkId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "contentHash": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "assetId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "originalFileName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 export const GetNodePaletteQueryParams = /*#__PURE__*/ zod.object({
-  "projectId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid())
+  "projectId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "executor": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 export const GetNodePaletteResponseItem = /*#__PURE__*/ zod.object({

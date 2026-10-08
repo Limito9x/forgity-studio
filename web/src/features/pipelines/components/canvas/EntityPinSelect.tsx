@@ -40,20 +40,21 @@ export function EntityPinSelect({
   const normType = (target || entityType || "resource").toLowerCase().replace(/[\s_-]+/g, "");
   const isResourceRef = normType.includes("resource");
   const isContentTypeRef = normType === "contenttype" || normType.includes("contenttype");
+  const isRepoRef = normType === "workspace" || normType === "repository" || normType.includes("repository") || normType.includes("workspace");
 
   // 1. Repositories
-  const { data: workspacesData, isLoading: isWorkspacesLoading } = useRepositories(
-    normType === "workspace" || normType === "repository" || isResourceRef ? effectiveProjectId : ""
+  const { data: repositoriesData, isLoading: isRepositoriesLoading } = useRepositories(
+    isRepoRef || isResourceRef ? effectiveProjectId : ""
   );
 
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>("");
+  const [selectedRepositoryId, setSelectedRepositoryId] = useState<string>("");
   const [resourceSearch, setResourceSearch] = useState<string>("");
 
   // 2. Resources within Selected Repository
   const { data: resourcesData, isLoading: isResourcesLoading } = useGetRepositoryResources(
-    selectedWorkspaceId,
-    { projectId: effectiveProjectId, workspaceId: selectedWorkspaceId, pageSize: 100, page: 1 },
-    { query: { enabled: isResourceRef && Boolean(selectedWorkspaceId) } }
+    selectedRepositoryId,
+    { projectId: effectiveProjectId, workspaceId: selectedRepositoryId, pageSize: 100, page: 1 },
+    { query: { enabled: isResourceRef && Boolean(selectedRepositoryId) } }
   );
 
   // 3. Runners
@@ -72,16 +73,16 @@ export function EntityPinSelect({
     { enabled: isContentTypeRef && Boolean(effectiveProjectId) }
   );
 
-  // Map workspace options
-  const workspaceOptions = useMemo(() => {
-    const list = Array.isArray(workspacesData)
-      ? workspacesData
-      : (workspacesData as any)?.items || [];
+  // Map repository options
+  const repositoryOptions = useMemo(() => {
+    const list = Array.isArray(repositoriesData)
+      ? repositoriesData
+      : (repositoriesData as any)?.items || [];
     return list.map((w: any) => ({
       label: w.name || w.id,
       value: w.id,
     }));
-  }, [workspacesData]);
+  }, [repositoriesData]);
 
   // Map raw resources list
   const rawResourcesList = useMemo(() => {
@@ -151,13 +152,15 @@ export function EntityPinSelect({
   const options = useMemo(() => {
     switch (normType) {
       case "workspace":
-        return workspaceOptions;
-      case "agent": {
+      case "repository":
+        return repositoryOptions;
+      case "agent":
+      case "runner": {
         const list = Array.isArray(agentsData)
           ? agentsData
           : (agentsData as any)?.items || [];
         return list.map((a: any) => ({
-          label: a.name || a.id,
+          label: a.name || a.machineKey || a.id,
           value: a.id,
         }));
       }
@@ -180,9 +183,9 @@ export function EntityPinSelect({
       default:
         return [];
     }
-  }, [normType, workspaceOptions, agentsData, tagsData, contentTypesData]);
+  }, [normType, repositoryOptions, agentsData, tagsData, contentTypesData]);
 
-  // Resource Selector: Workspace -> Resource (Single vs Multiple)
+  // Resource Selector: Repository -> Resource (Single vs Multiple)
   if (isResourceRef) {
     if (multiple) {
       const allFilteredSelected =
@@ -193,26 +196,26 @@ export function EntityPinSelect({
 
       return (
         <div className="space-y-3 rounded-lg border border-border/60 bg-card/40 p-3 shadow-xs">
-          {/* 1. Select Workspace */}
+          {/* 1. Select Repository */}
           <div className="space-y-1">
             <span className="text-[11px] font-medium text-muted-foreground">
-              1. Select Workspace
+              1. Select Repository
             </span>
             <BaseCombobox
-              items={workspaceOptions}
-              value={selectedWorkspaceId || undefined}
-              onValueChange={(wId) => {
-                setSelectedWorkspaceId(wId || "");
-                onChange([]); // Reset selection when switching workspace
+              items={repositoryOptions}
+              value={selectedRepositoryId || undefined}
+              onValueChange={(rId) => {
+                setSelectedRepositoryId(rId || "");
+                onChange([]); // Reset selection when switching repository
               }}
-              placeholder="Select workspace to view resources..."
-              disabled={disabled || isWorkspacesLoading}
-              emptyText={isWorkspacesLoading ? "Loading workspaces..." : "No workspaces found."}
+              placeholder="Select repository to view resources..."
+              disabled={disabled || isRepositoriesLoading}
+              emptyText={isRepositoriesLoading ? "Loading repositories..." : "No repositories found."}
             />
           </div>
 
           {/* 2. Multi-select Resources Checklist */}
-          {selectedWorkspaceId && (
+          {selectedRepositoryId && (
             <div className="space-y-2 pt-1 border-t border-border/40">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[11px] font-medium text-foreground">
@@ -243,7 +246,7 @@ export function EntityPinSelect({
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                   <Input
                     type="text"
-                    placeholder="Search resources in workspace..."
+                    placeholder="Search resources in repository..."
                     value={resourceSearch}
                     onChange={(e) => setResourceSearch(e.target.value)}
                     className="h-8 pl-8 pr-2 text-xs bg-background"
@@ -280,11 +283,11 @@ export function EntityPinSelect({
                 {isResourcesLoading ? (
                   <div className="flex items-center justify-center py-6 text-xs text-muted-foreground gap-2">
                     <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    Loading workspace resources...
+                    Loading repository resources...
                   </div>
                 ) : filteredResources.length === 0 ? (
                   <div className="py-6 text-center text-xs text-muted-foreground">
-                    {resourceSearch ? "No resources matching search." : "No resources found in this workspace."}
+                    {resourceSearch ? "No resources matching search." : "No resources found in this repository."}
                   </div>
                 ) : (
                   filteredResources.map((r: any) => {
@@ -328,20 +331,20 @@ export function EntityPinSelect({
       );
     }
 
-    // Single Resource Selector: Workspace -> Resource -> Latest Version
+    // Single Resource Selector: Repository -> Resource -> Latest Version
     return (
       <div className="space-y-2">
         <div className="space-y-1">
-          <span className="text-[10px] font-medium text-muted-foreground">1. Select Workspace</span>
+          <span className="text-[10px] font-medium text-muted-foreground">1. Select Repository</span>
           <BaseCombobox
-            items={workspaceOptions}
-            value={selectedWorkspaceId || undefined}
-            onValueChange={(wId) => {
-              setSelectedWorkspaceId(wId || "");
+            items={repositoryOptions}
+            value={selectedRepositoryId || undefined}
+            onValueChange={(rId) => {
+              setSelectedRepositoryId(rId || "");
             }}
-            placeholder="Select workspace first..."
-            disabled={disabled || isWorkspacesLoading}
-            emptyText={isWorkspacesLoading ? "Loading workspaces..." : "No workspaces found."}
+            placeholder="Select repository first..."
+            disabled={disabled || isRepositoriesLoading}
+            emptyText={isRepositoriesLoading ? "Loading repositories..." : "No repositories found."}
           />
         </div>
 
@@ -351,9 +354,9 @@ export function EntityPinSelect({
             items={resourceOptions}
             value={value ? String(value) : undefined}
             onValueChange={(newVal) => onChange(newVal || null)}
-            placeholder={selectedWorkspaceId ? "Select resource file..." : "Select workspace above first..."}
-            disabled={disabled || !selectedWorkspaceId || isResourcesLoading}
-            emptyText={isResourcesLoading ? "Loading resources..." : "No resources found in this workspace."}
+            placeholder={selectedRepositoryId ? "Select resource file..." : "Select repository above first..."}
+            disabled={disabled || !selectedRepositoryId || isResourcesLoading}
+            emptyText={isResourcesLoading ? "Loading resources..." : "No resources found in this repository."}
           />
         </div>
       </div>
@@ -361,19 +364,22 @@ export function EntityPinSelect({
   }
 
   const isLoading =
-    (normType === "workspace" && isWorkspacesLoading) ||
-    (normType === "agent" && isAgentsLoading) ||
+    ((normType === "workspace" || normType === "repository") && isRepositoriesLoading) ||
+    ((normType === "agent" || normType === "runner") && isAgentsLoading) ||
     (normType === "tag" && isTagsLoading) ||
     (isContentTypeRef && isContentTypesLoading);
+
+  const isRepo = normType === "workspace" || normType === "repository";
+  const displayLabel = isRepo ? "Repository" : (entityType || "Entity");
 
   return (
     <BaseCombobox
       items={options}
       value={value ? String(value) : undefined}
       onValueChange={(newVal) => onChange(newVal || null)}
-      placeholder={placeholder || `Select ${entityType}...`}
+      placeholder={placeholder || `Select ${displayLabel}...`}
       disabled={disabled || isLoading}
-      emptyText={isLoading ? "Loading..." : `No ${entityType} found.`}
+      emptyText={isLoading ? "Loading..." : `No ${displayLabel.toLowerCase()} found.`}
     />
   );
 }

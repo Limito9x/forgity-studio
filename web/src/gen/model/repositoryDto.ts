@@ -14,4 +14,6 @@ export interface RepositoryDto {
   runnerCount: number;
   resourceCount: number;
   createdAt: string;
+  /** @nullable */
+  supportedExtensions?: unknown[] | null;
 }

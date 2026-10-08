@@ -1,10 +1,18 @@
 import argparse
 import sys
 import os
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%H:%M:%S"
+)
 
 # Add core and current dir to sys.path so generated protobuf modules can resolve cleanly
-sys.path.append(os.path.abspath("core"))
-sys.path.append(os.path.abspath("."))
+WORKERS_ROOT = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(WORKERS_ROOT, "core"))
+sys.path.append(WORKERS_ROOT)
 
 from commands import register, scan, health, start, browse, connect, rescan_hardware, diagnose
 
@@ -18,6 +26,9 @@ def main():
 
     # Start command
     subparsers.add_parser("start", help="Start background pipeline worker and persistent gRPC stream")
+    subparsers.add_parser("worker", aliases=["pipeline-worker"], help="Start pipeline consumer only")
+    cleanup_parser = subparsers.add_parser("cleanup", help="Preview runtime cleanup; --apply deletes eligible files")
+    cleanup_parser.add_argument("--apply", action="store_true", help="Apply TTL and cache quota cleanup")
 
     # Connect command
     subparsers.add_parser("connect", help="Connect to persistent gRPC stream to listen for server commands")
@@ -51,7 +62,10 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "start":
+    if args.command == "cleanup":
+        from core.runtime_storage import cleanup
+        print(cleanup(dry_run=not args.apply))
+    elif args.command == "start":
         start.run()
     elif args.command == "connect":
         connect.run()

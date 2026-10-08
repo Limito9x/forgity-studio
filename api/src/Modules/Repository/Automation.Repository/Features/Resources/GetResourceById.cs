@@ -1,9 +1,10 @@
-using Automation.Tag.Contracts;
-using Automation.Tag.Contracts.Dtos;
 using Automation.Repository.Constants;
 using Automation.Repository.Contracts.Extensions;
 using Automation.Repository.Infrastructure.Persistence;
 using Automation.Repository.Shared.Dtos;
+using Automation.Runner.Contracts;
+using Automation.Tag.Contracts;
+using Automation.Tag.Contracts.Dtos;
 using FastEndpoints;
 using FluentResults;
 using Microsoft.EntityFrameworkCore;
@@ -29,22 +30,30 @@ public class GetResourceByIdEndpoint(IMessageBus bus) : EndpointWithoutRequest<R
     public override async Task HandleAsync(CancellationToken ct)
     {
         var id = Route<Guid>("id");
-        var result = await bus.InvokeAsync<Result<ResourceItemDto>>(new GetResourceByIdQuery(id), ct);
+        var result = await bus.InvokeAsync<Result<ResourceItemDto>>(
+            new GetResourceByIdQuery(id),
+            ct
+        );
         await this.SendResultAsync(result, ct);
     }
 }
 
 // 3. Handler
 [NonTransactional]
-public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi)
+public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi, IRunnerApi runnerApi)
 {
-    public async Task<Result<ResourceItemDto>> HandleAsync(GetResourceByIdQuery query, CancellationToken ct)
+    public async Task<Result<ResourceItemDto>> HandleAsync(
+        GetResourceByIdQuery query,
+        CancellationToken ct
+    )
     {
-        var resource = await db.ResourceItems
-            .AsNoTracking()
+        var resource = await db
+            .ResourceItems.AsNoTracking()
             .Where(x => x.Id == query.Id)
             .Include(x => x.Repository)
             .Include(x => x.Versions)
+                .ThenInclude(v => v.Locations)
+                    .ThenInclude(l => l.RepositoryRunner)
             .FirstOrDefaultAsync(ct);
 
         if (resource is null)
@@ -52,35 +61,70 @@ public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi)
 
         // 1. Query Resource-level tags (the primary source of truth for semantic sub-path tags)
         var resourceTagResult = await tagApi.GetTagsByEntityAsync("Resource", resource.Id, ct);
-        var resourceLinks = resourceTagResult.IsSuccess && resourceTagResult.Value != null ? resourceTagResult.Value : [];
+        var resourceLinks =
+            resourceTagResult.IsSuccess && resourceTagResult.Value != null
+                ? resourceTagResult.Value
+                : [];
 
-        // 2. Query legacy ResourceVersion tags for backward compatibility
-        var versionIds = resource.Versions.Select(v => v.Id).ToList();
-        var tagsByVersion = new Dictionary<Guid, IReadOnlyList<TagLinkDetailDto>>();
+        // 3. Query Runner metadata for all attached locations
+        var allRunnerIds = resource
+            .Versions.SelectMany(v => v.Locations)
+            .Where(l => l.RepositoryRunner != null)
+            .Select(l => l.RepositoryRunner.RunnerId)
+            .Distinct()
+            .ToList();
 
-        if (versionIds.Count > 0)
+        IReadOnlyDictionary<Guid, RunnerDto> runnerMap = new Dictionary<Guid, RunnerDto>();
+        if (allRunnerIds.Count > 0)
         {
-            var tagResult = await tagApi.GetTagsByEntitiesAsync("ResourceVersion", versionIds, ct);
-            if (tagResult.IsSuccess && tagResult.Value != null)
+            var runnerMapResult = await runnerApi.GetAgentsMapByIdsAsync(allRunnerIds, ct);
+            if (runnerMapResult.IsSuccess && runnerMapResult.Value != null)
             {
-                tagsByVersion = tagResult.Value.ToDictionary(k => k.Key, v => v.Value);
+                runnerMap = runnerMapResult.Value;
             }
         }
 
-        var versionDtos = resource.Versions
-            .OrderByDescending(v => v.VersionNo)
+        var tagsByPath = resourceLinks
+            .Select(t => new
+            {
+                Path = !string.IsNullOrEmpty(t.TargetSubPath)
+                    ? t.TargetSubPath
+                    : TagMigrationHelper.ExtractPath(t.MetadataJson),
+                Tag = t
+            })
+            .Where(x => !string.IsNullOrEmpty(x.Path))
+            .GroupBy(x => x.Path)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<TagLinkDetailDto>)g.Select(x => x.Tag).ToList());
+
+        var versionDtos = resource
+            .Versions.OrderByDescending(v => v.VersionNo)
             .Select(v =>
             {
-                var versionLinks = tagsByVersion.GetValueOrDefault(v.Id) ?? [];
-                var combinedLinks = resourceLinks
-                    .Where(t => !string.IsNullOrEmpty(t.TargetSubPath))
-                    .Concat(versionLinks)
-                    .ToList();
 
-                var tagsByPath = combinedLinks
-                    .GroupBy(t => !string.IsNullOrEmpty(t.TargetSubPath) ? t.TargetSubPath : TagMigrationHelper.ExtractPath(t.MetadataJson))
-                    .Where(g => !string.IsNullOrEmpty(g.Key))
-                    .ToDictionary(g => g.Key, g => (IReadOnlyList<TagLinkDetailDto>)g.ToList());
+                var locationDtos = v
+                    .Locations.Select(l =>
+                    {
+                        var rr = l.RepositoryRunner;
+                        RunnerDto? rDto = null;
+                        if (rr != null)
+                        {
+                            runnerMap.TryGetValue(rr.RunnerId, out rDto);
+                        }
+
+                        return new ResourceVersionLocationDto(
+                            l.Id,
+                            l.ResourceVersionId,
+                            l.RepositoryRunnerId,
+                            resource.RelativePath,
+                            l.IsOrigin,
+                            l.DiscoveredAt,
+                            l.CreatedAt,
+                            rDto?.MachineKey,
+                            rDto?.Name,
+                            rr?.RootPath
+                        );
+                    })
+                    .ToList();
 
                 return new ResourceVersionDto(
                     v.Id,
@@ -90,7 +134,8 @@ public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi)
                     v.Notes,
                     v.CreatedAt,
                     v.Metadata,
-                    tagsByPath
+                    tagsByPath,
+                    locationDtos
                 );
             })
             .ToList();
@@ -101,7 +146,7 @@ public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi)
             resource.RepositoryId,
             resource.DisplayName,
             resource.RelativePath,
-            resource.PlatformExtensionId,
+            resource.Extension,
             resource.ContentId,
             resource.CreatedAt,
             versionDtos

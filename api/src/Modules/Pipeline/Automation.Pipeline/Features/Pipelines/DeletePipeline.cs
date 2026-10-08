@@ -61,16 +61,6 @@ public class DeletePipelineHandler(PipelineDbContext db)
             db.PipelineEdges.RemoveRange(edges);
         }
 
-        // Xóa các Inputs
-        var inputs = await db.PipelineInputs
-            .Where(x => x.PipelineId == command.Id)
-            .ToListAsync(ct);
-
-        if (inputs.Count > 0)
-        {
-            db.PipelineInputs.RemoveRange(inputs);
-        }
-
         db.Pipelines.Remove(pipeline);
         await db.SaveChangesAsync(ct);
 

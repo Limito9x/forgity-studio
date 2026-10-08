@@ -9,7 +9,8 @@ public record RepositoryDto(
     string? Description,
     int RunnerCount,
     int ResourceCount,
-    DateTimeOffset CreatedAt
+    DateTimeOffset CreatedAt,
+    IReadOnlyList<string>? SupportedExtensions = null
 );
 
 public record RepositoryRunnerDto(
@@ -28,7 +29,7 @@ public record WorkspaceDto(
     int AgentCount,
     int ResourceCount,
     DateTimeOffset CreatedAt,
-    IReadOnlyList<Guid>? PlatformIds = null
+    IReadOnlyList<string>? SupportedExtensions = null
 );
 
 public record ResourceItemDto(
@@ -37,7 +38,7 @@ public record ResourceItemDto(
     Guid RepositoryId,
     string Name,
     string? FilePath,
-    Guid? PlatformExtensionId,
+    string? Extension,
     Guid? ContentId,
     DateTimeOffset CreatedAt,
     IReadOnlyList<ResourceVersionDto>? Versions = null
@@ -62,7 +63,10 @@ public record ResourceVersionLocationDto(
     string RelativePath,
     bool IsOrigin,
     DateTimeOffset DiscoveredAt,
-    DateTimeOffset CreatedAt
+    DateTimeOffset CreatedAt,
+    string? MachineKey = null,
+    string? RunnerName = null,
+    string? RootPath = null
 )
 {
     public Guid WorkspaceAgentId => RepositoryRunnerId;
@@ -96,7 +100,7 @@ public record WorkspaceResourceDto(
     Guid WorkspaceId,
     string DisplayName,
     string? RelativePath,
-    Guid? PlatformExtensionId,
+    string? Extension,
     Guid? ContentId,
     string? ContentName,
     string? ContentTypeName,
@@ -130,7 +134,8 @@ public record ResourceVersionDto(
     string? Notes,
     DateTimeOffset CreatedAt,
     System.Text.Json.JsonDocument? Metadata = null,
-    IReadOnlyDictionary<string, IReadOnlyList<Automation.Tag.Contracts.Dtos.TagLinkDetailDto>>? TagsByPath = null
+    IReadOnlyDictionary<string, IReadOnlyList<Automation.Tag.Contracts.Dtos.TagLinkDetailDto>>? TagsByPath = null,
+    IReadOnlyList<ResourceVersionLocationDto>? Locations = null
 );
 
 public record ResourceDiffItem(
@@ -138,7 +143,7 @@ public record ResourceDiffItem(
     string Name,
     string? LocalHash,
     long? LocalFileSize,
-    Guid PlatformExtensionId,
+    string Extension,
     ResourceVersionDto? RemoteVersion
 );
 
@@ -159,7 +164,7 @@ public record ContentResourceDto(
     string WorkspaceName,
     string DisplayName,
     string RelativePath,
-    Guid PlatformExtensionId,
+    string Extension,
     int LatestVersionNo,
     long LatestSizeBytes,
     int VersionCount,

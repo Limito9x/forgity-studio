@@ -2,6 +2,8 @@ import json
 import logging
 import os
 import subprocess
+import uuid
+from core.runtime_storage import settings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, List, Optional, Dict, Any
@@ -87,6 +89,10 @@ class BaseSubprocessExecutor(BaseExecutor):
         env["PYTHONIOENCODING"] = "utf-8"
         env["PYTHONUTF8"] = "1"
         env["PYTHONUNBUFFERED"] = "1"
+        temp_dir = settings()[0] / "temp" / uuid.uuid4().hex
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        for key in ("TEMP", "TMP", "TMPDIR"):
+            env[key] = str(temp_dir)
         return env
 
     def get_stdin_payload(self, task: "StageTaskMessage") -> Optional[str]:
@@ -271,4 +277,3 @@ class BaseSubprocessExecutor(BaseExecutor):
                 self.cleanup_after_execution(task)
             except Exception as ce:
                 logger.warning(f"Error during post-execution cleanup: {ce}")
-

@@ -5,9 +5,18 @@ using Wolverine.Attributes;
 
 namespace Automation.Repository.Features.Repositories;
 
-public record UpdateRepositoryRequest(string Name, string? Description = null);
+public record UpdateRepositoryRequest(
+    string Name,
+    string? Description = null,
+    List<string>? SupportedExtensions = null
+);
 
-public record UpdateRepositoryCommand(Guid Id, string Name, string? Description = null);
+public record UpdateRepositoryCommand(
+    Guid Id,
+    string Name,
+    string? Description = null,
+    List<string>? SupportedExtensions = null
+);
 
 public class UpdateRepositoryValidator : AbstractValidator<UpdateRepositoryCommand>
 {
@@ -33,7 +42,7 @@ public class UpdateRepositoryEndpoint(IMessageBus bus)
     public override async Task HandleAsync(UpdateRepositoryRequest req, CancellationToken ct)
     {
         var id = Route<Guid>("id");
-        var command = new UpdateRepositoryCommand(id, req.Name, req.Description);
+        var command = new UpdateRepositoryCommand(id, req.Name, req.Description, req.SupportedExtensions);
         var result = await bus.InvokeAsync<Result<RepositoryDto>>(command, ct);
         await this.SendResultAsync(result, ct);
     }
@@ -52,7 +61,7 @@ public class UpdateRepositoryHandler(RepositoryDbContext db)
         if (repo is null)
             return Result.Fail($"Repository with ID '{command.Id}' was not found.");
 
-        repo.Update(command.Name, command.Description);
+        repo.Update(command.Name, command.Description, command.SupportedExtensions);
         await db.SaveChangesAsync(ct);
 
         var dto = new RepositoryDto(
@@ -62,7 +71,8 @@ public class UpdateRepositoryHandler(RepositoryDbContext db)
             repo.Description,
             repo.RepositoryRunners.Count,
             repo.Resources.Count,
-            repo.CreatedAt
+            repo.CreatedAt,
+            repo.SupportedExtensions
         );
 
         return Result.Ok(dto);

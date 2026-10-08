@@ -190,4 +190,72 @@ public class SemanticJsonPathTests
 
         val.Should().Be("tex/eye_bc.png");
     }
+
+    [Fact]
+    public void ExtractJsonValue_ExactDazScenario()
+    {
+        const string dazJson = """
+        {
+          "summary": "DAZ 'eva.duf': 11 Object(s), 0 Material(s), 387 Bones.",
+          "objects": [
+            {
+              "name": "MB Yeimi HD for Genesis 9 Feminine",
+              "type": "Character Figure",
+              "is_visible": true,
+              "source_ref": "Genesis9.dsf",
+              "internal_name": "Genesis9"
+            }
+          ]
+        }
+        """;
+        using var doc = JsonDocument.Parse(dazJson);
+        var path = "objects[name='MB Yeimi HD for Genesis 9 Feminine'].name";
+        var val = doc.RootElement.ExtractJsonValue(path);
+        val.Should().Be("MB Yeimi HD for Genesis 9 Feminine");
+    }
+
+    [Fact]
+    public void GetAllValuesByTag_ExactDazScenario()
+    {
+        const string dazJson = """
+        {
+          "summary": "DAZ 'eva.duf': 11 Object(s), 0 Material(s), 387 Bones.",
+          "objects": [
+            {
+              "name": "MB Yeimi HD for Genesis 9 Feminine",
+              "type": "Character Figure",
+              "is_visible": true,
+              "source_ref": "Genesis9.dsf",
+              "internal_name": "Genesis9"
+            }
+          ]
+        }
+        """;
+        using var doc = JsonDocument.Parse(dazJson);
+        var tagLink = new Automation.Tag.Contracts.Dtos.TagLinkDetailDto(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Mesh.Body",
+            "Body",
+            null,
+            null,
+            "objects[name='MB Yeimi HD for Genesis 9 Feminine'].name",
+            null
+        );
+        var tagMap = new Dictionary<string, IReadOnlyList<Automation.Tag.Contracts.Dtos.TagLinkDetailDto>>
+        {
+            ["objects[name='MB Yeimi HD for Genesis 9 Feminine'].name"] = [tagLink]
+        };
+
+        var detail = new Automation.Repository.Contracts.Dtos.ResourceMetadataDetailDto(
+            Guid.NewGuid(),
+            doc,
+            tagMap
+        );
+
+        var values = detail.GetAllValuesByTag("Mesh.Body");
+        values.Should().ContainSingle().Which.Should().Be("MB Yeimi HD for Genesis 9 Feminine");
+    }
 }
+
+

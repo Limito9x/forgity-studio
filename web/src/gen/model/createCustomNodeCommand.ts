@@ -17,12 +17,14 @@ export interface CreateCustomNodeCommand {
   label: string | null;
   /** @nullable */
   executor: string | null;
-  /** @nullable */
-  assetId: string | null;
-  /** @nullable */
-  originalFileName: string | null;
+  /** @minLength 1 */
+  assetId: string;
+  /** @minLength 1 */
+  originalFileName: string;
   /** @nullable */
   inputs: unknown[] | null;
   /** @nullable */
   outputs: unknown[] | null;
+  /** @nullable */
+  contentHash?: string | null;
 }

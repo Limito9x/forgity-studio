@@ -103,7 +103,7 @@ public class GetRepositoryResourcesHandler(RepositoryDbContext db, IContentApi c
                 WorkspaceId: r.RepositoryId,
                 DisplayName: r.DisplayName,
                 RelativePath: r.RelativePath,
-                PlatformExtensionId: r.PlatformExtensionId,
+                Extension: r.Extension,
                 ContentId: r.ContentId,
                 ContentName: r.ContentId != null && contentMap.TryGetValue(r.ContentId.Value, out var c) ? c.Name : null,
                 ContentTypeName: r.ContentId != null && contentMap.TryGetValue(r.ContentId.Value, out var c2) ? c2.ContentTypeName : null,

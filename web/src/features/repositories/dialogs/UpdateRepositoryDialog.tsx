@@ -9,6 +9,7 @@ export interface UpdateRepositoryDialogData {
   name: string;
   description?: string;
   projectId?: string;
+  supportedExtensions?: string[];
 }
 
 export function UpdateRepositoryDialog({
@@ -34,6 +35,7 @@ export function UpdateRepositoryDialog({
         defaultValues={{
           name: data.name,
           description: data.description || "",
+          supportedExtensions: data.supportedExtensions || [],
         }}
         onSubmit={(values) => {
           updateRepository.mutate(
@@ -42,7 +44,8 @@ export function UpdateRepositoryDialog({
               data: {
                 name: values.name,
                 description: values.description || undefined,
-              },
+                supportedExtensions: values.supportedExtensions,
+              } as any,
             },
             {
               onSuccess: (res) => {

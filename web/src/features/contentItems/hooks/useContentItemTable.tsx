@@ -33,15 +33,21 @@ export function useContentItemTable({ data, totalCount, resource, typeKey, proje
                 accessorKey: "thumbnailUrl",
                 header: () => t("fields.thumbnail", { defaultValue: "Thumbnail" }),
                 enableSorting: false,
-                meta: { label: t("fields.thumbnail", { defaultValue: "Thumbnail" }), icon: ImageIcon },
+                size: 70,
+                meta: {
+                    label: t("fields.thumbnail", { defaultValue: "Thumbnail" }),
+                    icon: ImageIcon,
+                    headerClassName: "w-[70px] text-center",
+                    cellClassName: "w-[70px] text-center",
+                },
                 cell: ({ row }) => {
                     const url = row.original.thumbnailUrl;
                     return (
-                        <div className="w-10 h-10 rounded overflow-hidden bg-muted/40 border shrink-0 flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-md overflow-hidden bg-muted/40 border shrink-0 flex items-center justify-center mx-auto shadow-2xs">
                             {url ? (
                                 <img src={url} alt={row.original.name} className="w-full h-full object-cover" />
                             ) : (
-                                <ImageIcon className="w-4 h-4 text-muted-foreground/40" />
+                                <ImageIcon className="w-3.5 h-3.5 text-muted-foreground/40" />
                             )}
                         </div>
                     );
@@ -50,11 +56,17 @@ export function useContentItemTable({ data, totalCount, resource, typeKey, proje
             {
                 accessorKey: "name",
                 header: () => t("fields.name", { defaultValue: "Name" }),
+                enableSorting: false,
                 meta: { label: t("fields.name", { defaultValue: "Name" }), icon: TypeIcon },
             },
             {
                 id: "actions",
                 enableSorting: false,
+                size: 50,
+                meta: {
+                    headerClassName: "w-[50px] text-right",
+                    cellClassName: "w-[50px] text-right",
+                },
                 cell: ({ row }) => {
                     const item = row.original;
                     const actions = [

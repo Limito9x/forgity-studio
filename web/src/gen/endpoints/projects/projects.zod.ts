@@ -24,6 +24,7 @@ export const CreateProjectResponse = /*#__PURE__*/ zod.object({
 })
 
 export const GetProjectsQueryParams = /*#__PURE__*/ zod.object({
+  "studioId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
   "page": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
   "pageSize": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
   "filters": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
@@ -82,52 +83,4 @@ export const UpdateProjectResponse = /*#__PURE__*/ zod.object({
   "name": /*#__PURE__*/ zod.string(),
   "studioId": /*#__PURE__*/ zod.uuid()
 })
-
-export const GetProjectExecutorConfigsParams = /*#__PURE__*/ zod.object({
-  "projectId": /*#__PURE__*/ zod.uuid()
-})
-
-export const GetProjectExecutorConfigsResponseItem = /*#__PURE__*/ zod.object({
-  "id": /*#__PURE__*/ zod.uuid(),
-  "projectId": /*#__PURE__*/ zod.uuid(),
-  "agentId": /*#__PURE__*/ zod.uuid(),
-  "executorKey": /*#__PURE__*/ zod.string(),
-  "settings": /*#__PURE__*/ zod.unknown(),
-  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
-  "updatedAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true}))
-})
-export const GetProjectExecutorConfigsResponse = /*#__PURE__*/ zod.array(GetProjectExecutorConfigsResponseItem)
-
-export const UpsertProjectExecutorConfigParams = /*#__PURE__*/ zod.object({
-  "projectId": /*#__PURE__*/ zod.uuid()
-})
-
-
-export const upsertProjectExecutorConfigBodyExecutorKeyMin = 0;
-export const upsertProjectExecutorConfigBodyExecutorKeyMax = 50;
-
-
-
-export const UpsertProjectExecutorConfigBody = /*#__PURE__*/ zod.object({
-  "agentId": /*#__PURE__*/ zod.uuid().check(/*#__PURE__*/ zod.minLength(1)),
-  "executorKey": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(upsertProjectExecutorConfigBodyExecutorKeyMin)).check(/*#__PURE__*/ zod.maxLength(upsertProjectExecutorConfigBodyExecutorKeyMax)),
-  "settings": /*#__PURE__*/ zod.unknown()
-})
-
-export const UpsertProjectExecutorConfigResponse = /*#__PURE__*/ zod.object({
-  "id": /*#__PURE__*/ zod.uuid(),
-  "projectId": /*#__PURE__*/ zod.uuid(),
-  "agentId": /*#__PURE__*/ zod.uuid(),
-  "executorKey": /*#__PURE__*/ zod.string(),
-  "settings": /*#__PURE__*/ zod.unknown(),
-  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
-  "updatedAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true}))
-})
-
-export const DeleteProjectExecutorConfigParams = /*#__PURE__*/ zod.object({
-  "projectId": /*#__PURE__*/ zod.uuid(),
-  "id": /*#__PURE__*/ zod.uuid()
-})
-
-export const DeleteProjectExecutorConfigResponse = /*#__PURE__*/ zod.void()
 

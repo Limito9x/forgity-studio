@@ -47,7 +47,20 @@ export const GetAvailableAgentsResponseItem = /*#__PURE__*/ zod.object({
   "tagDescription": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "targetSubPath": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "metadataJson": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
-}))))
+})))),
+  "locations": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "resourceVersionId": /*#__PURE__*/ zod.uuid(),
+  "repositoryRunnerId": /*#__PURE__*/ zod.uuid(),
+  "relativePath": /*#__PURE__*/ zod.string(),
+  "isOrigin": /*#__PURE__*/ zod.boolean(),
+  "discoveredAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "machineKey": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "runnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "rootPath": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "workspaceAgentId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid())
+})))
 }))
 }))
 })
@@ -63,7 +76,7 @@ export const GetResourcesByContentResponseItem = /*#__PURE__*/ zod.object({
   "workspaceName": /*#__PURE__*/ zod.string(),
   "displayName": /*#__PURE__*/ zod.string(),
   "relativePath": /*#__PURE__*/ zod.string(),
-  "platformExtensionId": /*#__PURE__*/ zod.uuid(),
+  "extension": /*#__PURE__*/ zod.string(),
   "latestVersionNo": /*#__PURE__*/ zod.int(),
   "latestSizeBytes": /*#__PURE__*/ zod.int(),
   "versionCount": /*#__PURE__*/ zod.int(),
@@ -87,7 +100,7 @@ export const GetResourceByIdResponse = /*#__PURE__*/ zod.object({
   "repositoryId": /*#__PURE__*/ zod.uuid(),
   "name": /*#__PURE__*/ zod.string(),
   "filePath": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
-  "platformExtensionId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "extension": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "contentId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
   "versions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
@@ -107,7 +120,20 @@ export const GetResourceByIdResponse = /*#__PURE__*/ zod.object({
   "tagDescription": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "targetSubPath": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "metadataJson": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
-}))))
+})))),
+  "locations": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "resourceVersionId": /*#__PURE__*/ zod.uuid(),
+  "repositoryRunnerId": /*#__PURE__*/ zod.uuid(),
+  "relativePath": /*#__PURE__*/ zod.string(),
+  "isOrigin": /*#__PURE__*/ zod.boolean(),
+  "discoveredAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "machineKey": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "runnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "rootPath": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "workspaceAgentId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid())
+})))
 }))),
   "workspaceId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid())
 })

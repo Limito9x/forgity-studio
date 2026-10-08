@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
-  Server,
   History,
   Copy,
   Check,
@@ -68,11 +67,11 @@ export function LiveExecutionDrawer({
 
     const label =
       s === 1 || s === "Pending" ? "Pending" :
-      s === 2 || s === "Running" ? "Running" :
-      s === 3 || s === "WaitingForAgent" ? "WaitingForAgent" :
-      s === 4 || s === "Succeeded" ? "Succeeded" :
-      s === 5 || s === "Failed" ? "Failed" :
-      s === 6 || s === "Cancelled" ? "Cancelled" : String(s);
+        s === 2 || s === "Running" ? "Running" :
+          s === 3 || s === "WaitingForAgent" ? "WaitingForAgent" :
+            s === 4 || s === "Succeeded" ? "Succeeded" :
+              s === 5 || s === "Failed" ? "Failed" :
+                s === 6 || s === "Cancelled" ? "Cancelled" : String(s);
 
     return (
       <Badge
@@ -273,12 +272,6 @@ export function LiveExecutionDrawer({
                               {new Date(exec.startedAt).toLocaleTimeString()}
                             </span>
                           )}
-                          {exec.agentId && (
-                            <span className="flex items-center gap-1">
-                              <Server className="h-3 w-3" />
-                              Agent: {exec.agentId.slice(0, 6)}...
-                            </span>
-                          )}
                         </div>
                       </div>
 
@@ -438,12 +431,6 @@ export function LiveExecutionDrawer({
                     <span className="text-muted-foreground">
                       Next Step: <strong className="text-foreground">#{activeExecution.nextNodeIndex ?? 0}</strong>
                     </span>
-                    {activeExecution.agentId && (
-                      <span className="text-muted-foreground flex items-center gap-1">
-                        <Server className="h-3 w-3" />
-                        Agent: <code className="font-mono text-foreground">{activeExecution.agentId}</code>
-                      </span>
-                    )}
                   </div>
                   {activeExecution.startedAt && (
                     <span className="text-muted-foreground flex items-center gap-1 font-mono">

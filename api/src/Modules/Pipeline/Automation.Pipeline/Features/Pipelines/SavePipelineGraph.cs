@@ -1,12 +1,16 @@
+using Automation.Files.Contracts;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
 using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Entities;
+using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Features.Pipelines.Dtos;
+using Automation.Pipeline.Features.Pipelines.Services;
 using Automation.Pipeline.Infrastructure.Persistence;
-using Automation.Pipeline.Tools;
+using Automation.Pipeline.Engine;
+using Microsoft.Extensions.Logging;
 
 namespace Automation.Pipeline.Features.Pipelines;
 
@@ -14,6 +18,7 @@ public class SavePipelineGraphRequest
 {
     public List<SavePipelineNodeItem> Nodes { get; set; } = [];
     public List<SavePipelineEdgeItem> Edges { get; set; } = [];
+    public List<Automation.Pipeline.Domain.ValueObjects.PipelineParameter>? Parameters { get; set; }
 }
 
 public class SavePipelineGraphEndpoint(IMessageBus bus) : Endpoint<SavePipelineGraphRequest, PipelineGraphDto>
@@ -32,7 +37,12 @@ public class SavePipelineGraphEndpoint(IMessageBus bus) : Endpoint<SavePipelineG
     public override async Task HandleAsync(SavePipelineGraphRequest req, CancellationToken ct)
     {
         var pipelineId = Route<Guid>("id");
-        var cmd = new SavePipelineGraphCommand(pipelineId, req.Nodes, req.Edges);
+        var cmd = new SavePipelineGraphCommand(
+            pipelineId,
+            req.Nodes,
+            req.Edges,
+            req.Parameters
+        );
         var result = await bus.InvokeAsync<Result<PipelineGraphDto>>(cmd, ct);
         await this.SendResultAsync(result, ct);
     }
@@ -41,7 +51,10 @@ public class SavePipelineGraphEndpoint(IMessageBus bus) : Endpoint<SavePipelineG
 [Transactional(typeof(PipelineDbContext))]
 public class SavePipelineGraphHandler(
     PipelineDbContext db,
-    IToolRegistry toolRegistry
+    IPipelineGraphDtoBuilder graphDtoBuilder,
+    IAssetApi assetApi,
+    IMessageBus bus,
+    ILogger<SavePipelineGraphHandler> logger
 )
 {
     public async Task<Result<PipelineGraphDto>> HandleAsync(
@@ -52,8 +65,6 @@ public class SavePipelineGraphHandler(
         var pipeline = await db.Pipelines
             .Include(x => x.Nodes)
             .Include(x => x.Edges)
-            .Include(x => x.Inputs)
-            .Include(x => x.Outputs)
             .FirstOrDefaultAsync(x => x.Id == command.PipelineId, ct);
 
         if (pipeline == null)
@@ -61,278 +72,288 @@ public class SavePipelineGraphHandler(
             return Result.Fail<PipelineGraphDto>($"Pipeline '{command.PipelineId}' not found.");
         }
 
-        // 0. Validate No Cycles for any SubPipeline nodes
-        foreach (var nodeItem in command.Nodes.Where(n => string.Equals(n.Kind, PipelineNodeKind.SubPipeline, StringComparison.OrdinalIgnoreCase)))
+        var oldConfigs = pipeline.Nodes.ToDictionary(x => x.Id, x => x.Config);
+        var createdLinks = new List<AssetLinkReference>();
+
+        try
         {
-            Guid? targetId = null;
-            if (Guid.TryParse(nodeItem.RefId, out var parsedRefId))
+            // 0. Validate No Cycles for any SubPipeline nodes
+            foreach (var nodeItem in command.Nodes.Where(n => n.Kind == PipelineNodeKind.SubPipeline))
             {
-                targetId = parsedRefId;
-            }
-            else if (nodeItem.ConfigValues != null && nodeItem.ConfigValues.TryGetValue("pipelineId", out var pVal) && Guid.TryParse(pVal?.ToString(), out var pGuid))
-            {
-                targetId = pGuid;
-            }
-
-            if (targetId.HasValue && targetId.Value != Guid.Empty)
-            {
-                var cycleResult = await Engine.Validators.PipelineCycleValidator.ValidateNoCycleAsync(
-                    db,
-                    command.PipelineId,
-                    targetId.Value,
-                    ct
-                );
-
-                if (cycleResult.IsFailed)
+                Guid? targetId = null;
+                if (Guid.TryParse(nodeItem.RefId, out var parsedRefId))
                 {
-                    return Result.Fail<PipelineGraphDto>(cycleResult.Errors);
+                    targetId = parsedRefId;
+                }
+                else if (nodeItem.ConfigValues != null && nodeItem.ConfigValues.TryGetValue("pipelineId", out var pVal) && Guid.TryParse(pVal?.ToString(), out var pGuid))
+                {
+                    targetId = pGuid;
+                }
+
+                if (targetId.HasValue && targetId.Value != Guid.Empty)
+                {
+                    var cycleResult = await Engine.Validators.PipelineCycleValidator.ValidateNoCycleAsync(
+                        db,
+                        command.PipelineId,
+                        targetId.Value,
+                        ct
+                    );
+
+                    if (cycleResult.IsFailed)
+                    {
+                        return Result.Fail<PipelineGraphDto>(cycleResult.Errors);
+                    }
                 }
             }
-        }
 
-        // 1. Sync Nodes
-        var incomingNodeIds = command.Nodes
-            .Where(n => n.Id.HasValue && n.Id.Value != Guid.Empty)
-            .Select(n => n.Id!.Value)
-            .ToHashSet();
+            // 1. Sync Nodes - Remove deleted nodes and their edges
+            var incomingNodeIds = command.Nodes
+                .Where(n => n.Id.HasValue && n.Id.Value != Guid.Empty)
+                .Select(n => n.Id!.Value)
+                .ToHashSet();
 
-        // Remove deleted nodes and their associated edges first
-        var nodesToRemove = pipeline.Nodes
-            .Where(n => !incomingNodeIds.Contains(n.Id))
-            .ToList();
-
-        foreach (var node in nodesToRemove)
-        {
-            var edgesForNode = pipeline.Edges
-                .Where(e => e.SourcePipelineNodeId == node.Id || e.TargetPipelineNodeId == node.Id)
+            var nodesToRemove = pipeline.Nodes
+                .Where(n => !incomingNodeIds.Contains(n.Id))
                 .ToList();
 
-            foreach (var edge in edgesForNode)
+            foreach (var node in nodesToRemove)
+            {
+                var edgesForNode = pipeline.Edges
+                    .Where(e => e.SourcePipelineNodeId == node.Id || e.TargetPipelineNodeId == node.Id)
+                    .ToList();
+
+                foreach (var edge in edgesForNode)
+                {
+                    db.PipelineEdges.Remove(edge);
+                    pipeline.RemoveEdge(edge.Id);
+                }
+
+                db.PipelineNodes.Remove(node);
+                pipeline.RemoveNode(node.Id);
+            }
+
+            var nodeMap = new Dictionary<Guid, Guid>(); // Incoming Node ID -> Entity Node ID
+
+            // 2. Process and Upsert Nodes
+            foreach (var nodeItem in command.Nodes)
+            {
+                var targetId = nodeItem.Id.HasValue && nodeItem.Id.Value != Guid.Empty
+                    ? nodeItem.Id.Value
+                    : IdGenerator.NewId();
+
+                if (nodeItem.ConfigValues != null && nodeItem.ConfigValues.Count > 0)
+                {
+                    foreach (var (key, value) in nodeItem.ConfigValues.ToList())
+                    {
+                        if (PipelineFileValue.TryGetDraft(value, out var assetId, out var origName))
+                        {
+                            var owner = PipelineFileValue.Owner(targetId, key);
+                            var linkResult = await assetApi.CreateLinkAsync(new(assetId, origName!), owner, ct: ct);
+                            if (linkResult.IsFailed)
+                            {
+                                await CompensateCreatedLinksAsync(createdLinks);
+                                db.ChangeTracker.Clear();
+                                return Result.Fail<PipelineGraphDto>(linkResult.Errors);
+                            }
+                            createdLinks.Add(new(linkResult.Value.AssetLinkId, owner));
+                            nodeItem.ConfigValues[key] = new PipelineFileParameter(linkResult.Value.AssetLinkId);
+                        }
+                        else if (PipelineFileValue.TryGetLinkId(value, out var linkId))
+                        {
+                            var owner = PipelineFileValue.Owner(targetId, key);
+                            var verified = await assetApi.GetLinksByIdsAsync([new(linkId, owner)], ct);
+                            if (verified.IsFailed)
+                            {
+                                await CompensateCreatedLinksAsync(createdLinks);
+                                db.ChangeTracker.Clear();
+                                return Result.Fail<PipelineGraphDto>(verified.Errors);
+                            }
+                            nodeItem.ConfigValues[key] = new PipelineFileParameter(linkId);
+                        }
+                    }
+                }
+
+                JsonDocument? configDoc = null;
+                if (nodeItem.ConfigValues != null && nodeItem.ConfigValues.Count > 0)
+                {
+                    configDoc = JsonSerializer.SerializeToDocument(nodeItem.ConfigValues, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                }
+
+                // Clean up replaced or cleared file pins for this node
+                var oldConfig = oldConfigs.GetValueOrDefault(targetId);
+                if (oldConfig != null)
+                {
+                    var retainedLinkIds = PipelineFileValue.References(targetId, configDoc).Select(x => x.AssetLinkId).ToHashSet();
+                    var oldReferences = PipelineFileValue.References(targetId, oldConfig);
+                    foreach (var oldRef in oldReferences)
+                    {
+                        if (!retainedLinkIds.Contains(oldRef.AssetLinkId))
+                        {
+                            await assetApi.RemoveLinkByIdAsync(oldRef, ct);
+                        }
+                    }
+                }
+
+                JsonDocument? metadataDoc = null;
+                if (nodeItem.Metadata != null && nodeItem.Metadata.Count > 0)
+                {
+                    metadataDoc = JsonSerializer.SerializeToDocument(nodeItem.Metadata, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                }
+
+                NodeSize? size = nodeItem.Width.HasValue && nodeItem.Height.HasValue
+                    ? new NodeSize(nodeItem.Width.Value, nodeItem.Height.Value)
+                    : null;
+
+                if (nodeItem.Id.HasValue && nodeItem.Id.Value != Guid.Empty)
+                {
+                    var existing = pipeline.Nodes.FirstOrDefault(n => n.Id == nodeItem.Id.Value);
+                    if (existing != null)
+                    {
+                        existing.Update(nodeItem.PositionX, nodeItem.PositionY, nodeItem.ParentId, size);
+                        existing.UpdateConfig(configDoc);
+                        existing.UpdateMetadata(metadataDoc);
+                        nodeMap[nodeItem.Id.Value] = existing.Id;
+                        continue;
+                    }
+                }
+
+                var newNode = new PipelineNode(
+                    targetId,
+                    pipeline.Id,
+                    nodeItem.RefId,
+                    nodeItem.Kind,
+                    nodeItem.PositionX,
+                    nodeItem.PositionY,
+                    configDoc,
+                    nodeItem.ParentId,
+                    size,
+                    metadataDoc
+                );
+
+                nodeMap[targetId] = newNode.Id;
+                if (nodeItem.Id.HasValue && nodeItem.Id.Value != Guid.Empty)
+                {
+                    nodeMap[nodeItem.Id.Value] = newNode.Id;
+                }
+
+                db.PipelineNodes.Add(newNode);
+                if (!pipeline.Nodes.Any(x => x.Id == newNode.Id)) pipeline.AddNode(newNode);
+            }
+
+            // Validate that SetVariable nodes are not placed inside Worker stages
+            foreach (var node in pipeline.Nodes.Where(n => string.Equals(n.RefId, "SetVariable", StringComparison.OrdinalIgnoreCase)))
+            {
+                if (node.ParentId.HasValue && node.ParentId.Value != Guid.Empty)
+                {
+                    var parentContainer = pipeline.Nodes.FirstOrDefault(p => p.Id == node.ParentId.Value);
+                    if (parentContainer?.Metadata != null)
+                    {
+                        try
+                        {
+                            var meta = JsonSerializer.Deserialize<Dictionary<string, object?>>(parentContainer.Metadata);
+                            var executor = meta?.GetValueOrDefault("executor")?.ToString() ?? meta?.GetValueOrDefault("Executor")?.ToString();
+                            if (string.Equals(executor, "Worker", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(executor, "blender", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(executor, "unreal", StringComparison.OrdinalIgnoreCase))
+                            {
+                                await CompensateCreatedLinksAsync(createdLinks);
+                                db.ChangeTracker.Clear();
+                                return Result.Fail<PipelineGraphDto>("Set Variable node cannot be placed inside a Worker stage. It must execute within a Server stage (e.g. Core Services).");
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+
+            // 3. Sync Edges (Diff matching by SourceNode, SourcePin, TargetNode, TargetPin)
+            var incomingEdges = command.Edges.Select(e => new
+            {
+                e.Id,
+                SourceId = nodeMap.GetValueOrDefault(e.SourceNodeId, e.SourceNodeId),
+                e.SourcePin,
+                TargetId = nodeMap.GetValueOrDefault(e.TargetNodeId, e.TargetNodeId),
+                e.TargetPin
+            }).ToList();
+
+            var edgesToRemove = pipeline.Edges.Where(existing =>
+                !incomingEdges.Any(inc =>
+                    inc.SourceId == existing.SourcePipelineNodeId &&
+                    inc.SourcePin == existing.SourcePin &&
+                    inc.TargetId == existing.TargetPipelineNodeId &&
+                    inc.TargetPin == existing.TargetPin
+                )
+            ).ToList();
+
+            foreach (var edge in edgesToRemove)
             {
                 db.PipelineEdges.Remove(edge);
                 pipeline.RemoveEdge(edge.Id);
             }
 
-            db.PipelineNodes.Remove(node);
-            pipeline.RemoveNode(node.Id);
-        }
-
-        // Map existing/new nodes
-        var nodeMap = new Dictionary<Guid, Guid>(); // Old/incoming ID -> Entity ID
-
-        foreach (var nodeItem in command.Nodes)
-        {
-            JsonDocument? configDoc = null;
-            if (nodeItem.ConfigValues != null && nodeItem.ConfigValues.Count > 0)
+            foreach (var inc in incomingEdges)
             {
-                configDoc = JsonDocument.Parse(JsonSerializer.Serialize(nodeItem.ConfigValues));
-            }
-
-            if (nodeItem.Id.HasValue && nodeItem.Id.Value != Guid.Empty)
-            {
-                var existing = pipeline.Nodes.FirstOrDefault(n => n.Id == nodeItem.Id.Value);
-                if (existing != null)
-                {
-                    existing.Update(nodeItem.PositionX, nodeItem.PositionY);
-                    existing.UpdateConfig(configDoc);
-                    nodeMap[nodeItem.Id.Value] = existing.Id;
-                    continue;
-                }
-            }
-
-            // Create new node with client ID or new ID
-            var targetId = nodeItem.Id.HasValue && nodeItem.Id.Value != Guid.Empty
-                ? nodeItem.Id.Value
-                : Guid.NewGuid();
-
-            var newNode = new PipelineNode(
-                targetId,
-                pipeline.Id,
-                nodeItem.RefId,
-                nodeItem.Kind,
-                nodeItem.PositionX,
-                nodeItem.PositionY,
-                configDoc
-            );
-
-            nodeMap[targetId] = newNode.Id;
-            if (nodeItem.Id.HasValue && nodeItem.Id.Value != Guid.Empty)
-            {
-                nodeMap[nodeItem.Id.Value] = newNode.Id;
-            }
-
-            pipeline.AddNode(newNode);
-        }
-
-        // 2. Sync Edges (Diff matching by SourceNode, SourcePin, TargetNode, TargetPin)
-        var incomingEdges = command.Edges.Select(e => new
-        {
-            SourceId = nodeMap.GetValueOrDefault(e.SourceNodeId, e.SourceNodeId),
-            e.SourcePin,
-            TargetId = nodeMap.GetValueOrDefault(e.TargetNodeId, e.TargetNodeId),
-            e.TargetPin
-        }).ToList();
-
-        // Remove obsolete edges
-        var edgesToRemove = pipeline.Edges.Where(existing =>
-            !incomingEdges.Any(inc =>
-                inc.SourceId == existing.SourcePipelineNodeId &&
-                inc.SourcePin == existing.SourcePin &&
-                inc.TargetId == existing.TargetPipelineNodeId &&
-                inc.TargetPin == existing.TargetPin
-            )
-        ).ToList();
-
-        foreach (var edge in edgesToRemove)
-        {
-            db.PipelineEdges.Remove(edge);
-            pipeline.RemoveEdge(edge.Id);
-        }
-
-        // Add new edges that don't already exist
-        foreach (var inc in incomingEdges)
-        {
-            var alreadyExists = pipeline.Edges.Any(existing =>
-                existing.SourcePipelineNodeId == inc.SourceId &&
-                existing.SourcePin == inc.SourcePin &&
-                existing.TargetPipelineNodeId == inc.TargetId &&
-                existing.TargetPin == inc.TargetPin
-            );
-
-            if (!alreadyExists)
-            {
-                pipeline.AddEdge(inc.SourceId, inc.SourcePin, inc.TargetId, inc.TargetPin);
-            }
-        }
-
-        await db.SaveChangesAsync(ct);
-
-        // 3. Build return DTO directly (avoids nested Wolverine invocation & disposed context issues)
-        var customDefs = await db.NodeDefinitions
-            .AsNoTracking()
-            .Where(x => x.ProjectId == pipeline.ProjectId)
-            .ToListAsync(ct);
-
-        var nodeDtos = new List<PipelineNodeGraphDto>();
-
-        foreach (var node in pipeline.Nodes)
-        {
-            var isTool = string.Equals(node.Kind, PipelineNodeKind.Tool, StringComparison.OrdinalIgnoreCase) ||
-                         string.Equals(node.Kind, "Tool", StringComparison.OrdinalIgnoreCase);
-
-            IReadOnlyList<PinDefinition> inputs = [];
-            IReadOnlyList<PinDefinition> outputs = [];
-            string label = node.RefId;
-            string? category = null;
-            string? executor = null;
-
-            if (isTool)
-            {
-                var tool = toolRegistry.Get(node.RefId);
-                if (tool != null)
-                {
-                    inputs = tool.Inputs;
-                    outputs = tool.Outputs;
-                    label = tool.Label;
-                    category = "BuiltIn";
-                    executor = "dotNet";
-                }
-            }
-            else
-            {
-                var def = customDefs.FirstOrDefault(x =>
-                    string.Equals(x.Key, node.RefId, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(x.Id.ToString(), node.RefId, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(x.Name, node.RefId, StringComparison.OrdinalIgnoreCase)
+                var alreadyExists = pipeline.Edges.Any(existing =>
+                    existing.SourcePipelineNodeId == inc.SourceId &&
+                    existing.SourcePin == inc.SourcePin &&
+                    existing.TargetPipelineNodeId == inc.TargetId &&
+                    existing.TargetPin == inc.TargetPin
                 );
 
-                if (def != null)
+                if (!alreadyExists)
                 {
-                    inputs = def.Inputs;
-                    outputs = def.Outputs;
-                    label = def.Label;
-                    category = "Custom";
-                    executor = def.Executor;
+                    var targetEdgeId = inc.Id.HasValue && inc.Id.Value != Guid.Empty
+                        ? inc.Id.Value
+                        : IdGenerator.NewId();
+
+                    var newEdge = new PipelineEdge(
+                        pipeline.Id,
+                        inc.SourceId,
+                        inc.SourcePin,
+                        inc.TargetId,
+                        inc.TargetPin,
+                        id: targetEdgeId
+                    );
+
+                    db.PipelineEdges.Add(newEdge);
+                    if (!pipeline.Edges.Any(x => x.Id == newEdge.Id)) pipeline.AddEdge(newEdge);
                 }
             }
 
-            Dictionary<string, object?>? configValues = null;
-            if (node.Config != null)
+            if (command.Parameters != null)
             {
-                try
-                {
-                    configValues = JsonSerializer.Deserialize<Dictionary<string, object?>>(node.Config);
-                }
-                catch
-                {
-                    // Fallback to empty if not a dictionary
-                }
+                pipeline.Parameters = command.Parameters;
             }
 
-            nodeDtos.Add(new PipelineNodeGraphDto(
-                node.Id,
-                node.RefId,
-                node.Kind,
-                label,
-                category,
-                executor,
-                node.Position,
-                inputs,
-                outputs,
-                configValues
-            ));
+            await db.SaveChangesAsync(ct);
+
+            // 4. Build and return hydrated DTO via shared service (Single invocation)
+            var graphDto = await graphDtoBuilder.BuildDtoAsync(pipeline, ct);
+            return Result.Ok(graphDto);
         }
+        catch (Exception)
+        {
+            await CompensateCreatedLinksAsync(createdLinks);
+            throw;
+        }
+    }
 
-        var edgeDtos = pipeline.Edges.Select(e => new PipelineEdgeGraphDto(
-            e.Id,
-            e.SourcePipelineNodeId,
-            e.SourcePin,
-            e.TargetPipelineNodeId,
-            e.TargetPin,
-            e.Kind
-        )).ToList();
-
-        var inputDtos = pipeline.Inputs.OrderBy(i => i.Order).Select(i => new PipelineInputDto(
-            i.Id,
-            i.Key,
-            i.Label,
-            i.Type,
-            i.Cardinality,
-            i.IsRequired,
-            i.DefaultValue,
-            i.Order
-        )).ToList();
-
-        var outputDtos = pipeline.Outputs.OrderBy(i => i.Order).Select(i => new PipelineOutputDto(
-            i.Id,
-            i.Key,
-            i.Label,
-            i.Type,
-            i.Cardinality,
-            i.Order
-        )).ToList();
-
-        var variableDtos = (pipeline.Variables ?? new()).Select(v => new PipelineVariableDto(
-            v.Name,
-            v.Type,
-            v.Cardinality,
-            v.Description,
-            v.StructType
-        )).ToList();
-
-        var graphDto = new PipelineGraphDto(
-            pipeline.Id,
-            pipeline.ProjectId,
-            pipeline.Name,
-            pipeline.TriggerType,
-            pipeline.TriggerWorkspaceId,
-            nodeDtos,
-            edgeDtos,
-            inputDtos,
-            outputDtos,
-            variableDtos
-        );
-
-        return Result.Ok(graphDto);
+    private async Task CompensateCreatedLinksAsync(List<AssetLinkReference> links)
+    {
+        foreach (var link in links)
+        {
+            try
+            {
+                var result = await assetApi.RemoveLinkByIdAsync(link, CancellationToken.None);
+                if (result.IsFailed)
+                {
+                    logger.LogError("Failed to compensate new file link {LinkId}: {Errors}", link.AssetLinkId, result.Errors);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to compensate new file link {LinkId}", link.AssetLinkId);
+            }
+        }
     }
 }

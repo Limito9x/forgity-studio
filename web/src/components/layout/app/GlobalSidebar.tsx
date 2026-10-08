@@ -16,7 +16,7 @@ import {
   SidebarMenuSubItem,
   SidebarGroupAction,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, Users, Settings2, Shield, Settings, MonitorCog, Logs, Layers, Puzzle, Cpu, Plus, FolderKanban, FolderGit2, Workflow } from "lucide-react";
+import { LayoutDashboard, Users, Settings2, Shield, Settings, MonitorCog, Logs, Cpu, Plus, FolderKanban, FolderGit2, Workflow } from "lucide-react";
 import { NavUser } from "./NavUser";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useProjects } from "@/features/projects/hooks/useProjects";
@@ -33,14 +33,6 @@ const navItems = [
     url: "/runners",
     icon: Cpu,
     featurePrefix: "runner:"
-  },
-  {
-    title: "Platforms",
-    icon: Cpu,
-    items: [
-      { title: "Platforms", url: "/platforms", icon: Layers, featurePrefix: "platform:" },
-      { title: "Extensions", url: "/platforms/extensions", icon: Puzzle, featurePrefix: "platform_extension:" },
-    ]
   },
   {
     title: "Identity",
@@ -110,7 +102,7 @@ export function GlobalSidebar() {
                       <SidebarMenuSubItem key={project.id}>
                         <SidebarMenuSubButton
                           isActive={pathname.startsWith(`/projects/${project.id}`)}
-                          onPress={() => handleNav(`/projects/${project.id}/overview`)}
+                          onPress={() => handleNav(`/projects/${project.id}/pipeline`)}
                         >
                           <FolderGit2 className="size-3.5 text-muted-foreground" />
                           <span className="truncate">{project.name}</span>

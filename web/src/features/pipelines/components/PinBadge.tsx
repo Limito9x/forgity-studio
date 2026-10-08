@@ -4,9 +4,10 @@ import { Badge } from "@/components/ui/badge";
 interface PinBadgeProps {
   pin: PinDefinition;
   direction?: "in" | "out";
+  compact?: boolean;
 }
 
-export function PinBadge({ pin, direction = "in" }: PinBadgeProps) {
+export function PinBadge({ pin, direction = "in", compact = false }: PinBadgeProps) {
   const typeMap: Record<number, { name: string; color: string }> = {
     0: { name: "string", color: "bg-blue-500/10 text-blue-500 border-blue-500/20" },
     1: { name: "number", color: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" },
@@ -21,6 +22,22 @@ export function PinBadge({ pin, direction = "in" }: PinBadgeProps) {
   const isMap = (pin.cardinality as any) === 2 || (pin.cardinality as any) === "Map";
   const typeInfo = typeMap[primitive] || { name: "any", color: "bg-muted text-muted-foreground" };
   const displayType = isMap ? `Map<${typeInfo.name}>` : `${typeInfo.name}${isArray ? "[]" : ""}`;
+
+  if (compact) {
+    return (
+      <div className="inline-flex items-center gap-1 rounded bg-muted/40 px-1.5 py-0.5 text-[10px] border border-border/40 max-w-full">
+        <span className="font-mono text-foreground font-medium truncate max-w-[85px]" title={pin.label || pin.id}>
+          {pin.label || pin.id}
+        </span>
+        <span className={`text-[9px] font-mono px-1 py-0 rounded ${typeInfo.color}`}>
+          {displayType}
+        </span>
+        {direction === "in" && pin.isRequired && (
+          <span className="text-[10px] text-destructive font-bold leading-none">*</span>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="inline-flex items-center gap-1.5 text-xs">

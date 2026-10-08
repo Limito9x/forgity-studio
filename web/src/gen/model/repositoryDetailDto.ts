@@ -5,6 +5,7 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { IReadOnlyListOfRepositoryRunnerDto } from "./iReadOnlyListOfRepositoryRunnerDto";
+import type { IReadOnlyListOfString } from "./iReadOnlyListOfString";
 
 export interface RepositoryDetailDto {
   id: string;
@@ -14,4 +15,5 @@ export interface RepositoryDetailDto {
   description: string | null;
   createdAt: string;
   runners: IReadOnlyListOfRepositoryRunnerDto;
+  supportedExtensions: IReadOnlyListOfString;
 }

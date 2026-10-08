@@ -35,6 +35,10 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ContentHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -71,8 +75,21 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("jsonb");
 
+                    b.Property<string>("OverrideTargetRefId")
+                        .HasColumnType("text");
+
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("SemanticVersion")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SourceRepositoryPath")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -87,63 +104,6 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         .HasFilter("\"IsDeleted\" = false");
 
                     b.ToTable("NodeDefinitions", "pipeline");
-                });
-
-            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.NodeExecution", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<DateTimeOffset?>("FinishedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<JsonDocument>("Log")
-                        .HasColumnType("jsonb");
-
-                    b.Property<JsonDocument>("Output")
-                        .HasColumnType("jsonb");
-
-                    b.Property<Guid>("PipelineExecutionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("PipelineNodeId")
-                        .HasColumnType("uuid");
-
-                    b.Property<JsonDocument>("Progress")
-                        .HasColumnType("jsonb");
-
-                    b.Property<DateTimeOffset?>("StartedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PipelineExecutionId");
-
-                    b.HasIndex("PipelineNodeId");
-
-                    b.ToTable("NodeExecutions", "pipeline");
                 });
 
             modelBuilder.Entity("Automation.Pipeline.Domain.Entities.Pipeline", b =>
@@ -169,6 +129,10 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
+                    b.Property<string>("Parameters")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uuid");
 
@@ -180,18 +144,11 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.Property<Guid?>("TriggerWorkspaceId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("UpdatedBy")
                         .HasColumnType("text");
-
-                    b.Property<string>("Variables")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
 
                     b.HasKey("Id");
 
@@ -261,9 +218,6 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("AgentId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -293,6 +247,9 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                     b.Property<int>("NextNodeIndex")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("ParentExecutionId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("PipelineId")
                         .HasColumnType("uuid");
 
@@ -304,6 +261,9 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<Guid?>("TriggeredByNodeId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -311,69 +271,12 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ParentExecutionId");
 
                     b.HasIndex("PipelineId");
 
                     b.ToTable("PipelineExecutions", "pipeline");
-                });
-
-            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineInput", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Cardinality")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("DefaultValue")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<bool>("IsRequired")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Key")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("Label")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<int>("Order")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("PipelineId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PipelineId", "Key")
-                        .IsUnique();
-
-                    b.ToTable("PipelineInputs", "pipeline");
                 });
 
             modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineNode", b =>
@@ -393,7 +296,14 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Kind")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<JsonDocument>("Metadata")
+                        .HasColumnType("jsonb");
+
+                    b.Property<Guid?>("ParentId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("PipelineId")
                         .HasColumnType("uuid");
@@ -419,63 +329,22 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                                 .HasColumnType("real");
                         });
 
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Size", "Automation.Pipeline.Domain.Entities.PipelineNode.Size#NodeSize", b1 =>
+                        {
+                            b1.Property<float>("Height")
+                                .HasColumnType("real");
+
+                            b1.Property<float>("Width")
+                                .HasColumnType("real");
+                        });
+
                     b.HasKey("Id");
+
+                    b.HasIndex("ParentId");
 
                     b.HasIndex("PipelineId");
 
                     b.ToTable("PipelineNodes", "pipeline");
-                });
-
-            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineOutput", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Cardinality")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Key")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("Label")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<int>("Order")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("PipelineId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PipelineId", "Key")
-                        .IsUnique();
-
-                    b.ToTable("PipelineOutputs", "pipeline");
                 });
 
             modelBuilder.Entity("Wolverine.EntityFrameworkCore.Internals.IncomingMessage", b =>
@@ -570,25 +439,6 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.NodeExecution", b =>
-                {
-                    b.HasOne("Automation.Pipeline.Domain.Entities.PipelineExecution", "PipelineExecution")
-                        .WithMany()
-                        .HasForeignKey("PipelineExecutionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Automation.Pipeline.Domain.Entities.PipelineNode", "PipelineNode")
-                        .WithMany()
-                        .HasForeignKey("PipelineNodeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("PipelineExecution");
-
-                    b.Navigation("PipelineNode");
-                });
-
             modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineEdge", b =>
                 {
                     b.HasOne("Automation.Pipeline.Domain.Entities.Pipeline", "Pipeline")
@@ -618,44 +468,36 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineExecution", b =>
                 {
+                    b.HasOne("Automation.Pipeline.Domain.Entities.PipelineExecution", "ParentExecution")
+                        .WithMany()
+                        .HasForeignKey("ParentExecutionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Automation.Pipeline.Domain.Entities.Pipeline", "Pipeline")
                         .WithMany()
                         .HasForeignKey("PipelineId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Pipeline");
-                });
-
-            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineInput", b =>
-                {
-                    b.HasOne("Automation.Pipeline.Domain.Entities.Pipeline", "Pipeline")
-                        .WithMany("Inputs")
-                        .HasForeignKey("PipelineId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.Navigation("ParentExecution");
 
                     b.Navigation("Pipeline");
                 });
 
             modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineNode", b =>
                 {
+                    b.HasOne("Automation.Pipeline.Domain.Entities.PipelineNode", "Parent")
+                        .WithMany("Children")
+                        .HasForeignKey("ParentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Automation.Pipeline.Domain.Entities.Pipeline", "Pipeline")
                         .WithMany("Nodes")
                         .HasForeignKey("PipelineId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Pipeline");
-                });
-
-            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineOutput", b =>
-                {
-                    b.HasOne("Automation.Pipeline.Domain.Entities.Pipeline", "Pipeline")
-                        .WithMany("Outputs")
-                        .HasForeignKey("PipelineId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.Navigation("Parent");
 
                     b.Navigation("Pipeline");
                 });
@@ -664,11 +506,12 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                 {
                     b.Navigation("Edges");
 
-                    b.Navigation("Inputs");
-
                     b.Navigation("Nodes");
+                });
 
-                    b.Navigation("Outputs");
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineNode", b =>
+                {
+                    b.Navigation("Children");
                 });
 #pragma warning restore 612, 618
         }

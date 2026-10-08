@@ -106,11 +106,13 @@ export function UpdateContentItemPage() {
         );
     }
 
+    const formId = `update-content-item-form-${typeKey}-${contentItemId}`;
+
     return (
         <FormPageShell
             title={t("actions.editTitle", { defaultValue: `Edit ${contentType.displayName || 'Content Item'}` })}
             description={t("actions.editDescription", { defaultValue: `Update details for ${itemData.name || 'this item'}.` })}
-            formId={activeTab === "details" ? "update-content-item-form" : undefined}
+            formId={activeTab === "details" ? formId : undefined}
             isPending={updateContentItem.isPending}
             onCancel={handleCancel}
         >
@@ -159,7 +161,7 @@ export function UpdateContentItemPage() {
                 {/* Tab 1: Content Item Form */}
                 {activeTab === "details" && (
                     <ContentItemForm
-                        formId="update-content-item-form"
+                        formId={formId}
                         contentType={contentType}
                         initialData={initialFormValues}
                         onSubmit={handleSubmit}

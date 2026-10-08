@@ -13,10 +13,10 @@ namespace Automation.Pipeline.Tests;
 public class UpdateResourceMetadataToolTests
 {
     private readonly IRepositoryApi _workspaceApi = Substitute.For<IRepositoryApi>();
-    private readonly ToolExecutionContext _context = new(Guid.NewGuid(), Guid.NewGuid(), Guid.Empty, CancellationToken.None);
+    private readonly ToolExecutionContext _context = new(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
 
     [Fact]
-    public async Task ExecuteAsync_BatchMode_ShouldUpdateAllEntriesInMetadataMap()
+    public async Task ExecuteAsync_BatchMode_WithGuids_ShouldUpdateAllEntries()
     {
         var id1 = Guid.NewGuid();
         var id2 = Guid.NewGuid();
@@ -46,12 +46,23 @@ public class UpdateResourceMetadataToolTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_SingleMode_ShouldUpdateSingleResource()
+    public async Task ExecuteAsync_BatchMode_WithFilePaths_ShouldResolveAndBatchUpdate()
     {
-        var id = Guid.NewGuid();
+        var repoId = Guid.NewGuid();
+        var versionId1 = Guid.NewGuid();
+        var versionId2 = Guid.NewGuid();
+
+        var pathMap = new Dictionary<string, Guid>
+        {
+            ["Characters/Hero.duf"] = versionId1,
+            ["Props/Sword.duf"] = versionId2
+        };
+
+        _workspaceApi.ResolveResourceVersionIdsByPathsAsync(repoId, Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(pathMap));
 
         _workspaceApi.GetResourceLocationAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
-            .Returns(Result.Fail<ResourceLocationInfoDto>("Not found, use direct"));
+            .Returns(Result.Fail<ResourceLocationInfoDto>("Use version id directly"));
 
         _workspaceApi.UpdateMetadataAsync(Arg.Any<Guid>(), Arg.Any<JsonDocument>(), Arg.Any<CancellationToken>())
             .Returns(Result.Ok());
@@ -59,16 +70,20 @@ public class UpdateResourceMetadataToolTests
         var tool = new UpdateResourceMetadataTool(_workspaceApi);
         var inputs = new Dictionary<string, object>
         {
-            ["Target"] = $"urn:resource:{id}",
-            ["Metadata"] = """{"slot_count": 5}"""
+            ["Repository"] = $"repository:{repoId}",
+            ["MetadataMap"] = new Dictionary<string, object?>
+            {
+                ["Characters/Hero.duf"] = new { character = "Hero" },
+                ["Props/Sword.duf"] = """{"type": "Weapon"}"""
+            }
         };
 
         var result = await tool.ExecuteAsync(inputs, _context);
 
         result["Success"].Should().Be(true);
-        result["UpdatedCount"].Should().Be(1);
-        EntityRefHelper.ExtractRefId(result["ResourceVersionId"]).Should().Be(id);
+        result["UpdatedCount"].Should().Be(2);
 
-        await _workspaceApi.Received(1).UpdateMetadataAsync(Arg.Is<Guid>(g => g == id), Arg.Any<JsonDocument>(), Arg.Any<CancellationToken>());
+        await _workspaceApi.Received(1).UpdateMetadataAsync(Arg.Is<Guid>(g => g == versionId1), Arg.Any<JsonDocument>(), Arg.Any<CancellationToken>());
+        await _workspaceApi.Received(1).UpdateMetadataAsync(Arg.Is<Guid>(g => g == versionId2), Arg.Any<JsonDocument>(), Arg.Any<CancellationToken>());
     }
 }

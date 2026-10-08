@@ -7,7 +7,7 @@ export function SettingsLayout() {
   const isIndex = routerState.location.pathname === '/settings' || routerState.location.pathname === '/settings/';
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+    <div className="page-container">
       <div className="flex flex-col md:flex-row gap-8 lg:gap-10">
         {/* Sidebar - hidden on mobile IF not on index */}
         <SettingsSidebar className={!isIndex ? "hidden md:block" : ""} />

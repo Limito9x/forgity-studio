@@ -14,13 +14,13 @@ export function RepositoryListPage({ projectId }: RepositoryListPageProps) {
   const openDialog = useDialogStore((state) => state.openDialog);
 
   return (
-    <div className="p-6 mx-auto space-y-6 w-full min-w-0">
+    <div className="page-container space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Repositories</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage file repositories, assets (Daz, Blender, Unreal, FBX), and runner mounts for this project.
+            Manage file repositories, resources, and runner mounts for this project.
           </p>
         </div>
         <Button

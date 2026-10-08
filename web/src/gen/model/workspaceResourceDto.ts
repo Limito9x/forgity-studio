@@ -12,7 +12,7 @@ export interface WorkspaceResourceDto {
   /** @nullable */
   relativePath: string | null;
   /** @nullable */
-  platformExtensionId: string | null;
+  extension: string | null;
   /** @nullable */
   contentId: string | null;
   /** @nullable */

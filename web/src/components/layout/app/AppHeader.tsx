@@ -1,9 +1,7 @@
 import { Separator } from '@/components/ui/separator'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { AppBreadcrumb } from './AppBreadcrumb'
-import { LanguageSwitcher } from '@/components/custom-ui/locales/LanguageSwitcher'
 import { ThemeToggle } from '@/components/custom-ui/theme/ThemeToggle'
-import { NotificationPopover } from '@/features/notifications/components/NotificationPopover'
 
 interface AppHeaderProps {
   showSidebarTrigger?: boolean;
@@ -22,8 +20,6 @@ export function AppHeader({ showSidebarTrigger = true }: AppHeaderProps) {
         <AppBreadcrumb />
       </div>
       <div className="flex items-center gap-1.5">
-        <NotificationPopover />
-        <LanguageSwitcher />
         <ThemeToggle />
       </div>
     </header>

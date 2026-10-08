@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Automation.Runner.Contracts;
 
 public record RunnerExecutorConfigDto(
@@ -6,6 +8,8 @@ public record RunnerExecutorConfigDto(
     string ExecutorKey,
     string ExecutablePath,
     string? Version,
+    bool IsEnabled,
+    JsonDocument? Settings,
     DateTimeOffset CreatedAt
 );
 
@@ -16,7 +20,13 @@ public record RunnerInfo(
     List<RunnerExecutorConfigInfo> ExecutorConfigs
 );
 
-public record RunnerExecutorConfigInfo(string Key, string ExecutablePath, string? Version);
+public record RunnerExecutorConfigInfo(
+    string Key,
+    string ExecutablePath,
+    string? Version,
+    bool IsEnabled = true,
+    JsonDocument? Settings = null
+);
 
 // Backward-compatibility aliases
 public record AgentExecutorConfigDto(
@@ -25,8 +35,10 @@ public record AgentExecutorConfigDto(
     string ExecutorKey,
     string ExecutablePath,
     string? Version,
+    bool IsEnabled,
+    JsonDocument? Settings,
     DateTimeOffset CreatedAt
-) : RunnerExecutorConfigDto(Id, AgentId, ExecutorKey, ExecutablePath, Version, CreatedAt);
+) : RunnerExecutorConfigDto(Id, AgentId, ExecutorKey, ExecutablePath, Version, IsEnabled, Settings, CreatedAt);
 
 public record AgentInfo(
     Guid Id,
@@ -35,4 +47,10 @@ public record AgentInfo(
     List<AgentExecutorConfigInfo> ExecutorConfigs
 );
 
-public record AgentExecutorConfigInfo(string Key, string ExecutablePath, string? Version);
+public record AgentExecutorConfigInfo(
+    string Key,
+    string ExecutablePath,
+    string? Version,
+    bool IsEnabled = true,
+    JsonDocument? Settings = null
+);
