@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { BaseDialog } from "@/components/custom-ui/overlays/dialog/BaseDialog";
 import type { DialogProps } from "@/lib/dialog-registry";
 import { useGenerateSetupToken } from "../hooks/useRunners";
+import { useStudioStore } from "@/stores/studioStore";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -21,12 +22,15 @@ export function ConnectRunnerDialog({
   const [copiedToken, setCopiedToken] = useState(false);
   const [copiedCommand, setCopiedCommand] = useState(false);
 
+  const activeStudioId = useStudioStore((s) => s.activeStudioId);
   const generateTokenMutation = useGenerateSetupToken();
 
   const handleGenerate = () => {
     generateTokenMutation.mutate(
       {
-        data: {},
+        data: {
+          studioId: activeStudioId || undefined,
+        },
       },
       {
         onSuccess: (res: any) => {

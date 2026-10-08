@@ -14,7 +14,7 @@ public class PipelineExecutionConfiguration
             .HasOne(x => x.Pipeline)
             .WithMany()
             .HasForeignKey(x => x.PipelineId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(50);
 

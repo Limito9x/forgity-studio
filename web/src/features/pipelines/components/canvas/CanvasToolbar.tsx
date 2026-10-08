@@ -14,11 +14,13 @@ import {
   Zap,
   RefreshCw,
   Pencil,
+  Download,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useReactFlow } from "@xyflow/react";
 import { cn } from "@/lib/utils";
 import { useUpdatePipelineMutation } from "../../hooks/usePipelines";
+import { usePipelineExport } from "../../hooks/usePipelineExportImport";
 
 interface CanvasToolbarProps {
   projectId: string;
@@ -45,6 +47,7 @@ export function CanvasToolbar({
 }: CanvasToolbarProps) {
   const { fitView, zoomIn, zoomOut } = useReactFlow();
   const updateMutation = useUpdatePipelineMutation(projectId, pipelineId);
+  const { exportSingle, isExportingSingle } = usePipelineExport();
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(pipelineName);
@@ -196,6 +199,26 @@ export function CanvasToolbar({
             <span className="hidden sm:inline">Executions</span>
           </Button>
         )}
+
+        {/* Export Pipeline Package */}
+        <Button
+          variant="outline"
+          size="sm"
+          onPress={() => {
+            if (pipelineId) {
+              exportSingle({ id: pipelineId });
+            }
+          }}
+          isDisabled={!pipelineId || isExportingSingle}
+          className="h-8 text-xs gap-1.5"
+        >
+          {isExportingSingle ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Download className="h-3.5 w-3.5 text-primary" />
+          )}
+          <span className="hidden sm:inline">Export</span>
+        </Button>
 
         {/* Validate */}
         <Button

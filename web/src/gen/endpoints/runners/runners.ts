@@ -27,6 +27,7 @@ import type {
   DiscoverRunnerFoldersParams,
   ErrorResponse,
   GenerateSetupTokenRequest,
+  GetRunnersParams,
   IReadOnlyListOfExecutorCandidateDto,
   IReadOnlyListOfRunnerDto,
   IReadOnlyListOfRunnerExecutorConfigDto,
@@ -63,33 +64,37 @@ const withQueryKey = <T extends object, K>(
   return result;
 };
 
-export const getRunners = (signal?: AbortSignal) => {
+export const getRunners = (params?: GetRunnersParams, signal?: AbortSignal) => {
   return customInstance<IReadOnlyListOfRunnerDto>({
     url: `/api/runners`,
     method: "GET",
+    params,
     signal,
   });
 };
 
-export const getGetRunnersQueryKey = () => {
-  return [`/api/runners`] as const;
+export const getGetRunnersQueryKey = (params?: GetRunnersParams) => {
+  return [`/api/runners`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetRunnersQueryOptions = <
   TData = Awaited<ReturnType<typeof getRunners>>,
   TError = void,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<Awaited<ReturnType<typeof getRunners>>, TError, TData>
-  >;
-}) => {
+>(
+  params?: GetRunnersParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getRunners>>, TError, TData>
+    >;
+  },
+) => {
   const { query: queryOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetRunnersQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetRunnersQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getRunners>>> = ({
     signal,
-  }) => getRunners(signal);
+  }) => getRunners(params, signal);
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getRunners>>,
@@ -107,6 +112,7 @@ export function useGetRunners<
   TData = Awaited<ReturnType<typeof getRunners>>,
   TError = void,
 >(
+  params: undefined | GetRunnersParams,
   options: {
     query: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getRunners>>, TError, TData>
@@ -128,6 +134,7 @@ export function useGetRunners<
   TData = Awaited<ReturnType<typeof getRunners>>,
   TError = void,
 >(
+  params?: GetRunnersParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getRunners>>, TError, TData>
@@ -149,6 +156,7 @@ export function useGetRunners<
   TData = Awaited<ReturnType<typeof getRunners>>,
   TError = void,
 >(
+  params?: GetRunnersParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getRunners>>, TError, TData>
@@ -163,6 +171,7 @@ export function useGetRunners<
   TData = Awaited<ReturnType<typeof getRunners>>,
   TError = void,
 >(
+  params?: GetRunnersParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getRunners>>, TError, TData>
@@ -172,7 +181,7 @@ export function useGetRunners<
 ): UseQueryResult<TData, TError> & {
   queryKey: DataTag<QueryKey, TData, TError>;
 } {
-  const queryOptions = getGetRunnersQueryOptions(options);
+  const queryOptions = getGetRunnersQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<
     TData,

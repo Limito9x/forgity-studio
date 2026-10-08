@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Form, FormGrid, zodResolver, useForm } from "@/components/form";
 import { FormInput, FormTextarea } from "@/components/form-controls";
 import {
@@ -23,16 +22,6 @@ export function StudioForm({ formId, onSubmit, defaultValues }: StudioFormProps)
     },
   });
 
-  const nameValue = form.watch("name");
-  useEffect(() => {
-    if (nameValue) {
-      const currentSlug = form.getValues("slug");
-      if (!currentSlug || currentSlug === slugify(defaultValues?.name || "")) {
-        form.setValue("slug", slugify(nameValue), { shouldValidate: true });
-      }
-    }
-  }, [nameValue, defaultValues?.name, form]);
-
   return (
     <Form form={form} formId={formId} onSubmit={onSubmit}>
       <FormGrid cols={1} className="gap-4">
@@ -43,30 +32,14 @@ export function StudioForm({ formId, onSubmit, defaultValues }: StudioFormProps)
           type="text"
           placeholder="e.g. Acme VFX Studio"
         />
-        <FormInput
-          control={form.control}
-          label="Slug (URL identifier)"
-          name="slug"
-          type="text"
-          placeholder="e.g. acme-vfx-studio"
-        />
         <FormTextarea
           control={form.control}
           label="Description"
           name="description"
-          placeholder="Brief description of your studio..."
+          placeholder="Brief description of your studio (optional)..."
           rows={3}
         />
       </FormGrid>
     </Form>
   );
-}
-
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/[\s_-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }

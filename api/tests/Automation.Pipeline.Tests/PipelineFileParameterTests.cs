@@ -43,7 +43,7 @@ public sealed class PipelineFileParameterTests : IDisposable
         _connection.Open();
         _connection.CreateCollation("case_insensitive", (a, b) => string.Compare(a, b, StringComparison.OrdinalIgnoreCase));
         _db = new TestDb(new DbContextOptionsBuilder<PipelineDbContext>().UseSqlite(_connection)
-            .AddInterceptors(new EntityDeletedInterceptor(NullLogger<EntityDeletedInterceptor>.Instance, _bus)).Options);
+            .AddInterceptors(EntityDeletedInterceptor.CreateForTest(_bus)).Options);
         _db.Database.EnsureCreated();
         _db.Pipelines.Add(_pipeline);
         _db.NodeDefinitions.Add(new NodeDefinition

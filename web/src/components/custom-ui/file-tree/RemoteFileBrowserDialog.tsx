@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { BaseDialog } from "@/components/custom-ui/overlays/dialog/BaseDialog";
-import { FolderBrowser, type BrowserMode } from "./FolderBrowser";
+import { FolderBrowser, formatTruncatedPath, type BrowserMode } from "./FolderBrowser";
 import type { DirectoryNodeDto } from "@/gen/model";
 import { Button } from "@/components/ui/button";
 import { Check, FileCheck } from "lucide-react";
@@ -76,7 +76,7 @@ export function RemoteFileBrowserDialog({
               className="font-mono text-primary truncate max-w-full"
               title={selectedPath || "No item selected"}
             >
-              {selectedPath || "No item selected"}
+              {selectedPath ? formatTruncatedPath(selectedPath, 55) : "No item selected"}
             </span>
           </div>
 
@@ -105,7 +105,7 @@ export function RemoteFileBrowserDialog({
         </div>
       }
     >
-      <div className="py-1">
+      <div className="py-1 w-full min-w-0 max-w-full overflow-hidden">
         <FolderBrowser
           runnerId={runnerId}
           initialPath={initialPath}

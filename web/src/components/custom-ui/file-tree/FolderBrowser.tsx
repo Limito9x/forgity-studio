@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useDiscoverRunnerFolder, useRunners } from "@/features/runners/hooks/useRunners";
 import type { DirectoryNodeDto, SystemPlaceDto } from "@/gen/model";
 import { Button } from "@/components/ui/button";
@@ -70,6 +70,54 @@ function formatBytes(bytes?: number | null, decimals = 1): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
+/**
+ * Rút gọn đường dẫn thông minh (Middle/Start Truncation)
+ * Ví dụ: "D:/FullStack/Automation/workers/worker/venv/Scripts/python.exe"
+ * -> "D:/.../venv/Scripts/python.exe"
+ */
+export function formatTruncatedPath(path?: string | null, maxLength = 50): string {
+  if (!path) return "";
+  const normalized = path.replace(/\\/g, "/");
+  if (normalized.length <= maxLength) return normalized;
+
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length <= 2) {
+    return "..." + normalized.slice(-(maxLength - 3));
+  }
+
+  const isWindowsDrive = /^[a-zA-Z]:$/.test(parts[0]);
+  const rootPrefix = isWindowsDrive ? `${parts[0]}/.../` : ".../";
+
+  // Thử giữ lại từ 3 đến 1 folder/file ở đuôi sao cho vừa maxLength
+  for (let take = Math.min(parts.length - 1, 4); take >= 1; take--) {
+    const tail = parts.slice(-take).join("/");
+    const candidate = `${rootPrefix}${tail}`;
+    if (candidate.length <= maxLength) {
+      return candidate;
+    }
+  }
+
+  return "..." + normalized.slice(-(maxLength - 3));
+}
+
+function parseInitialPath(pathStr: string, isFileMode: boolean) {
+  if (!pathStr) return { folderPath: "", selectedFile: "" };
+  const normalized = pathStr.replace(/\\/g, "/");
+  if (isFileMode) {
+    const lastSlash = normalized.lastIndexOf("/");
+    if (lastSlash !== -1) {
+      const lastPart = normalized.substring(lastSlash + 1);
+      if (lastPart.includes(".")) {
+        return {
+          folderPath: normalized.substring(0, lastSlash),
+          selectedFile: normalized,
+        };
+      }
+    }
+  }
+  return { folderPath: normalized, selectedFile: "" };
+}
+
 export function FolderBrowser({
   runnerId,
   initialPath = "",
@@ -81,8 +129,25 @@ export function FolderBrowser({
   className = "",
   height = 420,
 }: FolderBrowserProps) {
-  const [currentPath, setCurrentPath] = useState<string>(initialPath);
+  const initialParsed = useMemo(
+    () => parseInitialPath(initialPath, mode === "file"),
+    [initialPath, mode]
+  );
+  const [currentPath, setCurrentPath] = useState<string>(initialParsed.folderPath);
   const [searchTerm, setSearchTerm] = useState("");
+  const [expandBreadcrumbs, setExpandBreadcrumbs] = useState(false);
+
+  useEffect(() => {
+    setExpandBreadcrumbs(false);
+  }, [currentPath]);
+
+  useEffect(() => {
+    const parsed = parseInitialPath(initialPath, mode === "file");
+    setCurrentPath(parsed.folderPath);
+    if (parsed.selectedFile && !selectedPath && onSelectPath) {
+      onSelectPath(parsed.selectedFile);
+    }
+  }, [initialPath, mode]);
 
   const { data: allRunners } = useRunners();
   const currentRunner = allRunners?.find((r) => r.id === runnerId);
@@ -249,12 +314,12 @@ export function FolderBrowser({
   return (
     <div
       className={cn(
-        "flex flex-col border border-border/60 rounded-xl bg-card overflow-hidden shadow-xs text-xs w-full",
+        "flex flex-col border border-border/60 rounded-xl bg-card overflow-hidden shadow-xs text-xs w-full min-w-0 max-w-full",
         className
       )}
     >
       {/* Top Header / Breadcrumb Bar */}
-      <div className="flex items-center gap-1.5 p-2 bg-muted/30 border-b border-border/40 overflow-x-auto select-none scrollbar-thin">
+      <div className="flex items-center gap-1.5 p-2 bg-muted/30 border-b border-border/40 select-none w-full min-w-0 overflow-hidden">
         <div title={canNavigateUp ? `Go up to ${parentPath || "Drives"}` : "At Root Drives"}>
           <Button
             variant="ghost"
@@ -267,35 +332,63 @@ export function FolderBrowser({
           </Button>
         </div>
 
-        {/* Breadcrumb Chips */}
-        <div className="flex items-center gap-1 flex-1 overflow-x-auto no-scrollbar font-mono text-[11px]">
-          {breadcrumbs.map((crumb, idx) => {
-            const isLast = idx === breadcrumbs.length - 1;
-            return (
-              <div key={crumb.path || "root"} className="flex items-center gap-1 shrink-0">
-                {idx > 0 && <ChevronRight className="size-3 text-muted-foreground/50 shrink-0" />}
-                <button
-                  type="button"
-                  onClick={() => !isLast && handleNavigate(crumb.path, mode !== "file")}
-                  disabled={isLast || isLoading}
-                  className={cn(
-                    "flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors text-xs",
-                    isLast
-                      ? "bg-primary/10 text-primary font-semibold cursor-default"
-                      : "text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
-                  )}
-                  title={crumb.path || "Drives"}
-                >
-                  {crumb.isRoot ? (
-                    <HardDrive className="size-3 text-primary shrink-0" />
-                  ) : (
-                    <Folder className="size-3 text-amber-500 shrink-0" />
-                  )}
-                  <span className="truncate max-w-[120px]">{crumb.label}</span>
-                </button>
-              </div>
-            );
-          })}
+        {/* Breadcrumb Chips with Smart Collapsing */}
+        <div className="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto no-scrollbar font-mono text-[11px]">
+          {(() => {
+            type CrumbItem = { label: string; path: string; isRoot?: boolean; isCollapsed?: boolean };
+            const shouldCollapse = !expandBreadcrumbs && breadcrumbs.length > 4;
+            const displayedCrumbs: CrumbItem[] = shouldCollapse
+              ? [
+                  ...breadcrumbs.slice(0, 2),
+                  { label: "...", path: "__collapsed__", isCollapsed: true },
+                  ...breadcrumbs.slice(-2),
+                ]
+              : breadcrumbs;
+
+            return displayedCrumbs.map((crumb, idx) => {
+              if (crumb.isCollapsed) {
+                return (
+                  <div key="collapsed" className="flex items-center gap-1 shrink-0">
+                    <ChevronRight className="size-3 text-muted-foreground/50 shrink-0" />
+                    <button
+                      type="button"
+                      onClick={() => setExpandBreadcrumbs(true)}
+                      className="px-1.5 py-0.5 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer font-bold tracking-widest"
+                      title="Show full folder hierarchy"
+                    >
+                      ...
+                    </button>
+                  </div>
+                );
+              }
+
+              const isLast = crumb.path === breadcrumbs[breadcrumbs.length - 1]?.path;
+              return (
+                <div key={crumb.path || "root"} className="flex items-center gap-1 shrink-0">
+                  {idx > 0 && <ChevronRight className="size-3 text-muted-foreground/50 shrink-0" />}
+                  <button
+                    type="button"
+                    onClick={() => !isLast && handleNavigate(crumb.path, mode !== "file")}
+                    disabled={isLast || isLoading}
+                    className={cn(
+                      "flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors text-xs",
+                      isLast
+                        ? "bg-primary/10 text-primary font-semibold cursor-default"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent cursor-pointer"
+                    )}
+                    title={crumb.path || "Drives"}
+                  >
+                    {crumb.isRoot ? (
+                      <HardDrive className="size-3 text-primary shrink-0" />
+                    ) : (
+                      <Folder className="size-3 text-amber-500 shrink-0" />
+                    )}
+                    <span className="truncate max-w-[90px]">{crumb.label}</span>
+                  </button>
+                </div>
+              );
+            });
+          })()}
         </div>
 
         {/* Refresh Button */}
@@ -682,7 +775,7 @@ export function FolderBrowser({
             className="font-mono text-foreground truncate max-w-[280px]"
             title={selectedPath || "None"}
           >
-            {selectedPath || "None"}
+            {selectedPath ? formatTruncatedPath(selectedPath, 45) : "None"}
           </span>
         </div>
 

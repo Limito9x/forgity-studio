@@ -62,7 +62,8 @@ public record PipelineSummaryDto(
     int NodeCount,
     int EdgeCount,
     DateTimeOffset CreatedAt,
-    JsonDocument? TriggerConfig = null
+    JsonDocument? TriggerConfig = null,
+    DateTimeOffset? DeletedAt = null
 );
 
 public record PipelineParameterDto(

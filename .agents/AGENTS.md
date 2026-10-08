@@ -111,7 +111,5 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 - [deploy-readiness-batch-first](file:///d:/FullStack/Automation/.agents/plans/2026-10-06-deploy-readiness-batch-first.md): Kế hoạch chuẩn bị triển khai & tối ưu xử lý hàng loạt Batch-First.
 - [unreal-batch-first-refactor](file:///d:/FullStack/Automation/.agents/plans/unreal-batch-first-refactor.md): Kế hoạch tái cấu trúc Unreal Engine Subprocess sang cơ chế Batch-First.
 - [pipeline-file-draft-sync](file:///d:/FullStack/Automation/.agents/plans/2026-10-08-pipeline-file-draft-sync.md): Kế hoạch đồng bộ file parameter trong cấu hình node của Pipeline Canvas.
-
-
-
-
+- [pipeline-export-import-bundle](file:///d:/FullStack/Automation/.agents/plans/2026-10-08-pipeline-export-import-bundle.md): Kế hoạch xuất nhập Pipeline dạng Unified Package Bundle hỗ trợ Batch, giải quyết phụ thuộc đệ quy SubPipeline, Content Types & Custom Scripts.
+- [pipeline-soft-delete-archive](file:///d:/FullStack/Automation/.agents/plans/2026-10-08-pipeline-soft-delete-archive.md): Kế hoạch Soft Delete (Archive), Partial Unique Index chống trùng tên trong đống Active, và bảo vệ toàn vẹn Node, Edge và Execution history.

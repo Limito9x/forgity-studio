@@ -10,4 +10,5 @@ export type GetPipelinesParams = {
    * @nullable
    */
   projectId?: string | null;
+  isArchived: boolean;
 };

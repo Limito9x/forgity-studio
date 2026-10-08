@@ -154,7 +154,7 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ProjectId", "Name")
                         .IsUnique()
-                        .HasFilter("\"IsDeleted\" = false");
+                        .HasFilter("\"DeletedAt\" IS NULL");
 
                     b.ToTable("Pipelines", "pipeline");
                 });
@@ -476,7 +476,7 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                     b.HasOne("Automation.Pipeline.Domain.Entities.Pipeline", "Pipeline")
                         .WithMany()
                         .HasForeignKey("PipelineId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("ParentExecution");

@@ -5,11 +5,12 @@ using Automation.Pipeline.Infrastructure.Persistence;
 
 namespace Automation.Pipeline.Features.Pipelines;
 
-public record GetPipelinesQuery(Guid? ProjectId);
+public record GetPipelinesQuery(Guid? ProjectId, bool IsArchived = false);
 
 public class GetPipelinesRequest
 {
     public Guid? ProjectId { get; set; }
+    public bool IsArchived { get; set; } = false;
 }
 
 public class GetPipelinesEndpoint(IMessageBus bus) : Endpoint<GetPipelinesRequest, List<PipelineSummaryDto>>
@@ -26,7 +27,7 @@ public class GetPipelinesEndpoint(IMessageBus bus) : Endpoint<GetPipelinesReques
 
     public override async Task HandleAsync(GetPipelinesRequest req, CancellationToken ct)
     {
-        var query = new GetPipelinesQuery(req.ProjectId);
+        var query = new GetPipelinesQuery(req.ProjectId, req.IsArchived);
         var result = await bus.InvokeAsync<Result<List<PipelineSummaryDto>>>(query, ct);
         await this.SendResultAsync(result, ct);
     }
@@ -42,13 +43,19 @@ public class GetPipelinesHandler(PipelineDbContext db)
     {
         var q = db.Pipelines.AsNoTracking();
 
+        if (query.IsArchived)
+        {
+            // Bỏ qua Global Query Filter để lấy danh sách trong Thùng rác (Trash)
+            q = q.IgnoreQueryFilters().Where(x => x.DeletedAt != null);
+        }
+
         if (query.ProjectId.HasValue && query.ProjectId.Value != Guid.Empty)
         {
             q = q.Where(x => x.ProjectId == query.ProjectId.Value);
         }
 
         var list = await q
-            .OrderByDescending(x => x.CreatedAt)
+            .OrderByDescending(x => query.IsArchived ? x.DeletedAt : x.CreatedAt)
             .Select(x => new PipelineSummaryDto(
                 x.Id,
                 x.ProjectId,
@@ -57,7 +64,8 @@ public class GetPipelinesHandler(PipelineDbContext db)
                 x.Nodes.Count,
                 x.Edges.Count,
                 x.CreatedAt,
-                x.TriggerConfig
+                x.TriggerConfig,
+                x.DeletedAt
             ))
             .ToListAsync(ct);
 

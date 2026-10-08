@@ -22,20 +22,26 @@ import type {
 
 import type {
   CreatePipelineCommand,
+  ExportPipelineBatchRequest,
   GetPipelinesParams,
   GetStructCatalogueParams,
   IReadOnlyListOfPinTypeMetadataDto,
   IReadOnlyListOfStructDefinitionDto,
+  ImportPipelinePackageRequest,
+  ImportPipelinePackageResponseDto,
   ListOfNodeExecutionDto,
   ListOfPipelineExecutionDto,
   ListOfPipelineSummaryDto,
   PipelineExecutionDto,
   PipelineGraphDto,
+  PipelinePackageDto,
   PipelineSummaryDto,
   RunPipelineRequest,
   SavePipelineGraphRequest,
   UpdatePipelineRequest,
   UpdatePipelineTriggerRequest,
+  ValidatePipelinePackageRequest,
+  ValidatePipelinePackageResponseDto,
   ValidatePipelineQuery,
   ValidatePipelineResponse,
 } from "../../model";
@@ -135,7 +141,7 @@ export const useCreatePipeline = <TError = void, TContext = unknown>(
   return useMutation(getCreatePipelineMutationOptions(options), queryClient);
 };
 export const getPipelines = (
-  params?: GetPipelinesParams,
+  params: GetPipelinesParams,
   signal?: AbortSignal,
 ) => {
   return customInstance<ListOfPipelineSummaryDto>({
@@ -154,7 +160,7 @@ export const getGetPipelinesQueryOptions = <
   TData = Awaited<ReturnType<typeof getPipelines>>,
   TError = void,
 >(
-  params?: GetPipelinesParams,
+  params: GetPipelinesParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getPipelines>>, TError, TData>
@@ -185,7 +191,7 @@ export function useGetPipelines<
   TData = Awaited<ReturnType<typeof getPipelines>>,
   TError = void,
 >(
-  params: undefined | GetPipelinesParams,
+  params: GetPipelinesParams,
   options: {
     query: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getPipelines>>, TError, TData>
@@ -207,7 +213,7 @@ export function useGetPipelines<
   TData = Awaited<ReturnType<typeof getPipelines>>,
   TError = void,
 >(
-  params?: GetPipelinesParams,
+  params: GetPipelinesParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getPipelines>>, TError, TData>
@@ -229,7 +235,7 @@ export function useGetPipelines<
   TData = Awaited<ReturnType<typeof getPipelines>>,
   TError = void,
 >(
-  params?: GetPipelinesParams,
+  params: GetPipelinesParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getPipelines>>, TError, TData>
@@ -244,7 +250,7 @@ export function useGetPipelines<
   TData = Awaited<ReturnType<typeof getPipelines>>,
   TError = void,
 >(
-  params?: GetPipelinesParams,
+  params: GetPipelinesParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getPipelines>>, TError, TData>
@@ -639,6 +645,238 @@ export function useGetNodeExecutions<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+export const exportPipelineBatch = (
+  exportPipelineBatchRequest: ExportPipelineBatchRequest,
+  signal?: AbortSignal,
+) => {
+  return customInstance<PipelinePackageDto>({
+    url: `/api/pipelines/export-batch`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: exportPipelineBatchRequest,
+    signal,
+  });
+};
+
+export const getExportPipelineBatchMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof exportPipelineBatch>>,
+    TError,
+    { data: ExportPipelineBatchRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof exportPipelineBatch>>,
+  TError,
+  { data: ExportPipelineBatchRequest },
+  TContext
+> => {
+  const mutationKey = ["exportPipelineBatch"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof exportPipelineBatch>>,
+    { data: ExportPipelineBatchRequest }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return exportPipelineBatch(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ExportPipelineBatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof exportPipelineBatch>>
+>;
+export type ExportPipelineBatchMutationBody = ExportPipelineBatchRequest;
+export type ExportPipelineBatchMutationError = void;
+
+export const useExportPipelineBatch = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof exportPipelineBatch>>,
+      TError,
+      { data: ExportPipelineBatchRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof exportPipelineBatch>>,
+  TError,
+  { data: ExportPipelineBatchRequest },
+  TContext
+> => {
+  return useMutation(
+    getExportPipelineBatchMutationOptions(options),
+    queryClient,
+  );
+};
+export const importPipelinePackage = (
+  importPipelinePackageRequest: ImportPipelinePackageRequest,
+  signal?: AbortSignal,
+) => {
+  return customInstance<ImportPipelinePackageResponseDto>({
+    url: `/api/pipelines/import`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: importPipelinePackageRequest,
+    signal,
+  });
+};
+
+export const getImportPipelinePackageMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof importPipelinePackage>>,
+    TError,
+    { data: ImportPipelinePackageRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof importPipelinePackage>>,
+  TError,
+  { data: ImportPipelinePackageRequest },
+  TContext
+> => {
+  const mutationKey = ["importPipelinePackage"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof importPipelinePackage>>,
+    { data: ImportPipelinePackageRequest }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return importPipelinePackage(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ImportPipelinePackageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof importPipelinePackage>>
+>;
+export type ImportPipelinePackageMutationBody = ImportPipelinePackageRequest;
+export type ImportPipelinePackageMutationError = void;
+
+export const useImportPipelinePackage = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof importPipelinePackage>>,
+      TError,
+      { data: ImportPipelinePackageRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof importPipelinePackage>>,
+  TError,
+  { data: ImportPipelinePackageRequest },
+  TContext
+> => {
+  return useMutation(
+    getImportPipelinePackageMutationOptions(options),
+    queryClient,
+  );
+};
+export const validatePipelinePackage = (
+  validatePipelinePackageRequest: ValidatePipelinePackageRequest,
+  signal?: AbortSignal,
+) => {
+  return customInstance<ValidatePipelinePackageResponseDto>({
+    url: `/api/pipelines/import-validate`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: validatePipelinePackageRequest,
+    signal,
+  });
+};
+
+export const getValidatePipelinePackageMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof validatePipelinePackage>>,
+    TError,
+    { data: ValidatePipelinePackageRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof validatePipelinePackage>>,
+  TError,
+  { data: ValidatePipelinePackageRequest },
+  TContext
+> => {
+  const mutationKey = ["validatePipelinePackage"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof validatePipelinePackage>>,
+    { data: ValidatePipelinePackageRequest }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return validatePipelinePackage(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ValidatePipelinePackageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof validatePipelinePackage>>
+>;
+export type ValidatePipelinePackageMutationBody =
+  ValidatePipelinePackageRequest;
+export type ValidatePipelinePackageMutationError = void;
+
+export const useValidatePipelinePackage = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof validatePipelinePackage>>,
+      TError,
+      { data: ValidatePipelinePackageRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof validatePipelinePackage>>,
+  TError,
+  { data: ValidatePipelinePackageRequest },
+  TContext
+> => {
+  return useMutation(
+    getValidatePipelinePackageMutationOptions(options),
+    queryClient,
+  );
+};
 export const getPinCatalogue = (signal?: AbortSignal) => {
   return customInstance<IReadOnlyListOfPinTypeMetadataDto>({
     url: `/api/pipelines/pins/catalogue`,
@@ -1074,6 +1312,137 @@ export const useDeletePipeline = <TError = void, TContext = unknown>(
 > => {
   return useMutation(getDeletePipelineMutationOptions(options), queryClient);
 };
+export const exportPipeline = (id: string, signal?: AbortSignal) => {
+  return customInstance<PipelinePackageDto>({
+    url: `/api/pipelines/${id}/export`,
+    method: "GET",
+    signal,
+  });
+};
+
+export const getExportPipelineQueryKey = (id: string) => {
+  return [`/api/pipelines/${id}/export`] as const;
+};
+
+export const getExportPipelineQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportPipeline>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof exportPipeline>>, TError, TData>
+    >;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getExportPipelineQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof exportPipeline>>> = ({
+    signal,
+  }) => exportPipeline(id, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: id !== null && id !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportPipeline>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ExportPipelineQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportPipeline>>
+>;
+export type ExportPipelineQueryError = void;
+
+export function useExportPipeline<
+  TData = Awaited<ReturnType<typeof exportPipeline>>,
+  TError = void,
+>(
+  id: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof exportPipeline>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportPipeline>>,
+          TError,
+          Awaited<ReturnType<typeof exportPipeline>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useExportPipeline<
+  TData = Awaited<ReturnType<typeof exportPipeline>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof exportPipeline>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportPipeline>>,
+          TError,
+          Awaited<ReturnType<typeof exportPipeline>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useExportPipeline<
+  TData = Awaited<ReturnType<typeof exportPipeline>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof exportPipeline>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useExportPipeline<
+  TData = Awaited<ReturnType<typeof exportPipeline>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof exportPipeline>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getExportPipelineQueryOptions(id, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 export const getPipelineGraph = (id: string, signal?: AbortSignal) => {
   return customInstance<PipelineGraphDto>({
     url: `/api/pipelines/${id}/graph`,
@@ -1299,6 +1668,144 @@ export const useSavePipelineGraph = <TError = void, TContext = unknown>(
   TContext
 > => {
   return useMutation(getSavePipelineGraphMutationOptions(options), queryClient);
+};
+export const purgePipeline = (id: string, signal?: AbortSignal) => {
+  return customInstance<void>({
+    url: `/api/pipelines/${id}/purge`,
+    method: "DELETE",
+    signal,
+  });
+};
+
+export const getPurgePipelineMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof purgePipeline>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof purgePipeline>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["purgePipeline"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof purgePipeline>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return purgePipeline(id);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PurgePipelineMutationResult = NonNullable<
+  Awaited<ReturnType<typeof purgePipeline>>
+>;
+
+export type PurgePipelineMutationError = void;
+
+export const usePurgePipeline = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof purgePipeline>>,
+      TError,
+      { id: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof purgePipeline>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getPurgePipelineMutationOptions(options), queryClient);
+};
+export const restorePipeline = (id: string, signal?: AbortSignal) => {
+  return customInstance<PipelineSummaryDto>({
+    url: `/api/pipelines/${id}/restore`,
+    method: "POST",
+    signal,
+  });
+};
+
+export const getRestorePipelineMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof restorePipeline>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof restorePipeline>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["restorePipeline"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof restorePipeline>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return restorePipeline(id);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RestorePipelineMutationResult = NonNullable<
+  Awaited<ReturnType<typeof restorePipeline>>
+>;
+
+export type RestorePipelineMutationError = void;
+
+export const useRestorePipeline = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof restorePipeline>>,
+      TError,
+      { id: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof restorePipeline>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getRestorePipelineMutationOptions(options), queryClient);
 };
 export const updatePipelineTrigger = (
   id: string,

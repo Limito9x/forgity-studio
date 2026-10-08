@@ -9,6 +9,7 @@ import {
 } from "../hooks/useRunners";
 import type { ExecutorCandidateDto } from "../types";
 import { BaseExecutorCard } from "../components/BaseExecutorCard";
+import { RemoteFileBrowserDialog } from "@/components/custom-ui/file-tree";
 import { getSoftwareMetadata, SUPPORTED_EXECUTOR_KEYS } from "../constants/dccEngines";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +50,14 @@ export function RunnerSoftwareDialog({
   const [executors, setExecutors] = useState<ExecutorCandidateDto[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>("");
 
+  const [browserState, setBrowserState] = useState<{
+    open: boolean;
+    executorKey?: string;
+    title?: string;
+    initialPath?: string;
+    onSelected?: (path: string) => void;
+  }>({ open: false });
+
   const scanMutation = useScanRunnerExecutors();
   const configureMutation = useConfigureRunnerExecutor();
 
@@ -72,6 +81,12 @@ export function RunnerSoftwareDialog({
       }
     );
   };
+
+  useEffect(() => {
+    if (open && runnerId && executors.length === 0 && !scanMutation.isPending) {
+      handleScan();
+    }
+  }, [open, runnerId]);
 
   const handleSaveExecutor = (payload: {
     executorKey: string;
@@ -290,12 +305,43 @@ export function RunnerSoftwareDialog({
                 activeConfig={activeConfig}
                 availableCandidates={candidates}
                 defaultExpanded={index === 0 || !activeConfig?.executablePath}
+                onOpenBrowse={(initialPath, onSelect) => {
+                  const meta = getSoftwareMetadata(key);
+                  setBrowserState({
+                    open: true,
+                    executorKey: key,
+                    title: `Browse ${meta.name} Executable`,
+                    initialPath,
+                    onSelected: onSelect,
+                  });
+                }}
                 onSave={handleSaveExecutor}
                 isSaving={configureMutation.isPending}
               />
             );
           })}
       </div>
+
+      {/* Single Remote File Browser Modal */}
+      {runnerId && (
+        <RemoteFileBrowserDialog
+          open={browserState.open}
+          onOpenChange={(isOpen) =>
+            setBrowserState((prev) => ({ ...prev, open: isOpen }))
+          }
+          runnerId={runnerId}
+          runnerName={runnerName}
+          title={browserState.title || "Browse Executable"}
+          description="Browse and select an executable binary on the runner machine."
+          mode="file"
+          extensions={[".exe", ""]}
+          initialPath={browserState.initialPath}
+          onSelect={(selectedPath) => {
+            browserState.onSelected?.(selectedPath);
+            setBrowserState((prev) => ({ ...prev, open: false }));
+          }}
+        />
+      )}
     </BaseDialog>
   );
 }

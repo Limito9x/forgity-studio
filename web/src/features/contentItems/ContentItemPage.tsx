@@ -132,7 +132,7 @@ export function ContentItemPage({ useSearch, useNavigate }: ResourcePageProps) {
                 resource={resourceQuery}
                 filterConfig={contentItemFilterConfig}
                 hideAdvancedFilters={true}
-                searchPlaceholder={t("page.searchPlaceholder", { defaultValue: "Search..." })}
+                searchPlaceholder={t(`Search ${contentType?.displayName?.toLowerCase()} ...`)}
                 renderViewOptions={
                     <div className="flex items-center gap-2">
                         <div className="flex items-center border rounded-md p-0.5 bg-muted/20">

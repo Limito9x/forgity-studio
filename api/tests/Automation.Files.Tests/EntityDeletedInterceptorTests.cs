@@ -44,7 +44,7 @@ public class EntityDeletedInterceptorTests
         var messages = new List<EntityDeletedMessage>();
         bus.When(x => x.PublishAsync(Arg.Any<EntityDeletedMessage>(), Arg.Any<DeliveryOptions>()))
             .Do(call => messages.Add(call.Arg<EntityDeletedMessage>()));
-        var interceptor = new EntityDeletedInterceptor(NullLogger<EntityDeletedInterceptor>.Instance, bus);
+        var interceptor = EntityDeletedInterceptor.CreateForTest(bus);
         await using var db = new OwnerDb(new DbContextOptionsBuilder<OwnerDb>().UseSqlite(connection)
             .AddInterceptors(interceptor).Options);
         await db.Database.EnsureCreatedAsync();

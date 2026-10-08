@@ -41,27 +41,28 @@ public class DeletePipelineHandler(PipelineDbContext db)
             return Result.Fail($"Pipeline '{command.Id}' was not found.");
         }
 
-        // Xóa các Node trước để kích hoạt EntityDeletedInterceptor dọn dẹp Asset Links
-        var nodes = await db.PipelineNodes
-            .Where(x => x.PipelineId == command.Id)
-            .ToListAsync(ct);
+        // Chặn Archive nếu đang có lượt chạy Running / Pending
+        var hasActiveExecutions = await db.PipelineExecutions
+            .AnyAsync(x => x.PipelineId == command.Id && 
+                (x.Status == Domain.Enums.ExecutionStatus.Running || x.Status == Domain.Enums.ExecutionStatus.Pending), ct);
 
-        if (nodes.Count > 0)
+        if (hasActiveExecutions)
         {
-            db.PipelineNodes.RemoveRange(nodes);
+            return Result.Fail($"Cannot archive pipeline '{pipeline.Name}' because it currently has active running executions.");
         }
 
-        // Xóa các Edges
-        var edges = await db.PipelineEdges
-            .Where(x => x.PipelineId == command.Id)
-            .ToListAsync(ct);
+        // Chặn Archive nếu đang được gọi làm SubPipeline trong pipeline active khác
+        var pipelineIdStr = command.Id.ToString();
+        var isUsedAsSubPipeline = await db.PipelineNodes
+            .AnyAsync(n => n.Kind == Constants.PipelineNodeKind.SubPipeline && n.RefId == pipelineIdStr, ct);
 
-        if (edges.Count > 0)
+        if (isUsedAsSubPipeline)
         {
-            db.PipelineEdges.RemoveRange(edges);
+            return Result.Fail($"Cannot archive pipeline '{pipeline.Name}' because it is currently referenced as a SubPipeline in active pipeline(s).");
         }
 
-        db.Pipelines.Remove(pipeline);
+        // Soft Delete (Archive): bảo toàn 100% Nodes, Edges, AssetLinks và Executions
+        pipeline.Archive();
         await db.SaveChangesAsync(ct);
 
         return Result.Ok();

@@ -62,9 +62,9 @@ export type {
 // Queries
 // -----------------------------------------------------------------------------
 
-export const usePipelines = (projectId?: string) => {
+export const usePipelines = (projectId?: string, isArchived: boolean = false) => {
   return PipelinesApi.useGetPipelines(
-    projectId ? { projectId } : undefined,
+    projectId ? { projectId, isArchived } : { isArchived },
     {
       query: {
         placeholderData: keepPreviousData,
@@ -112,7 +112,9 @@ export const useNodeExecutions = (executionId?: string) => {
 // -----------------------------------------------------------------------------
 
 export const useCreatePipeline = (projectId?: string) => {
-  const queryKey = projectId ? PipelinesApi.getGetPipelinesQueryKey({ projectId }) : ["pipelines"];
+  const queryKey = projectId
+    ? PipelinesApi.getGetPipelinesQueryKey({ projectId, isArchived: false })
+    : ["pipelines"];
   return createMutationHook(PipelinesApi.useCreatePipeline, [queryKey])();
 };
 

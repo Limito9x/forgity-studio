@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
 using Automation.Studio.Domain.Entities;
 using Automation.Studio.Infrastructure.Persistence;
@@ -29,13 +29,24 @@ public class GetProjectByIdEndpoint(IMessageBus bus)
 }
 
 [NonTransactional]
-public class GetProjectByIdHandler(StudioDbContext db)
+public class GetProjectByIdHandler(StudioDbContext db, ICurrentUserProvider userProvider)
 {
     public async Task<Result<ProjectDto>> HandleAsync(
         GetProjectByIdQuery query,
         CancellationToken ct)
     {
-        var project = await db.Projects.FirstOrDefaultAsync(x => x.Id == query.Id, ct);
+        if (!userProvider.UserId.HasValue)
+        {
+            return Result.Fail(new UnauthorizedError("User is not authenticated"));
+        }
+
+        var userId = userProvider.UserId.Value;
+
+        var project = await db.Projects
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == query.Id &&
+                (x.OwnerId == userId || db.ProjectMembers.Any(pm => pm.ProjectId == x.Id && pm.UserId == userId)), ct);
+
         if (project is null) return Result.Fail(new NotFoundError("Project not found"));
         
         return Result.Ok(project.Adapt<ProjectDto>());
