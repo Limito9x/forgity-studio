@@ -1,11 +1,11 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Sparkles } from "lucide-react";
+import { ArrowLeft, Sparkles, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
   useAnalyzeCustomNodesBatchMutation,
-  useBatchUpsertCustomNodesMutation,
+  type AnalyzedCustomNodeDto,
 } from "../hooks/usePipelines";
 import { IngestionDropzone } from "../components/script-ingestion/IngestionDropzone";
 import { DeckSidebar } from "../components/script-ingestion/deck-sidebar/DeckSidebar";
@@ -17,7 +17,8 @@ import { VisualPinMapperTab } from "../components/script-ingestion/deck-workspac
 import { ScriptCodeViewerTab } from "../components/script-ingestion/deck-workspace/ScriptCodeViewerTab";
 import { ImpactReconciliationTab } from "../components/script-ingestion/deck-workspace/ImpactReconciliationTab";
 import { IngestionFooterBar } from "../components/script-ingestion/IngestionFooterBar";
-import type { AnalyzedCustomNodeDto, BatchUpsertItem } from "@/gen/model";
+import { useScriptBatchPublish, type ScriptSource } from "../hooks/useScriptBatchPublish";
+import { ScriptGuidelinesDialog } from "../dialogs/ScriptGuidelinesDialog";
 
 interface ScriptIngestionPageProps {
   projectId: string;
@@ -26,44 +27,47 @@ interface ScriptIngestionPageProps {
 export function ScriptIngestionPage({ projectId }: ScriptIngestionPageProps) {
   const navigate = useNavigate();
 
+  const [guidelinesOpen, setGuidelinesOpen] = useState(false);
   const [analyzedNodes, setAnalyzedNodes] = useState<AnalyzedCustomNodeDto[]>([]);
-  const [fileContents, setFileContents] = useState<Record<string, string>>({});
+  const [scriptSources, setScriptSources] = useState<Record<string, ScriptSource>>({});
+  const [isPreparingScripts, setIsPreparingScripts] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const [activeTab, setActiveTab] = useState<IngestionActiveTab>("pins");
   const [nodeStrategies, setNodeStrategies] = useState<Record<string, number>>({});
 
   const analyzeMutation = useAnalyzeCustomNodesBatchMutation();
-  const batchUpsertMutation = useBatchUpsertCustomNodesMutation(projectId);
+  const publisher = useScriptBatchPublish(projectId);
 
   const processFiles = useCallback(
     async (files: File[]) => {
-      const pythonFiles = files.filter((f) => f.name.endsWith(".py"));
+      if (isPreparingScripts || publisher.isPublishing) return;
+      const pythonFiles = files.filter((f) => f.name.toLowerCase().endsWith(".py"));
       if (pythonFiles.length === 0) {
         toast.error("Please provide valid Python (.py) script files.");
         return;
       }
 
       try {
+        setIsPreparingScripts(true);
         const readFiles = await Promise.all(
           pythonFiles.map(async (file) => ({
             fileName: file.name,
             scriptContent: await file.text(),
           }))
         );
-
-        // Store file contents for source code preview
-        const newContents: Record<string, string> = {};
-        readFiles.forEach((f) => {
-          newContents[f.fileName] = f.scriptContent;
-        });
-        setFileContents((prev) => ({ ...prev, ...newContents }));
-
+        if (new Set(readFiles.map(f => f.fileName)).size !== readFiles.length) {
+          throw new Error("Script filenames must be unique within an upload.");
+        }
         const result = await analyzeMutation.mutateAsync({
-          projectId,
-          scripts: readFiles,
+          data: { projectId, scripts: readFiles },
         });
 
         if (result?.nodes && result.nodes.length > 0) {
+          const sources = Object.fromEntries(result.nodes.map(node => {
+            const source = readFiles.find(file => file.fileName === node.fileName)!;
+            return [node.key, { fileName: source.fileName, content: source.scriptContent, contentHash: node.contentHash }];
+          }));
+          setScriptSources(prev => ({ ...prev, ...sources }));
           setAnalyzedNodes((prev) => {
             // Merge existing and newly analyzed nodes by key
             const existingKeys = new Set(result.nodes.map((n) => n.key));
@@ -84,18 +88,22 @@ export function ScriptIngestionPage({ projectId }: ScriptIngestionPageProps) {
         const errorMsg =
           err?.response?.data?.message || err?.message || "Failed to analyze scripts";
         toast.error(errorMsg);
+      } finally {
+        setIsPreparingScripts(false);
       }
     },
-    [projectId, analyzeMutation]
+    [projectId, analyzeMutation, isPreparingScripts, publisher.isPublishing]
   );
 
   const handleUpdateNode = (key: string, updates: Partial<AnalyzedCustomNodeDto>) => {
+    if (publisher.isPublishing) return;
     setAnalyzedNodes((prev) =>
-      prev.map((n) => (n.key === key ? { ...n, ...updates } : n))
+      prev.map((n) => (n.key === key ? { ...n, ...updates, key: n.key, fileName: n.fileName, contentHash: n.contentHash } : n))
     );
   };
 
   const handleRemoveNode = (key: string) => {
+    if (publisher.isPublishing) return;
     setAnalyzedNodes((prev) => {
       const updated = prev.filter((n) => n.key !== key);
       if (selectedIndex >= updated.length) {
@@ -107,41 +115,22 @@ export function ScriptIngestionPage({ projectId }: ScriptIngestionPageProps) {
 
   const handleReset = () => {
     setAnalyzedNodes([]);
-    setFileContents({});
+    setScriptSources({});
+    publisher.reset();
     setSelectedIndex(0);
     setNodeStrategies({});
   };
 
   const handlePublishAll = async () => {
-    if (analyzedNodes.length === 0) return;
+    if (analyzedNodes.length === 0 || publisher.isPublishing || isPreparingScripts) return;
 
-    const items: BatchUpsertItem[] = analyzedNodes.map((n) => ({
-      key: n.key,
-      name: n.suggestedName || n.key,
-      label: n.suggestedLabel || n.suggestedName || n.fileName || null,
-      executor: n.executor ?? null,
-      contentHash: n.contentHash ?? null,
-      originalFileName: n.fileName ?? null,
-      assetId: null,
-      inputs: (n.inputs ?? []) as any,
-      outputs: (n.outputs ?? []) as any,
-      strategy: (nodeStrategies[n.key] ?? 0) as any,
-    }));
-
-    try {
-      await batchUpsertMutation.mutateAsync({
-        projectId,
-        items,
-      });
-
-      toast.success(`Published ${items.length} node definition(s) successfully!`);
+    const published = await publisher.publish(analyzedNodes, scriptSources, nodeStrategies);
+    const remaining = analyzedNodes.filter(node => !published.has(node.key));
+    setAnalyzedNodes(remaining);
+    setSelectedIndex(0);
+    if (remaining.length === 0) {
       handleReset();
-      navigate({
-        to: "/projects/$projectId/pipeline/nodes",
-        params: { projectId },
-      });
-    } catch {
-      // Toast is handled by mutation hook
+      navigate({ to: "/projects/$projectId/pipeline/nodes", params: { projectId } });
     }
   };
 
@@ -174,6 +163,18 @@ export function ScriptIngestionPage({ projectId }: ScriptIngestionPageProps) {
             <h1 className="text-sm font-bold tracking-tight">Script Ingestion Studio</h1>
           </div>
         </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs shadow-xs"
+            onPress={() => setGuidelinesOpen(true)}
+          >
+            <BookOpen className="size-3.5 text-primary" />
+            Script Guidelines
+          </Button>
+        </div>
       </div>
 
       {/* Main Content Area */}
@@ -181,12 +182,13 @@ export function ScriptIngestionPage({ projectId }: ScriptIngestionPageProps) {
         <div className="flex-1 overflow-y-auto">
           <IngestionDropzone
             onFilesDropped={processFiles}
-            isAnalyzing={analyzeMutation.isPending}
+            isAnalyzing={isPreparingScripts || analyzeMutation.isPending}
+            onOpenGuidelines={() => setGuidelinesOpen(true)}
           />
         </div>
       ) : (
         <>
-          <div className="flex-1 flex min-w-0 overflow-hidden">
+          <div inert={publisher.isPublishing || isPreparingScripts} className={`flex-1 flex min-w-0 overflow-hidden ${publisher.isPublishing || isPreparingScripts ? "opacity-70" : ""}`}>
             {/* Left Deck Sidebar */}
             <DeckSidebar
               nodes={analyzedNodes}
@@ -199,6 +201,11 @@ export function ScriptIngestionPage({ projectId }: ScriptIngestionPageProps) {
             {/* Right Deck Workspace */}
             {selectedNode ? (
               <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-background">
+                {publisher.errors[selectedNode.key] && (
+                  <p role="alert" className="px-6 py-3 text-sm text-destructive border-b border-border">
+                    {publisher.errors[selectedNode.key]}
+                  </p>
+                )}
                 <WorkspaceHeader
                   node={selectedNode}
                   activeTab={activeTab}
@@ -218,7 +225,7 @@ export function ScriptIngestionPage({ projectId }: ScriptIngestionPageProps) {
                   {activeTab === "code" && (
                     <ScriptCodeViewerTab
                       fileName={selectedNode.fileName}
-                      sourceCode={fileContents[selectedNode.fileName] || ""}
+                      sourceCode={scriptSources[selectedNode.key]?.content || ""}
                     />
                   )}
 
@@ -243,12 +250,18 @@ export function ScriptIngestionPage({ projectId }: ScriptIngestionPageProps) {
           {/* Sticky Bottom Actions Bar */}
           <IngestionFooterBar
             analyzedNodes={analyzedNodes}
-            isPublishing={batchUpsertMutation.isPending}
+            isPublishing={publisher.isPublishing || isPreparingScripts}
             onPublish={handlePublishAll}
             onReset={handleReset}
           />
         </>
       )}
+
+      {/* Script Standards & Registry Guidelines Modal */}
+      <ScriptGuidelinesDialog
+        isOpen={guidelinesOpen}
+        onClose={() => setGuidelinesOpen(false)}
+      />
     </div>
   );
 }

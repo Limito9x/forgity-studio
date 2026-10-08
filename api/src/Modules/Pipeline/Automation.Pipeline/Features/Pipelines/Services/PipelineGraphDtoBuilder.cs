@@ -1,3 +1,4 @@
+using Automation.Files.Contracts;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Automation.Pipeline.Constants;
@@ -7,23 +8,28 @@ using Automation.Pipeline.Engine.StructRegistry;
 using Automation.Pipeline.Features.Pipelines.Dtos;
 using Automation.Pipeline.Infrastructure.Persistence;
 using Automation.Pipeline.Tools;
+using Automation.Pipeline.Engine;
 
 namespace Automation.Pipeline.Features.Pipelines.Services;
 
 public interface IPipelineGraphDtoBuilder
 {
-    Task<PipelineGraphDto> BuildDtoAsync(Domain.Entities.Pipeline pipeline, CancellationToken ct = default);
+    Task<PipelineGraphDto> BuildDtoAsync(Domain.Entities.Pipeline pipeline, CancellationToken ct = default,
+        bool hydrateFiles = true);
+    Task<PipelineGraphDto> HydrateFilesAsync(PipelineGraphDto graph, CancellationToken ct = default);
 }
 
 public class PipelineGraphDtoBuilder(
     PipelineDbContext db,
     IToolRegistry toolRegistry,
-    IEntityStructRegistry structRegistry
+    IEntityStructRegistry structRegistry,
+    IAssetApi assetApi
 ) : IPipelineGraphDtoBuilder
 {
     public async Task<PipelineGraphDto> BuildDtoAsync(
         Domain.Entities.Pipeline pipeline,
-        CancellationToken ct = default
+        CancellationToken ct = default,
+        bool hydrateFiles = true
     )
     {
         var customDefs = await db.NodeDefinitions
@@ -325,7 +331,7 @@ public class PipelineGraphDtoBuilder(
             p.ContextData
         )).ToList();
 
-        return new PipelineGraphDto(
+        var graph = new PipelineGraphDto(
             pipeline.Id,
             pipeline.ProjectId,
             pipeline.Name,
@@ -335,5 +341,37 @@ public class PipelineGraphDtoBuilder(
             parameterDtos,
             pipeline.TriggerConfig
         );
+        return hydrateFiles ? await HydrateFilesAsync(graph, ct) : graph;
+    }
+
+    public async Task<PipelineGraphDto> HydrateFilesAsync(PipelineGraphDto graph, CancellationToken ct = default)
+    {
+        var references = graph.Nodes.SelectMany(n => PipelineFileValue.References(n.Id,
+            n.ConfigValues == null ? null : JsonSerializer.SerializeToDocument(n.ConfigValues))).ToList();
+        var filesById = new Dictionary<Guid, AssetLinkDto>();
+        if (references.Count > 0)
+        {
+            var files = await assetApi.FindLinksByIdsAsync(references, ct);
+            if (files.IsSuccess) filesById = files.Value.ToDictionary(x => x.AssetLinkId);
+        }
+        var nodeDtos = graph.Nodes.Select(n =>
+        {
+            var fileAssets = new PipelineNodeFileMap();
+            foreach (var pin in n.Inputs.Where(PipelineFileValue.IsFilePin))
+            {
+                if (n.ConfigValues?.TryGetValue(pin.Id, out var value) != true || value == null) continue;
+                if (PipelineFileValue.TryGetLinkId(value, out var linkId))
+                {
+                    fileAssets[pin.Id] = filesById.TryGetValue(linkId, out var file)
+                        ? new(linkId, file.AssetId, file.OriginalName, file.ContentType, file.SizeBytes, "Available")
+                        : new(linkId, null, null, null, null, "Unavailable");
+                }
+                else if (PipelineFileValue.AsJson(value).ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.ToString()))
+                    fileAssets[pin.Id] = new(null, null, null, null, null, "RequiresRelink");
+            }
+            return n with { FileAssets = fileAssets };
+        }).ToList();
+
+        return graph with { Nodes = nodeDtos };
     }
 }

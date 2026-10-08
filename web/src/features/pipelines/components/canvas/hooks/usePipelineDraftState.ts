@@ -140,6 +140,7 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
             inputs: n.inputs || [],
             outputs: initialOutputs,
             configValues: n.configValues || {},
+            fileAssets: n.fileAssets || {},
             pipelineId: graph.id,
           } as CustomPipelineNodeData,
         });
@@ -452,7 +453,7 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
       return;
     }
 
-    if (!isDirty) return;
+    if (!isDirty || isSaving) return;
 
     const timer = setTimeout(async () => {
       // Mark clean first to avoid infinite re-trigger loop if server returns error
@@ -530,11 +531,26 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
           });
         }
 
-        await saveMutationRef.current.mutateAsync({
+        const saved = await saveMutationRef.current.mutateAsync({
           nodes: saveNodes,
           edges: saveEdges,
           parameters,
         });
+        if (saved.id !== graph.id) return;
+        // Apply server-created link PKs without overwriting edits made during this request.
+        setNodes((current) => current.map((n) => {
+          const submitted = saveNodes.find((item) => item.id === n.id);
+          const response = saved.nodes?.find((item) => item.id === n.id);
+          if (n.type !== "pipelineNode" || !submitted || !response) return n;
+          const data = n.data as CustomPipelineNodeData;
+          const config = { ...data.configValues };
+          for (const [key, value] of Object.entries(response.configValues || {})) {
+            if (JSON.stringify(config[key]) === JSON.stringify(submitted.configValues?.[key])) {
+              config[key] = value;
+            }
+          }
+          return { ...n, data: { ...data, configValues: config, fileAssets: response.fileAssets } };
+        }));
       } catch (err: any) {
         console.error("Auto-save pipeline graph failed:", err);
         toast.error(
@@ -546,7 +562,7 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
     }, 600);
 
     return () => clearTimeout(timer);
-  }, [nodes, edges, isDirty]);
+  }, [nodes, edges, parameters, isDirty, isSaving, graph.id, setNodes]);
 
   // Real-time fast dynamic expansion while dragging a node
   const onNodeDrag = useCallback(

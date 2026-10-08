@@ -19,7 +19,7 @@ export function DraggableResourceRowHandle({
     id: resource.id,
     data: {
       resourceIds: resourceIdsToDrag,
-      displayName: resource.displayName || resource.name,
+      displayName: resource.displayName,
     },
   });
 

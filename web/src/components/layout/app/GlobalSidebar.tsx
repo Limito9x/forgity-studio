@@ -102,7 +102,7 @@ export function GlobalSidebar() {
                       <SidebarMenuSubItem key={project.id}>
                         <SidebarMenuSubButton
                           isActive={pathname.startsWith(`/projects/${project.id}`)}
-                          onPress={() => handleNav(`/projects/${project.id}/overview`)}
+                          onPress={() => handleNav(`/projects/${project.id}/pipeline`)}
                         >
                           <FolderGit2 className="size-3.5 text-muted-foreground" />
                           <span className="truncate">{project.name}</span>

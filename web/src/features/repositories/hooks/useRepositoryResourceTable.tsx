@@ -108,7 +108,7 @@ export function useRepositoryResourceTable({
               slot="selection"
               isSelected={row.getIsSelected()}
               onChange={(checked) => row.toggleSelected(checked)}
-              aria-label={`Select resource ${row.original.displayName || row.original.name}`}
+              aria-label={`Select resource ${row.original.displayName}`}
             />
           </div>
         ),
@@ -150,7 +150,7 @@ export function useRepositoryResourceTable({
                   search={{ workspaceId: repositoryId }}
                   className="font-semibold text-foreground hover:text-primary transition-colors text-sm truncate block group"
                 >
-                  <span className="group-hover:underline">{item.displayName || item.name || "Unnamed Resource"}</span>
+                  <span className="group-hover:underline">{item.displayName || "Unnamed Resource"}</span>
                 </Link>
                 {item.relativePath && (
                   <p className="text-xs text-muted-foreground truncate max-w-xs font-mono text-[11px]">
@@ -220,9 +220,9 @@ export function useRepositoryResourceTable({
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => handleUnlink(item.id, item.displayName || item.name || "")}
+                onPress={() => handleUnlink(item.id, item.displayName || "")}
                 className="size-6 p-0 text-muted-foreground hover:text-destructive shrink-0 cursor-pointer"
-                title="Unlink content"
+                aria-label="Unlink content"
               >
                 <Unlink className="size-3" />
               </Button>

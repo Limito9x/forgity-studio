@@ -1,3 +1,12 @@
+import {
+  type ScriptTemplateDefinition,
+  BLENDER_SCRIPT_TEMPLATE,
+  UNREAL_SCRIPT_TEMPLATE,
+  PYTHON_SCRIPT_TEMPLATE,
+} from "./templates";
+
+export type { ScriptTemplateDefinition };
+
 export interface SoftwareDefinition {
   id: string;
   name: string;
@@ -7,6 +16,7 @@ export interface SoftwareDefinition {
   iconUrl?: string;
   brandColor?: string;
   description?: string;
+  scriptTemplate?: ScriptTemplateDefinition;
 }
 
 export interface SoftwareCatalogItem {
@@ -16,6 +26,7 @@ export interface SoftwareCatalogItem {
   iconUrl: string;
   brandColor?: string;
   description?: string;
+  scriptTemplate?: ScriptTemplateDefinition;
 }
 
 /**
@@ -41,15 +52,17 @@ export const SOFTWARE_DEFINITIONS: SoftwareDefinition[] = [
     simpleIconSlug: "blender/F5792A",
     brandColor: "#F5792A",
     description: "Open-source 3D creation suite (modeling, rigging, rendering)",
+    scriptTemplate: BLENDER_SCRIPT_TEMPLATE,
   },
   {
     id: "unreal",
     name: "Unreal Engine",
     category: "Game Engine",
     aliases: ["unreal", "unrealengine", "ue", "ue5", "ue4"],
-    simpleIconSlug: "unrealengine/ffffff",
-    brandColor: "#0E1128",
+    simpleIconSlug: "unrealengine/3183FF",
+    brandColor: "#3183FF",
     description: "Real-time 3D creation tool for photoreal visuals and immersive experiences",
+    scriptTemplate: UNREAL_SCRIPT_TEMPLATE,
   },
   {
     id: "python",
@@ -59,6 +72,7 @@ export const SOFTWARE_DEFINITIONS: SoftwareDefinition[] = [
     simpleIconSlug: "python/3776AB",
     brandColor: "#3776AB",
     description: "Core automation runtime & pipeline scripting environment",
+    scriptTemplate: PYTHON_SCRIPT_TEMPLATE,
   },
   {
     id: "daz_studio",
@@ -101,8 +115,8 @@ export const SOFTWARE_DEFINITIONS: SoftwareDefinition[] = [
     name: "Maxon Cinema 4D",
     category: "DCC",
     aliases: ["cinema4d", "c4d", "maxoncinema4d"],
-    simpleIconSlug: "maxon/002F6C",
-    brandColor: "#002F6C",
+    simpleIconSlug: "maxon/0284C7",
+    brandColor: "#0284C7",
     description: "Professional 3D modeling, animation, simulation and rendering software",
   },
   {
@@ -110,8 +124,8 @@ export const SOFTWARE_DEFINITIONS: SoftwareDefinition[] = [
     name: "Unity Engine",
     category: "Game Engine",
     aliases: ["unity", "unity3d", "unityengine"],
-    simpleIconSlug: "unity/ffffff",
-    brandColor: "#222C37",
+    simpleIconSlug: "unity/818CF8",
+    brandColor: "#818CF8",
     description: "Multi-platform game engine and interactive real-time development tool",
   },
 ];
@@ -164,6 +178,7 @@ export function getSoftwareMetadata(executorKey: string): SoftwareCatalogItem {
       iconUrl: resolveIconUrl(exactMatch),
       brandColor: exactMatch.brandColor,
       description: exactMatch.description,
+      scriptTemplate: exactMatch.scriptTemplate,
     };
   }
 
@@ -179,6 +194,7 @@ export function getSoftwareMetadata(executorKey: string): SoftwareCatalogItem {
           iconUrl: resolveIconUrl(def),
           brandColor: def.brandColor,
           description: def.description,
+          scriptTemplate: def.scriptTemplate,
         };
       }
     }

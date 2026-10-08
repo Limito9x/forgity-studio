@@ -63,6 +63,22 @@ export const GetPipelineExecutionResponse = /*#__PURE__*/ zod.object({
   "executionState": /*#__PURE__*/ zod.unknown()
 })
 
+export const CancelPipelineExecutionParams = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid()
+})
+
+export const CancelPipelineExecutionResponse = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "pipelineId": /*#__PURE__*/ zod.uuid(),
+  "status": /*#__PURE__*/ zod.enum(['Pending', 'Running', 'WaitingForRunner', 'Succeeded', 'Failed', 'Cancelled']),
+  "startedAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
+  "finishedAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
+  "errorMessage": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "nextNodeIndex": /*#__PURE__*/ zod.int(),
+  "currentBatchId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "executionState": /*#__PURE__*/ zod.unknown()
+})
+
 export const GetNodeExecutionsParams = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid()
 })
@@ -198,7 +214,15 @@ export const GetPipelineGraphResponse = /*#__PURE__*/ zod.object({
 })),
   "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.looseObject({
 
-}))
+})),
+  "fileAssets": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.object({
+  "assetLinkId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "assetId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "originalName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "contentType": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "sizeBytes": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
+  "status": /*#__PURE__*/ zod.string()
+})))
 })),
   "edges": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
@@ -224,7 +248,15 @@ export const GetPipelineGraphResponse = /*#__PURE__*/ zod.object({
 
 }))
 })),
-  "triggerConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
+  "triggerConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "fileResults": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "nodeId": /*#__PURE__*/ zod.uuid(),
+  "pinId": /*#__PURE__*/ zod.string(),
+  "assetLinkId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "errorCode": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "errorMessage": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "isSuccess": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean())
+})))
 })
 
 export const SavePipelineGraphParams = /*#__PURE__*/ zod.object({
@@ -325,7 +357,15 @@ export const SavePipelineGraphResponse = /*#__PURE__*/ zod.object({
 })),
   "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.looseObject({
 
-}))
+})),
+  "fileAssets": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.object({
+  "assetLinkId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "assetId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "originalName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "contentType": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "sizeBytes": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
+  "status": /*#__PURE__*/ zod.string()
+})))
 })),
   "edges": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
@@ -351,7 +391,15 @@ export const SavePipelineGraphResponse = /*#__PURE__*/ zod.object({
 
 }))
 })),
-  "triggerConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
+  "triggerConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "fileResults": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "nodeId": /*#__PURE__*/ zod.uuid(),
+  "pinId": /*#__PURE__*/ zod.string(),
+  "assetLinkId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "errorCode": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "errorMessage": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "isSuccess": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean())
+})))
 })
 
 export const UpdatePipelineTriggerParams = /*#__PURE__*/ zod.object({
@@ -374,41 +422,6 @@ export const UpdatePipelineTriggerResponse = /*#__PURE__*/ zod.object({
   "triggerConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
 })
 
-/**
- * @deprecated
- */
-export const AddPipelineEdgeParams = /*#__PURE__*/ zod.object({
-  "pipelineId": /*#__PURE__*/ zod.uuid()
-})
-
-export const AddPipelineEdgeBody = /*#__PURE__*/ zod.object({
-  "sourcePipelineNodeId": /*#__PURE__*/ zod.uuid(),
-  "sourcePin": /*#__PURE__*/ zod.string(),
-  "targetPipelineNodeId": /*#__PURE__*/ zod.uuid(),
-  "targetPin": /*#__PURE__*/ zod.string()
-})
-
-export const addPipelineEdgeResponseKindDefault = 2;
-
-export const AddPipelineEdgeResponse = /*#__PURE__*/ zod.object({
-  "id": /*#__PURE__*/ zod.uuid(),
-  "sourceNodeId": /*#__PURE__*/ zod.uuid(),
-  "sourcePin": /*#__PURE__*/ zod.string(),
-  "targetNodeId": /*#__PURE__*/ zod.uuid(),
-  "targetPin": /*#__PURE__*/ zod.string(),
-  "kind": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2)]), addPipelineEdgeResponseKindDefault)
-})
-
-/**
- * @deprecated
- */
-export const DeletePipelineEdgeParams = /*#__PURE__*/ zod.object({
-  "pipelineId": /*#__PURE__*/ zod.uuid(),
-  "edgeId": /*#__PURE__*/ zod.uuid()
-})
-
-export const DeletePipelineEdgeResponse = /*#__PURE__*/ zod.void()
-
 export const GetPipelineExecutionsParams = /*#__PURE__*/ zod.object({
   "pipelineId": /*#__PURE__*/ zod.uuid()
 })
@@ -425,99 +438,6 @@ export const GetPipelineExecutionsResponseItem = /*#__PURE__*/ zod.object({
   "executionState": /*#__PURE__*/ zod.unknown()
 })
 export const GetPipelineExecutionsResponse = /*#__PURE__*/ zod.array(GetPipelineExecutionsResponseItem)
-
-/**
- * @deprecated
- */
-export const AddPipelineNodeParams = /*#__PURE__*/ zod.object({
-  "pipelineId": /*#__PURE__*/ zod.uuid()
-})
-
-export const AddPipelineNodeBody = /*#__PURE__*/ zod.object({
-  "refId": /*#__PURE__*/ zod.string(),
-  "kind": /*#__PURE__*/ zod.string(),
-  "positionX": /*#__PURE__*/ zod.number(),
-  "positionY": /*#__PURE__*/ zod.number(),
-  "configValues": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.looseObject({
-
-}))
-})
-
-export const AddPipelineNodeResponse = /*#__PURE__*/ zod.object({
-  "id": /*#__PURE__*/ zod.uuid(),
-  "refId": /*#__PURE__*/ zod.string(),
-  "kind": /*#__PURE__*/ zod.enum(['Start', 'Return', 'Tool', 'Custom', 'FlowControl', 'Variable', 'SubPipeline', 'Container', 'Capsule']),
-  "label": /*#__PURE__*/ zod.string(),
-  "category": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
-  "executor": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
-  "position": /*#__PURE__*/ zod.object({
-  "x": /*#__PURE__*/ zod.number(),
-  "y": /*#__PURE__*/ zod.number()
-}),
-  "inputs": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
-  "id": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
-  "label": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
-  "kind": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1)])),
-  "primitiveType": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2),/*#__PURE__*/ zod.literal(3),/*#__PURE__*/ zod.literal(4),/*#__PURE__*/ zod.literal(5)])),
-  "cardinality": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2)])),
-  "isRequired": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean()),
-  "defaultValue": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
-  "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
-  "entityTarget": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
-  "allowedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
-})),
-  "outputs": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
-  "id": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
-  "label": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
-  "kind": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1)])),
-  "primitiveType": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2),/*#__PURE__*/ zod.literal(3),/*#__PURE__*/ zod.literal(4),/*#__PURE__*/ zod.literal(5)])),
-  "cardinality": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2)])),
-  "isRequired": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean()),
-  "defaultValue": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
-  "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
-  "entityTarget": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
-  "allowedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
-})),
-  "configValues": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.looseObject({
-
-})),
-  "parentId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
-  "size": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.object({
-  "width": /*#__PURE__*/ zod.number(),
-  "height": /*#__PURE__*/ zod.number()
-})),
-  "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.looseObject({
-
-}))
-})
-
-/**
- * @deprecated
- */
-export const DeletePipelineNodeParams = /*#__PURE__*/ zod.object({
-  "pipelineId": /*#__PURE__*/ zod.uuid(),
-  "nodeId": /*#__PURE__*/ zod.uuid()
-})
-
-export const DeletePipelineNodeResponse = /*#__PURE__*/ zod.void()
-
-/**
- * @deprecated
- */
-export const UpdatePipelineNodeParams = /*#__PURE__*/ zod.object({
-  "pipelineId": /*#__PURE__*/ zod.uuid(),
-  "nodeId": /*#__PURE__*/ zod.uuid()
-})
-
-export const UpdatePipelineNodeBody = /*#__PURE__*/ zod.object({
-  "positionX": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.number()),
-  "positionY": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.number()),
-  "configValues": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.looseObject({
-
-}))
-})
-
-export const UpdatePipelineNodeResponse = /*#__PURE__*/ zod.void()
 
 export const RunPipelineParams = /*#__PURE__*/ zod.object({
   "pipelineId": /*#__PURE__*/ zod.uuid()

@@ -5,42 +5,44 @@ namespace Automation.Pipeline.Engine.DataResolver.Resolvers;
 
 public class AssetResolver(IAssetApi assetApi, ILogger<AssetResolver> logger)
 {
-    public async Task<object?> ResolveAssetIfApplicableAsync(object? value, CancellationToken ct = default)
+    // Compatibility for existing runtime input uploads. Inspector config uses link PKs instead.
+    public async Task<object?> ResolveRuntimeAssetAsync(Guid assetId, CancellationToken ct = default)
     {
-        if (value == null) return null;
-
-        var strVal = value.ToString()?.Trim();
-        if (!string.IsNullOrEmpty(strVal) && Guid.TryParse(strVal, out var assetGuid))
+        var result = await assetApi.GetAssetByIdAsync(assetId, ct);
+        if (result.IsFailed) throw new InvalidOperationException(result.Errors.First().Message);
+        var file = result.Value;
+        return new Dictionary<string, object?>
         {
-            try
+            ["$file"] = new Dictionary<string, object?>
             {
-                var assetResult = await assetApi.GetAssetByIdAsync(assetGuid, ct);
-                if (assetResult.IsSuccess && assetResult.Value != null)
-                {
-                    var asset = assetResult.Value;
-                    logger.LogInformation("Resolved Asset [{AssetId}] -> PublicUrl: {Url} (Filename: {FileName})",
-                        assetGuid, asset.PublicUrl, asset.Name);
-
-                    return new Dictionary<string, object?>
-                    {
-                        {
-                            "$file", new Dictionary<string, object?>
-                            {
-                                { "url", asset.PublicUrl },
-                                { "filename", asset.Name },
-                                { "hash", asset.Id.ToString("N") },
-                                { "size", asset.Size }
-                            }
-                        }
-                    };
-                }
+                ["url"] = file.PublicUrl, ["filename"] = file.Name,
+                ["hash"] = assetId.ToString("N"), ["size"] = file.Size
             }
-            catch (Exception ex)
+        };
+    }
+
+    public async Task<object?> ResolveFileAsync(object? value, AssetLinkOwner owner, CancellationToken ct = default)
+    {
+        if (value == null || value is string text && string.IsNullOrWhiteSpace(text)) return value;
+        var json = PipelineFileValue.AsJson(value);
+        if (json.ValueKind == System.Text.Json.JsonValueKind.Object && json.TryGetProperty("$file", out _)) return value;
+        if (!PipelineFileValue.TryGetLinkId(value, out var linkId))
+            throw new InvalidOperationException($"File pin '{owner.SlotKey}' requires a saved asset link. Upload or relink the file before running.");
+        var result = await assetApi.GetLinksByIdsAsync([new(linkId, owner)], ct);
+        if (result.IsFailed) throw new InvalidOperationException(result.Errors.First().Message);
+        var file = result.Value.Single();
+        if (string.IsNullOrWhiteSpace(file.HashSha256))
+            throw new InvalidOperationException($"File link '{linkId}' has no content hash.");
+        logger.LogDebug("Resolved file link {LinkId} ({FileName})", linkId, file.OriginalName);
+        return new Dictionary<string, object?>
+        {
+            ["$file"] = new Dictionary<string, object?>
             {
-                logger.LogWarning(ex, "Failed to resolve asset ID '{AssetId}'", assetGuid);
+                ["url"] = file.PublicUrl,
+                ["filename"] = file.OriginalName,
+                ["hash"] = file.HashSha256,
+                ["size"] = file.SizeBytes
             }
-        }
-
-        return value;
+        };
     }
 }

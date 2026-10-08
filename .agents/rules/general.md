@@ -48,3 +48,12 @@ Khi thực hiện tác vụ, hãy xác định khu vực mã nguồn đang thao 
 - **`api/` (Backend)**: Tuân thủ nghiêm ngặt [rules/backend.md](file:///d:/FullStack/Automation/.agents/rules/backend.md).
 - **`web/` (Frontend)**: Tuân thủ nghiêm ngặt [rules/frontend.md](file:///d:/FullStack/Automation/.agents/rules/frontend.md).
 - **`workers/` (Workers)**: Tuân thủ nghiêm ngặt [rules/workers.md](file:///d:/FullStack/Automation/.agents/rules/workers.md).
+
+---
+
+## 5. Quy Chuẩn Tài Liệu, Kế Hoạch & Cẩm Nang Vận Hành (Single Source of Truth)
+
+- **Tập Trung Tuyệt Đối Trong `.agents/`:** Toàn bộ Kế hoạch kỹ thuật (`.agents/plans/`) và Cẩm nang vận hành cốt lõi (`.agents/playbooks/`) BẮT BUỘC phải đặt trong thư mục `.agents/`. Nghiêm cấm tạo file markdown rác, kế hoạch rác ngoài thư mục `docs/`.
+- **Bắt Buộc Đọc Playbook Trước Khi Code:** Trước khi can thiệp vào bất kỳ module/feature cốt lõi nào (như Pipeline Engine, Canvas Graph Sync, Worker Storage), Agent BẮT BUỘC phải đọc Playbook tương ứng trong `.agents/playbooks/` để nắm vững Mental Model và luồng vận hành thực tế (Lifecycle) từ A đến Z, tránh suy diễn hoặc over-engineer.
+- **Bắt Buộc Cập Nhật Liên Tục (Continuous Sync):** Sau khi hoàn thành hoặc sửa đổi luồng thực thi / hợp đồng dữ liệu, Agent BẮT BUỘC phải quay lại cập nhật Playbook tương ứng và đồng bộ Chỉ mục (Index) trong [AGENTS.md](file:///d:/FullStack/Automation/.agents/AGENTS.md). Tuyệt đối không để tài liệu bị lỗi thời làm sai lệch các Agent về sau.
+

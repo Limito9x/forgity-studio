@@ -23,6 +23,7 @@ def run():
         sys.executable, "-m", "grpc_tools.protoc",
         f"-I{proto_dir}",
         f"--python_out={core_dir}",
+        f"--pyi_out={core_dir}",
         f"--grpc_python_out={core_dir}",
         *proto_paths
     ]

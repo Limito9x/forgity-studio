@@ -12,5 +12,5 @@ export const Route = createFileRoute(
 
 function ScriptIngestionRoute() {
   const { projectId } = Route.useParams();
-  return <ScriptIngestionPage projectId={projectId} />;
+  return <ScriptIngestionPage key={projectId} projectId={projectId} />;
 }

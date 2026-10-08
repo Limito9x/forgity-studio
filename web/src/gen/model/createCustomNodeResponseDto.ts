@@ -16,4 +16,12 @@ export interface CreateCustomNodeResponseDto {
   inputs: IReadOnlyListOfPinDefinition;
   outputs: IReadOnlyListOfPinDefinition;
   createdAt: string;
+  /** @nullable */
+  scriptAssetLinkId?: string | null;
+  /** @nullable */
+  contentHash?: string | null;
+  /** @nullable */
+  assetId?: string | null;
+  /** @nullable */
+  originalFileName?: string | null;
 }

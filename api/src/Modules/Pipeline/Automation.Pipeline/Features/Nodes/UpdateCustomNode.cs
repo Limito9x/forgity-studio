@@ -1,12 +1,13 @@
-using Microsoft.EntityFrameworkCore;
-using Wolverine;
-using Wolverine.Attributes;
 using Automation.Files.Contracts;
 using Automation.Pipeline.Constants;
+using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Features.Nodes.Events;
 using Automation.Pipeline.Infrastructure.Persistence;
+using Mapster;
+using Microsoft.EntityFrameworkCore;
+using Wolverine.Attributes;
 
 namespace Automation.Pipeline.Features.Nodes;
 
@@ -19,7 +20,8 @@ public record UpdateCustomNodeCommand(
     string? OriginalFileName,
     List<PinDefinition>? Inputs,
     List<PinDefinition>? Outputs,
-    EdgeReconciliationStrategy EdgeReconciliationStrategy = EdgeReconciliationStrategy.KeepCompatiblePins
+    EdgeReconciliationStrategy EdgeReconciliationStrategy = EdgeReconciliationStrategy.KeepCompatiblePins,
+    string? ContentHash = null
 );
 
 public record UpdateCustomNodeRequest(
@@ -30,7 +32,8 @@ public record UpdateCustomNodeRequest(
     string? OriginalFileName,
     List<PinDefinition>? Inputs,
     List<PinDefinition>? Outputs,
-    EdgeReconciliationStrategy EdgeReconciliationStrategy = EdgeReconciliationStrategy.KeepCompatiblePins
+    EdgeReconciliationStrategy EdgeReconciliationStrategy = EdgeReconciliationStrategy.KeepCompatiblePins,
+    string? ContentHash = null
 );
 
 public class UpdateCustomNodeEndpoint(IMessageBus bus)
@@ -56,7 +59,8 @@ public class UpdateCustomNodeEndpoint(IMessageBus bus)
             req.OriginalFileName,
             req.Inputs,
             req.Outputs,
-            req.EdgeReconciliationStrategy
+            req.EdgeReconciliationStrategy,
+            req.ContentHash
         );
 
         var result = await bus.InvokeAsync<Result<CreateCustomNodeResponseDto>>(cmd, ct);
@@ -67,7 +71,7 @@ public class UpdateCustomNodeEndpoint(IMessageBus bus)
 [Transactional(typeof(PipelineDbContext))]
 public class UpdateCustomNodeHandler(
     PipelineDbContext db,
-    IAssetApi assetApi,
+    IAssetApi assets,
     IMessageBus bus
 )
 {
@@ -76,100 +80,74 @@ public class UpdateCustomNodeHandler(
         CancellationToken ct
     )
     {
-        var node = await db.NodeDefinitions
-            .FirstOrDefaultAsync(x => x.Id == command.Id, ct);
-
+        var node = await db.NodeDefinitions.FirstOrDefaultAsync(x => x.Id == command.Id, ct);
         if (node == null)
         {
             return Result.Fail<CreateCustomNodeResponseDto>("Custom node not found.");
         }
 
-        // Capture old pins before update
-        var oldInputPinIds = node.Inputs.Select(p => p.Id).ToList();
-        var oldOutputPinIds = node.Outputs.Select(p => p.Id).ToList();
+        var hasUpload = command.AssetId.HasValue && command.AssetId.Value != Guid.Empty;
+        var owner = new AssetLinkOwner(nameof(NodeDefinition), node.Id.ToString(), PipelineAssetSlots.CustomScript);
+        AssetLinkDto? file = null;
 
-        var label = string.IsNullOrWhiteSpace(command.Label) ? command.Name : command.Label.Trim();
-        var executor = string.IsNullOrWhiteSpace(command.Executor) ? "blender" : command.Executor.Trim().ToLowerInvariant();
-
-        var sanitizedInputs = (command.Inputs ?? []).Select(p => new PinDefinition
+        if (hasUpload)
         {
-            Id = p.Id,
-            Label = p.Label,
-            PrimitiveType = p.PrimitiveType,
-            Cardinality = p.Cardinality,
-            IsRequired = p.IsRequired,
-            DefaultValue = p.DefaultValue?.ToString(),
-            Metadata = p.Metadata
-        }).ToList();
-
-        var sanitizedOutputs = (command.Outputs ?? []).Select(p => new PinDefinition
+            if (string.IsNullOrWhiteSpace(command.OriginalFileName) || !command.OriginalFileName.EndsWith(".py", StringComparison.OrdinalIgnoreCase) ||
+                command.OriginalFileName.IndexOfAny(['/', '\\', ':', '<', '>', '"', '|', '?', '*']) >= 0)
+                return Result.Fail<CreateCustomNodeResponseDto>("Script must have a Python (.py) filename without directories.");
+        }
+        else
         {
-            Id = p.Id,
-            Label = p.Label,
-            PrimitiveType = p.PrimitiveType,
-            Cardinality = p.Cardinality,
-            IsRequired = p.IsRequired,
-            DefaultValue = p.DefaultValue?.ToString(),
-            Metadata = p.Metadata
-        }).ToList();
-
-        node.Update(command.Name, label, executor, sanitizedInputs, sanitizedOutputs);
-        await db.SaveChangesAsync(ct);
-
-        // Update script asset link if new AssetId provided
-        if (command.AssetId.HasValue && command.AssetId.Value != Guid.Empty)
-        {
-            // Remove old link
-            await assetApi.RemoveLinkAsync(
-                ownerEntityId: node.Id.ToString(),
-                ownerEntityType: "NodeDefinition",
-                slotKey: PipelineAssetSlots.CustomScript,
-                ct: ct
-            );
-
-            // Create new link
-            var fileName = string.IsNullOrWhiteSpace(command.OriginalFileName) ? $"{node.Key}.py" : command.OriginalFileName;
-            var linkResult = await assetApi.VerifyAndLinkAsync(
-                command.AssetId.Value,
-                ownerEntityType: "NodeDefinition",
-                slotKey: PipelineAssetSlots.CustomScript,
-                ownerEntityId: node.Id.ToString(),
-                originalName: fileName,
-                sortOrder: 0,
-                ct: ct
-            );
-
-            if (linkResult.IsFailed)
-            {
-                return Result.Fail<CreateCustomNodeResponseDto>($"Updated node but failed to link asset script: {linkResult.Errors.FirstOrDefault()?.Message}");
-            }
+            var current = await assets.GetFilesAsync(owner.EntityId, owner.EntityType, owner.SlotKey, ct);
+            if (current.IsFailed) return Result.Fail<CreateCustomNodeResponseDto>(current.Errors);
+            if (current.Value.Count != 1) return Result.Fail<CreateCustomNodeResponseDto>("Upload a script before publishing this definition.");
+            file = current.Value[0];
         }
 
-        // Publish reconciliation event for edge cleanup
-        var newInputPinIds = node.Inputs.Select(p => p.Id).ToList();
-        var newOutputPinIds = node.Outputs.Select(p => p.Id).ToList();
+        var oldInputs = node.Inputs.Select(p => p.Id).ToList();
+        var oldOutputs = node.Outputs.Select(p => p.Id).ToList();
+
+        node.Update(
+            command.Name.Trim(),
+            string.IsNullOrWhiteSpace(command.Label) ? command.Name.Trim() : command.Label.Trim(),
+            string.IsNullOrWhiteSpace(command.Executor) ? "blender" : command.Executor.Trim().ToLowerInvariant(),
+            SanitizePins(command.Inputs),
+            SanitizePins(command.Outputs)
+        );
+
+        if (hasUpload)
+        {
+            var linked = await assets.ReplaceSingleLinkAsync(new(command.AssetId!.Value, command.OriginalFileName!), owner, command.ContentHash, ct);
+            if (linked.IsFailed) return Result.Fail<CreateCustomNodeResponseDto>(linked.Errors);
+            file = linked.Value;
+        }
+
+        node.ContentHash = file!.HashSha256;
+        node.Status = NodeLifecycleStatus.Published;
+        await db.SaveChangesAsync(ct);
 
         await bus.PublishAsync(new NodeDefinitionPinsChangedEvent(
-            NodeDefinitionId: node.Id,
-            NodeKey: node.Key,
-            ProjectId: node.ProjectId,
-            OldInputPinIds: oldInputPinIds,
-            OldOutputPinIds: oldOutputPinIds,
-            NewInputPinIds: newInputPinIds,
-            NewOutputPinIds: newOutputPinIds,
-            Strategy: command.EdgeReconciliationStrategy
+            node.Id,
+            node.Key,
+            node.ProjectId,
+            oldInputs,
+            oldOutputs,
+            node.Inputs.Select(p => p.Id).ToList(),
+            node.Outputs.Select(p => p.Id).ToList(),
+            command.EdgeReconciliationStrategy
         ));
 
-        return Result.Ok(new CreateCustomNodeResponseDto(
-            node.Id,
-            node.ProjectId,
-            node.Name,
-            node.Key,
-            node.Label,
-            node.Executor,
-            node.Inputs,
-            node.Outputs,
-            node.CreatedAt
-        ));
+        var dto = node.Adapt<CreateCustomNodeResponseDto>() with
+        {
+            ScriptAssetLinkId = file.AssetLinkId,
+            ContentHash = file.HashSha256,
+            AssetId = file.AssetId,
+            OriginalFileName = file.OriginalName
+        };
+
+        return Result.Ok(dto);
     }
+
+    private static List<PinDefinition> SanitizePins(List<PinDefinition>? pins) =>
+        (pins ?? []).Select(p => p with { Label = string.IsNullOrWhiteSpace(p.Label) ? p.Id : p.Label }).ToList();
 }

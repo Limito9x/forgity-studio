@@ -2,9 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Automation.Files.Infrastructure.Persistence;
 using Automation.SharedKernel.Domain.Events;
+using Wolverine.Attributes;
 
 namespace Automation.Files.Features.Assets;
 
+[Transactional(typeof(FilesDbContext))]
 public class EntityDeletedHandler(FilesDbContext db, ILogger<EntityDeletedHandler> logger)
 {
     public async Task HandleAsync(EntityDeletedMessage message, CancellationToken ct)

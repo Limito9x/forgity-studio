@@ -4,8 +4,10 @@
  * Automation.Api | v1
  * OpenAPI spec version: 1.0.0
  */
+import type { IReadOnlyListOfBatchUpsertErrorDto } from "./iReadOnlyListOfBatchUpsertErrorDto";
 import type { IReadOnlyListOfBatchUpsertResultItemDto } from "./iReadOnlyListOfBatchUpsertResultItemDto";
 
 export interface BatchUpsertCustomNodesResponseDto {
   results: IReadOnlyListOfBatchUpsertResultItemDto;
+  errors: IReadOnlyListOfBatchUpsertErrorDto;
 }

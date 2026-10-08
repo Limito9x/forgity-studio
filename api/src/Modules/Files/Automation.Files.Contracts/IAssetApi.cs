@@ -4,6 +4,47 @@ namespace Automation.Files.Contracts;
 
 public interface IAssetApi
 {
+    // Prepare references without deleting old links. Caller authorizes each owner.
+    // Matching owner/slot + asset/name reuses a link, including repeated batch items.
+    // Validation errors are per item; database/cancellation failures throw.
+    // Retry reuse is sequential; concurrent calls are not serialized by this API.
+    Task<IReadOnlyList<AssetLinkSyncResult>> SyncLinksAsync(
+        IEnumerable<AssetLinkSyncItem> items,
+        CancellationToken ct = default);
+
+    // Files validates the asset and replaces the slot using its own context.
+    Task<Result<AssetLinkDto>> ReplaceSingleLinkAsync(
+        AssetLinkRequestItem item, AssetLinkOwner owner,
+        string? expectedHash = null, CancellationToken ct = default);
+
+    // These are internal APIs: the caller must authorize access to the owner.
+    // Create never replaces an existing link. Remove the old PK after saving its replacement.
+    Task<Result<AssetLinkDto>> CreateLinkAsync(
+        AssetLinkRequestItem item,
+        AssetLinkOwner owner,
+        int sortOrder = 0,
+        CancellationToken ct = default
+    );
+
+    // Every requested PK must exist and match its expected owner and slot.
+    Task<Result<IReadOnlyList<AssetLinkDto>>> GetLinksByIdsAsync(
+        IEnumerable<AssetLinkReference> references,
+        CancellationToken ct = default
+    );
+
+    // For display hydration: return only confirmed links matching each expected owner.
+    // Missing/mismatched references are omitted so one broken pin does not hide other names.
+    Task<Result<IReadOnlyList<AssetLinkDto>>> FindLinksByIdsAsync(
+        IEnumerable<AssetLinkReference> references,
+        CancellationToken ct = default
+    );
+
+    // Missing PK is idempotent; an existing PK with another owner/slot is rejected.
+    Task<Result> RemoveLinkByIdAsync(
+        AssetLinkReference reference,
+        CancellationToken ct = default
+    );
+
     // Request Upload Multiple
     Task<Result<IReadOnlyList<AssetUploadDto>>> RequestUploadAsync(
         IEnumerable<UploadRequestItemDto> requests,

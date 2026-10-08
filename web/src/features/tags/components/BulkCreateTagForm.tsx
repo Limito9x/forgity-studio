@@ -224,7 +224,7 @@ export function BulkCreateTagForm({ projectId: _projectId, parentPath, formId = 
                                                 size="icon"
                                                 className="h-7 w-7"
                                                 onClick={() => duplicateRow(index)}
-                                                title="Duplicate row"
+                                                aria-label="Duplicate row"
                                             >
                                                 <Copy className="w-3.5 h-3.5" />
                                             </Button>
@@ -234,8 +234,8 @@ export function BulkCreateTagForm({ projectId: _projectId, parentPath, formId = 
                                                 size="icon"
                                                 className="h-7 w-7 text-muted-foreground hover:text-destructive"
                                                 onClick={() => remove(index)}
-                                                disabled={fields.length === 1}
-                                                title="Remove row"
+                                                isDisabled={fields.length === 1}
+                                                aria-label="Remove row"
                                             >
                                                 <Trash2 className="w-3.5 h-3.5" />
                                             </Button>

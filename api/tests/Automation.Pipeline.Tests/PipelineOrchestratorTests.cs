@@ -18,6 +18,7 @@ using Automation.Pipeline.Infrastructure.Redis;
 using Automation.Pipeline.Tools;
 using Automation.Runner.Contracts;
 using FluentAssertions;
+using FluentResults;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -52,6 +53,13 @@ public class PipelineOrchestratorTests
 
         _db = new TestPipelineDbContext(options);
         _db.Database.EnsureCreated();
+
+        _assetApi.GetFilesAsync(Arg.Any<IEnumerable<string>>(), "NodeDefinition", PipelineAssetSlots.CustomScript,
+            Arg.Any<CancellationToken>()).Returns(call =>
+            Task.FromResult(Result.Ok(call.Arg<IEnumerable<string>>().ToDictionary(id => id,
+                id => (IReadOnlyList<AssetLinkDto>)[new AssetLinkDto(Guid.NewGuid(), Guid.NewGuid(),
+                    "https://storage.example/custom_import.py", "custom_import.py", "text/x-python", 10, 0,
+                    PipelineAssetSlots.CustomScript, DateTimeOffset.UtcNow, new string('a', 64))]))));
 
         var graphProvider = new PipelineGraphProvider(_db);
         var assetResolver = new AssetResolver(_assetApi, NullLogger<AssetResolver>.Instance);
@@ -203,7 +211,9 @@ public class PipelineOrchestratorTests
         await mockEndpoint.Received(1).SendAsync(Arg.Is<StageTaskMessage>(msg =>
             msg.Executor == "blender" &&
             msg.Steps.Count == 1 &&
-            msg.Steps[0].ScriptPath == "custom_import"
+            msg.Steps[0].ScriptPath == "custom_import.py" &&
+            msg.Steps[0].ScriptUrl == "https://storage.example/custom_import.py" &&
+            msg.Steps[0].ScriptHash == new string('a', 64)
         ));
     }
 

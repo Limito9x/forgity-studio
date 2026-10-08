@@ -1,7 +1,8 @@
-import { FileCode, Box, Sparkles, Cpu, RotateCcw, CheckCircle2, AlertTriangle, Network, Code2, ShieldAlert } from "lucide-react";
+import { FileCode, RotateCcw, CheckCircle2, AlertTriangle, Network, Code2, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { AnalyzedCustomNodeDto } from "@/gen/model";
+import { ExecutorIcon } from "@/features/runners/components/ExecutorIcon";
 
 export type IngestionActiveTab = "pins" | "code" | "impact";
 
@@ -17,14 +18,7 @@ export function WorkspaceHeader({
   onTabChange,
 }: WorkspaceHeaderProps) {
   const getExecutorIcon = (executor: string) => {
-    switch (executor?.toLowerCase()) {
-      case "blender":
-        return <Box className="size-3.5 text-orange-500" />;
-      case "unreal":
-        return <Sparkles className="size-3.5 text-blue-500" />;
-      default:
-        return <Cpu className="size-3.5 text-emerald-500" />;
-    }
+    return <ExecutorIcon executor={executor} className="size-3.5" />;
   };
 
   const affectedEdges = node.impactReport?.affectedEdgeCount ?? 0;

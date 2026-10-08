@@ -1,7 +1,3 @@
-using FluentValidation;
-using Microsoft.EntityFrameworkCore;
-using Wolverine;
-using Wolverine.Attributes;
 using Automation.Files.Contracts;
 using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Entities;
@@ -9,6 +5,9 @@ using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Features.Nodes.Events;
 using Automation.Pipeline.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Wolverine.Attributes;
 
 namespace Automation.Pipeline.Features.Nodes;
 
@@ -40,8 +39,10 @@ public record BatchUpsertResultItemDto(
     int OutputCount
 );
 
+public record BatchUpsertErrorDto(string Key, string? FileName, string Message);
 public record BatchUpsertCustomNodesResponseDto(
-    IReadOnlyList<BatchUpsertResultItemDto> Results
+    IReadOnlyList<BatchUpsertResultItemDto> Results,
+    IReadOnlyList<BatchUpsertErrorDto> Errors
 );
 
 public class BatchUpsertCustomNodesValidator : AbstractValidator<BatchUpsertCustomNodesCommand>
@@ -50,6 +51,7 @@ public class BatchUpsertCustomNodesValidator : AbstractValidator<BatchUpsertCust
     {
         RuleFor(x => x.ProjectId).NotEmpty();
         RuleFor(x => x.Items).NotEmpty().WithMessage("At least one item must be provided.");
+        RuleFor(x => x.Items).Must(x => x == null || x.Count <= 100).WithMessage("A batch can contain at most 100 scripts.");
     }
 }
 
@@ -71,167 +73,134 @@ public class BatchUpsertCustomNodesEndpoint(IMessageBus bus)
     }
 }
 
-[Transactional(typeof(PipelineDbContext))]
+[NonTransactional] // Batch iterates items, individual items commit their definition and link.
 public class BatchUpsertCustomNodesHandler(
     PipelineDbContext db,
-    IAssetApi assetApi,
-    IMessageBus bus
+    IAssetApi assets,
+    IMessageBus bus,
+    ILogger<BatchUpsertCustomNodesHandler> logger
 )
 {
+    public static string NormalizeKey(BatchUpsertItem item) =>
+        (string.IsNullOrWhiteSpace(item.Key) ? item.Name?.Trim().Replace(" ", "-") : item.Key.Trim())?.ToLowerInvariant() ?? "";
+
     public async Task<Result<BatchUpsertCustomNodesResponseDto>> HandleAsync(
         BatchUpsertCustomNodesCommand command,
         CancellationToken ct
     )
     {
-        var existingNodes = await db.NodeDefinitions
-            .Where(x => x.ProjectId == command.ProjectId)
-            .ToListAsync(ct);
-
         var results = new List<BatchUpsertResultItemDto>();
+        var errors = new List<BatchUpsertErrorDto>();
+        var duplicates = command.Items.GroupBy(NormalizeKey)
+            .Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet();
 
         foreach (var item in command.Items)
         {
-            var nameTrimmed = item.Name.Trim();
-            var key = string.IsNullOrWhiteSpace(item.Key)
-                ? nameTrimmed.Replace(" ", "-").ToLowerInvariant()
-                : item.Key.Trim().ToLowerInvariant();
-
-            var label = string.IsNullOrWhiteSpace(item.Label) ? nameTrimmed : item.Label.Trim();
-            var executor = string.IsNullOrWhiteSpace(item.Executor) ? "blender" : item.Executor.Trim().ToLowerInvariant();
-
-            var sanitizedInputs = (item.Inputs ?? []).Select(p => new PinDefinition
+            var key = NormalizeKey(item);
+            if (duplicates.Contains(key) || item.AssetId is null || item.AssetId == Guid.Empty)
             {
-                Id = p.Id,
-                Label = string.IsNullOrWhiteSpace(p.Label) ? p.Id : p.Label,
-                PrimitiveType = p.PrimitiveType,
-                Cardinality = p.Cardinality,
-                IsRequired = p.IsRequired,
-                DefaultValue = p.DefaultValue?.ToString(),
-                Metadata = p.Metadata
-            }).ToList();
-
-            var sanitizedOutputs = (item.Outputs ?? []).Select(p => new PinDefinition
-            {
-                Id = p.Id,
-                Label = string.IsNullOrWhiteSpace(p.Label) ? p.Id : p.Label,
-                PrimitiveType = p.PrimitiveType,
-                Cardinality = p.Cardinality,
-                IsRequired = p.IsRequired,
-                DefaultValue = p.DefaultValue?.ToString(),
-                Metadata = p.Metadata
-            }).ToList();
-
-            var existingNode = existingNodes.FirstOrDefault(x =>
-                x.Key.Equals(key, StringComparison.OrdinalIgnoreCase) ||
-                x.Name.Equals(nameTrimmed, StringComparison.OrdinalIgnoreCase));
-
-            if (existingNode != null)
-            {
-                var oldInputPinIds = existingNode.Inputs.Select(p => p.Id).ToList();
-                var oldOutputPinIds = existingNode.Outputs.Select(p => p.Id).ToList();
-
-                existingNode.Update(nameTrimmed, label, executor, sanitizedInputs, sanitizedOutputs);
-                if (!string.IsNullOrWhiteSpace(item.ContentHash))
-                {
-                    existingNode.UpdateContent(item.ContentHash, existingNode.SemanticVersion, sanitizedInputs, sanitizedOutputs);
-                    existingNode.SetStatus(NodeLifecycleStatus.Published);
-                }
-
-                // Link asset script if provided
-                if (item.AssetId.HasValue && item.AssetId.Value != Guid.Empty)
-                {
-                    await assetApi.RemoveLinkAsync(
-                        ownerEntityId: existingNode.Id.ToString(),
-                        ownerEntityType: "NodeDefinition",
-                        slotKey: PipelineAssetSlots.CustomScript,
-                        ct: ct
-                    );
-
-                    var fileName = string.IsNullOrWhiteSpace(item.OriginalFileName) ? $"{existingNode.Key}.py" : item.OriginalFileName;
-                    await assetApi.VerifyAndLinkAsync(
-                        item.AssetId.Value,
-                        ownerEntityType: "NodeDefinition",
-                        slotKey: PipelineAssetSlots.CustomScript,
-                        ownerEntityId: existingNode.Id.ToString(),
-                        originalName: fileName,
-                        sortOrder: 0,
-                        ct: ct
-                    );
-                }
-
-                // Publish reconciliation event for edge cleanup
-                var newInputPinIds = existingNode.Inputs.Select(p => p.Id).ToList();
-                var newOutputPinIds = existingNode.Outputs.Select(p => p.Id).ToList();
-
-                await bus.PublishAsync(new NodeDefinitionPinsChangedEvent(
-                    NodeDefinitionId: existingNode.Id,
-                    NodeKey: existingNode.Key,
-                    ProjectId: existingNode.ProjectId,
-                    OldInputPinIds: oldInputPinIds,
-                    OldOutputPinIds: oldOutputPinIds,
-                    NewInputPinIds: newInputPinIds,
-                    NewOutputPinIds: newOutputPinIds,
-                    Strategy: item.Strategy
-                ));
-
-                results.Add(new BatchUpsertResultItemDto(
-                    existingNode.Id,
-                    existingNode.Key,
-                    existingNode.Name,
-                    existingNode.Executor,
-                    true,
-                    sanitizedInputs.Count,
-                    sanitizedOutputs.Count
-                ));
+                errors.Add(new(key, item.OriginalFileName, duplicates.Contains(key)
+                    ? "Duplicate node key in this batch." : "Upload and confirm the script before publishing."));
+                continue;
             }
-            else
+
+            var validationError = Validate(item);
+            if (validationError != null)
             {
-                var newNode = new NodeDefinition(
-                    command.ProjectId,
-                    nameTrimmed,
-                    key,
-                    label,
-                    executor,
-                    sanitizedInputs,
-                    sanitizedOutputs
-                );
+                errors.Add(new(key, item.OriginalFileName, validationError));
+                continue;
+            }
 
-                if (!string.IsNullOrWhiteSpace(item.ContentHash))
+            try
+            {
+                var upsertResult = await UpsertSingleNodeAsync(command.ProjectId, key, item, ct);
+                if (upsertResult.IsFailed)
                 {
-                    newNode.UpdateContent(item.ContentHash, "1.0.0", sanitizedInputs, sanitizedOutputs);
-                    newNode.SetStatus(NodeLifecycleStatus.Published);
+                    errors.Add(new(key, item.OriginalFileName, upsertResult.Errors.First().Message));
+                    continue;
                 }
 
-                db.NodeDefinitions.Add(newNode);
-                await db.SaveChangesAsync(ct);
-
-                if (item.AssetId.HasValue && item.AssetId.Value != Guid.Empty)
-                {
-                    var fileName = string.IsNullOrWhiteSpace(item.OriginalFileName) ? $"{newNode.Key}.py" : item.OriginalFileName;
-                    await assetApi.VerifyAndLinkAsync(
-                        item.AssetId.Value,
-                        ownerEntityType: "NodeDefinition",
-                        slotKey: PipelineAssetSlots.CustomScript,
-                        ownerEntityId: newNode.Id.ToString(),
-                        originalName: fileName,
-                        sortOrder: 0,
-                        ct: ct
-                    );
-                }
-
-                results.Add(new BatchUpsertResultItemDto(
-                    newNode.Id,
-                    newNode.Key,
-                    newNode.Name,
-                    newNode.Executor,
-                    false,
-                    sanitizedInputs.Count,
-                    sanitizedOutputs.Count
-                ));
+                var (node, isUpdated) = upsertResult.Value;
+                results.Add(new(node.Id, node.Key, node.Name, node.Executor, isUpdated, node.Inputs.Count, node.Outputs.Count));
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                db.ChangeTracker.Clear();
+                logger.LogError(ex, "Failed to publish script {FileName} ({Key})", item.OriginalFileName, key);
+                errors.Add(new(key, item.OriginalFileName, "Could not publish this script. Please retry."));
             }
         }
 
+        return Result.Ok(new BatchUpsertCustomNodesResponseDto(results, errors));
+    }
+
+    private async Task<Result<(NodeDefinition Node, bool IsUpdated)>> UpsertSingleNodeAsync(
+        Guid projectId,
+        string key,
+        BatchUpsertItem item,
+        CancellationToken ct
+    )
+    {
+        var node = await db.NodeDefinitions.FirstOrDefaultAsync(x => x.ProjectId == projectId && x.Key == key, ct);
+        var isUpdated = node != null;
+        node ??= new NodeDefinition { ProjectId = projectId, Key = key };
+
+        var oldInputs = node.Inputs.Select(p => p.Id).ToList();
+        var oldOutputs = node.Outputs.Select(p => p.Id).ToList();
+
+        node.Update(
+            item.Name.Trim(),
+            string.IsNullOrWhiteSpace(item.Label) ? item.Name.Trim() : item.Label.Trim(),
+            string.IsNullOrWhiteSpace(item.Executor) ? "blender" : item.Executor.Trim().ToLowerInvariant(),
+            SanitizePins(item.Inputs),
+            SanitizePins(item.Outputs)
+        );
+
+        if (!isUpdated) db.NodeDefinitions.Add(node);
         await db.SaveChangesAsync(ct);
-        return Result.Ok(new BatchUpsertCustomNodesResponseDto(results));
+
+        var owner = new AssetLinkOwner(nameof(NodeDefinition), node.Id.ToString(), PipelineAssetSlots.CustomScript);
+        var linked = await assets.ReplaceSingleLinkAsync(new(item.AssetId!.Value, item.OriginalFileName!), owner, item.ContentHash, ct);
+        if (linked.IsFailed)
+        {
+            db.ChangeTracker.Clear();
+            return Result.Fail<(NodeDefinition, bool)>(linked.Errors);
+        }
+
+        node.ContentHash = linked.Value.HashSha256;
+        node.Status = NodeLifecycleStatus.Published;
+        await db.SaveChangesAsync(ct);
+
+        if (isUpdated)
+        {
+            await bus.PublishAsync(new NodeDefinitionPinsChangedEvent(
+                node.Id, node.Key, node.ProjectId, oldInputs, oldOutputs,
+                node.Inputs.Select(p => p.Id).ToList(), node.Outputs.Select(p => p.Id).ToList(), item.Strategy
+            ));
+        }
+
+        return Result.Ok((node, isUpdated));
+    }
+
+    private static List<PinDefinition> SanitizePins(List<PinDefinition>? pins) =>
+        (pins ?? []).Select(p => p with { Label = string.IsNullOrWhiteSpace(p.Label) ? p.Id : p.Label }).ToList();
+
+    private static string? Validate(BatchUpsertItem item)
+    {
+        if (string.IsNullOrWhiteSpace(item.Name) || item.Name.Trim().Length > 100)
+            return "A node name of at most 100 characters is required.";
+        if (item.AssetId is { } assetId && assetId != Guid.Empty)
+        {
+            if (string.IsNullOrWhiteSpace(item.OriginalFileName) || !item.OriginalFileName.EndsWith(".py", StringComparison.OrdinalIgnoreCase) ||
+                item.OriginalFileName.IndexOfAny(['/', '\\', ':', '<', '>', '"', '|', '?', '*']) >= 0)
+                return "Script must have a Python (.py) filename without directories.";
+            if (!string.IsNullOrEmpty(item.ContentHash) && (item.ContentHash.Length != 64 || !item.ContentHash.All(Uri.IsHexDigit)))
+                return "Script hash must be a SHA-256 hash.";
+        }
+        foreach (var pins in new[] { item.Inputs, item.Outputs })
+            if (pins != null && (pins.Any(p => string.IsNullOrWhiteSpace(p.Id)) ||
+                pins.Select(p => p.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() != pins.Count))
+                return "Pin IDs must be non-empty and unique within each direction.";
+        return null;
     }
 }

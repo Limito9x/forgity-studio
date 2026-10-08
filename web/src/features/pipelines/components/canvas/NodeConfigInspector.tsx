@@ -1,4 +1,4 @@
-import { useMemo, memo, useEffect, useRef, useCallback } from "react";
+import { useMemo, memo, useEffect } from "react";
 import type { Node } from "@xyflow/react";
 import { useForm } from "react-hook-form";
 import type { CustomPipelineNodeData } from "./CustomPipelineNode";
@@ -79,41 +79,22 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
     defaultValues: configValues,
   });
 
-  const lastNodeIdRef = useRef(node?.id);
   useEffect(() => {
-    if (node && lastNodeIdRef.current !== node.id) {
-      lastNodeIdRef.current = node.id;
-      form.reset(node.data?.configValues || {});
+    if (JSON.stringify(form.getValues()) !== JSON.stringify(configValues)) {
+      form.reset(configValues);
     }
-  }, [node, form]);
-
-  // Debounced update to backend
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const debouncedUpdate = useCallback(
-    (nodeId: string, pinId: string, value: any) => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      debounceTimerRef.current = setTimeout(() => {
-        onUpdateConfig(nodeId, pinId, value);
-      }, 250);
-    },
-    [onUpdateConfig]
-  );
+  }, [node?.id, configValues, form]);
 
   useEffect(() => {
     const subscription = form.watch((values, { name, type }) => {
       if (name && node && type !== undefined) {
-        debouncedUpdate(node.id, name, values[name]);
+        onUpdateConfig(node.id, name, values[name]);
       }
     });
     return () => {
       subscription.unsubscribe();
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
     };
-  }, [form, node, debouncedUpdate]);
+  }, [form, node?.id, onUpdateConfig]);
 
   // Find incoming wired edges
   const wiredInputPinIds = useMemo(() => {
@@ -160,8 +141,13 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
 
   // Map unwired inputs to dynamic form fields via Pure Adapter
   const formFields = useMemo(() => {
-    return unwiredInputs.map((pin) => pinToFieldDefinition(pin, configValues));
-  }, [unwiredInputs, configValues]);
+    return unwiredInputs.map((pin) => {
+      const field = pinToFieldDefinition(pin, configValues);
+      return field.type === "pin:assetUpload"
+        ? { ...field, properties: { ...field.properties, persistAsLink: true, fileAsset: data.fileAssets?.[pin.id!] } }
+        : field;
+    });
+  }, [unwiredInputs, configValues, data.fileAssets]);
 
   if (!node) return null;
 
@@ -342,6 +328,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
                     )}
                     <div className="rounded-xl border border-border/70 bg-card p-3 shadow-sm">
                       <FormRenderer
+                        key={node.id}
                         registry={pipelineRegistry}
                         control={form.control}
                         fields={formFields}

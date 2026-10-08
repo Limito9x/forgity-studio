@@ -2,10 +2,9 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { usePipelineNodeMutations, useCustomNodeById } from "../hooks/usePipelines";
 import { NodeMetaForm } from "../components/node-editor/NodeMetaForm";
-import { ScriptUploadBox } from "../components/node-editor/ScriptUploadBox";
+import { ScriptIngestionPage } from "./ScriptIngestionPage";
 import { PinCardList } from "../components/node-editor/PinCardList";
 import { PinConfigInspector } from "../components/node-editor/PinConfigInspector";
-import { uploadAssetFlow } from "@/lib/upload-utils";
 import type { PinDefinition } from "@/gen/model";
 import { PinPrimitiveType } from "@/gen/model/pinPrimitiveType";
 import { PinCardinality } from "@/gen/model/pinCardinality";
@@ -18,24 +17,21 @@ interface CreateCustomNodePageProps {
 }
 
 export function CreateCustomNodePage({ projectId }: CreateCustomNodePageProps) {
-  const navigate = useNavigate();
   const search = useSearch({ strict: false }) as any;
   const editNodeId = search?.editNodeId as string | undefined;
 
-  const { parseScript, createNode, isCreatingNode, updateNode, isUpdatingNode } =
-    usePipelineNodeMutations(projectId);
+  return editNodeId ? <CustomNodeMetadataEditor key={`${projectId}:${editNodeId}`} projectId={projectId} editNodeId={editNodeId} /> : <ScriptIngestionPage key={projectId} projectId={projectId} />;
+}
+
+function CustomNodeMetadataEditor({ projectId, editNodeId }: CreateCustomNodePageProps & { editNodeId: string }) {
+  const navigate = useNavigate();
+  const { updateNode, isUpdatingNode } = usePipelineNodeMutations(projectId);
 
   const { data: existingNode, isLoading: isLoadingExisting } = useCustomNodeById(editNodeId);
 
   const [name, setName] = useState("");
   const [label, setLabel] = useState("");
   const [executor, setExecutor] = useState<"blender" | "python" | "unreal">("blender");
-  const [scriptContent, setScriptContent] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadedAssetId, setUploadedAssetId] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isDetecting, setIsDetecting] = useState(false);
-
   const [inputs, setInputs] = useState<PinDefinition[]>([]);
   const [outputs, setOutputs] = useState<PinDefinition[]>([]);
 
@@ -57,51 +53,6 @@ export function CreateCustomNodePage({ projectId }: CreateCustomNodePageProps) {
     direction: "in" | "out";
     index: number;
   } | null>(null);
-
-  const handleFileSelect = async (file: File) => {
-    setSelectedFile(file);
-    const text = await file.text();
-    setScriptContent(text);
-    autoDetectFromScript(text, file.name);
-  };
-
-  const autoDetectFromScript = async (code: string, fileName?: string) => {
-    if (!code.trim()) {
-      toast.error("Please provide Python script code to analyze.");
-      return;
-    }
-
-    try {
-      setIsDetecting(true);
-      const res = await parseScript({
-        scriptContent: code,
-        fileName: fileName || selectedFile?.name || "CustomNode.py",
-      });
-
-      if (res) {
-        if (!name && res.suggestedName) setName(res.suggestedName);
-        if (!label && res.suggestedLabel) setLabel(res.suggestedLabel);
-        if (res.executor === "blender" || res.executor === "python" || res.executor === "unreal") {
-          setExecutor(res.executor);
-        }
-        if (res.inputs) setInputs(res.inputs);
-        if (res.outputs) setOutputs(res.outputs);
-
-        // Auto select the first input pin for configuration
-        if (res.inputs && res.inputs.length > 0) {
-          setSelectedPin({ pin: res.inputs[0], direction: "in", index: 0 });
-        }
-
-        toast.success(
-          `Detected ${res.inputs?.length || 0} inputs and ${res.outputs?.length || 0} outputs!`
-        );
-      }
-    } catch {
-      // Error handled in hook
-    } finally {
-      setIsDetecting(false);
-    }
-  };
 
   const handleAddInput = () => {
     const newPin: PinDefinition = {
@@ -166,53 +117,10 @@ export function CreateCustomNodePage({ projectId }: CreateCustomNodePageProps) {
       return;
     }
 
-    let finalAssetId: string | null = uploadedAssetId;
-
-    if (!finalAssetId && (selectedFile || scriptContent)) {
-      try {
-        setIsUploading(true);
-        const fileToUpload =
-          selectedFile ||
-          new File([scriptContent], `${name.trim().replace(/\s+/g, "_")}.py`, {
-            type: "text/x-python",
-          });
-
-        finalAssetId = await uploadAssetFlow(fileToUpload);
-        setUploadedAssetId(finalAssetId);
-      } catch (err: any) {
-        toast.error("Failed to upload script file: " + (err?.message || ""));
-        setIsUploading(false);
-        return;
-      } finally {
-        setIsUploading(false);
-      }
-    }
-
-    if (editNodeId) {
-      await updateNode({
-        id: editNodeId,
-        data: {
-          name: name.trim(),
-          label: label.trim() || name.trim(),
-          executor,
-          assetId: finalAssetId || (existingNode as any)?.assetId || null,
-          originalFileName: selectedFile?.name || (existingNode as any)?.originalFileName || `${name.trim()}.py`,
-          inputs: inputs as any,
-          outputs: outputs as any,
-        },
-      });
-    } else {
-      await createNode({
-        projectId,
-        name: name.trim(),
-        label: label.trim() || name.trim(),
-        executor,
-        assetId: finalAssetId || null,
-        originalFileName: selectedFile?.name || `${name.trim()}.py`,
-        inputs: inputs as any,
-        outputs: outputs as any,
-      });
-    }
+    await updateNode({ id: editNodeId, data: {
+      name: name.trim(), label: label.trim() || name.trim(), executor,
+      assetId: null, originalFileName: null, inputs, outputs,
+    } });
 
     navigate({
       to: "/projects/$projectId/pipeline/nodes",
@@ -261,10 +169,10 @@ export function CreateCustomNodePage({ projectId }: CreateCustomNodePageProps) {
             type="button"
             size="sm"
             className="gap-2"
-            isDisabled={isCreatingNode || isUpdatingNode || isUploading || isLoadingExisting || !name.trim()}
+            isDisabled={isUpdatingNode || isLoadingExisting || !name.trim()}
             onPress={handleSubmit}
           >
-            {isCreatingNode || isUpdatingNode || isUploading ? (
+            {isUpdatingNode ? (
               <>
                 <Loader2 className="size-3.5 animate-spin mr-1.5" />
                 {editNodeId ? "Updating Node..." : "Saving Node..."}
@@ -290,14 +198,13 @@ export function CreateCustomNodePage({ projectId }: CreateCustomNodePageProps) {
           onChangeExecutor={setExecutor}
         />
 
-        <ScriptUploadBox
-          selectedFile={selectedFile}
-          onFileSelect={handleFileSelect}
-          scriptContent={scriptContent}
-          onChangeScriptContent={setScriptContent}
-          isDetecting={isDetecting}
-          onAutoDetect={() => autoDetectFromScript(scriptContent)}
-        />
+        <div className="rounded-lg border border-border p-4 space-y-3">
+          <p className="text-sm">Saved script: {existingNode?.originalFileName || "No stored script"}</p>
+          <p className="text-xs text-muted-foreground">Use batch ingestion to analyze and publish a replacement for this node key.</p>
+          <Button variant="outline" onPress={() => navigate({
+            to: "/projects/$projectId/pipeline/nodes/ingest", params: { projectId },
+          })}>Publish replacement script</Button>
+        </div>
       </div>
 
       {/* Bottom Section: Two-pane Master-Detail (Pin Cards + Config Panel) */}

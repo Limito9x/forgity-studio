@@ -5,7 +5,7 @@ import socket
 import urllib.request
 import urllib.error
 import uuid
-from core.config import save_config, DEFAULT_API_URL, CONFIG_FILE
+from core.config import save_config, load_config, DEFAULT_API_URL, CONFIG_FILE
 from core.system.hardware import get_hardware_snapshot
 
 
@@ -98,6 +98,7 @@ def run():
 
     # Save to local configuration
     config = {
+        **(load_config() or {}),
         "apiUrl": api_url,
         "runnerId": runner_id,
         "agentId": runner_id,  # backward compatibility

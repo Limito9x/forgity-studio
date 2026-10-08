@@ -173,6 +173,7 @@ poetry.toml
 tests/
 agent_config.json
 cache/
+runtime/
 
 # LSP config files
 pyrightconfig.json

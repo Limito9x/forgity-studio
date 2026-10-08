@@ -4,15 +4,13 @@ import * as PipelinesApi from "@/gen/endpoints/pipelines/pipelines";
 import type {
   PipelineGraphDto,
   PipelineNodeGraphDto,
+  PipelineFileAssetDto,
   PipelineEdgeGraphDto,
   PipelineParameterDto,
   PipelineParameterKind,
   SavePipelineGraphRequest,
   SavePipelineNodeItem,
   SavePipelineEdgeItem,
-  AddPipelineNodeRequest,
-  UpdatePipelineNodeRequest,
-  AddPipelineEdgeRequest,
   RunPipelineRequest,
   ValidatePipelineQuery,
   ValidatePipelineResponse,
@@ -46,11 +44,9 @@ export type ExtendedPipelineGraphDto = PipelineGraphDto;
 
 export type {
   PipelineGraphDto,
+  PipelineFileAssetDto,
   PipelineNodeGraphDto,
   PipelineEdgeGraphDto,
-  AddPipelineNodeRequest,
-  UpdatePipelineNodeRequest,
-  AddPipelineEdgeRequest,
   RunPipelineRequest,
   ValidatePipelineQuery,
   ValidatePipelineResponse,
@@ -128,81 +124,6 @@ export const useSavePipelineGraph = (pipelineId?: string) => {
       mutation.mutate({ id: pipelineId!, data: data as any }, options),
     mutateAsync: (data: SavePipelineGraphData, options?: any) =>
       mutation.mutateAsync({ id: pipelineId!, data: data as any }, options),
-  };
-};
-
-export const useAddPipelineNode = (pipelineId?: string) => {
-  const queryKey = pipelineId ? PipelinesApi.getGetPipelineGraphQueryKey(pipelineId) : ["pipelines"];
-  const mutation = createMutationHook(PipelinesApi.useAddPipelineNode, [queryKey])();
-  return {
-    ...mutation,
-    mutate: (data: AddPipelineNodeRequest, options?: any) =>
-      mutation.mutate({ pipelineId: pipelineId!, data }, options),
-    mutateAsync: (data: AddPipelineNodeRequest, options?: any) =>
-      mutation.mutateAsync({ pipelineId: pipelineId!, data }, options),
-  };
-};
-
-export const useUpdatePipelineNode = (pipelineId?: string) => {
-  const queryKey = pipelineId ? PipelinesApi.getGetPipelineGraphQueryKey(pipelineId) : ["pipelines"];
-  const mutation = createMutationHook(PipelinesApi.useUpdatePipelineNode, [queryKey])();
-  return {
-    ...mutation,
-    mutate: ({ nodeId, data }: { nodeId: string; data: UpdatePipelineNodeRequest }, options?: any) =>
-      mutation.mutate({ pipelineId: pipelineId!, nodeId, data }, options),
-    mutateAsync: ({ nodeId, data }: { nodeId: string; data: UpdatePipelineNodeRequest }, options?: any) =>
-      mutation.mutateAsync({ pipelineId: pipelineId!, nodeId, data }, options),
-  };
-};
-
-/**
- * Mutation chuyên dùng cho Drag/Drop tọa độ: Lưu ngầm vào DB mà KHÔNG invalidate query,
- * tránh refetch và reset toàn bộ nodes trên Canvas gây giật lag.
- */
-export const useUpdateNodePosition = (pipelineId?: string) => {
-  const mutation = PipelinesApi.useUpdatePipelineNode();
-  return {
-    ...mutation,
-    mutate: ({ nodeId, data }: { nodeId: string; data: UpdatePipelineNodeRequest }, options?: any) =>
-      mutation.mutate({ pipelineId: pipelineId!, nodeId, data }, options),
-    mutateAsync: ({ nodeId, data }: { nodeId: string; data: UpdatePipelineNodeRequest }, options?: any) =>
-      mutation.mutateAsync({ pipelineId: pipelineId!, nodeId, data }, options),
-  };
-};
-
-export const useDeletePipelineNode = (pipelineId?: string) => {
-  const queryKey = pipelineId ? PipelinesApi.getGetPipelineGraphQueryKey(pipelineId) : ["pipelines"];
-  const mutation = createMutationHook(PipelinesApi.useDeletePipelineNode, [queryKey])();
-  return {
-    ...mutation,
-    mutate: (nodeId: string, options?: any) =>
-      mutation.mutate({ pipelineId: pipelineId!, nodeId }, options),
-    mutateAsync: (nodeId: string, options?: any) =>
-      mutation.mutateAsync({ pipelineId: pipelineId!, nodeId }, options),
-  };
-};
-
-export const useAddPipelineEdge = (pipelineId?: string) => {
-  const queryKey = pipelineId ? PipelinesApi.getGetPipelineGraphQueryKey(pipelineId) : ["pipelines"];
-  const mutation = createMutationHook(PipelinesApi.useAddPipelineEdge, [queryKey])();
-  return {
-    ...mutation,
-    mutate: (data: AddPipelineEdgeRequest, options?: any) =>
-      mutation.mutate({ pipelineId: pipelineId!, data }, options),
-    mutateAsync: (data: AddPipelineEdgeRequest, options?: any) =>
-      mutation.mutateAsync({ pipelineId: pipelineId!, data }, options),
-  };
-};
-
-export const useDeletePipelineEdge = (pipelineId?: string) => {
-  const queryKey = pipelineId ? PipelinesApi.getGetPipelineGraphQueryKey(pipelineId) : ["pipelines"];
-  const mutation = createMutationHook(PipelinesApi.useDeletePipelineEdge, [queryKey])();
-  return {
-    ...mutation,
-    mutate: (edgeId: string, options?: any) =>
-      mutation.mutate({ pipelineId: pipelineId!, edgeId }, options),
-    mutateAsync: (edgeId: string, options?: any) =>
-      mutation.mutateAsync({ pipelineId: pipelineId!, edgeId }, options),
   };
 };
 

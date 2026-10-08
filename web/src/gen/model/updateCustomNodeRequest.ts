@@ -21,4 +21,6 @@ export interface UpdateCustomNodeRequest {
   /** @nullable */
   outputs: unknown[] | null;
   edgeReconciliationStrategy?: EdgeReconciliationStrategy;
+  /** @nullable */
+  contentHash?: string | null;
 }

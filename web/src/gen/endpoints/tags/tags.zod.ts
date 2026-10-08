@@ -111,6 +111,36 @@ export const GetTagsResponseItem = /*#__PURE__*/ zod.object({
 })
 export const GetTagsResponse = /*#__PURE__*/ zod.array(GetTagsResponseItem)
 
+
+
+
+export const CreateTagsBulkBody = /*#__PURE__*/ zod.object({
+  "projectId": /*#__PURE__*/ zod.uuid().check(/*#__PURE__*/ zod.minLength(1)),
+  "parentPath": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "rows": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "name": /*#__PURE__*/ zod.string(),
+  "color": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+}))
+})
+
+export const CreateTagsBulkResponse = /*#__PURE__*/ zod.object({
+  "created": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "projectId": /*#__PURE__*/ zod.uuid(),
+  "path": /*#__PURE__*/ zod.string(),
+  "name": /*#__PURE__*/ zod.string(),
+  "color": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "parentId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
+})),
+  "failed": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "index": /*#__PURE__*/ zod.int(),
+  "name": /*#__PURE__*/ zod.string(),
+  "reason": /*#__PURE__*/ zod.string()
+}))
+})
+
 export const GetTagTreeQueryParams = /*#__PURE__*/ zod.object({
   "projectId": /*#__PURE__*/ zod.uuid(),
   "rootPath": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())

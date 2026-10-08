@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useDeferredValue } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useNodePalette, usePipelineNodeMutations } from "../hooks/usePipelines";
 import { useNodeLibraryTable } from "../hooks/useNodeLibraryTable";
@@ -14,7 +14,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
-  Plus,
   Search,
   Box,
   Workflow,
@@ -23,10 +22,13 @@ import {
   X,
   Layers,
   Trash2,
+  Loader2,
+  BookOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { NodePaletteItemDto } from "@/gen/model";
 import { cn } from "@/lib/utils";
+import { ScriptGuidelinesDialog } from "../dialogs/ScriptGuidelinesDialog";
 
 interface NodeLibraryProps {
   projectId: string;
@@ -38,6 +40,10 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
   const { deleteNode, isDeletingNode } = usePipelineNodeMutations(projectId);
 
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
+  const isSearching = search !== deferredSearch;
+
+  const [guidelinesOpen, setGuidelinesOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [inspectingNode, setInspectingNode] = useState<NodePaletteItemDto | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -52,6 +58,11 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
   }, [nodes]);
 
   const filteredNodes = useMemo(() => {
+    const q = deferredSearch.trim().toLowerCase();
+    const isAll = selectedCategory === "All";
+    const isCustom = selectedCategory === "Custom";
+    const isBuiltIn = selectedCategory === "BuiltIn";
+
     return nodes.filter((node) => {
       const isStart =
         node.key?.toLowerCase() === "start" ||
@@ -63,23 +74,24 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
       // Hide sub-pipelines from the script library — they live in the canvas picker.
       if (node.source === "SubPipeline") return false;
 
-      const q = search.trim().toLowerCase();
-      const matchSearch =
-        q === "" ||
+      const matchCategory =
+        isAll ||
+        (isCustom && node.source === "Custom") ||
+        (isBuiltIn && node.source !== "Custom") ||
+        node.category === selectedCategory;
+
+      if (!matchCategory) return false;
+
+      if (!q) return true;
+
+      return (
         node.label?.toLowerCase().includes(q) ||
         node.key?.toLowerCase().includes(q) ||
         node.category?.toLowerCase().includes(q) ||
-        node.executor?.toLowerCase().includes(q);
-
-      const matchCategory =
-        selectedCategory === "All" ||
-        (selectedCategory === "Custom" && node.source === "Custom") ||
-        (selectedCategory === "BuiltIn" && node.source !== "Custom") ||
-        node.category === selectedCategory;
-
-      return matchSearch && matchCategory;
+        node.executor?.toLowerCase().includes(q)
+      );
     });
-  }, [nodes, search, selectedCategory]);
+  }, [nodes, deferredSearch, selectedCategory]);
 
   const handleDelete = useCallback(
     async (node: NodePaletteItemDto) => {
@@ -150,6 +162,16 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
 
         <div className="flex items-center gap-2 shrink-0">
           <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs shadow-xs"
+            onPress={() => setGuidelinesOpen(true)}
+          >
+            <BookOpen className="size-3.5 text-primary" />
+            Script Guidelines
+          </Button>
+
+          <Button
             size="sm"
             className="h-8 gap-1.5 text-xs shadow-xs"
             onPress={() =>
@@ -160,22 +182,7 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
             }
           >
             <UploadCloud className="size-3.5" />
-            Batch Upload
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 gap-1.5 text-xs shadow-xs"
-            onPress={() =>
-              navigate({
-                to: "/projects/$projectId/pipeline/nodes/new",
-                params: { projectId },
-              })
-            }
-          >
-            <Plus className="size-3.5 text-primary" />
-            Create Custom Node
+            Upload Scripts
           </Button>
         </div>
       </div>
@@ -184,7 +191,11 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
       <div className="space-y-2">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
           <div className="relative w-full sm:w-80">
-            <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+            {isSearching ? (
+              <Loader2 className="absolute left-2.5 top-2.5 size-3.5 text-primary animate-spin" />
+            ) : (
+              <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+            )}
             <Input
               placeholder="Search nodes by name, key, or category..."
               value={search}
@@ -301,7 +312,9 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
           </Button>
         </div>
       ) : (
-        <NodeLibraryTable table={table} columns={columns} isLoading={isLoading} />
+        <div className={cn("transition-opacity duration-150", isSearching && "opacity-60 pointer-events-none")}>
+          <NodeLibraryTable table={table} columns={columns} isLoading={isLoading} />
+        </div>
       )}
 
       {/* Bulk delete confirmation */}
@@ -429,6 +442,19 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
           </div>
         </Dialog>
       )}
+
+      {/* Script Standards & Registry Guidelines Modal */}
+      <ScriptGuidelinesDialog
+        isOpen={guidelinesOpen}
+        onClose={() => setGuidelinesOpen(false)}
+        onOpenBatchUpload={() => {
+          setGuidelinesOpen(false);
+          navigate({
+            to: "/projects/$projectId/pipeline/nodes/ingest",
+            params: { projectId },
+          });
+        }}
+      />
     </div>
   );
 }

@@ -86,4 +86,6 @@ public class PipelineExecution : BaseEntity
         Status = ExecutionStatus.Cancelled;
         FinishedAt = DateTimeOffset.UtcNow;
     }
+
+    public void Cancel() => MarkCancelled();
 }

@@ -49,8 +49,7 @@ public class DeleteCustomNodesBulkEndpoint(IMessageBus bus)
 
 [Transactional(typeof(PipelineDbContext))]
 public class DeleteCustomNodesBulkHandler(
-    PipelineDbContext db,
-    IAssetApi assetApi
+    PipelineDbContext db
 )
 {
     public async Task<Result<DeleteCustomNodesBulkResult>> HandleAsync(
@@ -75,15 +74,7 @@ public class DeleteCustomNodesBulkHandler(
             db.NodeDefinitions.RemoveRange(nodes);
             await db.SaveChangesAsync(ct);
 
-            foreach (var node in nodes)
-            {
-                await assetApi.RemoveLinkAsync(
-                    ownerEntityId: node.Id.ToString(),
-                    ownerEntityType: "NodeDefinition",
-                    slotKey: PipelineAssetSlots.CustomScript,
-                    ct: ct
-                );
-            }
+
         }
 
         return Result.Ok(new DeleteCustomNodesBulkResult(

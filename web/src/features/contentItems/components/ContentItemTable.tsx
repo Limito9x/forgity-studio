@@ -7,21 +7,22 @@ export interface ContentItemTableProps {
     table: Table<ContentItemDto>;
     columns: ColumnDef<ContentItemDto>[];
     isLoading: boolean;
+    content?: string;
 }
 
 export function ContentItemTable({
     table,
     columns,
     isLoading,
+    content
 }: ContentItemTableProps) {
-    const { t } = useTranslation(["contentItems", "common"]);
 
     return (
         <BaseTable
             table={table}
             columns={columns}
             isLoading={isLoading}
-            caption={t("table.caption", { defaultValue: "ContentItem List" })}
+            caption={`${content} list`}
         />
     );
 }

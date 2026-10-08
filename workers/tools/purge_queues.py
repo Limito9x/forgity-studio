@@ -18,21 +18,16 @@ from core.config import (
     RABBITMQ_PASSWORD,
     RABBITMQ_VHOST,
     AGENT_ID,
+    get_rabbitmq_parameters,
 )
 
 logger = logging.getLogger(__name__)
 
 def run():
     print("[*] Connecting to RabbitMQ to purge pending queue messages...")
-    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
     try:
         connection = pika.BlockingConnection(
-            pika.ConnectionParameters(
-                host=RABBITMQ_HOST,
-                port=RABBITMQ_PORT,
-                virtual_host=RABBITMQ_VHOST,
-                credentials=credentials,
-            )
+            get_rabbitmq_parameters(heartbeat=60)
         )
         channel = connection.channel()
 

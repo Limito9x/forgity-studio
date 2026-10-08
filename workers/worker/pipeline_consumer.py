@@ -1,8 +1,11 @@
 import json
 import logging
 import pika
+import threading
+from core.runtime_storage import storage_lock, run_cleanup, settings
 
 from core.config import RABBITMQ_HOST, RABBITMQ_PORT, RABBITMQ_USER, RABBITMQ_PASSWORD, RABBITMQ_VHOST, AGENT_ID
+from core.config import get_rabbitmq_parameters
 from worker.contracts import StageTaskMessage, StageResultMessage, StepResult, StepProgressMessage
 from worker.executors import get_executor
 
@@ -20,21 +23,16 @@ class PipelineConsumer:
     """
 
     def __init__(self, host: str = None, port: int = None, agent_id: str = None):
+        settings()
         self.host = host or RABBITMQ_HOST
         self.port = port or RABBITMQ_PORT
         self.agent_id = str(agent_id or AGENT_ID or "")
+        if not self.agent_id:
+            raise ValueError("Worker must be registered or have AGENT_ID configured.")
         self.queue_tasks = f"stage_tasks.{self.agent_id}" if self.agent_id else "stage_tasks"
 
-        credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
         self._connection = pika.BlockingConnection(
-            pika.ConnectionParameters(
-                host=self.host,
-                port=self.port,
-                virtual_host=RABBITMQ_VHOST,
-                credentials=credentials,
-                heartbeat=0,
-                blocked_connection_timeout=300
-            )
+            get_rabbitmq_parameters(host=self.host, port=self.port)
         )
         self._channel = self._connection.channel()
         queue_args = {"x-dead-letter-exchange": "wolverine-dead-letter-queue"}
@@ -51,6 +49,7 @@ class PipelineConsumer:
                     self._channel.queue_declare(queue=q, durable=True)
 
         self._channel.basic_qos(prefetch_count=1)
+        self._channel.confirm_delivery()
 
 
     def start(self):
@@ -67,11 +66,25 @@ class PipelineConsumer:
             queue=self.queue_tasks,
             on_message_callback=self._on_message,
         )
-        self._channel.start_consuming()
+        stop = threading.Event()
+        sweeper = threading.Thread(target=run_cleanup, args=(stop,), daemon=True)
+        sweeper.start()
+        try:
+            self._channel.start_consuming()
+        finally:
+            stop.set()
+            sweeper.join(timeout=5)
+            if self._connection.is_open:
+                self._connection.close()
 
     def _on_message(self, ch, method, properties, body):
+        with storage_lock():
+            self._process_message(ch, method, properties, body)
+
+    def _process_message(self, ch, method, properties, body):
         """Callback when receiving a message from RabbitMQ."""
         task = None
+        result_ready = False
         print(f"\n[RabbitMQ] >>> [MESSAGE RECEIVED] StageTaskMessage arrived (tag={method.delivery_tag}, {len(body)} bytes)!", flush=True)
         try:
             task = StageTaskMessage.model_validate_json(body)
@@ -110,6 +123,7 @@ class PipelineConsumer:
             ] if result.step_results else []
 
             print(f"[RabbitMQ]     Stage execution finished (succeeded={result.succeeded}). Sending result to '{QUEUE_RESULTS}'...", flush=True)
+            result_ready = True
             self._send_result(StageResultMessage(
                 stage_execution_id=task.stage_execution_id,
                 succeeded=result.succeeded,
@@ -123,10 +137,15 @@ class PipelineConsumer:
             logger.info(f"--- Completed: {task.stage_execution_id} | succeeded={result.succeeded} ---")
 
         except Exception as e:
+            if result_ready:
+                # Never replace an execution result with a transport failure result.
+                # Closing the connection leaves the unacked delivery available for retry.
+                raise
             stage_id = task.stage_execution_id if task else "unknown"
             print(f"[RabbitMQ] [ERROR] Failed to process task {stage_id}: {e}", flush=True)
             logger.exception(f"Failed to process task {stage_id}: {e}")
 
+            reported = False
             if task:
                 try:
                     self._send_result(StageResultMessage(
@@ -136,12 +155,17 @@ class PipelineConsumer:
                         error_message=str(e),
                         step_results=[]
                     ))
+                    reported = True
                     print(f"[RabbitMQ] [ERROR] Reported failure result back to '{QUEUE_RESULTS}' for stage {stage_id}.", flush=True)
                 except Exception as send_err:
                     print(f"[RabbitMQ] [CRITICAL] Could not send error result: {send_err}", flush=True)
+                    raise
 
             try:
-                ch.basic_ack(delivery_tag=method.delivery_tag)
+                if reported:
+                    ch.basic_ack(delivery_tag=method.delivery_tag)
+                else:
+                    ch.basic_nack(delivery_tag=method.delivery_tag, requeue=task is not None)
             except Exception:
                 pass
 
@@ -153,6 +177,7 @@ class PipelineConsumer:
             routing_key=QUEUE_PROGRESS,
             body=payload,
             properties=pika.BasicProperties(delivery_mode=2),
+            mandatory=True,
         )
         logger.debug(f"Sent progress for step {msg.step_execution_id}: {msg.status}")
 
@@ -164,6 +189,7 @@ class PipelineConsumer:
             routing_key=QUEUE_RESULTS,
             body=payload,
             properties=pika.BasicProperties(delivery_mode=2),
+            mandatory=True,
         )
         logger.debug(f"Sent result for {result.stage_execution_id}")
 

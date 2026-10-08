@@ -38,21 +38,21 @@ export function RunnerPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="page-container space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-5">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Cpu className="w-6 h-6 text-primary" />
-            <span>Runner Management</span>
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2.5">
+            <Cpu className="size-6 text-primary shrink-0" />
+            <h1 className="text-2xl font-bold tracking-tight">Runner Management</h1>
+          </div>
+          <p className="text-sm text-muted-foreground">
             Manage physical compute nodes, render machines, and pipeline execution workers.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onPress={() => refetch()} className="cursor-pointer">
-            <RefreshCw className="w-4 h-4 mr-1.5" />
+          <Button variant="outline" size="sm" onPress={() => refetch()} className="cursor-pointer gap-1.5">
+            <RefreshCw className="size-3.5" />
             <span>Refresh</span>
           </Button>
 
@@ -109,7 +109,7 @@ export function RunnerPage() {
 
       {/* Runners Grid */}
       {!isLoading && !isError && runners.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {runners.map((runner) => (
             <RunnerCard
               key={runner.id}

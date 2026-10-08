@@ -8,6 +8,7 @@ import type { DictionaryOfStringAndObject } from "./dictionaryOfStringAndObject"
 import type { IReadOnlyListOfPinDefinition } from "./iReadOnlyListOfPinDefinition";
 import type { NodePosition } from "./nodePosition";
 import type { NodeSize } from "./nodeSize";
+import type { PipelineNodeFileMap } from "./pipelineNodeFileMap";
 import type { PipelineNodeKind } from "./pipelineNodeKind";
 
 export interface PipelineNodeGraphDto {
@@ -30,4 +31,6 @@ export interface PipelineNodeGraphDto {
   size?: NodeSize | null;
   /** @nullable */
   metadata?: DictionaryOfStringAndObject | null;
+  /** @nullable */
+  fileAssets?: PipelineNodeFileMap | null;
 }

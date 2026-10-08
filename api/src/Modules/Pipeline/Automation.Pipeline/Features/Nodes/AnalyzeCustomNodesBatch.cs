@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text;
-using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
 using Automation.Pipeline.Domain.ValueObjects;
@@ -61,6 +60,7 @@ public class AnalyzeCustomNodesBatchValidator : AbstractValidator<AnalyzeCustomN
     {
         RuleFor(x => x.ProjectId).NotEmpty();
         RuleFor(x => x.Scripts).NotEmpty().WithMessage("At least one script must be provided.");
+        RuleFor(x => x.Scripts).Must(x => x == null || x.Count <= 100).WithMessage("A batch can contain at most 100 scripts.");
     }
 }
 
@@ -95,6 +95,7 @@ public class AnalyzeCustomNodesBatchHandler(PipelineDbContext db)
             .ToListAsync(ct);
 
         var analyzedList = new List<AnalyzedCustomNodeDto>();
+        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var script in command.Scripts)
         {
@@ -104,10 +105,11 @@ public class AnalyzeCustomNodesBatchHandler(PipelineDbContext db)
 
             var parsed = PythonScriptSchemaParser.Parse(content, script.FileName);
             var key = parsed.SuggestedName.Replace(" ", "-").ToLowerInvariant();
+            if (!keys.Add(key))
+                return Result.Fail<AnalyzeCustomNodesBatchResponseDto>($"Multiple scripts resolve to node key '{key}'. Use distinct script names.");
 
             var existingNode = existingNodes.FirstOrDefault(x =>
-                x.Key.Equals(key, StringComparison.OrdinalIgnoreCase) ||
-                x.Name.Equals(parsed.SuggestedName, StringComparison.OrdinalIgnoreCase));
+                x.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
 
             var inputPinDiffs = new List<PinDiffItem>();
             var outputPinDiffs = new List<PinDiffItem>();

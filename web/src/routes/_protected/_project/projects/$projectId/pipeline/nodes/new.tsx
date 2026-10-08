@@ -13,7 +13,7 @@ export const Route = createFileRoute(
 function CreateCustomNodeRoute() {
   const { projectId } = Route.useParams();
   return (
-    <div className="p-4 md:p-6 lg:p-8">
+    <div className="page-container">
       <CreateCustomNodePage projectId={projectId} />
     </div>
   );

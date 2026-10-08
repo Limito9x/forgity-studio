@@ -18,4 +18,6 @@ export interface PipelineGraphDto {
   edges: IReadOnlyListOfPipelineEdgeGraphDto;
   parameters: IReadOnlyListOfPipelineParameterDto;
   triggerConfig?: unknown;
+  /** @nullable */
+  fileResults?: unknown[] | null;
 }

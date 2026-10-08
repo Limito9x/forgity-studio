@@ -126,7 +126,7 @@ class UnrealEngineExecutor(BaseSubprocessExecutor):
         # Write payload to a temporary JSON file as fallback for UE Python environment
         stdin_payload = task.model_dump_json(by_alias=True)
         temp_payload_file = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False, encoding="utf-8"
+            mode="w", suffix=".json", delete=False, encoding="utf-8", dir=env["TEMP"]
         )
         temp_payload_file.write(stdin_payload)
         temp_payload_file.close()
@@ -144,7 +144,8 @@ class UnrealEngineExecutor(BaseSubprocessExecutor):
         return True
 
     def get_log_files(self, task: StageTaskMessage) -> List[str]:
-        log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
+        from core.runtime_storage import settings
+        log_dir = str(settings()[0] / "logs")
         os.makedirs(log_dir, exist_ok=True)
         live_log_path = os.path.join(log_dir, "unreal_latest.log")
 

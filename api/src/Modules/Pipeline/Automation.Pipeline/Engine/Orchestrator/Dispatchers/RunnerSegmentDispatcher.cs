@@ -45,27 +45,21 @@ public class RunnerSegmentDispatcher(
             .GroupBy(x => x.Key)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
-        // Batch resolve script assets for custom node definitions (if any)
-        var customDefIds = customDefinitions.Select(d => d.Id.ToString()).Distinct().ToList();
-        Dictionary<string, IReadOnlyList<AssetLinkDto>> assetsByDefId = [];
-        if (customDefIds.Count > 0)
+        var usedDefs = segment.Steps.Select(step => customDefsLookup.GetValueOrDefault(step.RefId)
+            ?? customDefsKeyLookup.GetValueOrDefault(step.RefId)).Where(x => x != null).DistinctBy(x => x!.Id).ToList();
+        Dictionary<Guid, AssetLinkDto> scriptsById = [];
+        if (usedDefs.Count > 0)
         {
-            try
+            var scriptResult = await assetApi.GetFilesAsync(usedDefs.Select(x => x!.Id.ToString()),
+                "NodeDefinition", PipelineAssetSlots.CustomScript, ct);
+            if (scriptResult.IsFailed) return Result.Fail(scriptResult.Errors);
+            foreach (var definition in usedDefs)
             {
-                var assetsResult = await assetApi.GetFilesAsync(
-                    customDefIds,
-                    "NodeDefinition",
-                    PipelineAssetSlots.CustomScript,
-                    ct
-                );
-                if (assetsResult.IsSuccess && assetsResult.Value != null)
-                {
-                    assetsByDefId = assetsResult.Value;
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to resolve script assets for custom definitions in stage {StageId}", stageId);
+                var files = scriptResult.Value.GetValueOrDefault(definition!.Id.ToString()) ?? [];
+                var file = files.Count == 1 ? files[0] : null;
+                if (file == null || string.IsNullOrWhiteSpace(file.HashSha256))
+                    return Result.Fail($"Custom node '{definition.Key}' has no stored script matching its content. Reupload it before execution.");
+                scriptsById[definition.Id] = file;
             }
         }
 
@@ -127,6 +121,7 @@ public class RunnerSegmentDispatcher(
                 }
                 catch (Exception ex)
                 {
+                    if (ex is InvalidOperationException) throw;
                     logger.LogWarning(
                         ex,
                         "RunnerSegmentDispatcher: Failed to resolve pin inputs for step {StepLabel} [{StepId}]",
@@ -142,12 +137,10 @@ public class RunnerSegmentDispatcher(
 
             if (def != null)
             {
-                if (assetsByDefId.TryGetValue(def.Id.ToString(), out var assetList) && assetList.Count > 0)
-                {
-                    var mainAsset = assetList.FirstOrDefault();
-                    scriptUrl = mainAsset?.PublicUrl;
-                    scriptHash = def.ContentHash;
-                }
+                var file = scriptsById[def.Id];
+                scriptUrl = file.PublicUrl;
+                scriptHash = file.HashSha256;
+                entryPoint = file.OriginalName;
             }
 
             steps.Add(
@@ -156,7 +149,7 @@ public class RunnerSegmentDispatcher(
                     StepExecutionId = step.NodeId.ToString(),
                     StepType = step.Kind.ToString(),
                     Name = step.Label,
-                    ScriptPath = def != null && !string.IsNullOrEmpty(def.Key) ? def.Key : step.RefId,
+                    ScriptPath = def != null ? entryPoint! : step.RefId,
                     ScriptUrl = scriptUrl,
                     ScriptHash = scriptHash,
                     EntryPoint = entryPoint,

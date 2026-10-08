@@ -89,6 +89,9 @@ public class DebugExecutionTests(ITestOutputHelper output)
         services.AddSingleton<Engine.DataResolver.IExecutionMemoryStore, RedisExecutionMemoryStore>();
         services.AddScoped<IRepositoryApi>(_ => Substitute.For<IRepositoryApi>());
         services.AddScoped<IContentApi>(_ => Substitute.For<IContentApi>());
+        services.AddScoped<Automation.DynamicForms.Contracts.ISchemaApi>(_ => Substitute.For<Automation.DynamicForms.Contracts.ISchemaApi>());
+        services.AddScoped<Automation.Tag.Contracts.ITagApi>(_ => Substitute.For<Automation.Tag.Contracts.ITagApi>());
+        services.AddScoped<Automation.Files.Contracts.IAssetApi>(_ => Substitute.For<Automation.Files.Contracts.IAssetApi>());
         services.AddScoped<Engine.EntityStore.IExecutionEntityStore, Engine.EntityStore.ExecutionEntityStore>();
         services.AddScoped<Engine.ExecPlanner.IExecPlanner, Engine.ExecPlanner.ExecPlanner>();
         services.AddScoped<Engine.DataResolver.IPipelineGraphProvider, Engine.DataResolver.PipelineGraphProvider>();
@@ -109,7 +112,6 @@ public class DebugExecutionTests(ITestOutputHelper output)
         var pipe = await db.Pipelines
             .Include(p => p.Nodes)
             .Include(p => p.Edges)
-            .Include(p => p.Parameters)
             .FirstAsync(p => p.Id == pipelineId);
 
         var frozen = Engine.Models.FrozenExecutionGraph.Create(pipe, toolRegistry);
@@ -141,6 +143,7 @@ public class DebugExecutionTests(ITestOutputHelper output)
         services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
         services.AddScoped<IRepositoryApi>(_ => Substitute.For<IRepositoryApi>());
         services.AddScoped<IContentApi>(_ => Substitute.For<IContentApi>());
+        services.AddScoped<Automation.DynamicForms.Contracts.ISchemaApi>(_ => Substitute.For<Automation.DynamicForms.Contracts.ISchemaApi>());
         services.AddScoped<Automation.Tag.Contracts.ITagApi>(_ => Substitute.For<Automation.Tag.Contracts.ITagApi>());
         services.AddScoped<Automation.Files.Contracts.IAssetApi>(_ => Substitute.For<Automation.Files.Contracts.IAssetApi>());
         services.AddPipelineTools();
@@ -155,7 +158,6 @@ public class DebugExecutionTests(ITestOutputHelper output)
         var pipe = await db.Pipelines
             .Include(p => p.Nodes)
             .Include(p => p.Edges)
-            .Include(p => p.Parameters)
             .FirstAsync(p => p.Id == pipelineId);
 
         var plan = planner.BuildExecPlan(pipe, Array.Empty<Automation.Pipeline.Domain.Entities.NodeDefinition>(), toolRegistry);

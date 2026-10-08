@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
@@ -20,6 +20,9 @@ class StepExecution(BaseModel):
     step_type: str = ""
     name: str = ""
     script_path: str = ""
+    script_url: str | None = None
+    script_hash: str | None = None
+    entry_point: str | None = None
     arguments: str = ""
     order: int = 0
     input_mappings: list[StepInputMapping] = Field(default_factory=list)

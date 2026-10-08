@@ -191,3 +191,10 @@
   scrollbar-width: thin;
   scrollbar-color: oklch(1 0 0 / 18%) transparent;
 }
+
+/* Standard Page Layout Utilities */
+@utility page-container {
+  padding: 1.5rem;
+  width: 100%;
+  min-width: 0;
+}

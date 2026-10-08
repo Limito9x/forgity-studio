@@ -43,6 +43,7 @@ export function ContentTypePage({ useSearch, useNavigate, projectId }: ContentTy
             addLabel={t("actions.create", { defaultValue: "Add Content Type" })}
             resource={resourceQuery}
             filterConfig={contentTypeFilterConfig}
+            hideAdvancedFilters={true}
             searchPlaceholder={t("page.searchPlaceholder", { defaultValue: "Search content types..." })}
             renderViewOptions={<DataTableViewOptions table={table} />}
         >

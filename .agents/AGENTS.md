@@ -37,7 +37,19 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 
 ---
 
-## 3. Chỉ Mục Tài Liệu Kỹ Thuật (Documentation Index)
+## 3. Chỉ Mục Cẩm Nang Vận Hành Cốt Lõi (Core Operational Playbooks - MANDATORY)
+
+> **QUY TẮC SỐNG:** Trước khi can thiệp vào bất kỳ module/feature nào, Agent **BẮT BUỘC** phải đọc Playbook tương ứng dưới đây để nắm trọn vẹn luồng dữ liệu (Data Lifecycle) từ A đến Z. Sau khi sửa đổi code, Agent **BẮT BUỘC** phải cập nhật lại Playbook để tài liệu luôn phản ánh đúng 100% thực tế.
+
+| Module / Luồng cốt lõi | Đường dẫn Playbook | Tóm tắt Mental Model & Cơ chế vận hành |
+| :--- | :--- | :--- |
+| **Pipeline Engine Lifecycle** | [.agents/playbooks/pipeline-engine.md](file:///d:/FullStack/Automation/.agents/playbooks/pipeline-engine.md) | Luồng Run -> DAG Planner -> Memory/Entity/State Store -> Phân đoạn DotNet / RunnerSegment -> RabbitMQ -> Worker Subprocess -> Cancel gọn -> SignalR. |
+| **Pipeline Canvas & File Sync** | [.agents/playbooks/pipeline-canvas-sync.md](file:///d:/FullStack/Automation/.agents/playbooks/pipeline-canvas-sync.md) | Cơ chế Autosave Debounce 600ms, Sync toàn đồ thị (SavePipelineGraph), Quy ước File Pin: Draft `{ assetId, originalName }` -> DB `{ assetLinkId }`. |
+| **Worker Runtime & Storage** | [.agents/playbooks/worker-runtime.md](file:///d:/FullStack/Automation/.agents/playbooks/worker-runtime.md) | Quản lý runtime storage (`cache/scripts`, `cache/assets`, `temp/`, `logs/`), lock `.storage.lock`, Script resolver theo SHA-256 hash, Background cleanup daemon. |
+
+---
+
+## 4. Chỉ Mục Tài Liệu Kiến Trúc Tham Khảo (Architecture Reference Index)
 
 | Phạm vi       | Đường dẫn tài liệu                                                                                                             | Mô tả nội dung                                                        |
 | :------------ | :----------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------- |
@@ -47,15 +59,17 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 | **Backend**   | [docs/backend/PIPELINE_ENGINE_ARCHITECTURE.md](file:///d:/FullStack/Automation/docs/backend/PIPELINE_ENGINE_ARCHITECTURE.md)   | Thiết kế Pipeline Engine, DAG, Stages, Steps trong Backend.           |
 | **Backend**   | [docs/backend/PIPELINE_PIN_SYSTEM.md](file:///d:/FullStack/Automation/docs/backend/PIPELINE_PIN_SYSTEM.md)                     | Hệ thống Pin, Data Types, Dynamic Forms của Pipeline.                 |
 | **Frontend**  | [docs/frontend/architecture.md](file:///d:/FullStack/Automation/docs/frontend/architecture.md)                                 | Kiến trúc Frontend, luồng dữ liệu Orval -> Hooks -> Components.       |
+| **Frontend**  | [docs/frontend/design.md](file:///d:/FullStack/Automation/docs/frontend/design.md)                                             | Hệ thống Design System & Layout Guidelines (3 Khuôn mẫu bố cục, page-container, Spacing 4/8dp). |
 | **Frontend**  | [docs/frontend/frontend_rules.md](file:///d:/FullStack/Automation/docs/frontend/frontend_rules.md)                             | Quy định chi tiết về code frontend và các anti-patterns cần tránh.    |
 | **Frontend**  | [docs/frontend/patterns/users.md](file:///d:/FullStack/Automation/docs/frontend/patterns/users.md)                             | Mẫu thiết kế chuẩn cho Feature Resource Page (Table + Dialogs).       |
 | **Frontend**  | [docs/frontend/patterns/filter.md](file:///d:/FullStack/Automation/docs/frontend/patterns/filter.md)                           | Mẫu thiết kế hệ thống Filter Panel & Adapters.                        |
 | **Frontend**  | [docs/frontend/patterns/pipelines_canvas.md](file:///d:/FullStack/Automation/docs/frontend/patterns/pipelines_canvas.md)       | Mẫu thiết kế Canvas đồ thị, Scoped Registry, Node Inspector.          |
+| **Pipeline**  | [docs/pipelines/SCRIPT_NODE_GUIDELINES.md](file:///d:/FullStack/Automation/docs/pipelines/SCRIPT_NODE_GUIDELINES.md)           | Quy chuẩn viết Script Node Python, AST Schema Ingestion & DCC Templates. |
 | **Worker**    | [docs/workers/WORKER_ARCHITECTURE.md](file:///d:/FullStack/Automation/docs/workers/WORKER_ARCHITECTURE.md)                     | Kiến trúc Worker: Host Subprocess vs Guest Stage Runners.             |
 
 ---
 
-## 4. Chỉ Mục Kỹ Năng Tự Động Hóa (Skills Index)
+## 5. Chỉ Mục Kỹ Năng Tự Động Hóa (Skills Index)
 
 ### Kỹ Năng Backend (`api/`)
 
@@ -81,16 +95,23 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 
 ---
 
-## 5. Workflows
+## 6. Workflows
 
 - [build-dotnet](file:///d:/FullStack/Automation/.agents/workflows/build-dotnet.md): Quy trình build và kiểm tra Backend .NET.
 - [suggest-fix-template](file:///d:/FullStack/Automation/.agents/workflows/suggest-fix-template.md): Mẫu đề xuất sửa lỗi tự động.
 
 ---
 
-## 6. Kế Hoạch Kỹ Thuật (Plans)
+## 7. Kế Hoạch Kỹ Thuật (Plans)
+
+> **LƯU Ý:** Toàn bộ Kế hoạch kỹ thuật BẮT BUỘC lưu trữ tập trung tại `.agents/plans/`. Tuyệt đối không tạo file kế hoạch ngoài thư mục này.
 
 - [refactor-repository-trigger-deprecate-platform](file:///d:/FullStack/Automation/.agents/plans/2026-10-02-refactor-repository-trigger-deprecate-platform.md): Kế hoạch loại bỏ module Platform, chuẩn hóa Repository Trigger, batch Resource list & bổ sung RunnerId.
 - [daz-to-blender-unreal-pipeline-upgrade](file:///d:/FullStack/Automation/.agents/plans/2026-10-03-daz-to-blender-unreal-pipeline-upgrade.md): Kế hoạch nâng cấp Pipeline DAZ -> Blender -> Unreal Engine (Queue Isolation, AI Tagging, Lightweight Native Bake).
+- [deploy-readiness-batch-first](file:///d:/FullStack/Automation/.agents/plans/2026-10-06-deploy-readiness-batch-first.md): Kế hoạch chuẩn bị triển khai & tối ưu xử lý hàng loạt Batch-First.
+- [unreal-batch-first-refactor](file:///d:/FullStack/Automation/.agents/plans/unreal-batch-first-refactor.md): Kế hoạch tái cấu trúc Unreal Engine Subprocess sang cơ chế Batch-First.
+- [pipeline-file-draft-sync](file:///d:/FullStack/Automation/.agents/plans/2026-10-08-pipeline-file-draft-sync.md): Kế hoạch đồng bộ file parameter trong cấu hình node của Pipeline Canvas.
+
+
 
 

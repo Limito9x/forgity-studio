@@ -27,6 +27,8 @@ import type {
   BatchUpsertCustomNodesResponseDto,
   CreateCustomNodeCommand,
   CreateCustomNodeResponseDto,
+  DeleteCustomNodesBulkCommand,
+  DeleteCustomNodesBulkResult,
   ErrorResponse,
   GetNodePaletteParams,
   IReadOnlyListOfNodePaletteItemDto,
@@ -290,6 +292,86 @@ export const useBatchUpsertCustomNodes = <
 > => {
   return useMutation(
     getBatchUpsertCustomNodesMutationOptions(options),
+    queryClient,
+  );
+};
+export const deleteCustomNodesBulk = (
+  deleteCustomNodesBulkCommand: DeleteCustomNodesBulkCommand,
+  signal?: AbortSignal,
+) => {
+  return customInstance<DeleteCustomNodesBulkResult>({
+    url: `/api/pipeline/nodes/custom/bulk-delete`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: deleteCustomNodesBulkCommand,
+    signal,
+  });
+};
+
+export const getDeleteCustomNodesBulkMutationOptions = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCustomNodesBulk>>,
+    TError,
+    { data: DeleteCustomNodesBulkCommand },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteCustomNodesBulk>>,
+  TError,
+  { data: DeleteCustomNodesBulkCommand },
+  TContext
+> => {
+  const mutationKey = ["deleteCustomNodesBulk"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteCustomNodesBulk>>,
+    { data: DeleteCustomNodesBulkCommand }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return deleteCustomNodesBulk(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteCustomNodesBulkMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteCustomNodesBulk>>
+>;
+export type DeleteCustomNodesBulkMutationBody = DeleteCustomNodesBulkCommand;
+export type DeleteCustomNodesBulkMutationError = ErrorResponse | void;
+
+export const useDeleteCustomNodesBulk = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteCustomNodesBulk>>,
+      TError,
+      { data: DeleteCustomNodesBulkCommand },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteCustomNodesBulk>>,
+  TError,
+  { data: DeleteCustomNodesBulkCommand },
+  TContext
+> => {
+  return useMutation(
+    getDeleteCustomNodesBulkMutationOptions(options),
     queryClient,
   );
 };

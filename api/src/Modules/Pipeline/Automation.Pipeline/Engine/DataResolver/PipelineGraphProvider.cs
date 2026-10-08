@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using Automation.Pipeline.Engine.Models;
 using Automation.Pipeline.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Automation.Pipeline.Domain.Entities;
+using Automation.Pipeline.Domain.ValueObjects;
 
 namespace Automation.Pipeline.Engine.DataResolver;
 
@@ -10,6 +12,22 @@ public class PipelineGraphProvider(PipelineDbContext db) : IPipelineGraphProvide
     private readonly ConcurrentDictionary<Guid, Domain.Entities.PipelineExecution> _executions = new();
     private readonly ConcurrentDictionary<Guid, Domain.Entities.Pipeline> _pipelines = new();
     private readonly ConcurrentDictionary<Guid, FrozenExecutionGraph> _graphs = new();
+    private readonly Dictionary<Guid, List<NodeDefinition>> _definitions = new();
+
+    public async Task<IReadOnlyList<PinDefinition>> GetCustomNodeInputsAsync(PipelineNode node, CancellationToken ct = default)
+    {
+        var pipeline = await GetPipelineByIdAsync(node.PipelineId, ct);
+        if (pipeline == null) return [];
+        if (!_definitions.TryGetValue(pipeline.ProjectId, out var definitions))
+        {
+            definitions = await db.NodeDefinitions.AsNoTracking().Where(x => x.ProjectId == pipeline.ProjectId).ToListAsync(ct);
+            _definitions[pipeline.ProjectId] = definitions;
+        }
+        return definitions.FirstOrDefault(x =>
+            string.Equals(x.Key, node.RefId, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Id.ToString(), node.RefId, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(x.Name, node.RefId, StringComparison.OrdinalIgnoreCase))?.Inputs ?? [];
+    }
 
     public void RegisterExecution(Domain.Entities.PipelineExecution execution)
     {

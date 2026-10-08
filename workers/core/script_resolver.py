@@ -1,12 +1,15 @@
 import os
 import shutil
-import zipfile
+import hashlib
+import re
+import tempfile
 import urllib.request
 import logging
+from core.runtime_storage import settings
 
 logger = logging.getLogger(__name__)
 
-CACHE_BASE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "worker", "cache")
+CACHE_BASE_DIR = str(settings()[0] / "cache")
 
 
 def resolve_script_path(
@@ -17,55 +20,48 @@ def resolve_script_path(
 ) -> str:
     """
     Phân giải đường dẫn script thực thi:
-    1. Nếu có script_hash & script_url (hoặc entry_point): Tải và giải nén vào worker/cache/{script_hash}/ giống Inspector.
-    2. Fallback tìm kiếm trong worker/scripts/pipeline/ hoặc worker/scripts/ cho các built-in scripts.
+    Remote Python scripts are downloaded atomically and SHA-256 verified in the cache.
+    Local lookup is used only when neither remote URL nor hash was supplied.
     """
-    # 1. Cached remote script (Asset Slot download)
-    if script_hash:
-        entry = entry_point or (os.path.basename(script_path) if script_path else "main.py")
-        if not entry.endswith(".py"):
-            entry += ".py"
-
-        cached_folder = os.path.join(CACHE_BASE_DIR, script_hash)
+    # Remote custom scripts must be complete and hash-verified. Never fall back locally.
+    if script_url or script_hash:
+        if not script_url or not script_hash or not re.fullmatch(r"[0-9a-fA-F]{64}", script_hash):
+            raise ValueError("Remote script requires a URL and a SHA-256 hash.")
+        script_hash = script_hash.lower()
+        entry = entry_point or os.path.basename(script_path) or "main.py"
+        if ("/" in entry or "\\" in entry or ":" in entry or
+                not entry.lower().endswith(".py")):
+            raise ValueError("Script entry must be a Python filename without directories.")
+        cached_folder = os.path.join(CACHE_BASE_DIR, "scripts", script_hash)
         entry_file_path = os.path.join(cached_folder, entry)
 
-        if os.path.exists(entry_file_path):
-            logger.debug(f"Sử dụng pipeline script đã cache tại: {entry_file_path}")
-            return entry_file_path
+        def matches_hash(path):
+            if not os.path.isfile(path):
+                return False
+            digest = hashlib.sha256()
+            with open(path, "rb") as cached:
+                for chunk in iter(lambda: cached.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            return digest.hexdigest() == script_hash
 
+        if matches_hash(entry_file_path):
+            os.utime(entry_file_path, None)
+            return os.path.abspath(entry_file_path)
         os.makedirs(cached_folder, exist_ok=True)
-
-        if script_url:
-            temp_download_path = os.path.join(cached_folder, "downloaded_script")
-            logger.info(f"Đang tải pipeline script từ {script_url}...")
-            try:
-                req = urllib.request.Request(
-                    script_url,
-                    headers={
-                        "User-Agent": "Mozilla/5.0 (Automation Agent)"
-                    }
-                )
-                with urllib.request.urlopen(req, timeout=30) as response, open(temp_download_path, 'wb') as out_file:
+        temp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=cached_folder, suffix=".tmp", delete=False) as out_file:
+                temp_path = out_file.name
+                req = urllib.request.Request(script_url, headers={"User-Agent": "Automation Agent"})
+                with urllib.request.urlopen(req, timeout=30) as response:
                     shutil.copyfileobj(response, out_file)
-            except Exception as dl_err:
-                logger.warning(f"Không thể tải script trực tiếp từ URL ({dl_err}).")
-
-            if os.path.exists(temp_download_path):
-                if zipfile.is_zipfile(temp_download_path):
-                    with zipfile.ZipFile(temp_download_path, 'r') as zip_ref:
-                        zip_ref.extractall(cached_folder)
-                    try:
-                        os.remove(temp_download_path)
-                    except Exception:
-                        pass
-                else:
-                    target_script = os.path.join(cached_folder, entry)
-                    if os.path.exists(target_script):
-                        os.remove(target_script)
-                    shutil.move(temp_download_path, target_script)
-
-        if os.path.exists(entry_file_path):
-            return entry_file_path
+            if not matches_hash(temp_path):
+                raise ValueError("Downloaded script SHA-256 does not match the execution snapshot.")
+            os.replace(temp_path, entry_file_path)
+            return os.path.abspath(entry_file_path)
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                os.remove(temp_path)
 
     # 2. Local built-in pipeline / inspector scripts
     if not script_path:
@@ -118,27 +114,52 @@ def resolve_file_asset(url: str, file_hash: str = None, file_name: str = None) -
     if not url:
         return ""
 
-    folder_key = str(file_hash or "generic").strip()
+    if file_hash and not re.fullmatch(r"[0-9a-fA-F]{64}", file_hash):
+        raise ValueError("File asset hash must be SHA-256.")
+    folder_key = file_hash.lower() if file_hash else hashlib.sha256(url.encode()).hexdigest()
     cached_folder = os.path.join(CACHE_BASE_DIR, "assets", folder_key)
     os.makedirs(cached_folder, exist_ok=True)
 
     fname = file_name or os.path.basename(url.split("?")[0]) or "asset_file"
+    if fname in (".", "..") or any(c in fname for c in ("/", "\\", ":")):
+        raise ValueError("File asset name must not contain directories.")
     target_path = os.path.join(cached_folder, fname)
 
-    if os.path.exists(target_path) and os.path.getsize(target_path) > 0:
+    def valid(path):
+        if not os.path.isfile(path) or os.path.getsize(path) == 0:
+            return False
+        if not file_hash:
+            return True
+        digest = hashlib.sha256()
+        with open(path, "rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest() == folder_key
+
+    if valid(target_path):
+        os.utime(target_path, None)
         logger.debug(f"Using cached asset file: {target_path}")
         return os.path.abspath(target_path)
 
-    logger.info(f"Downloading file asset from {url} to {target_path}...")
+    logger.info("Downloading file asset to %s", target_path)
+    temp_path = None
     try:
         req = urllib.request.Request(
             url,
             headers={"User-Agent": "Mozilla/5.0 (Automation Agent)"}
         )
-        with urllib.request.urlopen(req, timeout=60) as response, open(target_path, 'wb') as out_file:
-            shutil.copyfileobj(response, out_file)
+        with tempfile.NamedTemporaryFile(dir=cached_folder, suffix=".tmp", delete=False) as out_file:
+            temp_path = out_file.name
+            with urllib.request.urlopen(req, timeout=60) as response:
+                shutil.copyfileobj(response, out_file)
+        if not valid(temp_path):
+            raise ValueError("Downloaded file asset is empty or its SHA-256 does not match.")
+        os.replace(temp_path, target_path)
         return os.path.abspath(target_path)
     except Exception as e:
-        logger.error(f"Failed to download file asset from {url}: {e}")
+        logger.error("Failed to download file asset (%s)", type(e).__name__)
         return ""
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
 

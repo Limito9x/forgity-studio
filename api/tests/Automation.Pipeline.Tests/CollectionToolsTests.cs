@@ -147,9 +147,9 @@ public class CollectionToolsTests
 
         var result = await tool.ExecuteAsync(inputs, _context);
 
-        var map = result["Map"] as Dictionary<string, string>;
+        var map = result["Map"] as Dictionary<string, object>;
         map.Should().NotBeNull();
-        map!["Diffuse"].Should().Be("diffuse.png");
+        map!["Diffuse"]?.ToString().Should().Be("diffuse.png");
     }
 
     [Fact]

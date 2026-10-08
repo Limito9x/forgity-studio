@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect } from "react";
 import type { Node, Edge } from "@xyflow/react";
 import { useForm } from "react-hook-form";
 import { useGetRunners } from "@/gen/endpoints/runners/runners";
-import type { RunnerDto } from "@/gen/model";
 import { useRunPipeline, type PipelineParameterDto } from "../hooks/usePipelineGraph";
 import {
   Dialog,
@@ -11,10 +10,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Play, Server, Loader2, AlertCircle, Sparkles, Layers } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Play, Loader2, AlertCircle, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { buildDynamicSchema } from "@/lib/schema-builder";
@@ -58,7 +54,7 @@ export function RunPipelineModal({
   onClose,
   onExecutionStarted,
 }: RunPipelineModalProps) {
-  const { data: agents = [], isLoading: isLoadingAgents } = useGetRunners();
+  const { data: agents = [] } = useGetRunners();
 
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const runMutation = useRunPipeline(pipelineId);

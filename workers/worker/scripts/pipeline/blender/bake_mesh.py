@@ -9,7 +9,6 @@ READ-ONLY o dau? Khong - day la node MUTATE (doi scene + ghi file).
 - B3 apply: dung 1 material/mesh (M_<obj>), don UV cu ve UVMap.
 
 Batch-first: target_objects la Array<Text>, rong = toan bo mesh trong scene.
-Loop per-mesh de cloth separated (Top/Panty) moi mesh 1 bo map rieng,
 khong bake chung 1 anh nhu native_bake cu.
 """
 

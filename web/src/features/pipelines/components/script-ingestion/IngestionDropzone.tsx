@@ -1,15 +1,18 @@
 import { useDropzone } from "react-dropzone";
-import { UploadCloud, Loader2, FileCode, Box, Sparkles, Cpu } from "lucide-react";
+import { UploadCloud, Loader2, FileCode, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ExecutorIcon } from "@/features/runners/components/ExecutorIcon";
 
 interface IngestionDropzoneProps {
   onFilesDropped: (files: File[]) => void;
   isAnalyzing: boolean;
+  onOpenGuidelines?: () => void;
 }
 
 export function IngestionDropzone({
   onFilesDropped,
   isAnalyzing,
+  onOpenGuidelines,
 }: IngestionDropzoneProps) {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: onFilesDropped,
@@ -52,19 +55,35 @@ export function IngestionDropzone({
 
         <div className="flex items-center gap-6 text-xs text-muted-foreground pt-4 border-t border-border/50">
           <span className="flex items-center gap-1.5 font-medium">
-            <Box className="size-4 text-orange-500" /> Blender Runner
+            <ExecutorIcon executor="blender" className="size-4" /> Blender Runner
           </span>
           <span className="flex items-center gap-1.5 font-medium">
-            <Sparkles className="size-4 text-blue-500" /> Unreal Engine
+            <ExecutorIcon executor="unreal" className="size-4" /> Unreal Engine
           </span>
           <span className="flex items-center gap-1.5 font-medium">
-            <Cpu className="size-4 text-emerald-500" /> Python Worker
+            <ExecutorIcon executor="python" className="size-4" /> Python Worker
           </span>
         </div>
 
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs font-medium">
-          <FileCode className="size-3.5" />
-          Supports batch upload of multiple <code className="font-mono font-semibold">.py</code> files
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary text-secondary-foreground text-xs font-medium">
+            <FileCode className="size-3.5" />
+            Supports batch upload of multiple <code className="font-mono font-semibold">.py</code> files
+          </div>
+
+          {onOpenGuidelines && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenGuidelines();
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-primary hover:bg-primary/10 transition-colors border border-primary/20 hover:border-primary/40 cursor-pointer"
+            >
+              <BookOpen className="size-3.5" />
+              Script Guidelines & Code Templates
+            </button>
+          )}
         </div>
       </div>
     </div>

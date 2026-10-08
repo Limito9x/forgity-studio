@@ -1,4 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import * as Api from "@/gen/endpoints/pipeline-nodes/pipeline-nodes";
+import { createMutationHook } from "@/lib/query-utils";
 import {
   getNodePalette,
   getGetNodePaletteQueryKey,
@@ -8,10 +10,23 @@ import {
   deleteCustomNode,
   getCustomNodeById,
   getGetCustomNodeByIdQueryKey,
-  analyzeCustomNodesBatch,
-  batchUpsertCustomNodes,
 } from "@/gen/endpoints/pipeline-nodes/pipeline-nodes";
 import type {
+  CreateCustomNodeCommand,
+  UpdateCustomNodeRequest,
+  ParseScriptCommand,
+  CreatePipelineCommand,
+  UpdatePipelineRequest,
+} from "@/gen/model";
+
+export type {
+  AnalyzeCustomNodesBatchCommand,
+  AnalyzeCustomNodesBatchResponseDto,
+  AnalyzedCustomNodeDto,
+  BatchUpsertCustomNodesCommand,
+  BatchUpsertCustomNodesResponseDto,
+  BatchUpsertItem,
+  BatchUpsertErrorDto,
   CreateCustomNodeCommand,
   UpdateCustomNodeRequest,
   ParseScriptCommand,
@@ -21,17 +36,6 @@ import type {
   UpdatePipelineRequest,
   PipelineSummaryDto,
 } from "@/gen/model";
-
-export type {
-  CreateCustomNodeCommand,
-  UpdateCustomNodeRequest,
-  ParseScriptCommand,
-  NodePaletteItemDto,
-  ParseScriptResponseDto,
-  CreatePipelineCommand,
-  UpdatePipelineRequest,
-  PipelineSummaryDto,
-};
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
@@ -241,37 +245,11 @@ export function useCustomNodeById(id?: string) {
   });
 }
 
-export function useAnalyzeCustomNodesBatchMutation() {
-  return useMutation({
-    mutationFn: (data: Parameters<typeof analyzeCustomNodesBatch>[0]) =>
-      analyzeCustomNodesBatch(data),
-  });
-}
+export const useAnalyzeCustomNodesBatchMutation = () =>
+  createMutationHook(Api.useAnalyzeCustomNodesBatch, [])();
 
-export function useBatchUpsertCustomNodesMutation(projectId?: string) {
-  const queryClient = useQueryClient();
-  const { t } = useTranslation();
-
-  return useMutation({
-    mutationFn: (data: Parameters<typeof batchUpsertCustomNodes>[0]) =>
-      batchUpsertCustomNodes(data),
-    onSuccess: () => {
-      toast.success(
-        t("pipelines.batchUpsertSuccess", {
-          defaultValue: "Custom nodes processed and saved successfully",
-        })
-      );
-      if (projectId) {
-        queryClient.invalidateQueries({
-          queryKey: getGetNodePaletteQueryKey({ projectId }),
-        });
-      }
-    },
-    onError: (err: any) => {
-      const errorMsg =
-        err?.response?.data?.message || err?.message || "Failed to process custom nodes";
-      toast.error(t("pipelines.batchUpsertFailed", { defaultValue: errorMsg }));
-    },
-  });
-}
-
+export const useBatchUpsertCustomNodesMutation = (projectId?: string) =>
+  createMutationHook(Api.useBatchUpsertCustomNodes, [
+    Api.getGetNodePaletteQueryKey(projectId ? { projectId } : undefined),
+    ["/api/pipeline/nodes/custom/"],
+  ])();

@@ -47,7 +47,6 @@ export function RepositoryResourceTable({
     return data.filter(
       (r) =>
         (r.displayName && r.displayName.toLowerCase().includes(q)) ||
-        (r.name && r.name.toLowerCase().includes(q)) ||
         (r.relativePath && r.relativePath.toLowerCase().includes(q)) ||
         (r.contentName && r.contentName.toLowerCase().includes(q)) ||
         (r.contentTypeName && r.contentTypeName.toLowerCase().includes(q))

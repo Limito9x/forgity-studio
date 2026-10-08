@@ -71,6 +71,12 @@ public class PinValueResolver(
         // 1. Check Upstream Connections -> Recursive Pull (Wires have highest priority)
         var canonicalTarget = CanonicalPinKey.Normalize(pinKey);
         var pinDef = FindPinDefinition(node, pinKey);
+        if (pinDef == null)
+        {
+            var customInputs = await graphProvider.GetCustomNodeInputsAsync(node, ct);
+            pinDef = customInputs.FirstOrDefault(x => CanonicalPinKey.IsMatching(x.Id, pinKey) ||
+                CanonicalPinKey.IsMatching(x.Label, pinKey));
+        }
         var canonicalLabel = pinDef?.Label != null ? CanonicalPinKey.Normalize(pinDef.Label) : null;
 
         async Task<object?> ResolveConnectionAsync(PipelineEdge conn)
@@ -213,10 +219,12 @@ public class PinValueResolver(
             }
         }
 
+        var fromInlineConfig = false;
         // 2. Check Inline Node Config (if not wired)
         if (resolvedValue == null && node.Config != null)
         {
             resolvedValue = InlineConfigResolver.ResolveFromConfig(node.Config, pinKey);
+            fromInlineConfig = resolvedValue != null;
         }
 
         // 3. Check Scope Context (ForEach Key, Value, Index, Iteration Variables - if not wired)
@@ -245,7 +253,15 @@ public class PinValueResolver(
         // 6. Post-Processing: Asset resolution & Cardinality boxing
         if (resolvedValue != null)
         {
-            resolvedValue = await assetResolver.ResolveAssetIfApplicableAsync(resolvedValue, ct);
+            if (PipelineFileValue.IsFilePin(pinDef) || PipelineFileValue.TryGetLinkId(resolvedValue, out _))
+            {
+                var configKey = node.Config?.RootElement.EnumerateObject()
+                    .Where(x => CanonicalPinKey.IsMatching(x.Name, pinKey)).Select(x => x.Name).FirstOrDefault();
+                resolvedValue = !fromInlineConfig && resolvedValue is string runtimeAsset && Guid.TryParse(runtimeAsset, out var runtimeAssetId)
+                    ? await assetResolver.ResolveRuntimeAssetAsync(runtimeAssetId, ct)
+                    : await assetResolver.ResolveFileAsync(resolvedValue,
+                        PipelineFileValue.Owner(node.Id, configKey ?? pinDef?.Id ?? pinKey), ct);
+            }
 
             pinDef ??= FindPinDefinition(node, pinKey);
             resolvedValue = PinTypeCoercer.Coerce(resolvedValue, pinDef);

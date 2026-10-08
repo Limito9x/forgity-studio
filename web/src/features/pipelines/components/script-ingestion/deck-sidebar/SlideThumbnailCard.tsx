@@ -1,7 +1,8 @@
-import { FileCode, AlertTriangle, Box, Sparkles, Cpu, X, RotateCcw, CheckCircle2 } from "lucide-react";
+import { FileCode, AlertTriangle, X, RotateCcw, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { AnalyzedCustomNodeDto } from "@/gen/model";
+import { ExecutorIcon } from "@/features/runners/components/ExecutorIcon";
 
 interface SlideThumbnailCardProps {
   node: AnalyzedCustomNodeDto;
@@ -19,14 +20,7 @@ export function SlideThumbnailCard({
   onRemove,
 }: SlideThumbnailCardProps) {
   const getExecutorIcon = (executor: string) => {
-    switch (executor?.toLowerCase()) {
-      case "blender":
-        return <Box className="size-3 text-orange-500" />;
-      case "unreal":
-        return <Sparkles className="size-3 text-blue-500" />;
-      default:
-        return <Cpu className="size-3 text-emerald-500" />;
-    }
+    return <ExecutorIcon executor={executor} className="size-3" />;
   };
 
   const inputPins = node.inputs ?? [];

@@ -14,21 +14,18 @@ import {
   Loader2,
   AlertTriangle,
   CheckCircle2,
-  Sparkles,
-  Cpu,
-  Box,
   RotateCcw,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useScriptBatchPublish, type ScriptSource } from "../hooks/useScriptBatchPublish";
+import { ScriptGuidelinesDialog } from "./ScriptGuidelinesDialog";
+import { ExecutorIcon } from "@/features/runners/components/ExecutorIcon";
 import {
   useAnalyzeCustomNodesBatchMutation,
-  useBatchUpsertCustomNodesMutation,
+  type AnalyzedCustomNodeDto,
 } from "../hooks/usePipelines";
-import type {
-  AnalyzedCustomNodeDto,
-  BatchUpsertItem,
-} from "@/gen/model";
 
 interface BatchUploadScriptsDialogProps {
   projectId: string;
@@ -41,21 +38,26 @@ export function BatchUploadScriptsDialog({
   isOpen,
   onClose,
 }: BatchUploadScriptsDialogProps) {
+  const [guidelinesOpen, setGuidelinesOpen] = useState(false);
   const [analyzedNodes, setAnalyzedNodes] = useState<AnalyzedCustomNodeDto[]>([]);
   const [nodeStrategies, setNodeStrategies] = useState<Record<string, number>>({});
+  const [scriptSources, setScriptSources] = useState<Record<string, ScriptSource>>({});
+  const [isPreparingScripts, setIsPreparingScripts] = useState(false);
 
   const analyzeMutation = useAnalyzeCustomNodesBatchMutation();
-  const batchUpsertMutation = useBatchUpsertCustomNodesMutation(projectId);
+  const publisher = useScriptBatchPublish(projectId);
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
-      const pythonFiles = acceptedFiles.filter((f) => f.name.endsWith(".py"));
+      if (isPreparingScripts || publisher.isPublishing) return;
+      const pythonFiles = acceptedFiles.filter((f) => f.name.toLowerCase().endsWith(".py"));
       if (pythonFiles.length === 0) {
         toast.error("Please select valid Python (.py) script files.");
         return;
       }
 
       try {
+        setIsPreparingScripts(true);
         const readFiles = await Promise.all(
           pythonFiles.map(async (file) => ({
             fileName: file.name,
@@ -64,11 +66,17 @@ export function BatchUploadScriptsDialog({
         );
 
         const result = await analyzeMutation.mutateAsync({
-          projectId,
-          scripts: readFiles,
+          data: { projectId, scripts: readFiles },
         });
 
         if (result?.nodes) {
+          if (new Set(readFiles.map(f => f.fileName)).size !== readFiles.length) {
+            throw new Error("Script filenames must be unique within an upload.");
+          }
+          setScriptSources(Object.fromEntries(result.nodes.map(node => {
+            const source = readFiles.find(file => file.fileName === node.fileName)!;
+            return [node.key, { fileName: source.fileName, content: source.scriptContent, contentHash: node.contentHash }];
+          })));
           setAnalyzedNodes(result.nodes);
           const initialStrategies: Record<string, number> = {};
           result.nodes.forEach((n) => {
@@ -80,66 +88,46 @@ export function BatchUploadScriptsDialog({
         const errorMsg =
           err?.response?.data?.message || err?.message || "Failed to analyze scripts";
         toast.error(errorMsg);
+      } finally {
+        setIsPreparingScripts(false);
       }
     },
-    [projectId, analyzeMutation]
+    [projectId, analyzeMutation, isPreparingScripts, publisher.isPublishing]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "text/x-python": [".py"] },
     multiple: true,
+    disabled: isPreparingScripts || publisher.isPublishing,
   });
 
   const handleReset = () => {
+    if (publisher.isPublishing || isPreparingScripts) return;
     setAnalyzedNodes([]);
     setNodeStrategies({});
+    setScriptSources({});
+    publisher.reset();
   };
 
   const handlePublishAll = async () => {
-    if (analyzedNodes.length === 0) return;
+    if (analyzedNodes.length === 0 || publisher.isPublishing || isPreparingScripts) return;
 
-    const items: BatchUpsertItem[] = analyzedNodes.map((n) => ({
-      key: n.key,
-      name: n.suggestedName,
-      label: n.suggestedLabel ?? null,
-      executor: n.executor ?? null,
-      contentHash: n.contentHash ?? null,
-      originalFileName: n.fileName ?? null,
-      assetId: null,
-      inputs: (n.inputs ?? []) as any,
-      outputs: (n.outputs ?? []) as any,
-      strategy: (nodeStrategies[n.key] ?? 0) as any,
-    }));
-
-    try {
-      await batchUpsertMutation.mutateAsync({
-        projectId,
-        items,
-      });
-      handleReset();
-      onClose();
-    } catch {
-      // Error handled by mutation hook toast
-    }
+    const published = await publisher.publish(analyzedNodes, scriptSources, nodeStrategies);
+    const remaining = analyzedNodes.filter(node => !published.has(node.key));
+    setAnalyzedNodes(remaining);
+    if (remaining.length === 0) { handleReset(); onClose(); }
   };
 
   const getExecutorIcon = (executor: string) => {
-    switch (executor?.toLowerCase()) {
-      case "blender":
-        return <Box className="size-3.5 text-orange-500" />;
-      case "unreal":
-        return <Sparkles className="size-3.5 text-blue-500" />;
-      default:
-        return <Cpu className="size-3.5 text-emerald-500" />;
-    }
+    return <ExecutorIcon executor={executor} className="size-3.5" />;
   };
 
   return (
     <Dialog
       isOpen={isOpen}
       onOpenChange={(open) => {
-        if (!open) {
+        if (!open && !publisher.isPublishing && !isPreparingScripts) {
           handleReset();
           onClose();
         }
@@ -157,7 +145,7 @@ export function BatchUploadScriptsDialog({
         </p>
       </DialogHeader>
 
-      <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+      <div inert={publisher.isPublishing || isPreparingScripts} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
         {/* Dropzone */}
         {analyzedNodes.length === 0 && (
           <div
@@ -188,6 +176,18 @@ export function BatchUploadScriptsDialog({
                   or click to browse from your computer (supports multiple files)
                 </p>
               </div>
+
+              <div className="pt-1" onClick={(e) => e.stopPropagation()}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-primary gap-1"
+                  onPress={() => setGuidelinesOpen(true)}
+                >
+                  <BookOpen className="size-3.5" />
+                  View Script Guidelines & Templates
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -203,6 +203,7 @@ export function BatchUploadScriptsDialog({
                 variant="ghost"
                 size="sm"
                 onPress={handleReset}
+                isDisabled={publisher.isPublishing || isPreparingScripts}
                 className="h-7 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
               >
                 <RotateCcw className="size-3.5" />
@@ -263,6 +264,8 @@ export function BatchUploadScriptsDialog({
                         </span>
                       </div>
                     </div>
+
+                    {publisher.errors[item.key] && <p role="alert" className="text-xs text-destructive">{publisher.errors[item.key]}</p>}
 
                     {/* Impact Warning */}
                     {hasImpact && (
@@ -391,16 +394,16 @@ export function BatchUploadScriptsDialog({
             handleReset();
             onClose();
           }}
-          isDisabled={batchUpsertMutation.isPending}
+          isDisabled={publisher.isPublishing || isPreparingScripts}
         >
           Cancel
         </Button>
         <Button
           onPress={handlePublishAll}
-          isDisabled={analyzedNodes.length === 0 || batchUpsertMutation.isPending}
+          isDisabled={analyzedNodes.length === 0 || publisher.isPublishing || isPreparingScripts}
           className="gap-2"
         >
-          {batchUpsertMutation.isPending ? (
+          {publisher.isPublishing ? (
             <>
               <Loader2 className="size-4 animate-spin" />
               Saving Nodes...
@@ -413,6 +416,12 @@ export function BatchUploadScriptsDialog({
           )}
         </Button>
       </DialogFooter>
+
+      {/* Guidelines & Code Templates Dialog */}
+      <ScriptGuidelinesDialog
+        isOpen={guidelinesOpen}
+        onClose={() => setGuidelinesOpen(false)}
+      />
     </Dialog>
   );
 }

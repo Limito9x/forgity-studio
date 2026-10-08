@@ -80,6 +80,12 @@ public record PipelineParameterDto(
     Dictionary<string, object?>? ContextData
 );
 
+public class PipelineNodeFileMap : Dictionary<string, PipelineFileAssetDto>
+{
+    public PipelineNodeFileMap() : base() { }
+    public PipelineNodeFileMap(IDictionary<string, PipelineFileAssetDto> dictionary) : base(dictionary) { }
+}
+
 public record PipelineNodeGraphDto(
     Guid Id,
     string RefId,
@@ -93,7 +99,17 @@ public record PipelineNodeGraphDto(
     Dictionary<string, object?>? ConfigValues,
     Guid? ParentId = null,
     NodeSize? Size = null,
-    Dictionary<string, object?>? Metadata = null
+    Dictionary<string, object?>? Metadata = null,
+    PipelineNodeFileMap? FileAssets = null
+);
+
+public record PipelineFileAssetDto(
+    Guid? AssetLinkId,
+    Guid? AssetId,
+    string? OriginalName,
+    string? ContentType,
+    long? SizeBytes,
+    string Status
 );
 
 public record PipelineEdgeGraphDto(
@@ -124,8 +140,20 @@ public record PipelineGraphDto(
     IReadOnlyList<PipelineNodeGraphDto> Nodes,
     IReadOnlyList<PipelineEdgeGraphDto> Edges,
     IReadOnlyList<PipelineParameterDto> Parameters,
-    JsonDocument? TriggerConfig = null
+    JsonDocument? TriggerConfig = null,
+    IReadOnlyList<PipelineFileSyncResultDto>? FileResults = null
 );
+
+public record PipelineFileSyncResultDto(
+    Guid NodeId,
+    string PinId,
+    Guid? AssetLinkId,
+    string? ErrorCode = null,
+    string? ErrorMessage = null
+)
+{
+    public bool IsSuccess => ErrorCode is null;
+}
 
 public record SavePipelineNodeItem(
     Guid? Id,

@@ -1,11 +1,12 @@
-using Microsoft.EntityFrameworkCore;
-using FluentValidation;
-using Wolverine.Attributes;
 using Automation.Files.Contracts;
 using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Entities;
+using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Infrastructure.Persistence;
+using Mapster;
+using Microsoft.EntityFrameworkCore;
+using Wolverine.Attributes;
 
 namespace Automation.Pipeline.Features.Nodes;
 
@@ -17,7 +18,8 @@ public record CreateCustomNodeCommand(
     Guid? AssetId,
     string? OriginalFileName,
     List<PinDefinition>? Inputs,
-    List<PinDefinition>? Outputs
+    List<PinDefinition>? Outputs,
+    string? ContentHash = null
 );
 
 public class CreateCustomNodeValidator : AbstractValidator<CreateCustomNodeCommand>
@@ -26,6 +28,10 @@ public class CreateCustomNodeValidator : AbstractValidator<CreateCustomNodeComma
     {
         RuleFor(x => x.ProjectId).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.AssetId).NotEmpty().WithMessage("Upload and confirm the script before publishing.");
+        RuleFor(x => x.OriginalFileName).NotEmpty()
+            .Must(f => f != null && f.EndsWith(".py", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("Script must have a Python (.py) filename.");
     }
 }
 
@@ -50,7 +56,7 @@ public class CreateCustomNodeEndpoint(IMessageBus bus)
 [Transactional(typeof(PipelineDbContext))]
 public class CreateCustomNodeHandler(
     PipelineDbContext db,
-    IAssetApi assetApi
+    IAssetApi assets
 )
 {
     public async Task<Result<CreateCustomNodeResponseDto>> HandleAsync(
@@ -58,97 +64,61 @@ public class CreateCustomNodeHandler(
         CancellationToken ct
     )
     {
-        var nameTrimmed = command.Name.Trim();
-        var key = nameTrimmed.Replace(" ", "-").ToLowerInvariant();
-        var label = string.IsNullOrWhiteSpace(command.Label) ? nameTrimmed : command.Label.Trim();
-        var executor = string.IsNullOrWhiteSpace(command.Executor) ? "blender" : command.Executor.Trim().ToLowerInvariant();
+        if (command.AssetId is null || command.AssetId == Guid.Empty)
+            return Result.Fail<CreateCustomNodeResponseDto>("Upload and confirm the script before publishing.");
 
-        var sanitizedInputs = (command.Inputs ?? []).Select(p => new PinDefinition
-        {
-            Id = p.Id,
-            Label = p.Label,
-            PrimitiveType = p.PrimitiveType,
-            Cardinality = p.Cardinality,
-            IsRequired = p.IsRequired,
-            DefaultValue = p.DefaultValue?.ToString(),
-            Metadata = p.Metadata
-        }).ToList();
+        if (string.IsNullOrWhiteSpace(command.OriginalFileName) || !command.OriginalFileName.EndsWith(".py", StringComparison.OrdinalIgnoreCase) ||
+            command.OriginalFileName.IndexOfAny(['/', '\\', ':', '<', '>', '"', '|', '?', '*']) >= 0)
+            return Result.Fail<CreateCustomNodeResponseDto>("Script must have a Python (.py) filename without directories.");
 
-        var sanitizedOutputs = (command.Outputs ?? []).Select(p => new PinDefinition
-        {
-            Id = p.Id,
-            Label = p.Label,
-            PrimitiveType = p.PrimitiveType,
-            Cardinality = p.Cardinality,
-            IsRequired = p.IsRequired,
-            DefaultValue = p.DefaultValue?.ToString(),
-            Metadata = p.Metadata
-        }).ToList();
-
-        // Intelligent Upsert: Find existing record (active or soft-deleted) by ProjectId + Key OR Name + Executor
-        var existing = await db.NodeDefinitions
-            .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(x => x.ProjectId == command.ProjectId &&
-                (x.Key == key || (x.Name.ToLower() == nameTrimmed.ToLower() && x.Executor.ToLower() == executor)), ct);
-
-        NodeDefinition node;
+        var key = command.Name.Trim().Replace(" ", "-").ToLowerInvariant();
+        var existing = await db.NodeDefinitions.FirstOrDefaultAsync(x => x.ProjectId == command.ProjectId && x.Key == key, ct);
         if (existing != null)
         {
-            existing.Update(nameTrimmed, label, executor, sanitizedInputs, sanitizedOutputs);
-            if (existing.IsDeleted)
-            {
-                existing.Restore();
-            }
-            node = existing;
-        }
-        else
-        {
-            node = new NodeDefinition(
-                command.ProjectId,
-                nameTrimmed,
-                key,
-                label,
-                executor,
-                sanitizedInputs,
-                sanitizedOutputs
-            );
-            db.NodeDefinitions.Add(node);
+            return Result.Fail<CreateCustomNodeResponseDto>($"A node definition with key '{key}' already exists in this project.");
         }
 
+        var node = new NodeDefinition
+        {
+            ProjectId = command.ProjectId,
+            Key = key
+        };
+
+        node.Update(
+            command.Name.Trim(),
+            string.IsNullOrWhiteSpace(command.Label) ? command.Name.Trim() : command.Label.Trim(),
+            string.IsNullOrWhiteSpace(command.Executor) ? "blender" : command.Executor.Trim().ToLowerInvariant(),
+            SanitizePins(command.Inputs),
+            SanitizePins(command.Outputs)
+        );
+
+        db.NodeDefinitions.Add(node);
         await db.SaveChangesAsync(ct);
 
-        // Link script file via IAssetApi if AssetId provided
-        if (command.AssetId.HasValue && command.AssetId.Value != Guid.Empty)
+        var owner = new AssetLinkOwner(nameof(NodeDefinition), node.Id.ToString(), PipelineAssetSlots.CustomScript);
+        var linked = await assets.ReplaceSingleLinkAsync(new(command.AssetId.Value, command.OriginalFileName), owner, command.ContentHash, ct);
+        if (linked.IsFailed)
         {
-            var fileName = string.IsNullOrWhiteSpace(command.OriginalFileName) ? $"{key}.py" : command.OriginalFileName;
-            var linkResult = await assetApi.VerifyAndLinkAsync(
-                command.AssetId.Value,
-                ownerEntityType: "NodeDefinition",
-                slotKey: PipelineAssetSlots.CustomScript,
-                ownerEntityId: node.Id.ToString(),
-                originalName: fileName,
-                sortOrder: 0,
-                ct: ct
-            );
-
-            if (linkResult.IsFailed)
-            {
-                return Result.Fail<CreateCustomNodeResponseDto>($"Created node definition but failed to link asset script: {linkResult.Errors.FirstOrDefault()?.Message}");
-            }
+            return Result.Fail<CreateCustomNodeResponseDto>(linked.Errors);
         }
 
-        return Result.Ok(new CreateCustomNodeResponseDto(
-            node.Id,
-            node.ProjectId,
-            node.Name,
-            node.Key,
-            node.Label,
-            node.Executor,
-            node.Inputs,
-            node.Outputs,
-            node.CreatedAt
-        ));
+        node.ContentHash = linked.Value.HashSha256;
+        node.Status = NodeLifecycleStatus.Published;
+        await db.SaveChangesAsync(ct);
+
+        var dto = node.Adapt<CreateCustomNodeResponseDto>() with
+        {
+            ScriptAssetLinkId = linked.Value.AssetLinkId,
+            ContentHash = linked.Value.HashSha256,
+            AssetId = linked.Value.AssetId,
+            OriginalFileName = linked.Value.OriginalName
+        };
+
+        return Result.Ok(dto);
     }
+
+    private static List<PinDefinition> SanitizePins(List<PinDefinition>? pins) =>
+        (pins ?? []).Select(p => p with { Label = string.IsNullOrWhiteSpace(p.Label) ? p.Id : p.Label }).ToList();
 }
 
 public record CreateCustomNodeResponseDto(
@@ -160,5 +130,9 @@ public record CreateCustomNodeResponseDto(
     string Executor,
     IReadOnlyList<PinDefinition> Inputs,
     IReadOnlyList<PinDefinition> Outputs,
-    DateTimeOffset CreatedAt
+    DateTimeOffset CreatedAt,
+    Guid? ScriptAssetLinkId = null,
+    string? ContentHash = null,
+    Guid? AssetId = null,
+    string? OriginalFileName = null
 );
