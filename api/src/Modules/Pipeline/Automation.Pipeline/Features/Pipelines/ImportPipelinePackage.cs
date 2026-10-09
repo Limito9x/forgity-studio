@@ -7,6 +7,7 @@ using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
+using Automation.Pipeline.Engine;
 using Automation.Pipeline.Features.Pipelines.Dtos;
 using Automation.Pipeline.Infrastructure.Persistence;
 
@@ -279,14 +280,34 @@ public class ImportPipelinePackageHandler(
                 }
                 else if (n.Kind == PipelineNodeKind.Custom)
                 {
-                    // Remap custom script node ID if matched by CustomScriptKey or RefId
-                    var lookupKey = !string.IsNullOrWhiteSpace(n.CustomScriptKey)
+                    // Luôn giữ đúng chính xác Key của Custom Script làm RefId (human-readable, không dùng GUID)
+                    refId = !string.IsNullOrWhiteSpace(n.CustomScriptKey)
                         ? n.CustomScriptKey
                         : n.RefId;
+                }
 
-                    if (customNodeKeyToId.TryGetValue(lookupKey, out var customNodeDefId))
+                // Remap and clone File Parameters for newNodeId
+                foreach (var (k, v) in configValues.ToList())
+                {
+                    if (PipelineFileValue.TryGetLinkId(v, out var fileLinkId))
                     {
-                        refId = customNodeDefId.ToString();
+                        var owner = PipelineFileValue.Owner(newNodeId, k);
+                        var cloneResult = await assetApi.ResolveOrCloneLinkAsync(fileLinkId, owner, ct);
+                        if (cloneResult.IsSuccess)
+                        {
+                            configValues[k] = new PipelineFileParameter(cloneResult.Value.AssetLinkId);
+                        }
+                        else
+                        {
+                            logger.LogWarning(
+                                "Could not resolve asset link {LinkId} for imported node {NodeId} slot {SlotKey}: {Error}. Clearing invalid pin.",
+                                fileLinkId,
+                                newNodeId,
+                                k,
+                                string.Join("; ", cloneResult.Errors.Select(e => e.Message))
+                            );
+                            configValues.Remove(k);
+                        }
                     }
                 }
 
@@ -316,6 +337,7 @@ public class ImportPipelinePackageHandler(
                 );
 
                 pipeline.AddNode(nodeEntity);
+                db.PipelineNodes.Add(nodeEntity);
             }
 
             // Remap ParentId for container nodes
@@ -339,14 +361,15 @@ public class ImportPipelinePackageHandler(
                 if (nodeMapForCurrentPipeline.TryGetValue(edge.SourceNodeTempId, out var realSourceNodeId) &&
                     nodeMapForCurrentPipeline.TryGetValue(edge.TargetNodeTempId, out var realTargetNodeId))
                 {
-                    pipeline.AddEdge(
+                    var edgeEntity = pipeline.AddEdge(
                         sourcePipelineNodeId: realSourceNodeId,
                         sourcePin: edge.SourcePin,
                         targetPipelineNodeId: realTargetNodeId,
                         targetPin: edge.TargetPin,
-                        id: Guid.NewGuid(),
+                        id: IdGenerator.NewId(),
                         kind: edge.Kind
                     );
+                    db.PipelineEdges.Add(edgeEntity);
                 }
             }
 

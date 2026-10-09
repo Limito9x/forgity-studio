@@ -146,6 +146,12 @@ File được truyền vào Input Pin của Node (ví dụ file FBX, preset, scr
 3. **Hiển thị trên Canvas (Hydration):**
    - Khi load đồ thị qua `GetPipelineGraph` hoặc sau khi `SavePipelineGraph` thành công, DTO trả về kèm `FileAssets` chứa metadata hiển thị (`originalName`, `sizeBytes`, `status: "Available"`).
    - UI hiển thị đúng tên file và icon trạng thái mà không cần lưu trùng lặp tên file vào cột Config của Database.
+4. **Cơ chế Tự Động Clone / Re-Link Khi Import Hoặc Nhân Bản Node (`ResolveOrCloneLinkAsync`):**
+   - Khi một pipeline được Import từ Package Bundle, hoặc khi người dùng Duplicate/Copy-paste một Node có gắn File Pin trên Canvas: Node mới nhận ID mới (`targetId`), nhưng `configValues` ban đầu có thể mang theo `assetLinkId` cũ từ node nguồn.
+   - `SavePipelineGraph` và `ImportPipelinePackage` sử dụng `IAssetApi.ResolveOrCloneLinkAsync`:
+     - Nếu `assetLinkId` đã thuộc về đúng node mới: Tái sử dụng link hiện tại.
+     - Nếu `assetLinkId` thuộc về node khác (khác Owner): Hệ thống tự động sinh một `AssetLink` mới gắn với `targetId` và cùng trỏ tới file binary `AssetId` gốc.
+     - Tuyệt đối không làm sập Auto-save với lỗi 500 hay báo `Asset link was not found for specified owner and slot`.
 
 ---
 
@@ -153,3 +159,4 @@ File được truyền vào Input Pin của Node (ví dụ file FBX, preset, scr
 1. **Không tạo lại Granular Endpoints:** Không bao giờ tạo lại các endpoint như `AddPipelineNode`, `DeletePipelineEdge`. Mọi thay đổi đồ thị đều đi qua `SavePipelineGraph`.
 2. **Không upload file khi chưa Publish:** Trong trang Ingestion Script, tuyệt đối không gọi API upload binary khi người dùng chỉ mới chọn file phân tích.
 3. **Giữ nguyên định dạng File Pin:** Phân biệt rõ Draft `{ assetId, originalName }` ở UI và Persisted `{ assetLinkId }` ở Backend DB.
+4. **Luôn sử dụng `ResolveOrCloneLinkAsync`:** Khi xử lý `assetLinkId` trên node config, luôn dùng `ResolveOrCloneLinkAsync` để tự động bảo đảm tính sở hữu link cho node mới mà không gây đứt gãy đồ thị.

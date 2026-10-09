@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
 using Automation.Pipeline.Infrastructure.Persistence;
+using Automation.SharedKernel.Errors;
 
 namespace Automation.Pipeline.Features.Pipelines;
 
@@ -38,7 +39,7 @@ public class DeletePipelineHandler(PipelineDbContext db)
 
         if (pipeline == null)
         {
-            return Result.Fail($"Pipeline '{command.Id}' was not found.");
+            return Result.Fail(new NotFoundError($"Pipeline '{command.Id}' was not found."));
         }
 
         // Chặn Archive nếu đang có lượt chạy Running / Pending
@@ -48,17 +49,19 @@ public class DeletePipelineHandler(PipelineDbContext db)
 
         if (hasActiveExecutions)
         {
-            return Result.Fail($"Cannot archive pipeline '{pipeline.Name}' because it currently has active running executions.");
+            return Result.Fail(new ConflictError($"Cannot archive pipeline '{pipeline.Name}' because it currently has active running executions."));
         }
 
         // Chặn Archive nếu đang được gọi làm SubPipeline trong pipeline active khác
         var pipelineIdStr = command.Id.ToString();
-        var isUsedAsSubPipeline = await db.PipelineNodes
-            .AnyAsync(n => n.Kind == Constants.PipelineNodeKind.SubPipeline && n.RefId == pipelineIdStr, ct);
+        var isUsedAsSubPipeline = await db.Pipelines
+            .AnyAsync(p => p.Id != command.Id 
+                        && p.DeletedAt == null 
+                        && p.Nodes.Any(n => n.Kind == Constants.PipelineNodeKind.SubPipeline && n.RefId == pipelineIdStr), ct);
 
         if (isUsedAsSubPipeline)
         {
-            return Result.Fail($"Cannot archive pipeline '{pipeline.Name}' because it is currently referenced as a SubPipeline in active pipeline(s).");
+            return Result.Fail(new ConflictError($"Cannot archive pipeline '{pipeline.Name}' because it is currently referenced as a SubPipeline in active pipeline(s)."));
         }
 
         // Soft Delete (Archive): bảo toàn 100% Nodes, Edges, AssetLinks và Executions

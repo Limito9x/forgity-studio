@@ -242,6 +242,40 @@ public class AssetApiService(
             .Select(ToLinkDto).ToList());
     }
 
+    public async Task<Result<AssetLinkDto>> ResolveOrCloneLinkAsync(
+        Guid assetLinkId,
+        AssetLinkOwner targetOwner,
+        CancellationToken ct = default
+    )
+    {
+        if (assetLinkId == Guid.Empty || !IsValidOwner(targetOwner))
+            return Result.Fail<AssetLinkDto>("A valid link ID and target owner are required.");
+
+        var existingLink = await dbContext.AssetLinks.AsNoTracking().Include(x => x.Asset)
+            .FirstOrDefaultAsync(x => x.Id == assetLinkId, ct);
+
+        if (existingLink == null)
+            return Result.Fail<AssetLinkDto>($"Asset link '{assetLinkId}' not found.");
+
+        if (MatchesOwner(existingLink, targetOwner))
+        {
+            if (!existingLink.Asset.IsConfirmed)
+                return Result.Fail<AssetLinkDto>($"Asset link '{assetLinkId}' references an unconfirmed asset.");
+            return Result.Ok(ToLinkDto(existingLink));
+        }
+
+        var slotResult = assetRegistry.GetSlotOptions(targetOwner.EntityType, targetOwner.SlotKey);
+        if (slotResult.IsFailed)
+            return Result.Fail<AssetLinkDto>(slotResult.Errors);
+
+        return await CreateLinkAsync(
+            new AssetLinkRequestItem(existingLink.AssetId, existingLink.OriginalName),
+            targetOwner,
+            existingLink.SortOrder,
+            ct
+        );
+    }
+
     public async Task<Result> RemoveLinkByIdAsync(
         AssetLinkReference reference,
         CancellationToken ct = default

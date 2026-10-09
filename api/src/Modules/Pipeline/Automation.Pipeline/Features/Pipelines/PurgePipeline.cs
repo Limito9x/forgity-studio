@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
 using Automation.Pipeline.Infrastructure.Persistence;
+using Automation.SharedKernel.Errors;
 
 namespace Automation.Pipeline.Features.Pipelines;
 
@@ -43,7 +44,7 @@ public class PurgePipelineHandler(PipelineDbContext db)
 
         if (pipeline == null)
         {
-            return Result.Fail($"Archived pipeline '{command.Id}' was not found in trash.");
+            return Result.Fail(new NotFoundError($"Archived pipeline '{command.Id}' was not found in trash."));
         }
 
         // Chặn nếu vẫn còn executions đang chạy
@@ -53,7 +54,19 @@ public class PurgePipelineHandler(PipelineDbContext db)
 
         if (hasRunningExecutions)
         {
-            return Result.Fail($"Cannot permanently delete pipeline '{pipeline.Name}' because it has active running executions.");
+            return Result.Fail(new ConflictError($"Cannot permanently delete pipeline '{pipeline.Name}' because it has active running executions."));
+        }
+
+        // Chặn Purge nếu đang được gọi làm SubPipeline trong pipeline active khác
+        var pipelineIdStr = command.Id.ToString();
+        var isUsedAsSubPipeline = await db.Pipelines
+            .AnyAsync(p => p.Id != command.Id 
+                        && p.DeletedAt == null 
+                        && p.Nodes.Any(n => n.Kind == Constants.PipelineNodeKind.SubPipeline && n.RefId == pipelineIdStr), ct);
+
+        if (isUsedAsSubPipeline)
+        {
+            return Result.Fail(new ConflictError($"Cannot permanently delete pipeline '{pipeline.Name}' because it is currently referenced as a SubPipeline in active pipeline(s)."));
         }
 
         // 1. Xóa các Node trước (để kích hoạt EntityDeletedInterceptor dọn dẹp Asset Links)

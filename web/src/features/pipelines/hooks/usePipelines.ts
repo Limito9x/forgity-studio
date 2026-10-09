@@ -108,11 +108,6 @@ export function useUpdatePipelineMutation(projectId?: string, pipelineId?: strin
         });
       }
     },
-    onError: (err: any) => {
-      const errorMsg =
-        err?.response?.data?.message || err?.message || "Failed to rename pipeline";
-      toast.error(t("pipelines.updateFailed", { defaultValue: errorMsg }));
-    },
   });
 }
 
@@ -131,11 +126,6 @@ export function useDeletePipelineMutation(projectId?: string) {
           queryKey: [`/api/pipelines`],
         });
       }
-    },
-    onError: (err: any) => {
-      const errorMsg =
-        err?.response?.data?.message || err?.message || "Failed to archive pipeline";
-      toast.error(t("pipelines.deleteFailed", { defaultValue: errorMsg }));
     },
   });
 }
@@ -158,11 +148,6 @@ export function useRestorePipelineMutation(projectId?: string) {
         });
       }
     },
-    onError: (err: any) => {
-      const errorMsg =
-        err?.response?.data?.message || err?.message || "Failed to restore pipeline";
-      toast.error(t("pipelines.restoreFailed", { defaultValue: errorMsg }));
-    },
   });
 }
 
@@ -181,11 +166,6 @@ export function usePurgePipelineMutation(projectId?: string) {
           queryKey: [`/api/pipelines`],
         });
       }
-    },
-    onError: (err: any) => {
-      const errorMsg =
-        err?.response?.data?.message || err?.message || "Failed to permanently delete pipeline";
-      toast.error(t("pipelines.purgeFailed", { defaultValue: errorMsg }));
     },
   });
 }

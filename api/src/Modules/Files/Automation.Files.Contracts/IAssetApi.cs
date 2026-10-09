@@ -39,6 +39,15 @@ public interface IAssetApi
         CancellationToken ct = default
     );
 
+    // Resolves an existing link by ID. If it matches targetOwner, reuses it;
+    // if it exists but belongs to a different owner (e.g. imported package, cloned node),
+    // automatically clones a new link for targetOwner pointing to the same asset.
+    Task<Result<AssetLinkDto>> ResolveOrCloneLinkAsync(
+        Guid assetLinkId,
+        AssetLinkOwner targetOwner,
+        CancellationToken ct = default
+    );
+
     // Missing PK is idempotent; an existing PK with another owner/slot is rejected.
     Task<Result> RemoveLinkByIdAsync(
         AssetLinkReference reference,

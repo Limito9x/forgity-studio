@@ -166,17 +166,22 @@ public class SavePipelineGraphHandler(
                         else if (PipelineFileValue.TryGetLinkId(value, out var linkId))
                         {
                             var owner = PipelineFileValue.Owner(targetId, key);
-                            var verified = await assetApi.GetLinksByIdsAsync(
-                                [new(linkId, owner)],
+                            var resolved = await assetApi.ResolveOrCloneLinkAsync(
+                                linkId,
+                                owner,
                                 ct
                             );
-                            if (verified.IsFailed)
+                            if (resolved.IsFailed)
                             {
                                 await CompensateCreatedLinksAsync(createdLinks);
                                 db.ChangeTracker.Clear();
-                                return Result.Fail<PipelineGraphDto>(verified.Errors);
+                                return Result.Fail<PipelineGraphDto>(resolved.Errors);
                             }
-                            nodeItem.ConfigValues[key] = new PipelineFileParameter(linkId);
+                            if (resolved.Value.AssetLinkId != linkId)
+                            {
+                                createdLinks.Add(new(resolved.Value.AssetLinkId, owner));
+                            }
+                            nodeItem.ConfigValues[key] = new PipelineFileParameter(resolved.Value.AssetLinkId);
                         }
                     }
                 }

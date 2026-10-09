@@ -290,11 +290,12 @@ public class ExportPipelinesHandler(
                 .OrderBy(x => x)
                 .ToList();
 
-            // Map nodes to package nodes with temporary IDs
+            // Map nodes to package nodes with temporary IDs (clean natural increment ref-1, ref-2,...)
             var nodeIdToTempId = new Dictionary<Guid, string>();
+            var nodeIndex = 1;
             foreach (var n in graphDto.Nodes)
             {
-                nodeIdToTempId[n.Id] = $"node-{n.Id.ToString("N")[..8]}";
+                nodeIdToTempId[n.Id] = $"ref-{nodeIndex++}";
             }
 
             var packageNodes = graphDto.Nodes.Select(n =>
