@@ -53,6 +53,11 @@ namespace Automation.Studio.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("OwnerId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
                     b.Property<Guid>("StudioId")
                         .HasColumnType("uuid");
 
@@ -64,7 +69,8 @@ namespace Automation.Studio.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("StudioId");
+                    b.HasIndex("StudioId", "Slug")
+                        .IsUnique();
 
                     b.ToTable("Projects", "studio");
                 });

@@ -26,9 +26,18 @@ export function ProjectSidebar() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
-  const currentProjectId = pathname.split("/")[2];
-  const { data: currentProject } = useGetProjectById(currentProjectId);
+  // Hỗ trợ cả /s/:studioSlug/projects/:projectSlug và /projects/:projectId
+  const matchScoped = pathname.match(/\/s\/([^/]+)\/projects\/([^/]+)/);
+  const matchClassic = pathname.match(/\/projects\/([^/]+)/);
+
+  const studioSlug = matchScoped ? matchScoped[1] : undefined;
+  const projectKeyOrId = matchScoped ? matchScoped[2] : (matchClassic ? matchClassic[1] : "");
+
+  const { data: currentProject } = useGetProjectById(projectKeyOrId, studioSlug);
+  const currentProjectId = currentProject?.id || projectKeyOrId;
   const { data: contentTypesData } = useContentTypes({ PageSize: 100 } as any, currentProjectId);
+
+  const backUrl = studioSlug ? `/s/${studioSlug}/projects` : "/projects";
 
   const projectNavItems = [
     {
@@ -60,7 +69,7 @@ export function ProjectSidebar() {
 
   const handleNav = (url: string) => {
     startTransition(() => {
-      navigate({ to: url });
+      navigate({ to: url as any });
     });
   };
 
@@ -70,13 +79,15 @@ export function ProjectSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             {currentProject && (
-              <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground" onPress={() => handleNav("/projects")}>
+              <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground" onPress={() => handleNav(backUrl)}>
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                   <Folder className="size-5" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">{currentProject.name}</span>
-                  <span className="truncate text-xs text-muted-foreground">Back to all projects</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    {currentProject.slug ? `@${currentProject.slug}` : "Back to projects"}
+                  </span>
                 </div>
               </SidebarMenuButton>
             )}

@@ -14,12 +14,16 @@ export const useProjects = (params: projectQuery) => {
     });
 };
 
-export const useGetProjectById = (id: string) => {
-    return ProjectsApi.useGetProjectById(id, {
-        query: {
-            enabled: !!id,
+export const useGetProjectById = (id: string, studioKeyOrId?: string) => {
+    return ProjectsApi.useGetProjectById(
+        id,
+        studioKeyOrId ? { studioKeyOrId } : undefined,
+        {
+            query: {
+                enabled: !!id,
+            }
         }
-    });
+    );
 };
 
 export const useCreateProject = createMutationHook(ProjectsApi.useCreateProject, [ProjectsApi.getGetProjectsQueryKey()]);

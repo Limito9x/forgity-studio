@@ -14,9 +14,10 @@ export interface UseProjectTableOptions {
     data: ProjectDto[];
     totalCount: number;
     resource: ReturnType<typeof useResourceQuery<BaseSearchParams>>;
+    studioSlug?: string;
 }
 
-export function useProjectTable({ data, totalCount, resource }: UseProjectTableOptions) {
+export function useProjectTable({ data, totalCount, resource, studioSlug }: UseProjectTableOptions) {
     const { t } = useTranslation(["projects", "common"]);
     const openDialog = useDialogStore((state) => state.openDialog);
     const hasPermission = useAuthStore((state) => state.hasPermission);
@@ -29,14 +30,24 @@ export function useProjectTable({ data, totalCount, resource }: UseProjectTableO
                 meta: { label: t("fields.name", { defaultValue: "Name" }), icon: TypeIcon },
                 cell: ({ row }) => {
                     const project = row.original;
+                    const targetUrl = studioSlug && project.slug
+                        ? `/s/${studioSlug}/projects/${project.slug}/pipeline`
+                        : `/projects/${project.id}/pipeline`;
+
                     return (
-                        <Link
-                            to="/projects/$projectId/pipeline"
-                            params={{ projectId: project.id! }}
-                            className="font-semibold text-foreground hover:text-primary hover:underline transition-colors"
-                        >
-                            {project.name}
-                        </Link>
+                        <div className="flex items-center gap-2">
+                            <Link
+                                to={targetUrl as any}
+                                className="font-semibold text-foreground hover:text-primary hover:underline transition-colors"
+                            >
+                                {project.name}
+                            </Link>
+                            {project.slug && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono bg-muted text-muted-foreground border border-border/50">
+                                    @{project.slug}
+                                </span>
+                            )}
+                        </div>
                     );
                 },
             },

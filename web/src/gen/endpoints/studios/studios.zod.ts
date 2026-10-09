@@ -40,7 +40,7 @@ export const GetStudiosResponseItem = /*#__PURE__*/ zod.object({
 export const GetStudiosResponse = /*#__PURE__*/ zod.array(GetStudiosResponseItem)
 
 export const GetStudioByIdParams = /*#__PURE__*/ zod.object({
-  "id": /*#__PURE__*/ zod.uuid()
+  "id": /*#__PURE__*/ zod.string()
 })
 
 export const GetStudioByIdResponse = /*#__PURE__*/ zod.object({

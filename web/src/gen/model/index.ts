@@ -97,6 +97,7 @@ export * from "./getNodePaletteParams";
 export * from "./getNotificationsParams";
 export * from "./getPipelinesParams";
 export * from "./getProfileResult";
+export * from "./getProjectByIdParams";
 export * from "./getProjectsParams";
 export * from "./getProjectStructsParams";
 export * from "./getRepositoriesParams";

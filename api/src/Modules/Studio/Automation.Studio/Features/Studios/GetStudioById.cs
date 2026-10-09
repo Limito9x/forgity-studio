@@ -5,14 +5,14 @@ using Automation.Studio.Shared.Dtos;
 
 namespace Automation.Studio.Features.Studios;
 
-public record GetStudioByIdQuery(Guid Id);
+public record GetStudioByIdQuery(string Id);
 
 public class GetStudioByIdEndpoint(IMessageBus bus)
     : Endpoint<GetStudioByIdQuery, StudioDto>
 {
     public override void Configure()
     {
-        Get("/{id:guid}");
+        Get("/{id}");
         Group<StudiosGroup>();
         Permissions(P.Studio.GetById);
         Description(x => x.WithName("GetStudioById"));
@@ -40,9 +40,13 @@ public class GetStudioByIdHandler(StudioDbContext db, ICurrentUserProvider userP
         var userId = userProvider.UserId.Value;
         var userIdStr = userId.ToString();
 
+        var isGuid = Guid.TryParse(query.Id, out var idGuid);
+        var slug = query.Id.Trim().ToLowerInvariant();
+
         var studio = await db.Studios
             .AsNoTracking()
-            .FirstOrDefaultAsync(s => s.Id == query.Id && 
+            .FirstOrDefaultAsync(s => 
+                (isGuid ? s.Id == idGuid : s.Slug == slug) && 
                 (s.CreatedBy == userIdStr || s.Projects.Any(p => p.OwnerId == userId || db.ProjectMembers.Any(pm => pm.ProjectId == p.Id && pm.UserId == userId))), ct);
 
         if (studio is null)

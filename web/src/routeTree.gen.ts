@@ -38,6 +38,7 @@ import { Route as ProtectedLayoutSystemSettingsRouteImport } from './routes/_pro
 import { Route as ProtectedLayoutUsersIndexRouteImport } from './routes/_protected/_layout/users/index'
 import { Route as ProtectedLayoutUsersNewRouteImport } from './routes/_protected/_layout/users/new'
 import { Route as ProtectedProjectProjectsProjectIdRouteRouteImport } from './routes/_protected/_project/projects/$projectId/route'
+import { Route as ProtectedLayoutSStudioSlugRunnersRouteImport } from './routes/_protected/_layout/s/$studioSlug/runners'
 import { Route as ProtectedLayoutSystemAuditLogsIndexRouteImport } from './routes/_protected/_layout/system/audit-logs/index'
 import { Route as ProtectedLayoutSystemAuditLogsIdRouteImport } from './routes/_protected/_layout/system/audit-logs/$id'
 import { Route as ProtectedLayoutUsersIdIndexRouteImport } from './routes/_protected/_layout/users/$id/index'
@@ -47,6 +48,7 @@ import { Route as ProtectedProjectProjectsProjectIdContentsRouteImport } from '.
 import { Route as ProtectedProjectProjectsProjectIdOverviewRouteImport } from './routes/_protected/_project/projects/$projectId/overview'
 import { Route as ProtectedProjectProjectsProjectIdRepositoriesRouteImport } from './routes/_protected/_project/projects/$projectId/repositories'
 import { Route as ProtectedProjectProjectsProjectIdStructsRouteImport } from './routes/_protected/_project/projects/$projectId/structs'
+import { Route as ProtectedLayoutSStudioSlugProjectsIndexRouteImport } from './routes/_protected/_layout/s/$studioSlug/projects/index'
 import { Route as ProtectedProjectProjectsProjectIdContentTypesIndexRouteImport } from './routes/_protected/_project/projects/$projectId/content-types/index'
 import { Route as ProtectedProjectProjectsProjectIdContentsIndexRouteImport } from './routes/_protected/_project/projects/$projectId/contents/index'
 import { Route as ProtectedProjectProjectsProjectIdContentsTypeKeyRouteImport } from './routes/_protected/_project/projects/$projectId/contents/$typeKey'
@@ -222,6 +224,12 @@ const ProtectedProjectProjectsProjectIdRouteRoute =
     path: '/projects/$projectId',
     getParentRoute: () => ProtectedProjectRoute,
   } as any)
+const ProtectedLayoutSStudioSlugRunnersRoute =
+  ProtectedLayoutSStudioSlugRunnersRouteImport.update({
+    id: '/s/$studioSlug/runners',
+    path: '/s/$studioSlug/runners',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
 const ProtectedLayoutSystemAuditLogsIndexRoute =
   ProtectedLayoutSystemAuditLogsIndexRouteImport.update({
     id: '/',
@@ -275,6 +283,12 @@ const ProtectedProjectProjectsProjectIdStructsRoute =
     id: '/structs',
     path: '/structs',
     getParentRoute: () => ProtectedProjectProjectsProjectIdRouteRoute,
+  } as any)
+const ProtectedLayoutSStudioSlugProjectsIndexRoute =
+  ProtectedLayoutSStudioSlugProjectsIndexRouteImport.update({
+    id: '/s/$studioSlug/projects/',
+    path: '/s/$studioSlug/projects/',
+    getParentRoute: () => ProtectedLayoutRoute,
   } as any)
 const ProtectedProjectProjectsProjectIdContentTypesIndexRoute =
   ProtectedProjectProjectsProjectIdContentTypesIndexRouteImport.update({
@@ -419,6 +433,7 @@ export interface FileRoutesByFullPath {
   '/roles/': typeof ProtectedLayoutRolesIndexRoute
   '/settings/': typeof ProtectedLayoutSettingsIndexRoute
   '/users/': typeof ProtectedLayoutUsersIndexRoute
+  '/s/$studioSlug/runners': typeof ProtectedLayoutSStudioSlugRunnersRoute
   '/system/audit-logs/$id': typeof ProtectedLayoutSystemAuditLogsIdRoute
   '/users/$id/edit': typeof ProtectedLayoutUsersIdEditRoute
   '/projects/$projectId/content-types': typeof ProtectedProjectProjectsProjectIdContentTypesRouteWithChildren
@@ -432,6 +447,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/pipeline/$pipelineId': typeof ProtectedProjectProjectsProjectIdPipelinePipelineIdRoute
   '/projects/$projectId/repositories/$repositoryId': typeof ProtectedProjectProjectsProjectIdRepositoriesRepositoryIdRoute
   '/projects/$projectId/resources/$resourceId': typeof ProtectedProjectProjectsProjectIdResourcesResourceIdRoute
+  '/s/$studioSlug/projects/': typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
   '/projects/$projectId/content-types/': typeof ProtectedProjectProjectsProjectIdContentTypesIndexRoute
   '/projects/$projectId/contents/': typeof ProtectedProjectProjectsProjectIdContentsIndexRoute
   '/projects/$projectId/pipeline/': typeof ProtectedProjectProjectsProjectIdPipelineIndexRoute
@@ -469,6 +485,7 @@ export interface FileRoutesByTo {
   '/roles': typeof ProtectedLayoutRolesIndexRoute
   '/settings': typeof ProtectedLayoutSettingsIndexRoute
   '/users': typeof ProtectedLayoutUsersIndexRoute
+  '/s/$studioSlug/runners': typeof ProtectedLayoutSStudioSlugRunnersRoute
   '/system/audit-logs/$id': typeof ProtectedLayoutSystemAuditLogsIdRoute
   '/users/$id/edit': typeof ProtectedLayoutUsersIdEditRoute
   '/projects/$projectId/overview': typeof ProtectedProjectProjectsProjectIdOverviewRoute
@@ -477,6 +494,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/pipeline/$pipelineId': typeof ProtectedProjectProjectsProjectIdPipelinePipelineIdRoute
   '/projects/$projectId/repositories/$repositoryId': typeof ProtectedProjectProjectsProjectIdRepositoriesRepositoryIdRoute
   '/projects/$projectId/resources/$resourceId': typeof ProtectedProjectProjectsProjectIdResourcesResourceIdRoute
+  '/s/$studioSlug/projects': typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
   '/projects/$projectId/content-types': typeof ProtectedProjectProjectsProjectIdContentTypesIndexRoute
   '/projects/$projectId/contents': typeof ProtectedProjectProjectsProjectIdContentsIndexRoute
   '/projects/$projectId/pipeline': typeof ProtectedProjectProjectsProjectIdPipelineIndexRoute
@@ -523,6 +541,7 @@ export interface FileRoutesById {
   '/_protected/_layout/roles/': typeof ProtectedLayoutRolesIndexRoute
   '/_protected/_layout/settings/': typeof ProtectedLayoutSettingsIndexRoute
   '/_protected/_layout/users/': typeof ProtectedLayoutUsersIndexRoute
+  '/_protected/_layout/s/$studioSlug/runners': typeof ProtectedLayoutSStudioSlugRunnersRoute
   '/_protected/_layout/system/audit-logs/$id': typeof ProtectedLayoutSystemAuditLogsIdRoute
   '/_protected/_layout/users/$id/edit': typeof ProtectedLayoutUsersIdEditRoute
   '/_protected/_project/projects/$projectId/content-types': typeof ProtectedProjectProjectsProjectIdContentTypesRouteWithChildren
@@ -536,6 +555,7 @@ export interface FileRoutesById {
   '/_protected/_project/projects/$projectId/pipeline/$pipelineId': typeof ProtectedProjectProjectsProjectIdPipelinePipelineIdRoute
   '/_protected/_project/projects/$projectId/repositories/$repositoryId': typeof ProtectedProjectProjectsProjectIdRepositoriesRepositoryIdRoute
   '/_protected/_project/projects/$projectId/resources/$resourceId': typeof ProtectedProjectProjectsProjectIdResourcesResourceIdRoute
+  '/_protected/_layout/s/$studioSlug/projects/': typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
   '/_protected/_project/projects/$projectId/content-types/': typeof ProtectedProjectProjectsProjectIdContentTypesIndexRoute
   '/_protected/_project/projects/$projectId/contents/': typeof ProtectedProjectProjectsProjectIdContentsIndexRoute
   '/_protected/_project/projects/$projectId/pipeline/': typeof ProtectedProjectProjectsProjectIdPipelineIndexRoute
@@ -580,6 +600,7 @@ export interface FileRouteTypes {
     | '/roles/'
     | '/settings/'
     | '/users/'
+    | '/s/$studioSlug/runners'
     | '/system/audit-logs/$id'
     | '/users/$id/edit'
     | '/projects/$projectId/content-types'
@@ -593,6 +614,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/pipeline/$pipelineId'
     | '/projects/$projectId/repositories/$repositoryId'
     | '/projects/$projectId/resources/$resourceId'
+    | '/s/$studioSlug/projects/'
     | '/projects/$projectId/content-types/'
     | '/projects/$projectId/contents/'
     | '/projects/$projectId/pipeline/'
@@ -630,6 +652,7 @@ export interface FileRouteTypes {
     | '/roles'
     | '/settings'
     | '/users'
+    | '/s/$studioSlug/runners'
     | '/system/audit-logs/$id'
     | '/users/$id/edit'
     | '/projects/$projectId/overview'
@@ -638,6 +661,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/pipeline/$pipelineId'
     | '/projects/$projectId/repositories/$repositoryId'
     | '/projects/$projectId/resources/$resourceId'
+    | '/s/$studioSlug/projects'
     | '/projects/$projectId/content-types'
     | '/projects/$projectId/contents'
     | '/projects/$projectId/pipeline'
@@ -683,6 +707,7 @@ export interface FileRouteTypes {
     | '/_protected/_layout/roles/'
     | '/_protected/_layout/settings/'
     | '/_protected/_layout/users/'
+    | '/_protected/_layout/s/$studioSlug/runners'
     | '/_protected/_layout/system/audit-logs/$id'
     | '/_protected/_layout/users/$id/edit'
     | '/_protected/_project/projects/$projectId/content-types'
@@ -696,6 +721,7 @@ export interface FileRouteTypes {
     | '/_protected/_project/projects/$projectId/pipeline/$pipelineId'
     | '/_protected/_project/projects/$projectId/repositories/$repositoryId'
     | '/_protected/_project/projects/$projectId/resources/$resourceId'
+    | '/_protected/_layout/s/$studioSlug/projects/'
     | '/_protected/_project/projects/$projectId/content-types/'
     | '/_protected/_project/projects/$projectId/contents/'
     | '/_protected/_project/projects/$projectId/pipeline/'
@@ -922,6 +948,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedProjectProjectsProjectIdRouteRouteImport
       parentRoute: typeof ProtectedProjectRoute
     }
+    '/_protected/_layout/s/$studioSlug/runners': {
+      id: '/_protected/_layout/s/$studioSlug/runners'
+      path: '/s/$studioSlug/runners'
+      fullPath: '/s/$studioSlug/runners'
+      preLoaderRoute: typeof ProtectedLayoutSStudioSlugRunnersRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
+    }
     '/_protected/_layout/system/audit-logs/': {
       id: '/_protected/_layout/system/audit-logs/'
       path: '/'
@@ -984,6 +1017,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/projects/$projectId/structs'
       preLoaderRoute: typeof ProtectedProjectProjectsProjectIdStructsRouteImport
       parentRoute: typeof ProtectedProjectProjectsProjectIdRouteRoute
+    }
+    '/_protected/_layout/s/$studioSlug/projects/': {
+      id: '/_protected/_layout/s/$studioSlug/projects/'
+      path: '/s/$studioSlug/projects'
+      fullPath: '/s/$studioSlug/projects/'
+      preLoaderRoute: typeof ProtectedLayoutSStudioSlugProjectsIndexRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
     }
     '/_protected/_project/projects/$projectId/content-types/': {
       id: '/_protected/_project/projects/$projectId/content-types/'
@@ -1212,6 +1252,8 @@ interface ProtectedLayoutRouteChildren {
   ProtectedLayoutIndexRoute: typeof ProtectedLayoutIndexRoute
   ProtectedLayoutSystemAuditLogsRoute: typeof ProtectedLayoutSystemAuditLogsRouteWithChildren
   ProtectedLayoutSystemSettingsRoute: typeof ProtectedLayoutSystemSettingsRoute
+  ProtectedLayoutSStudioSlugRunnersRoute: typeof ProtectedLayoutSStudioSlugRunnersRoute
+  ProtectedLayoutSStudioSlugProjectsIndexRoute: typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
 }
 
 const ProtectedLayoutRouteChildren: ProtectedLayoutRouteChildren = {
@@ -1228,6 +1270,10 @@ const ProtectedLayoutRouteChildren: ProtectedLayoutRouteChildren = {
   ProtectedLayoutSystemAuditLogsRoute:
     ProtectedLayoutSystemAuditLogsRouteWithChildren,
   ProtectedLayoutSystemSettingsRoute: ProtectedLayoutSystemSettingsRoute,
+  ProtectedLayoutSStudioSlugRunnersRoute:
+    ProtectedLayoutSStudioSlugRunnersRoute,
+  ProtectedLayoutSStudioSlugProjectsIndexRoute:
+    ProtectedLayoutSStudioSlugProjectsIndexRoute,
 }
 
 const ProtectedLayoutRouteWithChildren = ProtectedLayoutRoute._addFileChildren(

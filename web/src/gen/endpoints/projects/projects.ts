@@ -24,6 +24,7 @@ import type {
 import type {
   CreateProjectCommand,
   ErrorResponse,
+  GetProjectByIdParams,
   GetProjectsParams,
   PagedResultOfProjectDto,
   ProjectDto,
@@ -326,16 +327,24 @@ export const useDeleteProject = <TError = void, TContext = unknown>(
 > => {
   return useMutation(getDeleteProjectMutationOptions(options), queryClient);
 };
-export const getProjectById = (id: string, signal?: AbortSignal) => {
+export const getProjectById = (
+  id: string,
+  params?: GetProjectByIdParams,
+  signal?: AbortSignal,
+) => {
   return customInstance<ProjectDto>({
     url: `/api/projects/${id}`,
     method: "GET",
+    params,
     signal,
   });
 };
 
-export const getGetProjectByIdQueryKey = (id: string) => {
-  return [`/api/projects/${id}`] as const;
+export const getGetProjectByIdQueryKey = (
+  id: string,
+  params?: GetProjectByIdParams,
+) => {
+  return [`/api/projects/${id}`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetProjectByIdQueryOptions = <
@@ -343,6 +352,7 @@ export const getGetProjectByIdQueryOptions = <
   TError = void,
 >(
   id: string,
+  params?: GetProjectByIdParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getProjectById>>, TError, TData>
@@ -351,11 +361,12 @@ export const getGetProjectByIdQueryOptions = <
 ) => {
   const { query: queryOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetProjectByIdQueryKey(id);
+  const queryKey =
+    queryOptions?.queryKey ?? getGetProjectByIdQueryKey(id, params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getProjectById>>> = ({
     signal,
-  }) => getProjectById(id, signal);
+  }) => getProjectById(id, params, signal);
 
   return {
     queryKey,
@@ -379,6 +390,7 @@ export function useGetProjectById<
   TError = void,
 >(
   id: string,
+  params: undefined | GetProjectByIdParams,
   options: {
     query: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getProjectById>>, TError, TData>
@@ -401,6 +413,7 @@ export function useGetProjectById<
   TError = void,
 >(
   id: string,
+  params?: GetProjectByIdParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getProjectById>>, TError, TData>
@@ -423,6 +436,7 @@ export function useGetProjectById<
   TError = void,
 >(
   id: string,
+  params?: GetProjectByIdParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getProjectById>>, TError, TData>
@@ -438,6 +452,7 @@ export function useGetProjectById<
   TError = void,
 >(
   id: string,
+  params?: GetProjectByIdParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getProjectById>>, TError, TData>
@@ -447,7 +462,7 @@ export function useGetProjectById<
 ): UseQueryResult<TData, TError> & {
   queryKey: DataTag<QueryKey, TData, TError>;
 } {
-  const queryOptions = getGetProjectByIdQueryOptions(id, options);
+  const queryOptions = getGetProjectByIdQueryOptions(id, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<
     TData,

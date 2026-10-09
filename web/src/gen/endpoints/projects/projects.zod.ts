@@ -11,21 +11,27 @@ import * as zod from 'zod/mini';
 export const createProjectBodyNameMin = 0;
 export const createProjectBodyNameMax = 255;
 
+export const createProjectBodySlugMin = 0;
+export const createProjectBodySlugMax = 150;
+
 
 
 export const CreateProjectBody = /*#__PURE__*/ zod.object({
   "name": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(createProjectBodyNameMin)).check(/*#__PURE__*/ zod.maxLength(createProjectBodyNameMax)),
+  "slug": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(createProjectBodySlugMin)).check(/*#__PURE__*/ zod.maxLength(createProjectBodySlugMax))),
   "studioId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid())
 })
 
 export const CreateProjectResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "name": /*#__PURE__*/ zod.string(),
+  "slug": /*#__PURE__*/ zod.string(),
   "studioId": /*#__PURE__*/ zod.uuid()
 })
 
 export const GetProjectsQueryParams = /*#__PURE__*/ zod.object({
   "studioId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "studioSlug": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "page": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
   "pageSize": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
   "filters": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
@@ -40,6 +46,7 @@ export const GetProjectsResponse = /*#__PURE__*/ zod.object({
   "items": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "name": /*#__PURE__*/ zod.string(),
+  "slug": /*#__PURE__*/ zod.string(),
   "studioId": /*#__PURE__*/ zod.uuid()
 }))),
   "totalCount": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
@@ -57,12 +64,17 @@ export const DeleteProjectParams = /*#__PURE__*/ zod.object({
 export const DeleteProjectResponse = /*#__PURE__*/ zod.void()
 
 export const GetProjectByIdParams = /*#__PURE__*/ zod.object({
-  "id": /*#__PURE__*/ zod.uuid()
+  "id": /*#__PURE__*/ zod.string()
+})
+
+export const GetProjectByIdQueryParams = /*#__PURE__*/ zod.object({
+  "studioKeyOrId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 export const GetProjectByIdResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "name": /*#__PURE__*/ zod.string(),
+  "slug": /*#__PURE__*/ zod.string(),
   "studioId": /*#__PURE__*/ zod.uuid()
 })
 
@@ -73,15 +85,20 @@ export const UpdateProjectParams = /*#__PURE__*/ zod.object({
 export const updateProjectBodyNameMin = 0;
 export const updateProjectBodyNameMax = 255;
 
+export const updateProjectBodySlugMin = 0;
+export const updateProjectBodySlugMax = 150;
+
 
 
 export const UpdateProjectBody = /*#__PURE__*/ zod.object({
-  "name": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(updateProjectBodyNameMin)).check(/*#__PURE__*/ zod.maxLength(updateProjectBodyNameMax))
+  "name": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(updateProjectBodyNameMin)).check(/*#__PURE__*/ zod.maxLength(updateProjectBodyNameMax)),
+  "slug": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(updateProjectBodySlugMin)).check(/*#__PURE__*/ zod.maxLength(updateProjectBodySlugMax)))
 })
 
 export const UpdateProjectResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "name": /*#__PURE__*/ zod.string(),
+  "slug": /*#__PURE__*/ zod.string(),
   "studioId": /*#__PURE__*/ zod.uuid()
 })
 

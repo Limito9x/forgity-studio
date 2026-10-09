@@ -9,5 +9,6 @@
 export interface ProjectDto {
   id: string;
   name: string;
+  slug: string;
   studioId: string;
 }

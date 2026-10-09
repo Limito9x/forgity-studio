@@ -179,9 +179,16 @@ function DashboardPage() {
                       <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted">
                         <FolderGit2 className="size-4 text-muted-foreground" />
                       </div>
-                      <CardTitle className="text-sm truncate font-semibold">
-                        {project.name}
-                      </CardTitle>
+                      <div className="flex flex-col min-w-0">
+                        <CardTitle className="text-sm truncate font-semibold">
+                          {project.name}
+                        </CardTitle>
+                        {project.slug && (
+                          <span className="text-[11px] font-mono text-muted-foreground truncate">
+                            @{project.slug}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </CardHeader>

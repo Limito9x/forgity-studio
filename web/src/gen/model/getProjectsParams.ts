@@ -15,6 +15,10 @@ export type GetProjectsParams = {
   /**
    * @nullable
    */
+  studioSlug?: string | null;
+  /**
+   * @nullable
+   */
   page?: number | null;
   /**
    * @nullable

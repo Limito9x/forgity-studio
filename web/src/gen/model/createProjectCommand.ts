@@ -12,6 +12,12 @@ export interface CreateProjectCommand {
    * @maxLength 255
    */
   name: string;
+  /**
+   * @minLength 0
+   * @maxLength 150
+   * @nullable
+   */
+  slug?: string | null;
   /** @nullable */
   studioId?: string | null;
 }
