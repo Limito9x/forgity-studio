@@ -3,6 +3,7 @@ import { Plus, ArrowRight, Workflow, Cpu, FolderGit2, Folder } from 'lucide-reac
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { appConfig } from '@/config/appConfig'
 import { useProjects } from '@/features/projects/hooks/useProjects'
 import { useDialogStore } from '@/stores/dialogStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -36,7 +37,7 @@ function DashboardPage() {
       <div className="relative overflow-hidden rounded-xl border bg-gradient-to-r from-muted/50 via-background to-muted/30 p-8 shadow-xs">
         <div className="relative z-10 max-w-2xl space-y-3">
           <h1 className="text-3xl font-bold tracking-tight">
-            Welcome to Automation Studio
+            Welcome to {appConfig.name}
           </h1>
           <p className="text-sm text-muted-foreground leading-relaxed">
             Orchestrate, automate, and accelerate your 3D digital content creation pipelines.

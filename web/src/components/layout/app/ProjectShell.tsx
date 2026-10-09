@@ -149,7 +149,7 @@ export function ProjectShell({ children }: { children: React.ReactNode }) {
                         dropAnimation={{ duration: 150, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}
                     >
                         {activeTag ? (
-                            <div className="w-64 pointer-events-none cursor-grabbing">
+                            <div className="pointer-events-none cursor-grabbing">
                                 <DraggableTagCard
                                     tag={{
                                         id: activeTag.tagId,

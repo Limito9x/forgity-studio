@@ -4,6 +4,9 @@ import { RouterProvider, createRouter } from '@tanstack/react-router'
 import './lib/i18n'
 import './lib/api-client'
 import './index.css'
+import { appConfig } from './config/appConfig'
+
+document.title = appConfig.name
 
 // Import the generated route tree
 import { routeTree } from './routeTree.gen'

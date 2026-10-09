@@ -16,6 +16,7 @@ export interface RemoteFileBrowserDialogProps {
   mode?: BrowserMode;
   extensions?: string[];
   onSelect: (selectedPath: string) => void;
+  height?: number;
 }
 
 export function RemoteFileBrowserDialog({
@@ -29,6 +30,7 @@ export function RemoteFileBrowserDialog({
   mode = "file",
   extensions,
   onSelect,
+  height = 380,
 }: RemoteFileBrowserDialogProps) {
   const [selectedPath, setSelectedPath] = useState<string>(initialPath);
 
@@ -50,8 +52,8 @@ export function RemoteFileBrowserDialog({
     mode === "file"
       ? `Select Remote File ${runnerName ? `(${runnerName})` : ""}`
       : mode === "folder"
-      ? `Select Remote Folder ${runnerName ? `(${runnerName})` : ""}`
-      : `Browse Remote Filesystem ${runnerName ? `(${runnerName})` : ""}`;
+        ? `Select Remote Folder ${runnerName ? `(${runnerName})` : ""}`
+        : `Browse Remote Filesystem ${runnerName ? `(${runnerName})` : ""}`;
 
   const defaultDescription =
     description ||
@@ -118,7 +120,7 @@ export function RemoteFileBrowserDialog({
           }}
           mode={mode}
           extensions={extensions}
-          height={420}
+          height={height}
         />
       </div>
     </BaseDialog>

@@ -85,3 +85,10 @@ Quy tắc áp dụng bắt buộc khi xây dựng hoặc sửa đổi mã nguồ
       - Cập nhật database: `.\cli update-db [ModuleName]`
       - Khởi động API: `.\cli start` hoặc `.\cli run` (Hot reload)
     - Chỉ dùng lệnh `dotnet ef` gốc khi cần truyền cờ đặc thù hoặc chạy trong pipeline CI/CD.
+
+17. **Quy Tắc Build Solution & Tránh Lock DLL:**
+    - Khi muốn build toàn bộ solution (`Automation.sln`) hoặc project `Automation.Api`, **BẮT BUỘC** phải kiểm tra và tắt tiến trình API đang chạy (tiến trình chiếm port `5189`, `50051` hoặc process `Automation.Api`). Nếu không tắt, file binary `.dll` sẽ bị hệ điều hành khóa (lỗi `MSB3027: The process cannot access the file because it is being used by another process`) dẫn đến thất bại hoặc treo build.
+    - Luôn ưu tiên dùng script tự động kiểm tra và ngắt tiến trình API trước khi build:
+      - Từ thư mục gốc dự án: `.\build-dotnet.ps1`
+      - Từ thư mục `api/`: `.\cli build`
+

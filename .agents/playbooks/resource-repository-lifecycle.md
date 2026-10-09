@@ -141,3 +141,19 @@ Triết lý **Asset Slots & Asset Link** là nền tảng kết nối giữa Res
 - **Quy tắc vàng**:
   - Tuyệt đối không hardcode đường dẫn vật lý tuyệt đối trong cấu hình node của Pipeline Canvas.
   - Luôn thông qua **Asset Link** để đảm bảo đồ thị có thể Export sang máy khác hoặc chạy trên Runner phân tán mà không bị gãy file path.
+
+---
+
+## 6. GameplayTags Import & Export Engine
+
+Hệ thống cung cấp cơ chế sao lưu, di chuyển và tích hợp GameplayTags giữa các dự án hoặc với engine game ngoài (Unreal Engine):
+
+1. **Định dạng Export**:
+   - **JSON (`.tags.json`)**: Chứa toàn bộ cây tag kèm metadata (`FormatVersion`, `ExportedAt`, `TotalTags`, mảng `tags` gồm `Path`, `Name`, `Color`, `Description`).
+   - **CSV (`.tags.csv`)**: Cấu trúc bảng `Path,Name,Color,Description` tương thích định dạng GameplayTags chuẩn của Unreal Engine (`Tag,Category,Comment`).
+2. **Cơ chế Import & Tái thiết lập phân cấp (Depth-First Hierarchy Ingestion)**:
+   - Backend phân rã đường dẫn theo độ sâu dấu chấm (`path.Split('.').Length`).
+   - Nhập từ tầng 1 đến tầng sâu nhất: tự động tạo các node cha còn thiếu, liên kết `ParentId` chính xác mà không gặp lỗi khóa ngoại.
+   - Hỗ trợ chiến lược xung đột (`ConflictStrategy`):
+     - `Skip`: Bỏ qua nếu tag đã tồn tại (giữ nguyên màu sắc và mô tả cũ).
+     - `Update`: Cập nhật màu sắc (`Color`) và mô tả (`Description`) của tag cũ theo file mới.

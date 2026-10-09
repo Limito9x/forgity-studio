@@ -5,6 +5,7 @@ import { useGenerateSetupToken } from "../hooks/useRunners";
 import { useStudioStore } from "@/stores/studioStore";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { appConfig } from "@/config/appConfig";
 import {
   Copy,
   Check,
@@ -79,7 +80,7 @@ export function ConnectRunnerDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Connect New Runner"
-      description="Pair a local graphic workstation, render PC, or cloud worker to Automation Studio."
+      description={`Pair a local graphic workstation, render PC, or cloud worker to ${appConfig.name}.`}
       size="lg"
       footer={
         <div className="flex items-center justify-between w-full">

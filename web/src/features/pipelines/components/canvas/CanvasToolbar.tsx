@@ -81,6 +81,12 @@ export function CanvasToolbar({
     );
   };
 
+  const isManual =
+    triggerType === 0 ||
+    triggerType === "Manual" ||
+    triggerType === undefined ||
+    triggerType === null;
+
   const renderTriggerBadge = () => {
     if (triggerType === 1 || triggerType === "OnResourceCreated") {
       return (
@@ -237,10 +243,30 @@ export function CanvasToolbar({
         </Button>
 
         {/* Run Pipeline Button */}
-        <Button size="sm" onPress={onOpenRunModal} className="h-8 text-xs gap-1.5 shadow-sm">
-          <Play className="h-3.5 w-3.5 fill-current" />
-          <span>Run Pipeline</span>
-        </Button>
+        {isManual ? (
+          <Button size="sm" onPress={onOpenRunModal} className="h-8 text-xs gap-1.5 shadow-sm">
+            <Play className="h-3.5 w-3.5 fill-current" />
+            <span>Run Pipeline</span>
+          </Button>
+        ) : (
+          <div
+            title={`This pipeline is configured for automated trigger (${
+              triggerType === 1 || triggerType === "OnResourceCreated"
+                ? "On Resource Created"
+                : "On Version Updated"
+            }) and cannot be triggered manually.`}
+            className="flex items-center"
+          >
+            <Button
+              size="sm"
+              isDisabled
+              className="h-8 text-xs gap-1.5 opacity-60 cursor-not-allowed bg-muted text-muted-foreground hover:bg-muted"
+            >
+              <Play className="h-3.5 w-3.5 fill-current opacity-40" />
+              <span>Auto-Triggered</span>
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

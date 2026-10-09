@@ -36,6 +36,7 @@ export function ContentItemForm({ formId, contentType, initialData, onSubmit }: 
         });
         const staticSchema = z.object({
             name: z.string().min(1, t("fields.nameRequired", { defaultValue: "Name is required" })),
+            key: z.string().optional(),
             thumbnailAssetId: z.string().nullable().optional(),
         });
 
@@ -45,6 +46,7 @@ export function ContentItemForm({ formId, contentType, initialData, onSubmit }: 
     const defaultValues = useMemo(() => {
         const defaults: Record<string, any> = {
             name: initialData?.name || "",
+            key: initialData?.key || "",
             thumbnailAssetId: initialData?.thumbnailAssetId ?? null,
             ...((initialData || {}) as Record<string, any>),
         };
@@ -80,13 +82,22 @@ export function ContentItemForm({ formId, contentType, initialData, onSubmit }: 
 
     return (
         <Form form={form as any} onSubmit={onSubmit as any} formId={formId} className="space-y-6">
-            <FormInput
-                control={form.control}
-                name="name"
-                label={t("fields.name", { defaultValue: "Name" })}
-                placeholder={t("fields.namePlaceholder", { defaultValue: "Enter item name..." })}
-                required
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormInput
+                    control={form.control}
+                    name="name"
+                    label={t("fields.name", { defaultValue: "Name" })}
+                    placeholder={t("fields.namePlaceholder", { defaultValue: "Enter item name..." })}
+                    required
+                />
+                <FormInput
+                    control={form.control}
+                    name="key"
+                    label={t("fields.key", { defaultValue: "Key (Slug)" })}
+                    placeholder={t("fields.keyPlaceholder", { defaultValue: "Auto-generated from Name if blank..." })}
+                    description={t("fields.keyDescription", { defaultValue: "Unique semantic identifier within this content type" })}
+                />
+            </div>
 
             <FormImageUpload
                 control={form.control as any}

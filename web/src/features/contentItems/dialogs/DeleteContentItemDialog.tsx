@@ -11,7 +11,12 @@ export function DeleteContentItemDialog({ open, onOpenChange, data }: DialogProp
     const handleDelete = () => {
         if (!data?.id) return;
         deleteContentItem.mutate(
-            { id: data.id },
+            {
+                projectId: data.projectId,
+                contentTypeKey: data.typeKey,
+                keyOrId: data.id,
+                data: {},
+            },
             {
                 onSuccess: () => {
                     toast.success(t("actions.deleteSuccess", { defaultValue: "Deleted successfully" }));

@@ -8,14 +8,19 @@ using Automation.Content.Infrastructure.Persistence;
 using Automation.Content.Shared.Dtos;
 using Automation.DynamicForms.Contracts;
 using Automation.Files.Contracts;
+using Automation.SharedKernel.Extensions.Strings;
 
 namespace Automation.Content.Features.ContentItems;
 
 public record UpdateContentItemCommand
 {
-    public Guid Id { get; set; }
+    public Guid? Id { get; set; }
+    public Guid? ProjectId { get; set; }
+    public string? ContentTypeKey { get; set; }
+    public string? KeyOrId { get; set; }
 
     public string Name { get; set; } = null!;
+    public string? Key { get; set; }
     public JsonDocument Values { get; set; } = null!;
     public Guid? ThumbnailAssetId { get; set; }
     public string? ThumbnailFileName { get; set; }
@@ -25,7 +30,6 @@ public class UpdateContentItemValidator : Validator<UpdateContentItemCommand>
 {
     public UpdateContentItemValidator()
     {
-        RuleFor(x => x.Id).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(255);
         RuleFor(x => x.Values).NotNull();
     }
@@ -36,7 +40,7 @@ public class UpdateContentItemEndpoint(IMessageBus bus)
 {
     public override void Configure()
     {
-        Put(ContentRoutes.ContentItem);
+        Put(ContentRoutes.NestedContentItemDetail);
         Group<ContentItemsGroup>();
         Permissions(P.ContentItem.Update);
         Description(x => x.WithName("UpdateContentItem"));
@@ -58,13 +62,49 @@ public class UpdateContentItemHandler(ContentDbContext db, ISchemaApi schemaApi,
         UpdateContentItemCommand request,
         CancellationToken cancellationToken)
     {
-        var item = await db.ContentItems
-            .Include(x => x.ContentType)
-            .FirstOrDefaultAsync(x => x.Id == request.Id, cancellationToken);
+        Domain.Entities.ContentItem? item = null;
+
+        if (request.Id.HasValue && request.Id.Value != Guid.Empty)
+        {
+            item = await db.ContentItems
+                .Include(x => x.ContentType)
+                .FirstOrDefaultAsync(x => x.Id == request.Id.Value, cancellationToken);
+        }
+        else if (!string.IsNullOrWhiteSpace(request.KeyOrId))
+        {
+            if (Guid.TryParse(request.KeyOrId, out var parsedGuid))
+            {
+                item = await db.ContentItems
+                    .Include(x => x.ContentType)
+                    .FirstOrDefaultAsync(x => x.Id == parsedGuid, cancellationToken);
+            }
+            else if (request.ProjectId.HasValue && !string.IsNullOrWhiteSpace(request.ContentTypeKey))
+            {
+                item = await db.ContentItems
+                    .Include(x => x.ContentType)
+                    .FirstOrDefaultAsync(x => x.ProjectId == request.ProjectId.Value && x.ContentType.Key == request.ContentTypeKey && x.Key == request.KeyOrId, cancellationToken);
+            }
+        }
             
         if (item is null) return Result.Fail(new NotFoundError("ContentItem not found"));
+
+        var keyToSet = item.Key;
+        if (!string.IsNullOrWhiteSpace(request.Key))
+        {
+            var normalizedKey = request.Key.ToSlug();
+            if (normalizedKey != item.Key)
+            {
+                var keyExists = await db.ContentItems
+                    .AnyAsync(c => c.ProjectId == item.ProjectId && c.ContentTypeId == item.ContentTypeId && c.Key == normalizedKey && c.Id != item.Id, cancellationToken);
+                if (keyExists)
+                {
+                    return Result.Fail(new Error($"ContentItem with key '{normalizedKey}' already exists in this content type."));
+                }
+                keyToSet = normalizedKey;
+            }
+        }
         
-        item.Update(request.Name);
+        item.Update(request.Name, keyToSet);
         await db.SaveChangesAsync(cancellationToken);
 
         var dataResult = await schemaApi.SaveDataAsync(
@@ -108,6 +148,7 @@ public class UpdateContentItemHandler(ContentDbContext db, ISchemaApi schemaApi,
             ContentTypeId = item.ContentTypeId,
             ProjectId = item.ProjectId,
             Name = item.Name,
+            Key = item.Key,
             Values = dataResult.Value.Values
         });
     }

@@ -24,13 +24,14 @@ export function CreateContentItemPage() {
     const handleSubmit = (data: ContentItemFormValues) => {
         if (!projectId || !typeKey) return;
 
-        const { name, thumbnailAssetId, ...values } = data;
+        const { name, key, thumbnailAssetId, ...values } = data;
         const itemName = name || "Untitled";
 
         createContentItem.mutate(
             {
                 data: {
                     name: itemName,
+                    itemKey: key || undefined,
                     values: values as any,
                     thumbnailAssetId: thumbnailAssetId ?? undefined,
                 },

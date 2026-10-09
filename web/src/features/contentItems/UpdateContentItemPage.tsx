@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { FormPageShell } from "@/components/layout/shells/FormPageShell";
 import { ContentItemForm, type ContentItemFormValues } from "./components/ContentItemForm";
 import { ContentResourcesTab } from "./components/ContentResourcesTab";
-import { useGetContentItemById, useUpdateContentItem } from "./hooks/useContentItems";
+import { useGetContentItem, useUpdateContentItem } from "./hooks/useContentItems";
 import { useGetResourcesByContent } from "@/gen/endpoints/resources/resources";
 import { useLoaderData, useNavigate, useParams } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -23,19 +23,24 @@ export function UpdateContentItemPage() {
     }) as { contentType: ContentTypeDto } | undefined;
     const contentType = parentData?.contentType;
 
-    const { projectId, typeKey, contentItemId } = useParams({
-        from: "/_protected/_project/projects/$projectId/contents/$typeKey/$contentItemId/edit",
+    const { projectId, typeKey, itemKey } = useParams({
+        from: "/_protected/_project/projects/$projectId/contents/$typeKey/$itemKey/edit",
     });
 
-    const { data: itemData, isLoading, error } = useGetContentItemById(contentItemId);
-    const { data: linkedResources } = useGetResourcesByContent(contentItemId);
+    const { data: itemData, isLoading, error } = useGetContentItem(projectId, typeKey, itemKey);
+    const { data: linkedResources } = useGetResourcesByContent(itemData?.id ?? "", {
+        query: {
+            enabled: !!itemData?.id,
+        },
+    });
 
-    const updateContentItem = useUpdateContentItem({ projectId: projectId, contentTypeKey: typeKey });
+    const updateContentItem = useUpdateContentItem({ projectId, contentTypeKey: typeKey });
 
     const initialFormValues = useMemo(() => {
         if (!itemData) return undefined;
         return {
             name: itemData.name || "",
+            key: itemData.key || "",
             thumbnailAssetId: itemData.thumbnailAssetId ?? undefined,
             thumbnailUrl: itemData.thumbnailUrl ?? undefined,
             resolvedData: (itemData as any).resolvedData,
@@ -44,27 +49,39 @@ export function UpdateContentItemPage() {
     }, [itemData]);
 
     const handleSubmit = (data: ContentItemFormValues) => {
-        if (!projectId || !typeKey || !contentItemId) return;
+        if (!projectId || !typeKey || !itemKey) return;
 
-        const { name, thumbnailAssetId, ...values } = data;
+        const { name, key, thumbnailAssetId, ...values } = data;
         const itemName = name || "Untitled";
 
         updateContentItem.mutate(
             {
-                id: contentItemId,
+                projectId,
+                contentTypeKey: typeKey,
+                keyOrId: itemKey,
                 data: {
                     name: itemName,
+                    key: key || undefined,
                     values: values as any,
                     thumbnailAssetId: thumbnailAssetId ?? undefined,
                 },
             },
             {
-                onSuccess: () => {
+                onSuccess: (updatedItem) => {
                     toast.success(t("messages.updateSuccess", { defaultValue: "Content Item updated successfully" }));
-                    navigate({
-                        to: "/projects/$projectId/contents/$typeKey",
-                        params: { projectId, typeKey },
-                    });
+                    const finalKey = key || updatedItem?.key || itemKey;
+                    if (finalKey !== itemKey) {
+                        navigate({
+                            to: "/projects/$projectId/contents/$typeKey/$itemKey/edit",
+                            params: { projectId, typeKey, itemKey: finalKey },
+                            replace: true,
+                        });
+                    } else {
+                        navigate({
+                            to: "/projects/$projectId/contents/$typeKey",
+                            params: { projectId, typeKey },
+                        });
+                    }
                 },
                 onError: (error: any) => {
                     toast.error(error?.message || t("messages.updateError", { defaultValue: "Failed to update content item" }));
@@ -106,7 +123,7 @@ export function UpdateContentItemPage() {
         );
     }
 
-    const formId = `update-content-item-form-${typeKey}-${contentItemId}`;
+    const formId = `update-content-item-form-${typeKey}-${itemData.id}`;
 
     return (
         <FormPageShell
@@ -172,7 +189,7 @@ export function UpdateContentItemPage() {
                 {activeTab === "resources" && (
                     <div className="pt-2">
                         <ContentResourcesTab
-                            contentId={contentItemId}
+                            contentId={itemData.id}
                             contentName={itemData.name}
                             projectId={projectId}
                         />

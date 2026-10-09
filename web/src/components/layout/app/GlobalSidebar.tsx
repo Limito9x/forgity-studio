@@ -1,4 +1,5 @@
 import { startTransition } from "react";
+import { appConfig } from "@/config/appConfig";
 import { useAuthStore } from "@/stores/authStore";
 import {
   Sidebar,
@@ -74,7 +75,7 @@ export function GlobalSidebar() {
           </div>
           <div className="flex flex-col min-w-0">
             <span className="truncate text-sm font-semibold tracking-tight text-sidebar-foreground">
-              Automation Studio
+              {appConfig.name}
             </span>
             <span className="truncate text-[10px] uppercase font-mono tracking-wider text-muted-foreground">
               Pipeline Engine

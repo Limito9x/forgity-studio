@@ -68,6 +68,7 @@ public class LookupContentItemsHandler(ContentDbContext db)
             .Select(c => new ContentLookupDto(
                 c.Id,
                 c.Name,
+                c.Key,
                 c.ContentTypeId,
                 c.ContentType.Key,
                 c.ContentType.Name,

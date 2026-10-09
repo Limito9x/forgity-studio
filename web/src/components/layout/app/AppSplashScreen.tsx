@@ -1,4 +1,5 @@
 import { Workflow, Loader2 } from "lucide-react";
+import { appConfig } from "@/config/appConfig";
 
 interface AppSplashScreenProps {
   message?: string;
@@ -19,7 +20,7 @@ export function AppSplashScreen({ message = "Initializing workspace..." }: AppSp
         {/* App Title & Status */}
         <div className="mt-5 flex flex-col items-center gap-1.5 text-center">
           <span className="text-base font-semibold tracking-tight text-foreground">
-            Automation Studio
+            {appConfig.name}
           </span>
           <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
             <Loader2 className="size-3 animate-spin text-primary/70" />

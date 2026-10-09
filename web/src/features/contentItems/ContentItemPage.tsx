@@ -15,15 +15,34 @@ import { BaseCard } from "@/components/custom-ui/data-display/card/BaseCard";
 import { ContentDisplayModes } from "./constants/contentDisplayModes";
 import { DataTableRowActions, type ActionItem } from "@/components/table/DataTableRowActions";
 import { Button } from "@/components/ui/button";
-import { LayoutGrid, List, EditIcon, TrashIcon, Layers } from "lucide-react";
+import {
+    LayoutGrid,
+    List,
+    EditIcon,
+    TrashIcon,
+    Layers,
+    Download,
+    UploadCloud,
+    FileCode,
+    FileSpreadsheet,
+    ChevronDown,
+} from "lucide-react";
 import type { ContentTypeDto, ContentItemDto } from "@/gen/model";
 import { ContentResourcesDrawer } from "./components/drawers/ContentResourcesDrawer";
 import { DynamicIcon } from "@/components/custom-ui/DynamicIcon";
+import { useExportContentItems } from "./hooks/useContentItemsExportImport";
+import {
+    DropdownMenu,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
 export function ContentItemPage({ useSearch, useNavigate }: ResourcePageProps) {
     const { t } = useTranslation(["contentItems", "common"]);
     const hasPermission = useAuthStore((state) => state.hasPermission);
     const openDialog = useDialogStore((state) => state.openDialog);
+    const exportMutation = useExportContentItems();
 
     const search = useSearch();
     const navigate = useNavigate();
@@ -53,7 +72,7 @@ export function ContentItemPage({ useSearch, useNavigate }: ResourcePageProps) {
         }
     };
 
-    const { table, columns } = useContentItemTable({
+    const { table, columns, rowSelection, setRowSelection } = useContentItemTable({
         data: data?.items ?? [],
         totalCount: data?.totalCount ?? 0,
         resource: resourceQuery,
@@ -61,6 +80,22 @@ export function ContentItemPage({ useSearch, useNavigate }: ResourcePageProps) {
         projectId,
         onViewResources: handleViewResources,
     });
+
+    const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id]);
+    const selectedCount = selectedIds.length;
+
+    const handleExport = (format: "json" | "csv") => {
+        if (selectedCount > 0) {
+            exportMutation.mutate(
+                { projectId, contentTypeKey: typeKey, format, ids: selectedIds.join(",") },
+                {
+                    onSuccess: () => setRowSelection({}),
+                }
+            );
+        } else {
+            exportMutation.mutate({ projectId, contentTypeKey: typeKey, format });
+        }
+    };
 
     const canCreate = hasPermission("contentitems:create");
 
@@ -107,8 +142,8 @@ export function ContentItemPage({ useSearch, useNavigate }: ResourcePageProps) {
                 label: t("common:edit", { defaultValue: "Edit" }),
                 icon: EditIcon,
                 onClick: () => appNavigate({
-                    to: "/projects/$projectId/contents/$typeKey/$contentItemId/edit",
-                    params: { projectId, typeKey, contentItemId: item.id! },
+                    to: "/projects/$projectId/contents/$typeKey/$itemKey/edit",
+                    params: { projectId, typeKey, itemKey: item.key || item.id! },
                 }),
             },
             hasPermission("contentitems:delete") && {
@@ -127,6 +162,49 @@ export function ContentItemPage({ useSearch, useNavigate }: ResourcePageProps) {
             <ResourcePageShell
                 icon={<DynamicIcon name={contentType?.icon} className="h-6 w-6 text-primary shrink-0" />}
                 title={contentType?.displayName || t("page.title", { defaultValue: "Content Items" })}
+                actions={
+                    <div className="flex items-center gap-1.5">
+                        <DropdownMenuTrigger>
+                            <Button
+                                variant={selectedCount > 0 ? "default" : "outline"}
+                                size="sm"
+                                isDisabled={exportMutation.isPending || (data?.items?.length ?? 0) === 0}
+                                className="gap-1.5"
+                            >
+                                <Download className={cn("size-3.5", exportMutation.isPending && "animate-spin")} />
+                                <span>{selectedCount > 0 ? `Export Selected (${selectedCount})` : "Export"}</span>
+                                <ChevronDown className="size-3 text-muted-foreground ml-0.5" />
+                            </Button>
+                            <DropdownMenu>
+                                <DropdownMenuItem onAction={() => handleExport("json")}>
+                                    <FileCode className="size-3.5" />
+                                    <span>Export as JSON (.items.json)</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onAction={() => handleExport("csv")}>
+                                    <FileSpreadsheet className="size-3.5" />
+                                    <span>Export as CSV (.csv)</span>
+                                </DropdownMenuItem>
+                            </DropdownMenu>
+                        </DropdownMenuTrigger>
+
+                        {canCreate && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openDialog("import-content-items", {
+                                    projectId,
+                                    contentTypeKey: typeKey,
+                                    contentTypeName: contentType?.displayName || contentType?.name,
+                                    fieldsConfig: (contentType?.fieldsConfig as any) || [],
+                                })}
+                                className="gap-1.5"
+                            >
+                                <UploadCloud className="size-3.5" />
+                                <span>Import</span>
+                            </Button>
+                        )}
+                    </div>
+                }
                 onAdd={canCreate ? () => appNavigate({ to: "/projects/$projectId/contents/$typeKey/new", params: { projectId, typeKey } }) : undefined}
                 addLabel={contentType?.name ? `Add ${contentType.name}` : t("actions.create", { defaultValue: "Add Content Item" })}
                 resource={resourceQuery}
@@ -183,8 +261,8 @@ export function ContentItemPage({ useSearch, useNavigate }: ResourcePageProps) {
                                     icon={contentType?.icon ? (props) => <DynamicIcon name={contentType.icon} {...props} /> : undefined}
                                     action={actions.length > 0 ? <DataTableRowActions actions={actions} /> : undefined}
                                     onClick={() => appNavigate({
-                                        to: "/projects/$projectId/contents/$typeKey/$contentItemId/edit",
-                                        params: { projectId, typeKey, contentItemId: item.id }
+                                        to: "/projects/$projectId/contents/$typeKey/$itemKey/edit",
+                                        params: { projectId, typeKey, itemKey: item.key || item.id! }
                                     })}
                                 />
                             );

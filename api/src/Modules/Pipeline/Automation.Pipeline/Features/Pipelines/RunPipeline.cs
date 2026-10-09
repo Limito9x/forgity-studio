@@ -74,6 +74,20 @@ public class RunPipelineHandler(PipelineDbContext db, IMessageBus bus, IAssetApi
             return Result.Fail<PipelineExecutionDto>($"Pipeline '{command.PipelineId}' not found.");
         }
 
+        if (pipeline.DeletedAt != null)
+        {
+            return Result.Fail<PipelineExecutionDto>(
+                $"Pipeline '{pipeline.Name}' is archived and cannot be executed."
+            );
+        }
+
+        if (pipeline.TriggerType != PipelineTriggerType.Manual)
+        {
+            return Result.Fail<PipelineExecutionDto>(
+                $"Pipeline '{pipeline.Name}' is configured for trigger '{pipeline.TriggerType}' and cannot be executed manually."
+            );
+        }
+
         // 1. Validate required Start Inputs
         var requiredMissing = pipeline
             .Parameters.Where(p =>

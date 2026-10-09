@@ -61,7 +61,7 @@ public class GetContentItemsHandler(ContentDbContext db, ISchemaApi schemaApi, I
             }
             else
             {
-                var contentType = await db.ContentTypes.FirstOrDefaultAsync(c => c.Key == query.Key, ct);
+                var contentType = await db.ContentTypes.FirstOrDefaultAsync(c => c.ProjectId == query.ProjectId && c.Key == query.Key, ct);
                 if (contentType == null)
                 {
                     return Result.Fail(new NotFoundError($"ContentType with key {query.Key} not found"));

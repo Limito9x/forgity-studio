@@ -48,7 +48,20 @@ builder.AddModules(ModuleRegistry.All);
 
 builder.Services.AddJobServices(builder.Configuration);
 
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    var appName = builder.Configuration["AppConfig:Name"] ?? "Automation Studio";
+    var appDescription = builder.Configuration["AppConfig:Description"] ?? "Modular Monolith API";
+    var appVersion = builder.Configuration["AppConfig:Version"] ?? "v1";
+
+    options.AddDocumentTransformer((document, context, cancellationToken) =>
+    {
+        document.Info.Title = appName;
+        document.Info.Description = appDescription;
+        document.Info.Version = appVersion;
+        return Task.CompletedTask;
+    });
+});
 
 builder.Services.AddRedisCache(builder.Configuration);
 
@@ -105,11 +118,12 @@ app.MapPipelineGrpcServices();
 
 if (app.Environment.IsDevelopment())
 {
+    var appName = app.Configuration["AppConfig:Name"] ?? "Automation Studio";
     app.MapOpenApi();
     app.MapScalarApiReference(options =>
     {
         options
-            .WithTitle("Template API Reference")
+            .WithTitle($"{appName} API Reference")
             .WithTheme(ScalarTheme.DeepSpace)
             .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
     });

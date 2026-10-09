@@ -64,7 +64,7 @@ import { Route as ProtectedProjectProjectsProjectIdPipelineNodesIndexRouteImport
 import { Route as ProtectedProjectProjectsProjectIdPipelineNodesIngestRouteImport } from './routes/_protected/_project/projects/$projectId/pipeline/nodes/ingest'
 import { Route as ProtectedProjectProjectsProjectIdPipelineNodesNewRouteImport } from './routes/_protected/_project/projects/$projectId/pipeline/nodes/new'
 import { Route as ProtectedProjectProjectsProjectIdStructsStructIdBuilderRouteImport } from './routes/_protected/_project/projects/$projectId/structs/$structId/builder'
-import { Route as ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRouteImport } from './routes/_protected/_project/projects/$projectId/contents/$typeKey/$contentItemId/edit'
+import { Route as ProtectedProjectProjectsProjectIdContentsTypeKeyItemKeyEditRouteImport } from './routes/_protected/_project/projects/$projectId/contents/$typeKey/$itemKey/edit'
 
 const ProtectedRoute = ProtectedRouteImport.update({
   id: '/_protected',
@@ -382,11 +382,11 @@ const ProtectedProjectProjectsProjectIdStructsStructIdBuilderRoute =
     path: '/$structId/builder',
     getParentRoute: () => ProtectedProjectProjectsProjectIdStructsRoute,
   } as any)
-const ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRoute =
-  ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRouteImport.update(
+const ProtectedProjectProjectsProjectIdContentsTypeKeyItemKeyEditRoute =
+  ProtectedProjectProjectsProjectIdContentsTypeKeyItemKeyEditRouteImport.update(
     {
-      id: '/$contentItemId/edit',
-      path: '/$contentItemId/edit',
+      id: '/$itemKey/edit',
+      path: '/$itemKey/edit',
       getParentRoute: () =>
         ProtectedProjectProjectsProjectIdContentsTypeKeyRoute,
     } as any,
@@ -445,7 +445,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/content-types/$contentTypeId/': typeof ProtectedProjectProjectsProjectIdContentTypesContentTypeIdIndexRoute
   '/projects/$projectId/contents/$typeKey/': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyIndexRoute
   '/projects/$projectId/pipeline/nodes/': typeof ProtectedProjectProjectsProjectIdPipelineNodesIndexRoute
-  '/projects/$projectId/contents/$typeKey/$contentItemId/edit': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRoute
+  '/projects/$projectId/contents/$typeKey/$itemKey/edit': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyItemKeyEditRoute
 }
 export interface FileRoutesByTo {
   '/': typeof ProtectedLayoutIndexRoute
@@ -490,7 +490,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/content-types/$contentTypeId': typeof ProtectedProjectProjectsProjectIdContentTypesContentTypeIdIndexRoute
   '/projects/$projectId/contents/$typeKey': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyIndexRoute
   '/projects/$projectId/pipeline/nodes': typeof ProtectedProjectProjectsProjectIdPipelineNodesIndexRoute
-  '/projects/$projectId/contents/$typeKey/$contentItemId/edit': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRoute
+  '/projects/$projectId/contents/$typeKey/$itemKey/edit': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyItemKeyEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -549,7 +549,7 @@ export interface FileRoutesById {
   '/_protected/_project/projects/$projectId/content-types/$contentTypeId/': typeof ProtectedProjectProjectsProjectIdContentTypesContentTypeIdIndexRoute
   '/_protected/_project/projects/$projectId/contents/$typeKey/': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyIndexRoute
   '/_protected/_project/projects/$projectId/pipeline/nodes/': typeof ProtectedProjectProjectsProjectIdPipelineNodesIndexRoute
-  '/_protected/_project/projects/$projectId/contents/$typeKey/$contentItemId/edit': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRoute
+  '/_protected/_project/projects/$projectId/contents/$typeKey/$itemKey/edit': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyItemKeyEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -606,7 +606,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/content-types/$contentTypeId/'
     | '/projects/$projectId/contents/$typeKey/'
     | '/projects/$projectId/pipeline/nodes/'
-    | '/projects/$projectId/contents/$typeKey/$contentItemId/edit'
+    | '/projects/$projectId/contents/$typeKey/$itemKey/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -651,7 +651,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/content-types/$contentTypeId'
     | '/projects/$projectId/contents/$typeKey'
     | '/projects/$projectId/pipeline/nodes'
-    | '/projects/$projectId/contents/$typeKey/$contentItemId/edit'
+    | '/projects/$projectId/contents/$typeKey/$itemKey/edit'
   id:
     | '__root__'
     | '/_protected'
@@ -709,7 +709,7 @@ export interface FileRouteTypes {
     | '/_protected/_project/projects/$projectId/content-types/$contentTypeId/'
     | '/_protected/_project/projects/$projectId/contents/$typeKey/'
     | '/_protected/_project/projects/$projectId/pipeline/nodes/'
-    | '/_protected/_project/projects/$projectId/contents/$typeKey/$contentItemId/edit'
+    | '/_protected/_project/projects/$projectId/contents/$typeKey/$itemKey/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1104,11 +1104,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedProjectProjectsProjectIdStructsStructIdBuilderRouteImport
       parentRoute: typeof ProtectedProjectProjectsProjectIdStructsRoute
     }
-    '/_protected/_project/projects/$projectId/contents/$typeKey/$contentItemId/edit': {
-      id: '/_protected/_project/projects/$projectId/contents/$typeKey/$contentItemId/edit'
-      path: '/$contentItemId/edit'
-      fullPath: '/projects/$projectId/contents/$typeKey/$contentItemId/edit'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRouteImport
+    '/_protected/_project/projects/$projectId/contents/$typeKey/$itemKey/edit': {
+      id: '/_protected/_project/projects/$projectId/contents/$typeKey/$itemKey/edit'
+      path: '/$itemKey/edit'
+      fullPath: '/projects/$projectId/contents/$typeKey/$itemKey/edit'
+      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdContentsTypeKeyItemKeyEditRouteImport
       parentRoute: typeof ProtectedProjectProjectsProjectIdContentsTypeKeyRoute
     }
   }
@@ -1258,7 +1258,7 @@ const ProtectedProjectProjectsProjectIdContentTypesRouteWithChildren =
 interface ProtectedProjectProjectsProjectIdContentsTypeKeyRouteChildren {
   ProtectedProjectProjectsProjectIdContentsTypeKeyNewRoute: typeof ProtectedProjectProjectsProjectIdContentsTypeKeyNewRoute
   ProtectedProjectProjectsProjectIdContentsTypeKeyIndexRoute: typeof ProtectedProjectProjectsProjectIdContentsTypeKeyIndexRoute
-  ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRoute: typeof ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRoute
+  ProtectedProjectProjectsProjectIdContentsTypeKeyItemKeyEditRoute: typeof ProtectedProjectProjectsProjectIdContentsTypeKeyItemKeyEditRoute
 }
 
 const ProtectedProjectProjectsProjectIdContentsTypeKeyRouteChildren: ProtectedProjectProjectsProjectIdContentsTypeKeyRouteChildren =
@@ -1267,8 +1267,8 @@ const ProtectedProjectProjectsProjectIdContentsTypeKeyRouteChildren: ProtectedPr
       ProtectedProjectProjectsProjectIdContentsTypeKeyNewRoute,
     ProtectedProjectProjectsProjectIdContentsTypeKeyIndexRoute:
       ProtectedProjectProjectsProjectIdContentsTypeKeyIndexRoute,
-    ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRoute:
-      ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRoute,
+    ProtectedProjectProjectsProjectIdContentsTypeKeyItemKeyEditRoute:
+      ProtectedProjectProjectsProjectIdContentsTypeKeyItemKeyEditRoute,
   }
 
 const ProtectedProjectProjectsProjectIdContentsTypeKeyRouteWithChildren =

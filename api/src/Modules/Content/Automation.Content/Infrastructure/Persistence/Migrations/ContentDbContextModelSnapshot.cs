@@ -49,6 +49,11 @@ namespace Automation.Content.Infrastructure.Persistence.Migrations
                     b.Property<string>("DeletedBy")
                         .HasColumnType("text");
 
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -66,6 +71,9 @@ namespace Automation.Content.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ContentTypeId");
+
+                    b.HasIndex("ProjectId", "ContentTypeId", "Key")
+                        .IsUnique();
 
                     b.HasIndex("ProjectId", "ContentTypeId", "Name")
                         .IsUnique();

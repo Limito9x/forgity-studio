@@ -1,14 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { useAuthStore } from "@/stores/authStore";
 import { DataTableRowActions, type ActionItem } from "@/components/table/DataTableRowActions";
 import type { BaseSearchParams, useResourceQuery } from "@/lib/useResourceQuery";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import type { ContentItemDto } from "@/gen/model";
-import { EditIcon, TrashIcon, TypeIcon, ImageIcon, Layers } from "lucide-react";
+import { EditIcon, TrashIcon, TypeIcon, ImageIcon, Layers, KeyIcon } from "lucide-react";
 import { useDataTable } from "@/lib/useDataTable";
 import { useDialogStore } from "@/stores/dialogStore";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export interface UseContentItemTableOptions {
     data: ContentItemDto[];
@@ -24,11 +25,37 @@ export function useContentItemTable({ data, totalCount, resource, typeKey, proje
     const navigate = useNavigate();
     const openDialog = useDialogStore((state) => state.openDialog);
     const hasPermission = useAuthStore((state) => state.hasPermission);
-
+    const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
     const columns = useMemo<ColumnDef<ContentItemDto>[]>(() => {
-
         return [
+            {
+                id: "select",
+                header: ({ table }) => (
+                    <div className="flex items-center justify-center pl-1">
+                        <Checkbox
+                            slot="selection"
+                            isSelected={table.getIsAllPageRowsSelected()}
+                            isIndeterminate={table.getIsSomePageRowsSelected()}
+                            onChange={(checked) => table.toggleAllPageRowsSelected(checked)}
+                            aria-label="Select all content items"
+                        />
+                    </div>
+                ),
+                cell: ({ row }) => (
+                    <div className="flex items-center justify-center pl-1">
+                        <Checkbox
+                            slot="selection"
+                            isSelected={row.getIsSelected()}
+                            onChange={(checked) => row.toggleSelected(checked)}
+                            aria-label={`Select ${row.original.name}`}
+                        />
+                    </div>
+                ),
+                enableSorting: false,
+                enableHiding: false,
+                size: 38,
+            },
             {
                 accessorKey: "thumbnailUrl",
                 header: () => t("fields.thumbnail", { defaultValue: "Thumbnail" }),
@@ -58,6 +85,14 @@ export function useContentItemTable({ data, totalCount, resource, typeKey, proje
                 header: () => t("fields.name", { defaultValue: "Name" }),
                 enableSorting: false,
                 meta: { label: t("fields.name", { defaultValue: "Name" }), icon: TypeIcon },
+                cell: ({ row }) => <span className="font-semibold text-foreground">{row.original.name}</span>,
+            },
+            {
+                accessorKey: "key",
+                header: () => t("fields.key", { defaultValue: "Key" }),
+                enableSorting: false,
+                meta: { label: t("fields.key", { defaultValue: "Key" }), icon: KeyIcon },
+                cell: ({ row }) => <span className="font-mono text-xs text-muted-foreground">{row.original.key}</span>,
             },
             {
                 id: "actions",
@@ -79,8 +114,8 @@ export function useContentItemTable({ data, totalCount, resource, typeKey, proje
                             label: t("common:edit", { defaultValue: "Edit" }),
                             icon: EditIcon,
                             onClick: () => navigate({
-                                to: "/projects/$projectId/contents/$typeKey/$contentItemId/edit",
-                                params: { projectId, typeKey, contentItemId: item.id! },
+                                to: "/projects/$projectId/contents/$typeKey/$itemKey/edit",
+                                params: { projectId, typeKey, itemKey: item.key || item.id! },
                             }),
                         },
                         hasPermission("contentitems:delete") && {
@@ -98,7 +133,15 @@ export function useContentItemTable({ data, totalCount, resource, typeKey, proje
         ];
     }, [navigate, hasPermission, t, projectId, openDialog, onViewResources, typeKey]);
 
-    const table = useDataTable({ data, columns, totalCount, resource });
+    const table = useDataTable({
+        data,
+        columns,
+        totalCount,
+        resource,
+        rowSelection,
+        onRowSelectionChange: setRowSelection,
+        getRowId: (row) => row.id!,
+    });
 
-    return { table, columns };
+    return { table, columns, rowSelection, setRowSelection };
 }

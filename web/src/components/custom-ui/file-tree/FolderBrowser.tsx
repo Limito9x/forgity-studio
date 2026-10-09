@@ -406,12 +406,12 @@ export function FolderBrowser({
       </div>
 
       {/* Main 2-Panel Area: Left Sidebar (System & Pinned) + Right Explorer */}
-      <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] divide-y md:divide-y-0 md:divide-x divide-border/30 w-full">
+      <div
+        className="grid grid-cols-1 md:grid-cols-[200px_1fr] divide-y md:divide-y-0 md:divide-x divide-border/30 w-full overflow-hidden"
+        style={{ height: `${height}px`, maxHeight: `${height}px` }}
+      >
         {/* Left Sidebar (Blender-style System & Drives) */}
-        <div
-          className="bg-muted/15 p-2 flex flex-col gap-3 overflow-y-auto"
-          style={{ height: `${height}px` }}
-        >
+        <div className="bg-muted/15 p-2 flex flex-col gap-3 overflow-y-auto h-full min-h-0">
           {/* Section 1: System Places */}
           {systemPlaces.length > 0 && (
             <div className="space-y-1">
@@ -604,9 +604,9 @@ export function FolderBrowser({
         </div>
 
         {/* Right Content Explorer */}
-        <div className="flex flex-col min-w-0 w-full">
+        <div className="flex flex-col min-w-0 w-full h-full min-h-0 overflow-hidden">
           {/* Search Input Bar */}
-          <div className="px-2.5 py-1.5 border-b border-border/30 bg-background/50">
+          <div className="px-2.5 py-1.5 border-b border-border/30 bg-background/50 shrink-0">
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
               <Input
@@ -622,11 +622,8 @@ export function FolderBrowser({
             </div>
           </div>
 
-          {/* Directory Item List (Explorer View) */}
-          <div
-            className="relative overflow-y-auto p-1 divide-y divide-border/20 flex-1"
-            style={{ height: `${height - 37}px` }}
-          >
+          {/* Directory Item List (Explorer View - scroll only here) */}
+          <div className="relative overflow-y-auto p-1 divide-y divide-border/20 flex-1 min-h-0">
             {/* Error State */}
             {errorMessage && (
               <div className="flex flex-col items-center justify-center h-full gap-2 text-destructive p-4 text-center">
