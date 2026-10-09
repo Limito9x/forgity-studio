@@ -28,8 +28,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useAuthStore } from "@/stores/authStore";
 import { useLogout } from "@/gen/endpoints/auth/auth";
-import { useStudios } from "@/features/studios/hooks/useStudios";
-import { useStudioStore } from "@/stores/studioStore";
+import { useCurrentStudio, setCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 import { useDialogStore } from "@/stores/dialogStore";
 
 export function NavUser() {
@@ -39,11 +38,8 @@ export function NavUser() {
   const { clearToken, clearProfile } = useAuthStore();
   const logout = useLogout();
 
-  const { data: studios = [] } = useStudios();
-  const { activeStudioId, setActiveStudioId } = useStudioStore();
+  const { studio: currentStudio, studios } = useCurrentStudio();
   const openDialog = useDialogStore((s) => s.openDialog);
-
-  const currentStudio = studios.find((s) => s.id === activeStudioId) || studios[0];
 
   const handleLogout = async () => {
     try {
@@ -116,7 +112,12 @@ export function NavUser() {
                     key={studio.id}
                     id={studio.id}
                     textValue={studio.name}
-                    onAction={() => setActiveStudioId(studio.id)}
+                    onAction={() => {
+                      setCurrentStudio(studio);
+                      if (studio.slug) {
+                        navigate({ to: `/s/${studio.slug}/projects` as any });
+                      }
+                    }}
                     className="flex items-center gap-2.5 cursor-pointer py-1.5 px-2 rounded-lg"
                   >
                     <div className="flex aspect-square size-6 items-center justify-center rounded-md bg-primary/10 text-primary text-xs font-bold shrink-0">

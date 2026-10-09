@@ -3,7 +3,7 @@ import { Workflow, Sparkles, LogOut, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StudioForm } from "@/features/studios/components/StudioForm";
 import { useCreateStudio } from "@/features/studios/hooks/useStudios";
-import { useStudioStore } from "@/stores/studioStore";
+import { setCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 import { useAuthStore } from "@/stores/authStore";
 import { useLogout } from "@/gen/endpoints/auth/auth";
 import { toast } from "sonner";
@@ -15,7 +15,6 @@ export const Route = createFileRoute("/_protected/onboarding")({
 function OnboardingPage() {
   const navigate = useNavigate();
   const createStudio = useCreateStudio();
-  const setActiveStudioId = useStudioStore((s) => s.setActiveStudioId);
   const profile = useAuthStore((s) => s.profile);
   const { clearToken, clearProfile } = useAuthStore();
   const logout = useLogout();
@@ -44,8 +43,12 @@ function OnboardingPage() {
       {
         onSuccess: (data) => {
           toast.success(`Studio "${data.name}" created successfully!`);
-          setActiveStudioId(data.id);
-          navigate({ to: "/" });
+          setCurrentStudio(data);
+          if (data.slug) {
+            navigate({ to: `/s/${data.slug}/projects` as any });
+          } else {
+            navigate({ to: "/" });
+          }
         },
         onError: (err: any) => {
           toast.error(err?.response?.data?.detail || "Failed to create studio. Please try again.");

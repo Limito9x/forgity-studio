@@ -1,23 +1,19 @@
 import { FormPageShell } from "@/components/layout/shells/FormPageShell";
 import { ContentItemForm, type ContentItemFormValues } from "./components/ContentItemForm";
 import { useCreateContentItem } from "./hooks/useContentItems";
-import { useLoaderData, useNavigate, useParams } from "@tanstack/react-router";
+import { useLoaderData, useParams } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { ContentTypeDto } from "@/gen/model";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
 
 export function CreateContentItemPage() {
     const { t } = useTranslation("contentItems");
-    const navigate = useNavigate();
+    const { projectId, typeKey } = useParams({ strict: false }) as { projectId: string; typeKey: string };
+    const nav = useProjectNav({ projectId });
 
-    const parentData = useLoaderData({
-        from: "/_protected/_project/projects/$projectId/contents/$typeKey",
-    }) as { contentType: ContentTypeDto } | undefined;
+    const parentData = useLoaderData({ strict: false }) as { contentType?: ContentTypeDto } | undefined;
     const contentType = parentData?.contentType;
-
-    const { projectId, typeKey } = useParams({
-        from: "/_protected/_project/projects/$projectId/contents/$typeKey",
-    });
 
     const createContentItem = useCreateContentItem({ projectId, contentTypeKey: typeKey });
 
@@ -41,10 +37,7 @@ export function CreateContentItemPage() {
             {
                 onSuccess: () => {
                     toast.success(t("messages.createSuccess", { defaultValue: "Content Item created successfully" }));
-                    navigate({
-                        to: "/projects/$projectId/contents/$typeKey",
-                        params: { projectId, typeKey },
-                    });
+                    nav.toContents(typeKey);
                 },
                 onError: (error: any) => {
                     toast.error(error?.message || t("messages.createError", { defaultValue: "Failed to create content item" }));
@@ -65,12 +58,7 @@ export function CreateContentItemPage() {
             description={t("actions.createDescription", { defaultValue: `Fill in the details to create a new ${contentType.displayName || 'content item'}.` })}
             formId={formId}
             isPending={createContentItem.isPending}
-            onCancel={() =>
-                navigate({
-                    to: "/projects/$projectId/contents/$typeKey",
-                    params: { projectId, typeKey },
-                })
-            }
+            onCancel={() => nav.toContents(typeKey)}
         >
             <ContentItemForm
                 formId={formId}

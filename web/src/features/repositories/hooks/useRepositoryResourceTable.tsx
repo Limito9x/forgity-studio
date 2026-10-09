@@ -21,6 +21,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 
 export interface UseRepositoryResourceTableOptions {
   data: WorkspaceResourceDto[];
@@ -37,6 +38,7 @@ export function useRepositoryResourceTable({
   repositoryId,
   onOpenAssignPanel,
 }: UseRepositoryResourceTableOptions) {
+  const { studioSlug } = useCurrentStudio();
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
 
   const assignMutation = useAssignResourcesContent(repositoryId);
@@ -145,8 +147,8 @@ export function useRepositoryResourceTable({
               </div>
               <div className="min-w-0">
                 <Link
-                  to="/projects/$projectId/resources/$resourceId"
-                  params={{ projectId: projectId || "", resourceId: item.id }}
+                  to="/s/$studioSlug/projects/$projectId/resources/$resourceId"
+                  params={{ studioSlug, projectId: projectId || "", resourceId: item.id }}
                   search={{ workspaceId: repositoryId }}
                   className="font-semibold text-foreground hover:text-primary transition-colors text-sm truncate block group"
                 >
@@ -240,8 +242,8 @@ export function useRepositoryResourceTable({
 
           return (
             <Link
-              to="/projects/$projectId/resources/$resourceId"
-              params={{ projectId: projectId || "", resourceId: item.id }}
+              to="/s/$studioSlug/projects/$projectId/resources/$resourceId"
+              params={{ studioSlug, projectId: projectId || "", resourceId: item.id }}
               search={{ workspaceId: repositoryId }}
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-muted hover:bg-primary/15 hover:text-primary text-xs font-mono font-medium text-foreground transition-colors"
             >
@@ -260,8 +262,8 @@ export function useRepositoryResourceTable({
 
           return (
             <Link
-              to="/projects/$projectId/resources/$resourceId"
-              params={{ projectId: projectId || "", resourceId: item.id }}
+              to="/s/$studioSlug/projects/$projectId/resources/$resourceId"
+              params={{ studioSlug, projectId: projectId || "", resourceId: item.id }}
               search={{ workspaceId: repositoryId }}
               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground transition-all"
             >

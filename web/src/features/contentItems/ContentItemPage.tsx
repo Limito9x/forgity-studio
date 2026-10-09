@@ -9,7 +9,8 @@ import { useTranslation } from "react-i18next";
 import { DataTableViewOptions } from "@/components/table/DataTableViewOptions";
 import { useAuthStore } from "@/stores/authStore";
 import { useDialogStore } from "@/stores/dialogStore";
-import { useNavigate as useAppNavigate, useLoaderData, useParams } from "@tanstack/react-router";
+import { useLoaderData, useParams } from "@tanstack/react-router";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
 import { BaseCardGrid } from "@/components/custom-ui/data-display/card/BaseCardGrid";
 import { BaseCard } from "@/components/custom-ui/data-display/card/BaseCard";
 import { ContentDisplayModes } from "./constants/contentDisplayModes";
@@ -46,16 +47,12 @@ export function ContentItemPage({ useSearch, useNavigate }: ResourcePageProps) {
 
     const search = useSearch();
     const navigate = useNavigate();
-    const appNavigate = useAppNavigate();
 
-    const parentData = useLoaderData({
-        from: "/_protected/_project/projects/$projectId/contents/$typeKey",
-    }) as { contentType: ContentTypeDto } | undefined;
+    const { projectId, typeKey } = useParams({ strict: false }) as { projectId: string; typeKey: string };
+    const nav = useProjectNav({ projectId });
+
+    const parentData = useLoaderData({ strict: false }) as { contentType?: ContentTypeDto } | undefined;
     const contentType = parentData?.contentType;
-
-    const { projectId, typeKey } = useParams({
-        from: "/_protected/_project/projects/$projectId/contents/$typeKey",
-    });
 
     const [drawerContent, setDrawerContent] = useState<{ id: string; name: string } | null>(null);
 
@@ -141,10 +138,7 @@ export function ContentItemPage({ useSearch, useNavigate }: ResourcePageProps) {
             hasPermission("contentitems:update") && {
                 label: t("common:edit", { defaultValue: "Edit" }),
                 icon: EditIcon,
-                onClick: () => appNavigate({
-                    to: "/projects/$projectId/contents/$typeKey/$itemKey/edit",
-                    params: { projectId, typeKey, itemKey: item.key || item.id! },
-                }),
+                onClick: () => nav.toContentItemEdit(typeKey, item.key || item.id!),
             },
             hasPermission("contentitems:delete") && {
                 label: t("common:delete", { defaultValue: "Delete" }),
@@ -205,7 +199,7 @@ export function ContentItemPage({ useSearch, useNavigate }: ResourcePageProps) {
                         )}
                     </div>
                 }
-                onAdd={canCreate ? () => appNavigate({ to: "/projects/$projectId/contents/$typeKey/new", params: { projectId, typeKey } }) : undefined}
+                onAdd={canCreate ? () => nav.toContentItemNew(typeKey) : undefined}
                 addLabel={contentType?.name ? `Add ${contentType.name}` : t("actions.create", { defaultValue: "Add Content Item" })}
                 resource={resourceQuery}
                 filterConfig={contentItemFilterConfig}
@@ -260,10 +254,7 @@ export function ContentItemPage({ useSearch, useNavigate }: ResourcePageProps) {
                                     thumbnailUrl={thumbnailUrl}
                                     icon={contentType?.icon ? (props) => <DynamicIcon name={contentType.icon} {...props} /> : undefined}
                                     action={actions.length > 0 ? <DataTableRowActions actions={actions} /> : undefined}
-                                    onClick={() => appNavigate({
-                                        to: "/projects/$projectId/contents/$typeKey/$itemKey/edit",
-                                        params: { projectId, typeKey, itemKey: item.key || item.id! }
-                                    })}
+                                    onClick={() => nav.toContentItemEdit(typeKey, item.key || item.id!)}
                                 />
                             );
                         }}

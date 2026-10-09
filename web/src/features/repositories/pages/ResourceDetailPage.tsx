@@ -47,12 +47,15 @@ function formatBytes(bytes?: number, decimals = 2): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
+import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
+
 export function ResourceDetailPage({
   projectId,
   workspaceId,
   resourceId,
 }: ResourceDetailPageProps) {
   const navigate = useNavigate();
+  const { studioSlug } = useCurrentStudio();
   const { data: resource, isLoading, isError, refetch } = useResourceDetail(resourceId);
 
   const [activeTab, setActiveTab] = useState<"metadata" | "versions">("metadata");
@@ -79,13 +82,13 @@ export function ResourceDetailPage({
             onClick={() => {
               if (workspaceId) {
                 navigate({
-                  to: "/projects/$projectId/repositories/$repositoryId",
-                  params: { projectId, repositoryId: workspaceId },
+                  to: "/s/$studioSlug/projects/$projectId/repositories/$repositoryId",
+                  params: { studioSlug, projectId, repositoryId: workspaceId },
                 });
               } else {
                 navigate({
-                  to: "/projects/$projectId/repositories",
-                  params: { projectId },
+                  to: "/s/$studioSlug/projects/$projectId/repositories",
+                  params: { studioSlug, projectId },
                 });
               }
             }}
@@ -165,8 +168,8 @@ export function ResourceDetailPage({
               size="sm"
               onClick={() =>
                 navigate({
-                  to: "/projects/$projectId/repositories/$repositoryId",
-                  params: { projectId, repositoryId: workspaceId },
+                  to: "/s/$studioSlug/projects/$projectId/repositories/$repositoryId",
+                  params: { studioSlug, projectId, repositoryId: workspaceId },
                 })
               }
               className="gap-1.5 cursor-pointer text-xs h-8"
@@ -194,8 +197,8 @@ export function ResourceDetailPage({
             size="sm"
             onClick={() =>
               navigate({
-                to: "/projects/$projectId/repositories",
-                params: { projectId },
+                to: "/s/$studioSlug/projects/$projectId/repositories",
+                params: { studioSlug, projectId },
               })
             }
             className="mt-4 text-xs cursor-pointer"

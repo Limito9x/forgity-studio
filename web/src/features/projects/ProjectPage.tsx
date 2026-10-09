@@ -10,8 +10,7 @@ import { useTranslation } from "react-i18next";
 import { DataTableViewOptions } from "@/components/table/DataTableViewOptions";
 import { useDialogStore } from "@/stores/dialogStore";
 import { useAuthStore } from "@/stores/authStore";
-import { useStudioStore } from "@/stores/studioStore";
-import { useStudios } from "@/features/studios/hooks/useStudios";
+import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 import { BaseCardGrid } from "@/components/custom-ui/data-display/card/BaseCardGrid";
 import { Button } from "@/components/ui/button";
 import { LayoutGrid, List } from "lucide-react";
@@ -20,9 +19,7 @@ export function ProjectPage({ useSearch, useNavigate }: ResourcePageProps) {
     const openDialog = useDialogStore((state) => state.openDialog);
     const { t } = useTranslation("projects");
     const hasPermission = useAuthStore((state) => state.hasPermission);
-    const activeStudioId = useStudioStore((state) => state.activeStudioId);
-    const { data: studios = [] } = useStudios();
-    const currentStudio = studios.find((s) => s.id === activeStudioId);
+    const { studio: currentStudio, studioId: activeStudioId } = useCurrentStudio();
 
     const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 

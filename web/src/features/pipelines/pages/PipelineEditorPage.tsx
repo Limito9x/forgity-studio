@@ -6,6 +6,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 
+import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
+
 interface PipelineEditorPageProps {
   projectId: string;
   pipelineId: string;
@@ -13,6 +15,7 @@ interface PipelineEditorPageProps {
 
 export function PipelineEditorPage({ projectId, pipelineId }: PipelineEditorPageProps) {
   const { data: graph, isLoading, error } = usePipelineGraph(pipelineId);
+  const { studioSlug } = useCurrentStudio();
 
   if (isLoading) {
     return (
@@ -34,8 +37,8 @@ export function PipelineEditorPage({ projectId, pipelineId }: PipelineEditorPage
           {(error as any)?.message || "The requested pipeline could not be found or failed to load."}
         </p>
         <Link
-          to="/projects/$projectId/pipeline"
-          params={{ projectId }}
+          to="/s/$studioSlug/projects/$projectId/pipeline"
+          params={{ studioSlug, projectId }}
           className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-4 gap-1.5 text-xs")}
         >
           <ArrowLeft className="h-3.5 w-3.5" />

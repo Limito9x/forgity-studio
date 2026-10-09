@@ -1,5 +1,4 @@
 import { useState, useMemo, useCallback, useDeferredValue } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { useNodePalette, usePipelineNodeMutations } from "../hooks/usePipelines";
 import { useNodeLibraryTable } from "../hooks/useNodeLibraryTable";
 import { NodeLibraryTable } from "./NodeLibraryTable";
@@ -29,13 +28,14 @@ import { toast } from "sonner";
 import type { NodePaletteItemDto } from "@/gen/model";
 import { cn } from "@/lib/utils";
 import { ScriptGuidelinesDialog } from "../dialogs/ScriptGuidelinesDialog";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
 
 interface NodeLibraryProps {
   projectId: string;
 }
 
 export function NodeLibrary({ projectId }: NodeLibraryProps) {
-  const navigate = useNavigate();
+  const nav = useProjectNav({ projectId });
   const { data: nodes = [], isLoading } = useNodePalette(projectId);
   const { deleteNode, isDeletingNode } = usePipelineNodeMutations(projectId);
 
@@ -106,13 +106,9 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
   const handleEdit = useCallback(
     (node: NodePaletteItemDto) => {
       if (!node.id) return;
-      navigate({
-        to: "/projects/$projectId/pipeline/nodes/new",
-        params: { projectId },
-        search: { editNodeId: node.id } as any,
-      });
+      nav.toNodeNew(node.id);
     },
-    [navigate, projectId]
+    [nav]
   );
 
   const handleInspect = useCallback((node: NodePaletteItemDto) => {
@@ -174,12 +170,7 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
           <Button
             size="sm"
             className="h-8 gap-1.5 text-xs shadow-xs"
-            onPress={() =>
-              navigate({
-                to: "/projects/$projectId/pipeline/nodes/ingest",
-                params: { projectId },
-              })
-            }
+            onPress={() => nav.toNodeIngest()}
           >
             <UploadCloud className="size-3.5" />
             Upload Scripts
@@ -449,10 +440,7 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
         onClose={() => setGuidelinesOpen(false)}
         onOpenBatchUpload={() => {
           setGuidelinesOpen(false);
-          navigate({
-            to: "/projects/$projectId/pipeline/nodes/ingest",
-            params: { projectId },
-          });
+          nav.toNodeIngest();
         }}
       />
     </div>

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { BaseDialog } from "@/components/custom-ui/overlays/dialog/BaseDialog";
 import type { DialogProps } from "@/lib/dialog-registry";
 import { useGenerateSetupToken } from "../hooks/useRunners";
-import { useStudioStore } from "@/stores/studioStore";
+import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { appConfig } from "@/config/appConfig";
@@ -23,7 +23,7 @@ export function ConnectRunnerDialog({
   const [copiedToken, setCopiedToken] = useState(false);
   const [copiedCommand, setCopiedCommand] = useState(false);
 
-  const activeStudioId = useStudioStore((s) => s.activeStudioId);
+  const { studioId: activeStudioId } = useCurrentStudio();
   const generateTokenMutation = useGenerateSetupToken();
 
   const handleGenerate = () => {

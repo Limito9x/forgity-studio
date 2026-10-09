@@ -1,7 +1,6 @@
 import { useGetContentType, useUpdateContentTypeSchema } from "./hooks/useContentTypes";
 import { useTranslation } from "react-i18next";
 import { useEffect } from "react";
-import { useNavigate, Link } from "@tanstack/react-router";
 import { Form, useForm, zodResolver } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -10,6 +9,7 @@ import { FormBuilder } from "./components/FormBuilder";
 import { Loader2 } from "lucide-react";
 import { fieldDefinitionSchema } from "./schemas/createContentTypeSchema";
 import { useGetProjectStructs } from "@/features/structs/hooks/useStructs";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
 
 const schemaConfigSchema = z.object({
     fieldsConfig: z.array(fieldDefinitionSchema).default([]),
@@ -19,7 +19,7 @@ type SchemaConfigInput = z.input<typeof schemaConfigSchema>;
 
 export function ContentTypeSchemaBuilderPage({ projectId, contentTypeId }: { projectId: string, contentTypeId: string }) {
     const { t } = useTranslation("contentTypes");
-    const navigate = useNavigate();
+    const nav = useProjectNav({ projectId });
 
     const { data: contentType, isLoading } = useGetContentType(projectId, contentTypeId);
     const { data: structs } = useGetProjectStructs(projectId);
@@ -45,7 +45,7 @@ export function ContentTypeSchemaBuilderPage({ projectId, contentTypeId }: { pro
             {
                 onSuccess: () => {
                     toast.success(t("messages.schemaUpdateSuccess", { defaultValue: "Schema updated successfully" }));
-                    navigate({ to: "/projects/$projectId/content-types", params: { projectId } });
+                    nav.toContentTypes();
                 },
                 onError: (error: any) => {
                     toast.error(error?.message || "Failed to update schema");
@@ -70,9 +70,13 @@ export function ContentTypeSchemaBuilderPage({ projectId, contentTypeId }: { pro
         <div className="flex flex-col h-full gap-2">
             <div className="flex flex-col gap-1 px-4 md:px-6 lg:px-8 pt-4 pb-1">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Link to={'/projects/$projectId/content-types'} params={{ projectId }} className="hover:underline">
+                    <button
+                        type="button"
+                        onClick={() => nav.toContentTypes()}
+                        className="hover:underline cursor-pointer bg-transparent border-0 p-0 text-muted-foreground"
+                    >
                         &larr; {t("common:back", { defaultValue: "Back to Content Types" })}
-                    </Link>
+                    </button>
                 </div>
                 <h1 className="text-2xl font-bold tracking-tight">
                     {t("page.schemaBuilderTitle", { defaultValue: `Schema Builder: ${contentType.displayName || contentType.name}` })}
@@ -87,7 +91,7 @@ export function ContentTypeSchemaBuilderPage({ projectId, contentTypeId }: { pro
                     <FormBuilder builderContext={{ projectId, structs }} />
 
                     <div className="flex justify-end mt-4 mb-6">
-                        <Button type="button" variant="outline" className="mr-2" onClick={() => navigate({ to: "/projects/$projectId/content-types", params: { projectId } })}>
+                        <Button type="button" variant="outline" className="mr-2" onClick={() => nav.toContentTypes()}>
                             {t("common:cancel", { defaultValue: "Cancel" })}
                         </Button>
                         <Button type="submit" isDisabled={isPending}>

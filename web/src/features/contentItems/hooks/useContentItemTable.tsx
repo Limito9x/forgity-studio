@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "@tanstack/react-router";
 import { useAuthStore } from "@/stores/authStore";
 import { DataTableRowActions, type ActionItem } from "@/components/table/DataTableRowActions";
 import type { BaseSearchParams, useResourceQuery } from "@/lib/useResourceQuery";
@@ -10,6 +9,7 @@ import { EditIcon, TrashIcon, TypeIcon, ImageIcon, Layers, KeyIcon } from "lucid
 import { useDataTable } from "@/lib/useDataTable";
 import { useDialogStore } from "@/stores/dialogStore";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
 
 export interface UseContentItemTableOptions {
     data: ContentItemDto[];
@@ -22,7 +22,7 @@ export interface UseContentItemTableOptions {
 
 export function useContentItemTable({ data, totalCount, resource, typeKey, projectId, onViewResources }: UseContentItemTableOptions) {
     const { t } = useTranslation(["contentItems", "common"]);
-    const navigate = useNavigate();
+    const nav = useProjectNav({ projectId });
     const openDialog = useDialogStore((state) => state.openDialog);
     const hasPermission = useAuthStore((state) => state.hasPermission);
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
@@ -113,10 +113,7 @@ export function useContentItemTable({ data, totalCount, resource, typeKey, proje
                         hasPermission("contentitems:update") && {
                             label: t("common:edit", { defaultValue: "Edit" }),
                             icon: EditIcon,
-                            onClick: () => navigate({
-                                to: "/projects/$projectId/contents/$typeKey/$itemKey/edit",
-                                params: { projectId, typeKey, itemKey: item.key || item.id! },
-                            }),
+                            onClick: () => nav.toContentItemEdit(typeKey, item.key || item.id!),
                         },
                         hasPermission("contentitems:delete") && {
                             label: t("common:delete", { defaultValue: "Delete" }),
@@ -131,7 +128,7 @@ export function useContentItemTable({ data, totalCount, resource, typeKey, proje
                 },
             },
         ];
-    }, [navigate, hasPermission, t, projectId, openDialog, onViewResources, typeKey]);
+    }, [nav, hasPermission, t, projectId, openDialog, onViewResources, typeKey]);
 
     const table = useDataTable({
         data,

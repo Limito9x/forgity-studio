@@ -16,6 +16,8 @@ const schemaConfigSchema = z.object({
 
 type SchemaConfigInput = z.input<typeof schemaConfigSchema>;
 
+import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
+
 interface StructSchemaBuilderPageProps {
     projectId: string;
     structId: string;
@@ -23,6 +25,7 @@ interface StructSchemaBuilderPageProps {
 
 export function StructSchemaBuilderPage({ projectId, structId }: StructSchemaBuilderPageProps) {
     const { t } = useTranslation("structs");
+    const { studioSlug } = useCurrentStudio();
     const navigate = useNavigate();
 
     const { data: structDetail, isLoading } = useGetStructById(projectId, structId);
@@ -60,7 +63,7 @@ export function StructSchemaBuilderPage({ projectId, structId }: StructSchemaBui
             {
                 onSuccess: () => {
                     toast.success(t("messages.schemaUpdateSuccess", { defaultValue: "Struct schema updated successfully" }));
-                    navigate({ to: "/projects/$projectId/structs", params: { projectId } });
+                    navigate({ to: "/s/$studioSlug/projects/$projectId/structs", params: { studioSlug, projectId } });
                 },
                 onError: (error: any) => {
                     const message = error?.message || error?.response?.data?.message || "Failed to update struct schema";
@@ -92,7 +95,11 @@ export function StructSchemaBuilderPage({ projectId, structId }: StructSchemaBui
         <div className="flex flex-col h-full gap-2">
             <div className="flex flex-col gap-1 px-4 md:px-6 lg:px-8 pt-4 pb-1">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Link to="/projects/$projectId/structs" params={{ projectId }} className="hover:underline flex items-center gap-1">
+                    <Link
+                        to="/s/$studioSlug/projects/$projectId/structs"
+                        params={{ studioSlug, projectId }}
+                        className="hover:underline flex items-center gap-1"
+                    >
                         &larr; {t("common:back", { defaultValue: "Back to Structs" })}
                     </Link>
                 </div>
@@ -124,7 +131,7 @@ export function StructSchemaBuilderPage({ projectId, structId }: StructSchemaBui
                             type="button"
                             variant="outline"
                             className="mr-2"
-                            onPress={() => navigate({ to: "/projects/$projectId/structs", params: { projectId } })}
+                            onPress={() => navigate({ to: "/s/$studioSlug/projects/$projectId/structs", params: { studioSlug, projectId } })}
                         >
                             {t("common:cancel", { defaultValue: "Cancel" })}
                         </Button>

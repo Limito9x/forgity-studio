@@ -29,6 +29,8 @@ import { RepositoryResourcesTab } from "../components/RepositoryResourcesTab";
 import { TagTool } from "@/features/tags/components/TagTool";
 import { cn } from "@/lib/utils";
 
+import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
+
 type RepositoryTab = "resources" | "sync" | "runners";
 
 interface RepositoryDetailPageProps {
@@ -41,6 +43,7 @@ export function RepositoryDetailPage(props: RepositoryDetailPageProps = {}) {
     strict: false,
   }) as { projectId?: string; repositoryId?: string };
 
+  const { studioSlug } = useCurrentStudio();
   const projectId = props.projectId || routeParams.projectId || "";
   const repositoryId = props.repositoryId || routeParams.repositoryId || "";
 
@@ -85,7 +88,7 @@ export function RepositoryDetailPage(props: RepositoryDetailPageProps = {}) {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => navigate({ to: "/projects/$projectId/repositories", params: { projectId } })}
+          onClick={() => navigate({ to: "/s/$studioSlug/projects/$projectId/repositories", params: { studioSlug, projectId } })}
           className="gap-2 cursor-pointer text-xs"
         >
           <ArrowLeft className="size-4" /> Back to Repositories
@@ -134,7 +137,7 @@ export function RepositoryDetailPage(props: RepositoryDetailPageProps = {}) {
             variant="outline"
             size="icon"
             className="size-9 rounded-xl cursor-pointer shrink-0"
-            onClick={() => navigate({ to: "/projects/$projectId/repositories", params: { projectId } })}
+            onClick={() => navigate({ to: "/s/$studioSlug/projects/$projectId/repositories", params: { studioSlug, projectId } })}
             aria-label="Back to repositories"
           >
             <ArrowLeft className="size-4" />

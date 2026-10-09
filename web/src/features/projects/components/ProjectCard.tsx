@@ -18,8 +18,8 @@ export function ProjectCard({ project, studioSlug }: ProjectCardProps) {
     const openDialog = useDialogStore((state) => state.openDialog);
     const hasPermission = useAuthStore((state) => state.hasPermission);
 
-    const projectTarget = studioSlug && project.slug
-        ? `/s/${studioSlug}/projects/${project.slug}/pipeline`
+    const projectTarget = studioSlug
+        ? `/s/${studioSlug}/projects/${project.slug || project.id}/pipeline`
         : `/projects/${project.id}/pipeline`;
 
     const handleCardClick = () => {

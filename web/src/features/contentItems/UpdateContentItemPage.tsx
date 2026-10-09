@@ -4,28 +4,28 @@ import { ContentItemForm, type ContentItemFormValues } from "./components/Conten
 import { ContentResourcesTab } from "./components/ContentResourcesTab";
 import { useGetContentItem, useUpdateContentItem } from "./hooks/useContentItems";
 import { useGetResourcesByContent } from "@/gen/endpoints/resources/resources";
-import { useLoaderData, useNavigate, useParams } from "@tanstack/react-router";
+import { useLoaderData, useParams } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { ContentTypeDto } from "@/gen/model";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Layers, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
 
 export function UpdateContentItemPage() {
     const { t } = useTranslation("contentItems");
-    const navigate = useNavigate();
+    const { projectId, typeKey, itemKey } = useParams({ strict: false }) as {
+        projectId: string;
+        typeKey: string;
+        itemKey: string;
+    };
+    const nav = useProjectNav({ projectId });
 
     const [activeTab, setActiveTab] = useState<"details" | "resources">("details");
 
-    const parentData = useLoaderData({
-        from: "/_protected/_project/projects/$projectId/contents/$typeKey",
-    }) as { contentType: ContentTypeDto } | undefined;
+    const parentData = useLoaderData({ strict: false }) as { contentType?: ContentTypeDto } | undefined;
     const contentType = parentData?.contentType;
-
-    const { projectId, typeKey, itemKey } = useParams({
-        from: "/_protected/_project/projects/$projectId/contents/$typeKey/$itemKey/edit",
-    });
 
     const { data: itemData, isLoading, error } = useGetContentItem(projectId, typeKey, itemKey);
     const { data: linkedResources } = useGetResourcesByContent(itemData?.id ?? "", {
@@ -71,16 +71,9 @@ export function UpdateContentItemPage() {
                     toast.success(t("messages.updateSuccess", { defaultValue: "Content Item updated successfully" }));
                     const finalKey = key || updatedItem?.key || itemKey;
                     if (finalKey !== itemKey) {
-                        navigate({
-                            to: "/projects/$projectId/contents/$typeKey/$itemKey/edit",
-                            params: { projectId, typeKey, itemKey: finalKey },
-                            replace: true,
-                        });
+                        nav.toContentItemEdit(typeKey, finalKey);
                     } else {
-                        navigate({
-                            to: "/projects/$projectId/contents/$typeKey",
-                            params: { projectId, typeKey },
-                        });
+                        nav.toContents(typeKey);
                     }
                 },
                 onError: (error: any) => {
@@ -92,10 +85,7 @@ export function UpdateContentItemPage() {
 
     const handleCancel = () => {
         if (projectId && typeKey) {
-            navigate({
-                to: "/projects/$projectId/contents/$typeKey",
-                params: { projectId, typeKey },
-            });
+            nav.toContents(typeKey);
         }
     };
 

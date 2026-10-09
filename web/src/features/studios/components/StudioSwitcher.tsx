@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import {
   ChevronsUpDown,
   Plus,
@@ -20,8 +19,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { useStudios } from "../hooks/useStudios";
-import { useStudioStore } from "@/stores/studioStore";
+import { useCurrentStudio, setCurrentStudio } from "../hooks/useCurrentStudio";
 import { useDialogStore } from "@/stores/dialogStore";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -30,26 +28,16 @@ export function StudioSwitcher() {
   const { isMobile } = useSidebar();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data: studios = [], isLoading } = useStudios();
-  const { activeStudioId, setActiveStudioId } = useStudioStore();
+  const { studio: currentStudio, studios, isLoading } = useCurrentStudio();
   const openDialog = useDialogStore((s) => s.openDialog);
 
-  const handleSelectStudio = (studioId: string) => {
-    setActiveStudioId(studioId);
+  const handleSelectStudio = (studio: typeof studios[0]) => {
+    setCurrentStudio(studio);
     queryClient.invalidateQueries();
-  };
-
-  // Auto-select first studio if none is active or active is invalid
-  useEffect(() => {
-    if (studios.length > 0) {
-      const exists = studios.some((s) => s.id === activeStudioId);
-      if (!activeStudioId || !exists) {
-        setActiveStudioId(studios[0].id);
-      }
+    if (studio.slug) {
+      navigate({ to: `/s/${studio.slug}/projects` as any });
     }
-  }, [studios, activeStudioId, setActiveStudioId]);
-
-  const currentStudio = studios.find((s) => s.id === activeStudioId) || studios[0];
+  };
 
   return (
     <SidebarMenu>
@@ -88,7 +76,7 @@ export function StudioSwitcher() {
                 return (
                   <DropdownMenuItem
                     key={studio.id}
-                    onAction={() => handleSelectStudio(studio.id)}
+                    onAction={() => handleSelectStudio(studio)}
                     className="flex items-center gap-2 cursor-pointer py-2"
                   >
                     <div className="flex aspect-square size-6 items-center justify-center rounded bg-muted text-xs font-semibold shrink-0">

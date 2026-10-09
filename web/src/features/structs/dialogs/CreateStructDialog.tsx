@@ -8,8 +8,11 @@ import { createStructSchema, type CreateStructInput } from "../schemas/createStr
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
+import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
+
 export function CreateStructDialog({ open, onOpenChange, data }: DialogProps<{ projectId: string }>) {
     const { t } = useTranslation("structs");
+    const { studioSlug } = useCurrentStudio();
     const projectId = data?.projectId ?? "";
     const navigate = useNavigate();
     const createStruct = useCreateStruct({ projectId });
@@ -33,8 +36,8 @@ export function CreateStructDialog({ open, onOpenChange, data }: DialogProps<{ p
                     form.reset();
                     // Navigate directly to the schema builder for the new struct
                     navigate({
-                        to: "/projects/$projectId/structs/$structId/builder",
-                        params: { projectId, structId: createdStruct.id || "" }
+                        to: "/s/$studioSlug/projects/$projectId/structs/$structId/builder",
+                        params: { studioSlug, projectId, structId: createdStruct.id || "" }
                     });
                 },
                 onError: (error: any) => {
