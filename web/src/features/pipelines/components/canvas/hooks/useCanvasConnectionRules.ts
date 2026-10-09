@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { addEdge, MarkerType } from "@xyflow/react";
 import type { Connection, Edge, Node } from "@xyflow/react";
 import { toast } from "sonner";
-import { isExecHandle, isExecEdge } from "./canvasUtils";
+import { isExecHandle } from "./canvasUtils";
 import { isExecPin } from "../nodes/types";
 import { getStructPins } from "../constants/structPins";
 
@@ -13,6 +13,27 @@ interface UseCanvasConnectionRulesArgs {
   setEdges: Dispatch<SetStateAction<Edge[]>>;
   setNodes: Dispatch<SetStateAction<Node[]>>;
   setIsDirty: (dirty: boolean) => void;
+}
+
+function isNodeHandleExec(
+  node: Node | undefined,
+  handleId: string | null | undefined,
+  isInput: boolean
+): boolean {
+  if (!handleId) return false;
+  if (isExecHandle(handleId)) return true;
+  if (!node) return false;
+
+  const pins: any[] = isInput
+    ? (node.data as any)?.inputs || []
+    : (node.data as any)?.outputs || [];
+
+  const matchedPin = pins.find((p) => p?.id === handleId);
+  if (matchedPin) {
+    return isExecPin(matchedPin);
+  }
+
+  return false;
 }
 
 export function useCanvasConnectionRules({
@@ -51,8 +72,8 @@ export function useCanvasConnectionRules({
       }
 
       // 3. Exec Flow between nodes (can cross scopes freely)
-      const isSourceExec = isExecHandle(connection.sourceHandle);
-      const isTargetExec = isExecHandle(connection.targetHandle);
+      const isSourceExec = isNodeHandleExec(sourceNode, connection.sourceHandle, false);
+      const isTargetExec = isNodeHandleExec(targetNode, connection.targetHandle, true);
       if (isSourceExec || isTargetExec) {
         if (!isSourceExec || !isTargetExec) return false;
         return true;
@@ -85,7 +106,9 @@ export function useCanvasConnectionRules({
       const targetNode = nodes.find((n) => n.id === params.target);
       const isRunnerEdge = targetNode?.type === "scopeContainer" && params.targetHandle === "runner";
       const isStageEdge = sourceNode?.type === "scopeContainer" && targetNode?.type === "scopeContainer";
-      const isExec = !isRunnerEdge && (isStageEdge || isExecEdge(params.sourceHandle, params.targetHandle));
+      const isSourceExec = isNodeHandleExec(sourceNode, params.sourceHandle, false);
+      const isTargetExec = isNodeHandleExec(targetNode, params.targetHandle, true);
+      const isExec = !isRunnerEdge && (isStageEdge || (isSourceExec && isTargetExec));
 
       const newEdgeId = crypto.randomUUID();
       setEdges((eds) => {

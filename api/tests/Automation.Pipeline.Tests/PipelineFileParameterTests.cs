@@ -104,7 +104,7 @@ public sealed class PipelineFileParameterTests : IDisposable
             .Do(call => _deleted.Add(call.Arg<EntityDeletedMessage>()));
     }
 
-    private SavePipelineGraphHandler Saver() => new(_db, _builder, _assets, _bus, NullLogger<SavePipelineGraphHandler>.Instance);
+    private SavePipelineGraphHandler Saver() => new(_db, _builder, _assets, NullLogger<SavePipelineGraphHandler>.Instance);
     private SavePipelineNodeItem Item(Guid id, object? config) =>
         new(id, "file-node", PipelineNodeKind.Tool, 0, 0,
             config == null ? [] : JsonSerializer.Deserialize<Dictionary<string, object?>>(JsonSerializer.Serialize(config)));

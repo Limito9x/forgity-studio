@@ -113,3 +113,5 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 - [pipeline-file-draft-sync](file:///d:/FullStack/Automation/.agents/plans/2026-10-08-pipeline-file-draft-sync.md): Kế hoạch đồng bộ file parameter trong cấu hình node của Pipeline Canvas.
 - [pipeline-export-import-bundle](file:///d:/FullStack/Automation/.agents/plans/2026-10-08-pipeline-export-import-bundle.md): Kế hoạch xuất nhập Pipeline dạng Unified Package Bundle hỗ trợ Batch, giải quyết phụ thuộc đệ quy SubPipeline, Content Types & Custom Scripts.
 - [pipeline-soft-delete-archive](file:///d:/FullStack/Automation/.agents/plans/2026-10-08-pipeline-soft-delete-archive.md): Kế hoạch Soft Delete (Archive), Partial Unique Index chống trùng tên trong đống Active, và bảo vệ toàn vẹn Node, Edge và Execution history.
+- [fix-pipeline-import-export-and-exec-edges](file:///d:/FullStack/Automation/.agents/plans/2026-10-09-fix-pipeline-import-export-and-exec-edges.md): Kế hoạch hoàn thiện Import/Export Custom Node Library (Asset storage link & Key remapping) và khắc phục triệt để lỗi không nối được dây Exec trên Canvas.
+

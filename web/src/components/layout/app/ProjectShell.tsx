@@ -21,7 +21,6 @@ import { useCreateTagLink } from "@/features/tags/hooks/useTags";
 import { DraggableTagCard } from "@/features/tags/components/DraggableTagCard";
 import { useProjectToolbarStore } from "@/stores/projectToolbarStore";
 import type { DraggableTagPayload, TagDropZonePayload } from "@/features/tags/types";
-import { TagTool } from "@/features/tags/components/TagTool";
 import { toast } from "sonner";
 
 import type { Modifier } from "@dnd-kit/core";
@@ -142,7 +141,6 @@ export function ProjectShell({ children }: { children: React.ReactNode }) {
                     <div className="flex-1 bg-muted/20 min-w-0 overflow-auto relative">
                         {children}
                         <ProjectToolbar />
-                        {projectId ? <TagTool projectId={projectId} /> : null}
                     </div>
 
                     {/* Smooth Drag Overlay floating over all containers snapped directly to cursor */}

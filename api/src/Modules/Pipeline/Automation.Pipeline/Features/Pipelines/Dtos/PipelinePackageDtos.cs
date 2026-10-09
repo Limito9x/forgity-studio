@@ -54,7 +54,8 @@ public record PipelinePackageNodeDto(
     string? RefPipelineBundleId = null,
     string? ParentTempId = null,
     NodeSize? Size = null,
-    Dictionary<string, object?>? Metadata = null
+    Dictionary<string, object?>? Metadata = null,
+    string? CustomScriptKey = null
 );
 
 public record PipelinePackageEdgeDto(

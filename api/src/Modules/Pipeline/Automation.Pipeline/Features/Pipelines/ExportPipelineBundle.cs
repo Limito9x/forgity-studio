@@ -205,6 +205,7 @@ public class ExportPipelinesHandler(
         // 4. Collect and Deduplicate Custom Scripts
         var customScriptsMap = new Dictionary<string, PipelinePackageScriptDto>(StringComparer.OrdinalIgnoreCase);
         var customNodeDefIds = new HashSet<Guid>();
+        var customNodeDefKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var (_, graphDto) in graphDtoMap)
         {
@@ -214,15 +215,28 @@ public class ExportPipelinesHandler(
                 {
                     customNodeDefIds.Add(defGuid);
                 }
+                else if (!string.IsNullOrWhiteSpace(node.RefId))
+                {
+                    customNodeDefKeys.Add(node.RefId);
+                }
             }
         }
 
-        if (customNodeDefIds.Count > 0)
+        var nodeDefLookupById = new Dictionary<string, Domain.Entities.NodeDefinition>();
+        var nodeDefLookupByKey = new Dictionary<string, Domain.Entities.NodeDefinition>(StringComparer.OrdinalIgnoreCase);
+
+        if (customNodeDefIds.Count > 0 || customNodeDefKeys.Count > 0)
         {
             var nodeDefinitions = await db.NodeDefinitions
                 .AsNoTracking()
-                .Where(nd => customNodeDefIds.Contains(nd.Id))
+                .Where(nd => customNodeDefIds.Contains(nd.Id) || customNodeDefKeys.Contains(nd.Key))
                 .ToListAsync(ct);
+
+            foreach (var nd in nodeDefinitions)
+            {
+                nodeDefLookupById[nd.Id.ToString()] = nd;
+                nodeDefLookupByKey[nd.Key] = nd;
+            }
 
             var scriptFilesResult = await assetApi.GetFilesAsync(
                 nodeDefinitions.Select(x => x.Id.ToString()),
@@ -317,9 +331,23 @@ public class ExportPipelinesHandler(
                     }
                 }
 
+                string? customScriptKey = null;
+                if (n.Kind == PipelineNodeKind.Custom)
+                {
+                    if (nodeDefLookupById.TryGetValue(n.RefId, out var def) ||
+                        nodeDefLookupByKey.TryGetValue(n.RefId, out def))
+                    {
+                        customScriptKey = def.Key;
+                    }
+                    else
+                    {
+                        customScriptKey = n.RefId;
+                    }
+                }
+
                 return new PipelinePackageNodeDto(
                     TempId: tempId,
-                    RefId: n.RefId,
+                    RefId: customScriptKey ?? n.RefId,
                     Kind: n.Kind,
                     Label: n.Label,
                     Category: n.Category,
@@ -331,9 +359,11 @@ public class ExportPipelinesHandler(
                     RefPipelineBundleId: refPipelineBundleId,
                     ParentTempId: parentTempId,
                     Size: n.Size,
-                    Metadata: n.Metadata
+                    Metadata: n.Metadata,
+                    CustomScriptKey: customScriptKey
                 );
             }).ToList();
+
 
             // Map edges with temporary IDs
             var packageEdges = graphDto.Edges

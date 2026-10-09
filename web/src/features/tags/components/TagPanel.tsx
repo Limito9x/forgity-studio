@@ -17,6 +17,8 @@ import {
     Trash2,
     Sparkles,
     Layers,
+    ChevronsDownUp,
+    ChevronsUpDown,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -25,6 +27,24 @@ import { cn } from "@/lib/utils";
 import { useDraggable } from "@dnd-kit/core";
 import type { DraggableTagPayload } from "../types";
 import { toast } from "sonner";
+
+function collectSubtreePaths(node: TagTreeNodeDto): string[] {
+    const paths: string[] = [node.path];
+    if (node.children && node.children.length > 0) {
+        for (const child of node.children) {
+            paths.push(...collectSubtreePaths(child));
+        }
+    }
+    return paths;
+}
+
+function collectAllTreePaths(nodes: TagTreeNodeDto[]): string[] {
+    const paths: string[] = [];
+    for (const node of nodes) {
+        paths.push(...collectSubtreePaths(node));
+    }
+    return paths;
+}
 
 interface TagPanelProps {
     projectId: string;
@@ -48,13 +68,35 @@ export function TagPanel({ projectId, contextTitle }: TagPanelProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
 
-    const toggleExpand = (path: string) => {
+    const allTreePaths = useMemo(() => collectAllTreePaths(tree), [tree]);
+    const isAllExpanded = allTreePaths.length > 0 && allTreePaths.every((p) => expandedPaths.has(p));
+
+    const handleToggleExpandAll = () => {
+        if (isAllExpanded) {
+            setExpandedPaths(new Set());
+        } else {
+            setExpandedPaths(new Set(allTreePaths));
+        }
+    };
+
+    const toggleExpand = (node: TagTreeNodeDto, isShiftKey: boolean = false) => {
         setExpandedPaths((prev) => {
             const next = new Set(prev);
-            if (next.has(path)) {
-                next.delete(path);
+            const isCurrentlyExpanded = next.has(node.path);
+
+            if (isShiftKey) {
+                const subtreePaths = collectSubtreePaths(node);
+                if (isCurrentlyExpanded) {
+                    subtreePaths.forEach((p) => next.delete(p));
+                } else {
+                    subtreePaths.forEach((p) => next.add(p));
+                }
             } else {
-                next.add(path);
+                if (isCurrentlyExpanded) {
+                    next.delete(node.path);
+                } else {
+                    next.add(node.path);
+                }
             }
             return next;
         });
@@ -138,6 +180,19 @@ export function TagPanel({ projectId, contextTitle }: TagPanelProps) {
 
                 <div className="flex items-center gap-1 ml-auto">
                     <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer"
+                        onClick={handleToggleExpandAll}
+                        aria-label={isAllExpanded ? "Collapse all (or Shift+Click any branch)" : "Expand all (or Shift+Click any branch)"}
+                    >
+                        {isAllExpanded ? (
+                            <ChevronsDownUp className="w-3.5 h-3.5" />
+                        ) : (
+                            <ChevronsUpDown className="w-3.5 h-3.5" />
+                        )}
+                    </Button>
+                    <Button
                         size="sm"
                         variant="outline"
                         className="h-7 rounded-lg text-xs gap-1"
@@ -204,9 +259,14 @@ export function TagPanel({ projectId, contextTitle }: TagPanelProps) {
                         />
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground px-1">
-                        <Sparkles className="w-3 h-3 text-primary shrink-0" />
-                        <span>Drag any tag directly into the metadata cells</span>
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1 gap-2">
+                        <div className="flex items-center gap-1.5 truncate">
+                            <Sparkles className="w-3 h-3 text-primary shrink-0" />
+                            <span className="truncate">Drag tag into metadata cells</span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground/70 shrink-0 font-mono">
+                            Shift+Click: expand branch
+                        </span>
                     </div>
                 </div>
             )}
@@ -265,7 +325,7 @@ interface TagTreeNodeItemProps {
     projectId: string;
     level?: number;
     expandedPaths: Set<string>;
-    toggleExpand: (path: string) => void;
+    toggleExpand: (node: TagTreeNodeDto, isShiftKey?: boolean) => void;
     autoExpandAll?: boolean;
 }
 
@@ -347,8 +407,13 @@ function TagTreeNodeItem({
                         type="button"
                         onClick={(e) => {
                             e.stopPropagation();
-                            toggleExpand(node.path);
+                            toggleExpand(node, e.shiftKey);
                         }}
+                        title={
+                            isExpanded
+                                ? "Click to collapse (Shift+Click to collapse entire branch)"
+                                : "Click to expand (Shift+Click to expand entire branch)"
+                        }
                         className="w-4 h-4 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted shrink-0 cursor-pointer"
                     >
                         {isExpanded ? (
@@ -366,10 +431,16 @@ function TagTreeNodeItem({
                     {...listeners}
                     {...attributes}
                     className="flex items-center gap-1.5 min-w-0 flex-1 cursor-grab active:cursor-grabbing p-0.5 rounded"
-                    title="Drag tag to assign or click to toggle"
-                    onClick={() => {
+                    title={
+                        hasChildren
+                            ? isExpanded
+                                ? "Drag tag to assign, or Click to collapse (Shift+Click to collapse branch)"
+                                : "Drag tag to assign, or Click to expand (Shift+Click to expand branch)"
+                            : "Drag tag to assign"
+                    }
+                    onClick={(e) => {
                         if (hasChildren) {
-                            toggleExpand(node.path);
+                            toggleExpand(node, e.shiftKey);
                         }
                     }}
                 >

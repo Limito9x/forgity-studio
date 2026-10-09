@@ -28,7 +28,6 @@ import {
   type ResourceVersionDto,
   type ResourceVersionLocationDto,
 } from "../hooks/useRepositories";
-import { ResourceTagDropZone } from "../components/ResourceTagDropZone";
 import { ResourceMetadataTab } from "../components/ResourceMetadataTab";
 import { TagTool } from "@/features/tags/components/TagTool";
 import { cn } from "@/lib/utils";
@@ -111,11 +110,6 @@ export function ResourceDetailPage({
                   v{latestVersion?.versionNo ?? 1} Latest
                 </Badge>
               )}
-              <ResourceTagDropZone
-                resourceId={resourceId}
-                projectId={projectId}
-                className="py-1 px-2.5 min-h-[30px] border-dashed"
-              />
             </div>
 
             <p className="text-xs font-mono text-muted-foreground mt-0.5 truncate">

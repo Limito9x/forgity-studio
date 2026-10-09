@@ -7,6 +7,7 @@ import {
   importPipelinePackage,
   getGetPipelinesQueryKey,
 } from "@/gen/endpoints/pipelines/pipelines";
+import { getGetNodePaletteQueryKey } from "@/gen/endpoints/pipeline-nodes/pipeline-nodes";
 import type {
   PipelinePackageDto,
   ValidatePipelinePackageRequest,
@@ -131,11 +132,20 @@ export function useImportPackageMutation(projectId?: string) {
         queryClient.invalidateQueries({
           queryKey: getGetPipelinesQueryKey({ projectId, isArchived: false }),
         });
+        queryClient.invalidateQueries({
+          queryKey: getGetNodePaletteQueryKey({ projectId }),
+        });
       } else {
         queryClient.invalidateQueries({
           queryKey: ["pipelines"],
         });
       }
+      queryClient.invalidateQueries({
+        queryKey: ["/api/pipeline/nodes"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/pipelines"],
+      });
       toast.success(
         `Successfully imported ${res.importedPipelinesCount} pipeline(s) and ${res.installedScriptsCount} custom script(s)!`
       );

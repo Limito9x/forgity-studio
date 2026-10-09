@@ -54,8 +54,12 @@ public class ReconcilePipelineEdgesHandler(
         else
         {
             // KeepCompatiblePins: only remove edges where the pin no longer exists or type changed
+            // Exec pins and system control flow pins are ALWAYS preserved.
             var validInputPins = @event.NewInputPinIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
             var validOutputPins = @event.NewOutputPinIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            bool IsInputValid(string pin) => IsExecOrSystemPin(pin) || validInputPins.Contains(pin);
+            bool IsOutputValid(string pin) => IsExecOrSystemPin(pin) || validOutputPins.Contains(pin);
 
             var edgesToRemove = edges.Where(e =>
             {
@@ -65,19 +69,19 @@ public class ReconcilePipelineEdgesHandler(
                 if (isSource && isTarget)
                 {
                     // Edge connects two nodes of this definition (both ends)
-                    var sourcePinValid = validOutputPins.Contains(e.SourcePin);
-                    var targetPinValid = validInputPins.Contains(e.TargetPin);
+                    var sourcePinValid = IsOutputValid(e.SourcePin);
+                    var targetPinValid = IsInputValid(e.TargetPin);
                     return !sourcePinValid || !targetPinValid;
                 }
                 else if (isSource)
                 {
                     // Edge source is this node definition
-                    return !validOutputPins.Contains(e.SourcePin);
+                    return !IsOutputValid(e.SourcePin);
                 }
                 else if (isTarget)
                 {
                     // Edge target is this node definition
-                    return !validInputPins.Contains(e.TargetPin);
+                    return !IsInputValid(e.TargetPin);
                 }
                 return false;
             }).ToList();
@@ -101,5 +105,15 @@ public class ReconcilePipelineEdgesHandler(
 
         logger.LogInformation("[Wolverine:Reconcile] Completed: Preserved {PreservedCount} edges, Detached {DetachedCount} edges for NodeKey: {NodeKey}",
             preservedCount, detachedCount, @event.NodeKey);
+    }
+
+    private static bool IsExecOrSystemPin(string? pin)
+    {
+        if (string.IsNullOrWhiteSpace(pin)) return false;
+        var p = pin.Trim().ToLowerInvariant();
+        return p is "exec" or "exec_in" or "exec_out" or "loop_body" or "completed"
+            or "true" or "false" or "then" or "else" or "start" or "done" or "next" or "branch"
+            or "runner"
+            || p.StartsWith("exec_") || p.EndsWith("_exec");
     }
 }

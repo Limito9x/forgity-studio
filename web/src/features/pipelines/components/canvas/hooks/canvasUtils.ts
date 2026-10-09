@@ -6,11 +6,24 @@ import type { StageKind } from "@/gen/model/stageKind";
  */
 export function isExecHandle(handleId?: string | null): boolean {
   if (!handleId) return false;
+  const idLower = handleId.toLowerCase();
   return (
-    handleId === "exec_in" ||
-    handleId === "exec_out" ||
-    handleId === "loop_body" ||
-    handleId === "completed"
+    idLower === "exec_in" ||
+    idLower === "exec_out" ||
+    idLower === "exec" ||
+    idLower.startsWith("exec_") ||
+    idLower.endsWith("_exec") ||
+    idLower === "loop_body" ||
+    idLower === "completed" ||
+    idLower === "true" ||
+    idLower === "false" ||
+    idLower === "then" ||
+    idLower === "else" ||
+    idLower === "start" ||
+    idLower === "beginexecute" ||
+    idLower === "done" ||
+    idLower === "next" ||
+    idLower === "branch"
   );
 }
 

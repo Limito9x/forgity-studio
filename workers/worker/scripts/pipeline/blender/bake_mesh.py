@@ -14,7 +14,7 @@ khong bake chung 1 anh nhu native_bake cu.
 
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 try:
     import bpy
@@ -328,38 +328,56 @@ def find_principled_and_output(mat: Any):
     return bsdf_node, out_node
 
 
-def _ungroup_node_if_group(node: Any) -> None:
-    if node.type == 'GROUP' and node.node_tree:
-        original_context_area = bpy.context.area.type
-        original_active_object = bpy.context.view_layer.objects.active
+def _ungroup_node_if_group(node: Any, node_tree: Any = None) -> None:
+    if not (node and getattr(node, 'type', None) == 'GROUP' and getattr(node, 'node_tree', None)):
+        return
+    tree = node_tree or getattr(node, 'id_data', None)
+    if not tree:
+        return
 
-        try:
-            # Temporarily switch context to NODE_EDITOR to ungroup
-            for area in bpy.context.screen.areas:
-                if area.type == 'NODE_EDITOR':
-                    bpy.context.screen.areas.active = area
-                    # Set the node tree as active, if possible (not always necessary for ungroup)
-                    if hasattr(node.node_tree, 'nodes'):
-                        area.spaces.active.node_tree = node.node_tree
-                    
-                    # Select the node and make it active to ungroup
-                    node.select = True
-                    node.node_tree.nodes.active = node
+    wm = bpy.context.window_manager
+    if not wm or not wm.windows:
+        print(f"[bake_mesh:ungroup] Skipping ungroup for '{node.name}': no window manager found")
+        return
 
-                    bpy.ops.node.group_ungroup()
-                    print(f"[bake_mesh:ungroup] Ungrouped shader node group '{node.name}'")
-                    break
-        except Exception as ex:
-            print(f"[bake_mesh:ungroup] WARNING: Failed to ungroup '{node.name}': {ex}")
-        finally:
-            # Restore original context
-            for area in bpy.context.screen.areas:
-                if area.type == original_context_area:
-                    bpy.context.screen.areas.active = area
-                    break
-            if original_active_object:
-                bpy.context.view_layer.objects.active = original_active_object
-            node.select = False # Deselect the node after ungrouping
+    win = wm.windows[0]
+    screen = win.screen or (bpy.data.screens[0] if bpy.data.screens else None)
+    if not screen or not screen.areas:
+        print(f"[bake_mesh:ungroup] Skipping ungroup for '{node.name}': no screen areas found")
+        return
+
+    for nd in tree.nodes:
+        nd.select = False
+    node.select = True
+    tree.nodes.active = node
+
+    area = next((a for a in screen.areas if a.type == 'NODE_EDITOR'), screen.areas[0])
+    orig_type = area.type
+    area.type = 'NODE_EDITOR'
+    space = area.spaces.active
+    orig_space_tree = getattr(space, 'node_tree', None)
+    space.node_tree = tree
+    region = next((r for r in area.regions if r.type == 'WINDOW'), area.regions[0] if area.regions else None)
+
+    override = {
+        'window': win,
+        'screen': screen,
+        'area': area,
+        'region': region,
+        'space_data': space,
+        'edit_tree': tree,
+    }
+
+    try:
+        with bpy.context.temp_override(**override):
+            bpy.ops.node.group_ungroup()
+        print(f"[bake_mesh:ungroup] Ungrouped shader node group '{node.name}'")
+    except Exception as ex:
+        print(f"[bake_mesh:ungroup] WARNING: Failed to ungroup '{node.name}': {ex}")
+    finally:
+        area.type = orig_type
+        if hasattr(space, 'node_tree'):
+            space.node_tree = orig_space_tree
 
 def _bypass_muted_mix_shaders(nodes: Any, links: Any) -> None:
     # Let's bypass all the muted mix shader nodes (SimpleBake pattern)
@@ -377,34 +395,6 @@ def _bypass_muted_mix_shaders(nodes: Any, links: Any) -> None:
                 links.new(from_socket, to_socket)
                 nodes.remove(n)
                 print(f"[bake_mesh:mix] Bypassed muted Mix Shader '{n.name}'")
-
-def setup_emission_routing(mat: Any, map_type: str):
-    """
-    Noi tam socket can bake vao Emission de bake EMIT 1 sample (SimpleBake pattern).
-    Tra ve (emit_node, orig_socket) de khoi phuc sau bake.
-
-    FIX geoshell: DAZ geoshell thuong dung shader khong co Principled BSDF
-    (MixShader + Transparent, hoac node group DAZ Iray). Neu khong tim duoc Principled,
-    fallback: tim Image Texture da noi vao Surface output (cap 1 hop) hoac dung default.
-    """
-    defs = MAP_DEFS.get(map_type, {})
-    bsdf_node, out_node = find_principled_and_output(mat)
-    if not out_node:
-        return None
-
-    nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
-    
-    _bypass_muted_mix_shaders(nodes, links) # Bypass muted mix shaders
-
-    orig_socket = None
-    if out_node.inputs['Surface'].is_linked:
-        orig_socket = out_node.inputs['Surface'].links[0].from_socket
-        _ungroup_node_if_group(orig_socket.node) # Ungroup geoshell if it's a group
-
-    emit_node = nodes.new(type='ShaderNodeEmission')
-    emit_node.name = "__Temp_Bake_Emission__"
-    emit_node.inputs['Strength'].default_value = 1.0
 
 def _setup_mix_shader_proxy(mat: Any, original_from_socket: Any, map_type: str) -> Any:
     nodes = mat.node_tree.nodes
@@ -511,7 +501,12 @@ def setup_emission_routing(mat: Any, map_type: str):
     orig_socket = None
     if out_node.inputs['Surface'].is_linked:
         orig_socket = out_node.inputs['Surface'].links[0].from_socket
-        _ungroup_node_if_group(orig_socket.node) # Ungroup geoshell if it's a group
+        if orig_socket.node.type == 'GROUP':
+            _ungroup_node_if_group(orig_socket.node, mat.node_tree)
+            if out_node.inputs['Surface'].is_linked:
+                orig_socket = out_node.inputs['Surface'].links[0].from_socket
+            if bsdf_node is None:
+                bsdf_node, _ = find_principled_and_output(mat)
 
     emit_node = nodes.new(type='ShaderNodeEmission')
     emit_node.name = "__Temp_Bake_Emission__"
@@ -557,8 +552,6 @@ def setup_emission_routing(mat: Any, map_type: str):
                 emit_node.inputs['Color'].default_value = default
             print(f"[bake_mesh:emit] WARNING: No original surface socket for '{mat.name}', using default.", flush=True)
 
-    links.new(emit_node.outputs['Emission'], out_node.inputs['Surface'])
-    return emit_node, orig_socket
     links.new(emit_node.outputs['Emission'], out_node.inputs['Surface'])
     return emit_node, orig_socket
 
@@ -763,6 +756,103 @@ def apply_single_material(obj: Any, material: Any, uv_name: str) -> None:
     target_uv.name = "UVMap"
 
 
+def _resolve_target_meshes(targets: List[str]) -> List[Any]:
+    """
+    Tim va giai quyet chinh xac mesh can bake tu danh sach targets.
+    - Uu tien Exact match.
+    - Neu target la 'Genesis 9', uu tien match 'Genesis 9 Mesh' (Body mesh chinh),
+      tranh match nham sang cac mesh con phu nhu eyes, mouth, eyelashes.
+    """
+    if not targets:
+        return [o for o in bpy.data.objects if o.type == 'MESH']
+
+    all_meshes = [o for o in bpy.data.objects if o.type == 'MESH']
+    resolved: List[Any] = []
+    sub_part_keywords = ['eye', 'mouth', 'eyelash', 'lash', 'tear', 'cornea', 'teeth', 'tongue', 'brow']
+
+    for t in targets:
+        t_clean = t.strip()
+        t_lower = t_clean.lower()
+        if not t_lower:
+            continue
+
+        matched_for_t: List[Any] = []
+
+        # 1. Exact name match
+        exact = [m for m in all_meshes if m.name.lower() == t_lower]
+        if exact:
+            matched_for_t.extend(exact)
+
+        # 2. Khop dang base mesh: "<name> mesh", "<name>_mesh", "<name> body", "<name>_body"
+        if not matched_for_t:
+            base_names = [f"{t_lower} mesh", f"{t_lower}_mesh", f"{t_lower} body", f"{t_lower}_body"]
+            base_matches = [m for m in all_meshes if m.name.lower() in base_names]
+            if base_matches:
+                matched_for_t.extend(base_matches)
+
+        # 3. Kiem tra neu t la Armature / Parent Object (vd Armature 'Genesis 9')
+        if not matched_for_t:
+            parent_obj = bpy.data.objects.get(t_clean)
+            if not parent_obj:
+                parent_obj = next((o for o in bpy.data.objects if o.name.lower() == t_lower), None)
+
+            if parent_obj and parent_obj.type in ('ARMATURE', 'EMPTY'):
+                child_meshes = [c for c in parent_obj.children if c.type == 'MESH']
+                if child_meshes:
+                    main_child = next((c for c in child_meshes if c.name.lower() in (f"{t_lower} mesh", f"{t_lower}_mesh")), None)
+                    if main_child:
+                        matched_for_t.append(main_child)
+                    else:
+                        sorted_by_poly = sorted(child_meshes, key=lambda m: len(m.data.polygons), reverse=True)
+                        if sorted_by_poly:
+                            matched_for_t.append(sorted_by_poly[0])
+
+        # 4. Fallback substring matching
+        if not matched_for_t:
+            has_sub_keyword = any(kw in t_lower for kw in sub_part_keywords)
+            candidates = [m for m in all_meshes if t_lower in m.name.lower()]
+            if candidates:
+                if not has_sub_keyword:
+                    main_candidates = [
+                        m for m in candidates
+                        if not any(kw in m.name.lower() for kw in sub_part_keywords)
+                    ]
+                    if main_candidates:
+                        sorted_cands = sorted(main_candidates, key=lambda m: (len(m.name), -len(m.data.polygons)))
+                        matched_for_t.append(sorted_cands[0])
+                    else:
+                        matched_for_t.extend(candidates)
+                else:
+                    matched_for_t.extend(candidates)
+
+        for m in matched_for_t:
+            if m not in resolved:
+                resolved.append(m)
+
+    return resolved
+
+
+def _activate_bake_targets(bake_nodes: List[Tuple[Any, Any]], bake_image: Any) -> None:
+    """
+    Dam bao tat ca cac material (ke ca cac slot Geoshell bi ungroup)
+    deu co active and selected Image Texture node tro toi bake_image.
+    Tranh loi Blender bo qua material khi bake.
+    """
+    for mat, bnode in bake_nodes:
+        if not mat or not mat.node_tree:
+            continue
+        nodes = mat.node_tree.nodes
+        target = nodes.get("__BakeMesh_Target__") or bnode
+        if target.name not in nodes:
+            target = nodes.new(type='ShaderNodeTexImage')
+            target.name = "__BakeMesh_Target__"
+        target.image = bake_image
+        for nd in nodes:
+            nd.select = False
+        target.select = True
+        nodes.active = target
+
+
 def main(
     target_objects: Optional[List[str]] = None,
     uv_name: str = "UVMap_Baked",
@@ -821,13 +911,8 @@ def main(
     else:
         bake_orm = bool(bake_orm)
 
-    # Mesh dich: rong = ca scene (giong 2 inspect moi)
-    lowered = [t.lower() for t in targets]
-    if lowered:
-        meshes = [o for o in bpy.data.objects
-                  if o.type == 'MESH' and any(t in o.name.lower() for t in lowered)]
-    else:
-        meshes = [o for o in bpy.data.objects if o.type == 'MESH']
+    # Mesh dich: rong = ca scene, co targets = resolve chinh xac
+    meshes = _resolve_target_meshes(targets)
 
     if not meshes:
         print(f"[bake_mesh] WARNING: no meshes matched {targets}, skipping.", flush=True)
@@ -917,9 +1002,7 @@ def main(
             if not is_color:
                 bake_image.colorspace_settings.name = 'Non-Color'
 
-            for mat, bnode in bake_nodes:
-                bnode.image = bake_image
-                mat.node_tree.nodes.active = bnode
+            _activate_bake_targets(bake_nodes, bake_image)
 
             if defs["bake"] == "NORMAL":
                 # NORMAL la deterministic — 1 sample cho ket qua y het 8 sample, khong can hon
@@ -942,6 +1025,8 @@ def main(
                     info = setup_emission_routing(mat, map_type)
                     if info:
                         tracker[mat] = info
+                # QUAN TRONG: Tai-kich-hoat active node sau khi ungroup shader groups / routing
+                _activate_bake_targets(bake_nodes, bake_image)
                 bpy.ops.object.bake(type='EMIT', save_mode='INTERNAL')
                 for mat, info in tracker.items():
                     restore_emission_routing(mat, info)

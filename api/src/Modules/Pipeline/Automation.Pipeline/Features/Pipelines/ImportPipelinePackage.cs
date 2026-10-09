@@ -2,8 +2,10 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
+using Automation.Files.Contracts;
 using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Entities;
+using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Features.Pipelines.Dtos;
 using Automation.Pipeline.Infrastructure.Persistence;
@@ -32,6 +34,8 @@ public class ImportPipelinePackageEndpoint(IMessageBus bus) : Endpoint<ImportPip
 [Transactional(typeof(PipelineDbContext))]
 public class ImportPipelinePackageHandler(
     PipelineDbContext db,
+    IAssetApi assetApi,
+    IHttpClientFactory httpClientFactory,
     ILogger<ImportPipelinePackageHandler> logger
 )
 {
@@ -46,7 +50,7 @@ public class ImportPipelinePackageHandler(
             return Result.Fail<ImportPipelinePackageResponseDto>("Package contains no pipelines to import.");
         }
 
-        // 1. Install or Map Custom Scripts
+        // 1. Install or Map Custom Scripts (Batch-First)
         var customNodeKeyToId = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
         var installedScriptsCount = 0;
 
@@ -58,14 +62,84 @@ public class ImportPipelinePackageHandler(
                 .ToListAsync(ct);
 
             var existingMap = existingNodes.ToDictionary(x => x.Key, x => x, StringComparer.OrdinalIgnoreCase);
+            var scriptsToInstall = package.Dependencies.CustomScripts
+                .Where(s => !existingMap.ContainsKey(s.Key))
+                .ToList();
 
-            foreach (var script in package.Dependencies.CustomScripts)
+            foreach (var (k, v) in existingMap)
             {
-                if (existingMap.TryGetValue(script.Key, out var existing))
+                customNodeKeyToId[k] = v.Id;
+            }
+
+            if (scriptsToInstall.Count > 0)
+            {
+                // A. Chuẩn bị Batch Request Upload cho toàn bộ scripts cần cài đặt
+                var scriptUploadItems = new List<(PipelinePackageScriptDto script, byte[] bytes, UploadRequestItemDto req)>();
+
+                foreach (var s in scriptsToInstall)
                 {
-                    customNodeKeyToId[script.Key] = existing.Id;
+                    var text = s.ScriptContent ?? string.Empty;
+                    var bytes = System.Text.Encoding.UTF8.GetBytes(text);
+                    var sha256Hex = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant();
+                    var fileName = string.IsNullOrWhiteSpace(s.FileName) ? $"{s.Key}.py" : s.FileName.Trim();
+                    var ext = Path.GetExtension(fileName).ToLowerInvariant();
+                    if (string.IsNullOrWhiteSpace(ext)) ext = ".py";
+
+                    var reqItem = new UploadRequestItemDto(
+                        sha256Hex,
+                        ext,
+                        bytes.Length,
+                        "text/x-python"
+                    );
+
+                    scriptUploadItems.Add((s, bytes, reqItem));
                 }
-                else
+
+                // B. Batch Request Upload tới IAssetApi (CAS Deduplication)
+                var batchUploadResult = await assetApi.RequestUploadAsync(
+                    scriptUploadItems.Select(x => x.req),
+                    ct
+                );
+
+                var scriptToAssetMap = new Dictionary<string, (Guid assetId, string hash, string fileName)>(StringComparer.OrdinalIgnoreCase);
+
+                if (batchUploadResult.IsSuccess && batchUploadResult.Value != null)
+                {
+                    var uploadDtos = batchUploadResult.Value.ToList();
+                    var client = httpClientFactory.CreateClient();
+                    var assetsToConfirm = new List<Guid>();
+
+                    for (var i = 0; i < scriptUploadItems.Count; i++)
+                    {
+                        var (scriptItem, bytes, reqItem) = scriptUploadItems[i];
+                        var uploadDto = uploadDtos.FirstOrDefault(u => u.HashSha256.Equals(reqItem.HashSha256, StringComparison.OrdinalIgnoreCase));
+
+                        if (uploadDto != null)
+                        {
+                            if (!uploadDto.IsAlreadyExists && !string.IsNullOrWhiteSpace(uploadDto.PresignedUrl))
+                            {
+                                using var content = new ByteArrayContent(bytes);
+                                content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/x-python");
+                                var putResp = await client.PutAsync(uploadDto.PresignedUrl, content, ct);
+                                if (putResp.IsSuccessStatusCode)
+                                {
+                                    assetsToConfirm.Add(uploadDto.AssetId);
+                                }
+                            }
+
+                            scriptToAssetMap[scriptItem.Key] = (uploadDto.AssetId, reqItem.HashSha256, reqItem.Extension);
+                        }
+                    }
+
+                    // C. Batch Confirm Upload cho các asset mới tải lên
+                    if (assetsToConfirm.Count > 0)
+                    {
+                        await assetApi.ConfirmUploadAsync(assetsToConfirm, ct);
+                    }
+                }
+
+                // D. Batch Tạo NodeDefinition và liên kết AssetLink
+                foreach (var script in scriptsToInstall)
                 {
                     var nodeDef = new NodeDefinition
                     {
@@ -84,6 +158,25 @@ public class ImportPipelinePackageHandler(
 
                     db.NodeDefinitions.Add(nodeDef);
                     await db.SaveChangesAsync(ct);
+
+                    if (scriptToAssetMap.TryGetValue(script.Key, out var assetInfo))
+                    {
+                        var owner = new AssetLinkOwner(nameof(NodeDefinition), nodeDef.Id.ToString(), PipelineAssetSlots.CustomScript);
+                        var fileName = string.IsNullOrWhiteSpace(script.FileName) ? $"{script.Key}.py" : script.FileName.Trim();
+                        var linkRes = await assetApi.ReplaceSingleLinkAsync(
+                            new AssetLinkRequestItem(assetInfo.assetId, fileName),
+                            owner,
+                            assetInfo.hash,
+                            ct
+                        );
+
+                        if (linkRes.IsSuccess)
+                        {
+                            nodeDef.ContentHash = linkRes.Value.HashSha256;
+                            nodeDef.Status = NodeLifecycleStatus.Published;
+                            await db.SaveChangesAsync(ct);
+                        }
+                    }
 
                     customNodeKeyToId[script.Key] = nodeDef.Id;
                     installedScriptsCount++;
@@ -186,8 +279,12 @@ public class ImportPipelinePackageHandler(
                 }
                 else if (n.Kind == PipelineNodeKind.Custom)
                 {
-                    // Remap custom script node ID if matched by key
-                    if (customNodeKeyToId.TryGetValue(n.RefId, out var customNodeDefId))
+                    // Remap custom script node ID if matched by CustomScriptKey or RefId
+                    var lookupKey = !string.IsNullOrWhiteSpace(n.CustomScriptKey)
+                        ? n.CustomScriptKey
+                        : n.RefId;
+
+                    if (customNodeKeyToId.TryGetValue(lookupKey, out var customNodeDefId))
                     {
                         refId = customNodeDefId.ToString();
                     }
