@@ -154,13 +154,26 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
   // 2. Initial edges mapping from DTO (Unified Edges architecture)
   const initialEdges: Edge[] = useMemo(() => {
     return ((graph.edges || []) as any[]).map((e) => {
-      const isExec = isExecEdge(e.sourcePin, e.targetPin, e.kind);
+      let sourceHandle = e.sourcePin;
+      let targetHandle = e.targetPin;
+
+      const srcLower = (sourceHandle || "").toLowerCase();
+      if (srcLower === "start" || srcLower === "beginexecute" || srcLower === "exec" || srcLower === "execout" || srcLower === "out_exec") {
+        sourceHandle = "exec_out";
+      }
+
+      const tgtLower = (targetHandle || "").toLowerCase();
+      if (tgtLower === "exec" || tgtLower === "execin" || tgtLower === "in_exec" || tgtLower === "endexecute" || tgtLower === "return") {
+        targetHandle = "exec_in";
+      }
+
+      const isExec = isExecEdge(sourceHandle, targetHandle, e.kind);
       return {
         id: e.id,
         source: e.sourceNodeId,
-        sourceHandle: e.sourcePin,
+        sourceHandle: sourceHandle,
         target: e.targetNodeId,
-        targetHandle: e.targetPin,
+        targetHandle: targetHandle,
         animated: !isExec,
         markerEnd: {
           type: MarkerType.ArrowClosed,

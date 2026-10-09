@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+using Wolverine.Attributes;
 using Automation.Studio.Domain.Entities;
 using Automation.Studio.Infrastructure.Persistence;
 using Automation.Studio.Shared.Dtos;
@@ -27,14 +28,22 @@ public class DeleteProjectEndpoint(IMessageBus bus)
     }
 }
 
-public class DeleteProjectHandler(StudioDbContext db)
+[Transactional(typeof(StudioDbContext))]
+public class DeleteProjectHandler(StudioDbContext db, ICurrentUserProvider userProvider)
 {
     public async Task<Result> HandleAsync(
         DeleteProjectCommand command,
         CancellationToken ct)
     {
-        var project = await db.Projects.FirstOrDefaultAsync(x => x.Id == command.Id, ct);
-        if (project is null) return Result.Fail(new NotFoundError("Project not found"));
+        if (!userProvider.UserId.HasValue)
+        {
+            return Result.Fail(new UnauthorizedError("User is not authenticated"));
+        }
+
+        var userId = userProvider.UserId.Value;
+
+        var project = await db.Projects.FirstOrDefaultAsync(x => x.Id == command.Id && x.OwnerId == userId, ct);
+        if (project is null) return Result.Fail(new NotFoundError("Project not found or you don't have permission to delete it"));
         
         db.Projects.Remove(project);
         await db.SaveChangesAsync(ct);

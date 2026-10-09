@@ -12,6 +12,7 @@
 [![gRPC](https://img.shields.io/badge/gRPC-Protobuf-244c5a?style=for-the-badge&logo=grpc&logoColor=white)](https://grpc.io/)
 [![RabbitMQ](https://img.shields.io/badge/RabbitMQ-AMQP-FF6600?style=for-the-badge&logo=rabbitmq&logoColor=white)](https://www.rabbitmq.com/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg?style=for-the-badge)](LICENSE)
 
 <p align="center">
   A production-grade, distributed workflow automation engine and node-based studio designed to orchestrate complex digital asset pipelines, DCC tools, and creative automation across heterogeneous environments.
@@ -105,6 +106,15 @@ flowchart TD
 - .NET projects reference shared protos using `<Protobuf ProtoRoot="..." Link="..." />` with automated compilation on build.
 - Python workers compile protobuf contracts directly via `python cli.py compile-protos`.
 
+### 4. Digital Asset Management (DAM) & Semantic Tagging
+- **Immutable Version History**: Tracks files across local workspaces and distributed runners (`ResourceVersionLocation`), generating cryptographic SHA-256 checksums on sync.
+- **Deep Inspection Metadata**: Automated pipeline inspection nodes (`daz_inspector`, `blender_inspector`) parse 3D structures (bones, meshes, material slots, textures) into an interactive JSON Tree.
+- **Hierarchical GameplayTags & Drag-and-Drop**: Fine-grained tag assignment directly to specific metadata properties (`targetSubPath`), powered by an intuitive tree explorer with recursive Shift+Click navigation.
+
+### 5. Unified Package Bundle & Portability
+- **Self-Contained Pipeline Bundles**: Export and import complete pipelines with recursive SubPipelines, Custom Node Library scripts, and asset dependencies into unified bundles.
+- **Deterministic Key Remapping & Integrity**: Asset slot links and node keys are automatically remapped and validated with SHA-256 hashes during cross-project and cross-machine imports.
+
 ---
 
 ## 📂 Monorepo Structure
@@ -120,7 +130,7 @@ Automation/
 │   ├── src/
 │   │   ├── Automation.Api/         # Host Web API & Middleware configuration
 │   │   ├── Modules/                # Independent business slices (Pipelines, DynamicForms,
-│   │   │                           # Identity, Assets, Workspace, Tag, System...)
+│   │   │                           # Repositories, Tags, Content, Runners, Assets, Identity...)
 │   │   └── SharedKernel/           # Shared abstractions & infrastructural extensions
 │   ├── tests/                      # Automated unit & integration test suites
 │   └── tools/Automation.Cli/       # Scaffolding CLI for instant module & CRUD generation
@@ -128,7 +138,7 @@ Automation/
 ├── web/                            # 🎨 Studio Frontend (React 19 + TypeScript + Vite)
 │   ├── src/
 │   │   ├── components/             # Shadcn UI (powered by React Aria Components)
-│   │   ├── features/               # Domain feature modules (Pipelines, Canvas, Assets, Forms)
+│   │   ├── features/               # Domain feature modules (Pipelines, Repositories, Tags, Runners, Forms)
 │   │   ├── gen/                    # Auto-generated typed API clients (via Orval)
 │   │   └── lib/                    # Core utilities (Temporal API, Axios client)
 │   └── public/                     # Static assets and icons
@@ -227,4 +237,7 @@ To support a new DCC or engine (e.g. Maya, Houdini, Unity):
 
 ## 📄 License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the **GNU Affero General Public License v3.0 (GNU AGPLv3)**. See the [LICENSE](LICENSE) file for the full license text.
+
+> **Commercial & Enterprise Licensing**:  
+> For studios or organizations seeking to integrate, customize, or operate Automation Studio in commercial environments without being subject to the network copyleft obligations of the AGPLv3, commercial and enterprise licensing options are available.

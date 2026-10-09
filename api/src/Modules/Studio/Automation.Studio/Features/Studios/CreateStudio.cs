@@ -52,13 +52,31 @@ public class CreateStudioHandler(StudioDbContext db)
         CreateStudioCommand command,
         CancellationToken ct)
     {
-        var rawSlug = string.IsNullOrWhiteSpace(command.Slug) ? command.Name : command.Slug;
-        var slug = rawSlug.Trim().ToLowerInvariant().Replace(" ", "-");
+        string slug;
 
-        var exists = await db.Studios.AnyAsync(x => x.Slug == slug, ct);
-        if (exists)
+        if (!string.IsNullOrWhiteSpace(command.Slug))
         {
-            return Result.Fail(new ConflictError($"Studio with slug '{slug}' already exists."));
+            slug = Slugify(command.Slug);
+            var exists = await db.Studios.AnyAsync(x => x.Slug == slug, ct);
+            if (exists)
+            {
+                return Result.Fail(new ConflictError($"Studio with slug '{slug}' already exists."));
+            }
+        }
+        else
+        {
+            var baseSlug = Slugify(command.Name);
+            if (string.IsNullOrWhiteSpace(baseSlug))
+            {
+                baseSlug = "studio";
+            }
+
+            slug = baseSlug;
+            var counter = 1;
+            while (await db.Studios.AnyAsync(x => x.Slug == slug, ct))
+            {
+                slug = $"{baseSlug}-{counter++}";
+            }
         }
 
         var studio = command.Adapt<StudioEntity>();
@@ -68,5 +86,30 @@ public class CreateStudioHandler(StudioDbContext db)
         await db.SaveChangesAsync(ct);
 
         return Result.Ok(studio.Adapt<StudioDto>());
+    }
+
+    private static string Slugify(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+
+        var normalized = text.Trim().ToLowerInvariant();
+        var chars = new System.Text.StringBuilder();
+        var prevHyphen = false;
+
+        foreach (var c in normalized)
+        {
+            if (char.IsLetterOrDigit(c))
+            {
+                chars.Append(c);
+                prevHyphen = false;
+            }
+            else if (!prevHyphen && (c == ' ' || c == '-' || c == '_'))
+            {
+                chars.Append('-');
+                prevHyphen = true;
+            }
+        }
+
+        return chars.ToString().Trim('-');
     }
 }

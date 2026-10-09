@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
 using Automation.Studio.Infrastructure.Persistence;
 using Automation.Studio.Shared.Dtos;
@@ -26,13 +26,25 @@ public class GetStudioByIdEndpoint(IMessageBus bus)
 }
 
 [NonTransactional]
-public class GetStudioByIdHandler(StudioDbContext db)
+public class GetStudioByIdHandler(StudioDbContext db, ICurrentUserProvider userProvider)
 {
     public async Task<Result<StudioDto>> HandleAsync(
         GetStudioByIdQuery query,
         CancellationToken ct)
     {
-        var studio = await db.Studios.FirstOrDefaultAsync(x => x.Id == query.Id, ct);
+        if (!userProvider.UserId.HasValue)
+        {
+            return Result.Fail(new UnauthorizedError("User is not authenticated"));
+        }
+
+        var userId = userProvider.UserId.Value;
+        var userIdStr = userId.ToString();
+
+        var studio = await db.Studios
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == query.Id && 
+                (s.CreatedBy == userIdStr || s.Projects.Any(p => p.OwnerId == userId || db.ProjectMembers.Any(pm => pm.ProjectId == p.Id && pm.UserId == userId))), ct);
+
         if (studio is null)
         {
             return Result.Fail(new NotFoundError("Studio not found"));

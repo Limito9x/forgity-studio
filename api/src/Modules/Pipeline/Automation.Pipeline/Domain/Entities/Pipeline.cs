@@ -46,6 +46,24 @@ public class Pipeline : BaseEntity
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
+    public void Archive(string? user = null)
+    {
+        DeletedAt = DateTimeOffset.UtcNow;
+        DeletedBy = user;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void Restore(string? newName = null)
+    {
+        if (!string.IsNullOrWhiteSpace(newName))
+        {
+            Name = newName.Trim();
+        }
+        DeletedAt = null;
+        DeletedBy = null;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
     public void AddNode(string refId, string kind, float x, float y, JsonDocument? config = null, Guid? parentId = null)
     {
         _nodes.Add(new PipelineNode(IdGenerator.NewId(), Id, refId, kind, x, y, config, parentId));

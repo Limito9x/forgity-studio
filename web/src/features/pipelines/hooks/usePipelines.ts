@@ -45,13 +45,18 @@ import {
   createPipeline,
   updatePipeline,
   deletePipeline,
+  restorePipeline,
+  purgePipeline,
   getGetPipelineGraphQueryKey,
 } from "@/gen/endpoints/pipelines/pipelines";
 
-export function usePipelines(projectId?: string) {
+export function usePipelines(projectId?: string, isArchived: boolean = false) {
   return useQuery({
-    queryKey: getGetPipelinesQueryKey(projectId ? { projectId } : undefined),
-    queryFn: ({ signal }) => getPipelines(projectId ? { projectId } : undefined, signal),
+    queryKey: getGetPipelinesQueryKey(
+      projectId ? { projectId, isArchived } : { isArchived }
+    ),
+    queryFn: ({ signal }) =>
+      getPipelines(projectId ? { projectId, isArchived } : { isArchived }, signal),
     enabled: !!projectId,
   });
 }
@@ -68,7 +73,7 @@ export function useCreatePipelineMutation(projectId?: string) {
       );
       if (projectId) {
         queryClient.invalidateQueries({
-          queryKey: getGetPipelinesQueryKey({ projectId }),
+          queryKey: [`/api/pipelines`],
         });
       }
     },
@@ -93,7 +98,7 @@ export function useUpdatePipelineMutation(projectId?: string, pipelineId?: strin
       );
       if (projectId) {
         queryClient.invalidateQueries({
-          queryKey: getGetPipelinesQueryKey({ projectId }),
+          queryKey: [`/api/pipelines`],
         });
       }
       const targetId = pipelineId || updated?.id;
@@ -102,11 +107,6 @@ export function useUpdatePipelineMutation(projectId?: string, pipelineId?: strin
           queryKey: getGetPipelineGraphQueryKey(targetId),
         });
       }
-    },
-    onError: (err: any) => {
-      const errorMsg =
-        err?.response?.data?.message || err?.message || "Failed to rename pipeline";
-      toast.error(t("pipelines.updateFailed", { defaultValue: errorMsg }));
     },
   });
 }
@@ -119,18 +119,53 @@ export function useDeletePipelineMutation(projectId?: string) {
     mutationFn: (id: string) => deletePipeline(id),
     onSuccess: () => {
       toast.success(
-        t("pipelines.deleteSuccess", { defaultValue: "Pipeline deleted successfully" })
+        t("pipelines.archiveSuccess", { defaultValue: "Pipeline moved to Trash successfully" })
       );
       if (projectId) {
         queryClient.invalidateQueries({
-          queryKey: getGetPipelinesQueryKey({ projectId }),
+          queryKey: [`/api/pipelines`],
         });
       }
     },
-    onError: (err: any) => {
-      const errorMsg =
-        err?.response?.data?.message || err?.message || "Failed to delete pipeline";
-      toast.error(t("pipelines.deleteFailed", { defaultValue: errorMsg }));
+  });
+}
+
+export function useRestorePipelineMutation(projectId?: string) {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation({
+    mutationFn: (id: string) => restorePipeline(id),
+    onSuccess: (restored) => {
+      toast.success(
+        t("pipelines.restoreSuccess", {
+          defaultValue: `Pipeline "${restored?.name}" restored successfully`,
+        })
+      );
+      if (projectId) {
+        queryClient.invalidateQueries({
+          queryKey: [`/api/pipelines`],
+        });
+      }
+    },
+  });
+}
+
+export function usePurgePipelineMutation(projectId?: string) {
+  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+
+  return useMutation({
+    mutationFn: (id: string) => purgePipeline(id),
+    onSuccess: () => {
+      toast.success(
+        t("pipelines.purgeSuccess", { defaultValue: "Pipeline permanently deleted" })
+      );
+      if (projectId) {
+        queryClient.invalidateQueries({
+          queryKey: [`/api/pipelines`],
+        });
+      }
     },
   });
 }

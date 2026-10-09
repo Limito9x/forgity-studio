@@ -7,6 +7,11 @@
 import * as zod from 'zod/mini';
 
 
+export const GetRunnersQueryParams = /*#__PURE__*/ zod.object({
+  "isActive": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.boolean()),
+  "studioId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid())
+})
+
 export const GetRunnersResponseItem = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "name": /*#__PURE__*/ zod.string(),

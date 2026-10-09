@@ -29,6 +29,10 @@ export interface BaseExecutorCardProps {
   activeConfig?: RunnerExecutorConfigDto;
   availableCandidates: ExecutorCandidateDto[];
   defaultExpanded?: boolean;
+  onOpenBrowse?: (
+    initialPath: string,
+    onSelect: (selectedPath: string) => void
+  ) => void;
   onSave: (payload: {
     executorKey: string;
     executablePath: string;
@@ -47,6 +51,7 @@ export function BaseExecutorCard({
   activeConfig,
   availableCandidates,
   defaultExpanded,
+  onOpenBrowse,
   onSave,
   isSaving = false,
 }: BaseExecutorCardProps) {
@@ -126,6 +131,23 @@ export function BaseExecutorCard({
     );
   }, [activeConfig, executablePath, version, isEnabled, settings]);
 
+  const allCandidates = useMemo(() => {
+    const list = [...candidates];
+    if (activeConfig?.executablePath) {
+      const exists = list.some(
+        (c) => c.executablePath.toLowerCase() === activeConfig.executablePath.toLowerCase()
+      );
+      if (!exists) {
+        list.unshift({
+          executorKey,
+          executablePath: activeConfig.executablePath,
+          version: activeConfig.version || "active",
+        });
+      }
+    }
+    return list;
+  }, [candidates, activeConfig, executorKey]);
+
   const handleCopyPath = async () => {
     if (!executablePath) return;
     try {
@@ -135,6 +157,16 @@ export function BaseExecutorCard({
       toast.success("Executable path copied");
     } catch {
       toast.error("Failed to copy path");
+    }
+  };
+
+  const handleBrowse = () => {
+    if (onOpenBrowse) {
+      onOpenBrowse(executablePath, (newPath) => {
+        setExecutablePath(newPath);
+      });
+    } else {
+      setBrowseBinaryOpen(true);
     }
   };
 
@@ -305,31 +337,13 @@ export function BaseExecutorCard({
                 <Button
                   variant="outline"
                   size="sm"
-                  onPress={() => setBrowseBinaryOpen(true)}
+                  onPress={handleBrowse}
                   isDisabled={isSaving}
                   className="h-8 px-2.5 text-xs cursor-pointer shrink-0 gap-1"
                   aria-label="Browse runner machine for executable"
                 >
                   <FolderOpen className="size-3.5" />
                   <span>Browse</span>
-                </Button>
-              )}
-
-              {runnerId && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onPress={handleDetect}
-                  isDisabled={scanMutation.isPending || isSaving}
-                  className="h-8 px-2.5 text-xs cursor-pointer shrink-0 gap-1 text-muted-foreground hover:text-foreground"
-                  aria-label="Auto detect installation"
-                >
-                  {scanMutation.isPending ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <Radar className="size-3.5 text-primary" />
-                  )}
-                  <span>Detect</span>
                 </Button>
               )}
 
@@ -356,23 +370,114 @@ export function BaseExecutorCard({
             </div>
           </div>
 
-          {/* Quick Candidate Picker (nếu runner phát hiện được versions) */}
-          {candidates.length > 1 && (
-            <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-              <span className="text-[11px] text-muted-foreground">Discovered versions:</span>
-              {candidates.map((cand, idx) => (
+          {/* Discovered / Available Installations List & Switcher */}
+          <div className="space-y-1.5 pt-0.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-medium text-foreground flex items-center gap-1.5">
+                <Layers className="size-3.5 text-primary" />
+                <span>Discovered Installations ({allCandidates.length})</span>
+              </span>
+
+              {runnerId && (
                 <Button
-                  key={idx}
-                  variant={cand.executablePath === executablePath ? "secondary" : "outline"}
+                  variant="ghost"
                   size="sm"
-                  onPress={() => handleSelectCandidate(cand)}
-                  className="h-5 px-2 text-[10px] font-mono cursor-pointer"
+                  onPress={handleDetect}
+                  isDisabled={scanMutation.isPending || isSaving}
+                  className="h-6 px-2 text-[11px] gap-1 text-primary hover:bg-primary/10 cursor-pointer"
                 >
-                  v{cand.version || "detected"}
+                  {scanMutation.isPending ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <Radar className="size-3" />
+                  )}
+                  <span>{scanMutation.isPending ? "Scanning..." : "Scan Machine"}</span>
                 </Button>
-              ))}
+              )}
             </div>
-          )}
+
+            {allCandidates.length > 0 ? (
+              <div className="space-y-1 border border-border/50 rounded-lg p-1.5 bg-muted/20">
+                {allCandidates.map((cand, idx) => {
+                  const isActive =
+                    Boolean(executablePath) &&
+                    cand.executablePath.toLowerCase() === executablePath.toLowerCase();
+
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => handleSelectCandidate(cand)}
+                      className={cn(
+                        "flex items-center justify-between p-2 rounded-md transition-all cursor-pointer text-xs select-none",
+                        isActive
+                          ? "bg-primary/15 border border-primary/40 text-foreground font-medium shadow-2xs"
+                          : "hover:bg-muted/60 text-muted-foreground hover:text-foreground border border-transparent"
+                      )}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <div
+                          className={cn(
+                            "size-4 rounded-full flex items-center justify-center border shrink-0 transition-colors",
+                            isActive
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-muted-foreground/40"
+                          )}
+                        >
+                          {isActive && <div className="size-1.5 rounded-full bg-background" />}
+                        </div>
+
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-[10px] font-mono px-1.5 py-0 h-4 shrink-0",
+                            isActive
+                              ? "border-primary/40 text-primary bg-primary/10 font-semibold"
+                              : "text-muted-foreground"
+                          )}
+                        >
+                          {cand.version ? `v${cand.version}` : "detected"}
+                        </Badge>
+
+                        <span
+                          className="font-mono text-[11px] truncate"
+                          title={cand.executablePath}
+                        >
+                          {cand.executablePath}
+                        </span>
+                      </div>
+
+                      {isActive ? (
+                        <span className="text-[11px] text-emerald-500 font-semibold px-2 flex items-center gap-1 shrink-0">
+                          <Check className="size-3" />
+                          <span>Active</span>
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-primary/80 hover:text-primary font-medium px-2 shrink-0">
+                          Select
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex items-center justify-between p-2.5 rounded-lg border border-dashed border-border/70 text-xs text-muted-foreground bg-muted/10">
+                <span>No installations detected automatically.</span>
+                {runnerId && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onPress={handleDetect}
+                    isDisabled={scanMutation.isPending}
+                    className="h-6 px-2 text-[11px] gap-1 cursor-pointer"
+                  >
+                    <Radar className="size-3 text-primary" />
+                    <span>Detect Now</span>
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Target Version & Headless Execution Flags */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
@@ -454,8 +559,8 @@ export function BaseExecutorCard({
         </div>
       )}
 
-      {/* Remote File Browser Modal */}
-      {runnerId && (
+      {/* Remote File Browser Modal (Fallback if parent does not handle) */}
+      {runnerId && !onOpenBrowse && (
         <RemoteFileBrowserDialog
           open={browseBinaryOpen}
           onOpenChange={setBrowseBinaryOpen}

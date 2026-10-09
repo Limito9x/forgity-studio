@@ -55,15 +55,14 @@ public class GetProjectsHandler(StudioDbContext db, ICurrentUserProvider userPro
         var mapper = new GridifyMapper<Project>()
             .GenerateMappings();
 
-        var queryable = db.Projects.AsNoTracking();
+        // Tách biệt dữ liệu tuyệt đối: Bắt buộc user phải là Owner hoặc Member
+        var queryable = db.Projects
+            .AsNoTracking()
+            .Where(x => x.OwnerId == userId || db.ProjectMembers.Any(pm => pm.ProjectId == x.Id && pm.UserId == userId));
 
         if (query.StudioId.HasValue && query.StudioId.Value != Guid.Empty)
         {
             queryable = queryable.Where(x => x.StudioId == query.StudioId.Value);
-        }
-        else
-        {
-            queryable = queryable.Where(x => x.OwnerId == userId);
         }
 
         var result = await queryable

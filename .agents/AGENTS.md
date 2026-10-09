@@ -46,6 +46,7 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 | **Pipeline Engine Lifecycle** | [.agents/playbooks/pipeline-engine.md](file:///d:/FullStack/Automation/.agents/playbooks/pipeline-engine.md) | Luồng Run -> DAG Planner -> Memory/Entity/State Store -> Phân đoạn DotNet / RunnerSegment -> RabbitMQ -> Worker Subprocess -> Cancel gọn -> SignalR. |
 | **Pipeline Canvas & File Sync** | [.agents/playbooks/pipeline-canvas-sync.md](file:///d:/FullStack/Automation/.agents/playbooks/pipeline-canvas-sync.md) | Cơ chế Autosave Debounce 600ms, Sync toàn đồ thị (SavePipelineGraph), Quy ước File Pin: Draft `{ assetId, originalName }` -> DB `{ assetLinkId }`. |
 | **Worker Runtime & Storage** | [.agents/playbooks/worker-runtime.md](file:///d:/FullStack/Automation/.agents/playbooks/worker-runtime.md) | Quản lý runtime storage (`cache/scripts`, `cache/assets`, `temp/`, `logs/`), lock `.storage.lock`, Script resolver theo SHA-256 hash, Background cleanup daemon. |
+| **Resource & GameplayTags Lifecycle** | [.agents/playbooks/resource-repository-lifecycle.md](file:///d:/FullStack/Automation/.agents/playbooks/resource-repository-lifecycle.md) | Vòng đời Repository -> Resource -> ResourceVersion -> Mount Locations, Inspection JSON metadata, Phân rã TagLink theo SubPath, TagPanel Dnd & Shift-Click. |
 
 ---
 
@@ -111,7 +112,7 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 - [deploy-readiness-batch-first](file:///d:/FullStack/Automation/.agents/plans/2026-10-06-deploy-readiness-batch-first.md): Kế hoạch chuẩn bị triển khai & tối ưu xử lý hàng loạt Batch-First.
 - [unreal-batch-first-refactor](file:///d:/FullStack/Automation/.agents/plans/unreal-batch-first-refactor.md): Kế hoạch tái cấu trúc Unreal Engine Subprocess sang cơ chế Batch-First.
 - [pipeline-file-draft-sync](file:///d:/FullStack/Automation/.agents/plans/2026-10-08-pipeline-file-draft-sync.md): Kế hoạch đồng bộ file parameter trong cấu hình node của Pipeline Canvas.
-
-
-
+- [pipeline-export-import-bundle](file:///d:/FullStack/Automation/.agents/plans/2026-10-08-pipeline-export-import-bundle.md): Kế hoạch xuất nhập Pipeline dạng Unified Package Bundle hỗ trợ Batch, giải quyết phụ thuộc đệ quy SubPipeline, Content Types & Custom Scripts.
+- [pipeline-soft-delete-archive](file:///d:/FullStack/Automation/.agents/plans/2026-10-08-pipeline-soft-delete-archive.md): Kế hoạch Soft Delete (Archive), Partial Unique Index chống trùng tên trong đống Active, và bảo vệ toàn vẹn Node, Edge và Execution history.
+- [fix-pipeline-import-export-and-exec-edges](file:///d:/FullStack/Automation/.agents/plans/2026-10-09-fix-pipeline-import-export-and-exec-edges.md): Kế hoạch hoàn thiện Import/Export Custom Node Library (Asset storage link & Key remapping) và khắc phục triệt để lỗi không nối được dây Exec trên Canvas.
 

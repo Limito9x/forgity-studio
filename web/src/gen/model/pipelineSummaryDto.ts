@@ -15,4 +15,6 @@ export interface PipelineSummaryDto {
   edgeCount: number;
   createdAt: string;
   triggerConfig?: unknown;
+  /** @nullable */
+  deletedAt?: string | null;
 }

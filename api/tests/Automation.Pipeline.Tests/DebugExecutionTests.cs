@@ -26,7 +26,7 @@ public class DebugExecutionTests(ITestOutputHelper output)
 {
     private const string ConnStr = "Host=localhost;Port=5433;Database=Automation;Username=postgres;Password=Lee652452456;Timeout=5;";
 
-    [Fact]
+    [Fact(Skip = "Manual local integration test")]
     public async Task DumpPipelineNodesAndEdges()
     {
         await using var conn = new NpgsqlConnection(ConnStr);
@@ -56,7 +56,7 @@ public class DebugExecutionTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
+    [Fact(Skip = "Manual local integration test")]
     public async Task InspectExecutionFromDb()
     {
         await using var conn = new NpgsqlConnection(ConnStr);
@@ -74,7 +74,7 @@ public class DebugExecutionTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
+    [Fact(Skip = "Manual local integration test")]
     public async Task TestResolveSetVariablePins()
     {
         var services = new ServiceCollection();
@@ -134,7 +134,7 @@ public class DebugExecutionTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
+    [Fact(Skip = "Manual local integration test")]
     public async Task PrintExecPlan()
     {
         var services = new ServiceCollection();

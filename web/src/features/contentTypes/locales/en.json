@@ -1,15 +1,15 @@
 {
     "page": {
-        "title": "Content Type Management",
-        "description": "Manage all Content Types in the system.",
-        "listCaption": "Content Type List",
-        "searchPlaceholder": "Search Content Types..."
+        "title": "Content type Management",
+        "description": "Manage all Content types in the system.",
+        "listCaption": "Content type List",
+        "searchPlaceholder": "Search Content types..."
     },
     "actions": {
-        "create": "Create Content Type",
-        "update": "Edit Content Type",
-        "delete": "Delete Content Type",
-        "deleteConfirm": "Are you sure you want to delete this content type? This action cannot be undone."
+        "create": "Create Content type",
+        "update": "Edit Content type",
+        "delete": "Delete Content type",
+        "deleteConfirm": "Are you sure you want to delete this Content type? This action cannot be undone."
     },
     "fields": {
         "name": "Name"

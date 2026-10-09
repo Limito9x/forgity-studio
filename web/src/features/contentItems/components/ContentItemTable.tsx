@@ -1,4 +1,3 @@
-import { useTranslation } from "react-i18next";
 import { BaseTable } from "@/components/table/BaseTable";
 import type { ColumnDef, Table } from "@tanstack/react-table";
 import type { ContentItemDto } from "@/gen/model";

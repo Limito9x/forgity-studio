@@ -27,10 +27,10 @@ export type {
 };
 
 export const useRunners = () => {
-  return RunnersApi.useGetRunners<RunnerDto[]>({
+  return RunnersApi.useGetRunners<RunnerDto[]>(undefined, {
     query: {
       placeholderData: keepPreviousData,
-      select: (data) => data as unknown as RunnerDto[],
+      select: (data: any) => data as unknown as RunnerDto[],
     },
   });
 };
