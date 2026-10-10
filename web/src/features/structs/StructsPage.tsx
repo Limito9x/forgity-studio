@@ -9,6 +9,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Badge } from "@/components/ui/badge";
 import { Boxes, Plus, Search, Sliders, Trash2, Layers, AlertCircle, Loader2 } from "lucide-react";
 import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
 
 interface StructsPageProps {
     projectId: string;
@@ -17,6 +18,7 @@ interface StructsPageProps {
 export function StructsPage({ projectId }: StructsPageProps) {
     const { t } = useTranslation("structs");
     const { studioSlug } = useCurrentStudio();
+    const nav = useProjectNav({ studioSlug, projectId });
     const openDialog = useDialogStore((state) => state.openDialog);
     const [searchQuery, setSearchQuery] = useState("");
 
@@ -124,8 +126,7 @@ export function StructsPage({ projectId }: StructsPageProps) {
                                         </div>
                                         <CardTitle className="text-base font-semibold hover:text-primary transition-colors">
                                             <Link
-                                                to="/s/$studioSlug/projects/$projectId/structs/$structId/builder"
-                                                params={{ studioSlug, projectId, structId: struct.id || "" }}
+                                                to={nav.urls.structBuilder(struct.id || "")}
                                             >
                                                 {struct.name}
                                             </Link>
@@ -163,8 +164,7 @@ export function StructsPage({ projectId }: StructsPageProps) {
 
                             <CardFooter className="pt-3 border-t flex items-center justify-between gap-2">
                                 <Link
-                                    to="/s/$studioSlug/projects/$projectId/structs/$structId/builder"
-                                    params={{ studioSlug, projectId, structId: struct.id || "" }}
+                                    to={nav.urls.structBuilder(struct.id || "")}
                                     className="flex-1"
                                 >
                                     <Button

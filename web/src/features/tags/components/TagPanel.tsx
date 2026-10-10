@@ -68,7 +68,7 @@ export function TagPanel({ projectId, contextTitle }: TagPanelProps) {
     const isDraggingGlobal = useProjectToolbarStore((s) => s.isDragging);
     const openDialog = useDialogStore((s) => s.openDialog);
 
-    const isMinimized = isCollapsed || isDraggingGlobal;
+    const isMinimized = isCollapsed;
     const { mutate: exportTags, isPending: isExporting } = useExportTags();
 
     // Resizable panel width state

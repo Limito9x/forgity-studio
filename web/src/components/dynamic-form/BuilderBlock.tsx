@@ -40,7 +40,9 @@ export function BuilderBlock({
 
     const resolvedAvailableTypes = useMemo(() => {
         if (availableTypes) return availableTypes;
-        return Array.from(getFieldRegistry().keys()).map(k => ({ label: normalizeTypeName(k), value: k }));
+        return Array.from(getFieldRegistry().entries())
+            .filter(([_, reg]) => reg.isAvailable !== false)
+            .map(([k]) => ({ label: normalizeTypeName(k), value: k }));
     }, [availableTypes]);
 
     const builderFields = useMemo(() => {

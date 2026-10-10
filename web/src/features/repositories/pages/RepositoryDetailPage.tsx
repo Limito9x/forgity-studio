@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import {
   useRepositoryDetail,
   useRepositoryResources,
@@ -28,8 +28,7 @@ import { RepositorySyncTab } from "../components/RepositorySyncTab";
 import { RepositoryResourcesTab } from "../components/RepositoryResourcesTab";
 import { TagTool } from "@/features/tags/components/TagTool";
 import { cn } from "@/lib/utils";
-
-import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
 
 type RepositoryTab = "resources" | "sync" | "runners";
 
@@ -43,12 +42,11 @@ export function RepositoryDetailPage(props: RepositoryDetailPageProps = {}) {
     strict: false,
   }) as { projectId?: string; repositoryId?: string };
 
-  const { studioSlug } = useCurrentStudio();
   const projectId = props.projectId || routeParams.projectId || "";
   const repositoryId = props.repositoryId || routeParams.repositoryId || "";
 
-  const navigate = useNavigate();
   const openDialog = useDialogStore((state) => state.openDialog);
+  const nav = useProjectNav({ projectId });
 
   const [activeTab, setActiveTab] = useState<RepositoryTab>("resources");
 
@@ -88,7 +86,7 @@ export function RepositoryDetailPage(props: RepositoryDetailPageProps = {}) {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => navigate({ to: "/s/$studioSlug/projects/$projectId/repositories", params: { studioSlug, projectId } })}
+          onClick={() => nav.toRepositories()}
           className="gap-2 cursor-pointer text-xs"
         >
           <ArrowLeft className="size-4" /> Back to Repositories
@@ -137,7 +135,7 @@ export function RepositoryDetailPage(props: RepositoryDetailPageProps = {}) {
             variant="outline"
             size="icon"
             className="size-9 rounded-xl cursor-pointer shrink-0"
-            onClick={() => navigate({ to: "/s/$studioSlug/projects/$projectId/repositories", params: { studioSlug, projectId } })}
+            onClick={() => nav.toRepositories()}
             aria-label="Back to repositories"
           >
             <ArrowLeft className="size-4" />
@@ -159,9 +157,8 @@ export function RepositoryDetailPage(props: RepositoryDetailPageProps = {}) {
                 }
               >
                 <span
-                  className={`size-1.5 rounded-full mr-1.5 ${
-                    runners.length > 0 && isOnline ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground"
-                  }`}
+                  className={`size-1.5 rounded-full mr-1.5 ${runners.length > 0 && isOnline ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground"
+                    }`}
                 />
                 {runners.length > 0 ? `${runners.length} Runner Connected` : "No Runner"}
               </Badge>

@@ -4,28 +4,28 @@ import { ContentItemForm, type ContentItemFormValues } from "./components/Conten
 import { ContentResourcesTab } from "./components/ContentResourcesTab";
 import { useGetContentItem, useUpdateContentItem } from "./hooks/useContentItems";
 import { useGetResourcesByContent } from "@/gen/endpoints/resources/resources";
-import { useLoaderData, useParams } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import type { ContentTypeDto } from "@/gen/model";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Layers, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProjectNav } from "@/lib/navigation/useProjectNav";
+import { useProject } from "@/features/projects/context/ProjectContext";
+import { useGetContentType } from "@/features/contentTypes/hooks/useContentTypes";
 
 export function UpdateContentItemPage() {
     const { t } = useTranslation("contentItems");
-    const { projectId, typeKey, itemKey } = useParams({ strict: false }) as {
-        projectId: string;
+    const { projectId } = useProject();
+    const { typeKey, itemKey } = useParams({ strict: false }) as {
         typeKey: string;
         itemKey: string;
     };
-    const nav = useProjectNav({ projectId });
+    const nav = useProjectNav();
 
     const [activeTab, setActiveTab] = useState<"details" | "resources">("details");
 
-    const parentData = useLoaderData({ strict: false }) as { contentType?: ContentTypeDto } | undefined;
-    const contentType = parentData?.contentType;
+    const { data: contentType } = useGetContentType(projectId, typeKey);
 
     const { data: itemData, isLoading, error } = useGetContentItem(projectId, typeKey, itemKey);
     const { data: linkedResources } = useGetResourcesByContent(itemData?.id ?? "", {

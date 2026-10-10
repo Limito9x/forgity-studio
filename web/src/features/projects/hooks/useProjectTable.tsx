@@ -30,8 +30,8 @@ export function useProjectTable({ data, totalCount, resource, studioSlug }: UseP
                 meta: { label: t("fields.name", { defaultValue: "Name" }), icon: TypeIcon },
                 cell: ({ row }) => {
                     const project = row.original;
-                    const targetUrl = studioSlug && project.slug
-                        ? `/s/${studioSlug}/projects/${project.slug}/pipeline`
+                    const targetUrl = studioSlug
+                        ? `/s/${studioSlug}/projects/${project.id}/pipeline`
                         : `/projects/${project.id}/pipeline`;
 
                     return (

@@ -9,8 +9,10 @@ import { useTranslation } from "react-i18next";
 import { DataTableViewOptions } from "@/components/table/DataTableViewOptions";
 import { useAuthStore } from "@/stores/authStore";
 import { useDialogStore } from "@/stores/dialogStore";
-import { useLoaderData, useParams } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import { useProjectNav } from "@/lib/navigation/useProjectNav";
+import { useProject } from "@/features/projects/context/ProjectContext";
+import { useGetContentType } from "@/features/contentTypes/hooks/useContentTypes";
 import { BaseCardGrid } from "@/components/custom-ui/data-display/card/BaseCardGrid";
 import { BaseCard } from "@/components/custom-ui/data-display/card/BaseCard";
 import { ContentDisplayModes } from "./constants/contentDisplayModes";
@@ -28,7 +30,7 @@ import {
     FileSpreadsheet,
     ChevronDown,
 } from "lucide-react";
-import type { ContentTypeDto, ContentItemDto } from "@/gen/model";
+import type { ContentItemDto } from "@/gen/model";
 import { ContentResourcesDrawer } from "./components/drawers/ContentResourcesDrawer";
 import { DynamicIcon } from "@/components/custom-ui/DynamicIcon";
 import { useExportContentItems } from "./hooks/useContentItemsExportImport";
@@ -48,11 +50,11 @@ export function ContentItemPage({ useSearch, useNavigate }: ResourcePageProps) {
     const search = useSearch();
     const navigate = useNavigate();
 
-    const { projectId, typeKey } = useParams({ strict: false }) as { projectId: string; typeKey: string };
-    const nav = useProjectNav({ projectId });
+    const { projectId } = useProject();
+    const { typeKey } = useParams({ strict: false }) as { typeKey: string };
+    const nav = useProjectNav();
 
-    const parentData = useLoaderData({ strict: false }) as { contentType?: ContentTypeDto } | undefined;
-    const contentType = parentData?.contentType;
+    const { data: contentType } = useGetContentType(projectId, typeKey);
 
     const [drawerContent, setDrawerContent] = useState<{ id: string; name: string } | null>(null);
 

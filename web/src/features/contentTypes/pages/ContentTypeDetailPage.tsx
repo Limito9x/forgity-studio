@@ -8,11 +8,14 @@ import { useGetContentType } from "../hooks/useContentTypes";
 import { useDialogStore } from "@/stores/dialogStore";
 import { useProjectNav } from "@/lib/navigation/useProjectNav";
 
+import { useProject } from "@/features/projects/context/ProjectContext";
+
 export function ContentTypeDetailPage() {
     const { t } = useTranslation("contentTypes");
     const nav = useProjectNav();
     const openDialog = useDialogStore((state) => state.openDialog);
-    const { projectId, contentTypeId } = useParams({ strict: false }) as { projectId: string; contentTypeId: string };
+    const { projectId } = useProject();
+    const { contentTypeId } = useParams({ strict: false }) as { contentTypeId: string };
 
     const { data: item, isLoading } = useGetContentType(projectId, contentTypeId);
 

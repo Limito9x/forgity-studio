@@ -6,30 +6,35 @@ import { z } from "zod";
 
 type contentItemQuery = z.infer<typeof GetContentItemsQueryParams>;
 
+const GUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const useContentItems = (params: contentItemQuery, { projectId, contentTypeKey}: {
     projectId: string
     contentTypeKey: string
 }) => {
+    const isValidGuid = Boolean(projectId && GUID_REGEX.test(projectId));
     return ContentItemsApi.useGetContentItems(projectId, contentTypeKey, params, {
         query: {
-            enabled: !!projectId && !!contentTypeKey,
+            enabled: isValidGuid && !!contentTypeKey,
             placeholderData: keepPreviousData,
         }
     });
 };
 
 export const useGetContentItem = (projectId: string, contentTypeKey: string, keyOrId: string) => {
+    const isValidGuid = Boolean(projectId && GUID_REGEX.test(projectId));
     return ContentItemsApi.useGetContentItem(projectId, contentTypeKey, keyOrId, undefined, {
         query: {
-            enabled: !!projectId && !!contentTypeKey && !!keyOrId,
+            enabled: isValidGuid && !!contentTypeKey && !!keyOrId,
         }
     });
 };
 
 export const useGetContentItemById = (id: string, projectId?: string, contentTypeKey?: string) => {
+    const isValidGuid = Boolean(projectId && GUID_REGEX.test(projectId));
     return ContentItemsApi.useGetContentItem(projectId ?? "", contentTypeKey ?? "", id, undefined, {
         query: {
-            enabled: !!id && !!projectId && !!contentTypeKey,
+            enabled: !!id && isValidGuid && !!contentTypeKey,
         }
     });
 };

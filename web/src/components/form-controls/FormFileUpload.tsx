@@ -65,6 +65,7 @@ declare module "@/lib/field-registry" {
 
 registerField({
   type: "file-upload",
+  isAvailable: false,
   component: FormFileUpload,
   resolvedDataProp: "initialAssets",
   builderFields: [

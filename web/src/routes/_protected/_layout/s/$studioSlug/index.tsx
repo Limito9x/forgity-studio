@@ -209,7 +209,7 @@ function DashboardPage() {
                 <CardFooter className="pt-0">
                   <Link
                     to="/s/$studioSlug/projects/$projectId/pipeline"
-                    params={{ studioSlug, projectId: project.slug || project.id! }}
+                    params={{ studioSlug, projectId: project.id! }}
                     className="w-full inline-flex items-center justify-center rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 py-1.5 text-xs font-medium gap-1.5 transition-colors"
                   >
                     <span>Open Pipelines</span>

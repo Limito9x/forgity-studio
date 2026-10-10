@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useParams } from "@tanstack/react-router";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { ProjectSidebar } from "./ProjectSidebar";
 import { MobileNavigationClose } from "./AppShell";
@@ -22,6 +21,8 @@ import { DraggableTagCard } from "@/features/tags/components/DraggableTagCard";
 import { useProjectToolbarStore } from "@/stores/projectToolbarStore";
 import type { DraggableTagPayload, TagDropZonePayload } from "@/features/tags/types";
 import { toast } from "sonner";
+import { useProject } from "@/features/projects/context/ProjectContext";
+import { useQueryClient } from "@tanstack/react-query";
 
 import type { Modifier } from "@dnd-kit/core";
 
@@ -64,7 +65,8 @@ const snapCenterToCursor: Modifier = ({
 };
 
 export function ProjectShell({ children }: { children: React.ReactNode }) {
-    const { projectId } = useParams({ strict: false }) as { projectId?: string };
+    const { projectId } = useProject();
+    const queryClient = useQueryClient();
     const createTagLink = useCreateTagLink();
     const setIsDragging = useProjectToolbarStore((s) => s.setIsDragging);
     const [activeTag, setActiveTag] = useState<DraggableTagPayload | null>(null);
@@ -109,10 +111,18 @@ export function ProjectShell({ children }: { children: React.ReactNode }) {
                     },
                 },
                 {
-                    onSuccess: () =>
+                    onSuccess: () => {
                         toast.success(
                             `Linked tag '${activeData.tagName}'${overData.path ? ` to ${overData.path}` : ""}`
-                        ),
+                        );
+                        // Invalidate all active resource queries to instantly update UI
+                        queryClient.invalidateQueries({
+                            predicate: (q) => {
+                                const k = q.queryKey[0];
+                                return typeof k === "string" && k.startsWith("/api/resources");
+                            },
+                        });
+                    },
                     onError: (err: any) =>
                         toast.error(err?.response?.data?.message || err?.message || "Failed to link tag"),
                 }

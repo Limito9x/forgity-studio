@@ -1,19 +1,20 @@
 import { FormPageShell } from "@/components/layout/shells/FormPageShell";
 import { ContentItemForm, type ContentItemFormValues } from "./components/ContentItemForm";
 import { useCreateContentItem } from "./hooks/useContentItems";
-import { useLoaderData, useParams } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import type { ContentTypeDto } from "@/gen/model";
 import { useProjectNav } from "@/lib/navigation/useProjectNav";
+import { useProject } from "@/features/projects/context/ProjectContext";
+import { useGetContentType } from "@/features/contentTypes/hooks/useContentTypes";
 
 export function CreateContentItemPage() {
     const { t } = useTranslation("contentItems");
-    const { projectId, typeKey } = useParams({ strict: false }) as { projectId: string; typeKey: string };
-    const nav = useProjectNav({ projectId });
+    const { projectId } = useProject();
+    const { typeKey } = useParams({ strict: false }) as { typeKey: string };
+    const nav = useProjectNav();
 
-    const parentData = useLoaderData({ strict: false }) as { contentType?: ContentTypeDto } | undefined;
-    const contentType = parentData?.contentType;
+    const { data: contentType } = useGetContentType(projectId, typeKey);
 
     const createContentItem = useCreateContentItem({ projectId, contentTypeKey: typeKey });
 

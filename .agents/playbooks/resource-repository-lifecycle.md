@@ -97,8 +97,9 @@ Hệ thống GameplayTags cho phép gắn nhãn phân loại theo cấu trúc c�
   2. **Trường/Thuộc tính chi tiết** (`targetSubPath = "slots[0].textures.BASE_COLOR"`): Gán nhãn trực tiếp vào một cell cụ thể trong bảng Metadata của Resource.
 - **Dnd-Kit Integration**:
   - Vùng kéo: `DraggableTagCard` và `TagTreeNodeItem` trong `TagPanel.tsx`.
-  - Vùng thả: `TagDroppableCell` trong `JsonTreeTable.tsx`.
-  - Khi thả: Kích hoạt mutation `createTagLink` với payload `{ projectId, tagPath, entityId, entityType, targetSubPath }`.
+  - **Quy tắc bất biến (DOM Integrity)**: Trong suốt quá trình kéo (`isDraggingGlobal = true`), cây tag trong `TagPanel` **BẮT BUỘC PHẢI GIỮ MOUNT TRONG DOM** (chỉ áp dụng `opacity-40 pointer-events-none` để không che khuất màn hình). Tuyệt đối không dùng cờ kéo để unmount/thu gọn cây tag vì sẽ làm dnd-kit mất node nguồn và hủy sự kiện drop giữa chừng.
+  - Vùng thả: `TagDroppableCell` trong `JsonTreeTable.tsx` được mở rộng `w-full min-h-[28px]` phủ kín toàn bộ ô bảng `<td>`, tự động sáng viền đứt nét khi nhấc tag lên (`border-dashed border-primary/50`).
+  - Khi thả: Kích hoạt mutation `createTagLink` với payload `{ projectId, tagPath, entityId, entityType, targetSubPath }`. Sau khi thành công, tự động invalidate và cập nhật lại cache resource ngay lập tức.
 
 ### 3.3. Tương tác nhanh trên Cây Tag (`TagPanel.tsx`)
 - **Click thông thường**: Mở/thu gọn cấp hiện tại.

@@ -1,11 +1,12 @@
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "@tanstack/react-router";
 import { Folder, EditIcon, TrashIcon, ArrowRight } from "lucide-react";
 import { BaseCard } from "@/components/custom-ui/data-display/card/BaseCard";
 import { DataTableRowActions, type ActionItem } from "@/components/table/DataTableRowActions";
 import { useDialogStore } from "@/stores/dialogStore";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProjectDto } from "@/gen/model";
+
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
 
 interface ProjectCardProps {
     project: ProjectDto;
@@ -14,16 +15,12 @@ interface ProjectCardProps {
 
 export function ProjectCard({ project, studioSlug }: ProjectCardProps) {
     const { t } = useTranslation(["projects", "common"]);
-    const navigate = useNavigate();
+    const nav = useProjectNav({ studioSlug, projectId: project.id });
     const openDialog = useDialogStore((state) => state.openDialog);
     const hasPermission = useAuthStore((state) => state.hasPermission);
 
-    const projectTarget = studioSlug
-        ? `/s/${studioSlug}/projects/${project.slug || project.id}/pipeline`
-        : `/projects/${project.id}/pipeline`;
-
     const handleCardClick = () => {
-        navigate({ to: projectTarget as any });
+        nav.toPipelines();
     };
 
     const actions = [

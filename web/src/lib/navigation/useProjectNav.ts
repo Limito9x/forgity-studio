@@ -30,7 +30,7 @@ export function useProjectNav(options?: ProjectNavOptions) {
   }
   const studioSlug = resolvedStudioSlug || currentStudioSlug || "";
 
-  // 2. Resolve projectId (GUID for queries) & urlProjectKey (slug or id for URL)
+  // 2. Resolve projectId (GUID for queries and route matching)
   let resolvedProjectId = options?.projectId || projectCtx?.projectId;
   if (!resolvedProjectId) {
     let rawKeyOrId = params.projectId;
@@ -42,8 +42,10 @@ export function useProjectNav(options?: ProjectNavOptions) {
   }
   const projectId = resolvedProjectId;
 
-  // Use slug for clean URLs if available, otherwise fallback to projectId
-  const urlProjectKey = projectCtx?.projectSlug || options?.projectId || projectId;
+  // URL Project Key Strategy:
+  // Using projectId (GUID) ensures complete consistency with backend API foreign keys and prevents 400 Bad Request.
+  // If in the future slug-based URLs are desired, simply switch this to: `projectCtx?.projectSlug || projectId`
+  const urlProjectKey = options?.projectId || projectCtx?.projectId || projectId;
 
   // Base URL pattern for current project scope
   const projectBase = studioSlug
@@ -144,3 +146,8 @@ export function useProjectNav(options?: ProjectNavOptions) {
     },
   };
 }
+
+/**
+ * Convenient alias for useProjectNav adhering to the Navigator facade pattern
+ */
+export const useProjectNavigator = useProjectNav;
