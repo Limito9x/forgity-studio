@@ -1,7 +1,7 @@
 import { useGetStructById, useGetProjectStructs, useUpdateStruct } from "./hooks/useStructs";
 import { useTranslation } from "react-i18next";
 import { useEffect } from "react";
-import { useNavigate, Link } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { Form, useForm, zodResolver } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -9,12 +9,15 @@ import { z } from "zod";
 import { FormBuilder } from "@/features/contentTypes/components/FormBuilder";
 import { Loader2, Boxes } from "lucide-react";
 import { fieldDefinitionSchema } from "@/features/contentTypes/schemas/createContentTypeSchema";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
 
 const schemaConfigSchema = z.object({
     fieldsConfig: z.array(fieldDefinitionSchema).default([]),
 });
 
 type SchemaConfigInput = z.input<typeof schemaConfigSchema>;
+
+import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 
 interface StructSchemaBuilderPageProps {
     projectId: string;
@@ -23,7 +26,8 @@ interface StructSchemaBuilderPageProps {
 
 export function StructSchemaBuilderPage({ projectId, structId }: StructSchemaBuilderPageProps) {
     const { t } = useTranslation("structs");
-    const navigate = useNavigate();
+    const { studioSlug } = useCurrentStudio();
+    const nav = useProjectNav({ studioSlug, projectId });
 
     const { data: structDetail, isLoading } = useGetStructById(projectId, structId);
     const { data: structs } = useGetProjectStructs(projectId);
@@ -60,7 +64,7 @@ export function StructSchemaBuilderPage({ projectId, structId }: StructSchemaBui
             {
                 onSuccess: () => {
                     toast.success(t("messages.schemaUpdateSuccess", { defaultValue: "Struct schema updated successfully" }));
-                    navigate({ to: "/projects/$projectId/structs", params: { projectId } });
+                    nav.toStructs();
                 },
                 onError: (error: any) => {
                     const message = error?.message || error?.response?.data?.message || "Failed to update struct schema";
@@ -92,7 +96,10 @@ export function StructSchemaBuilderPage({ projectId, structId }: StructSchemaBui
         <div className="flex flex-col h-full gap-2">
             <div className="flex flex-col gap-1 px-4 md:px-6 lg:px-8 pt-4 pb-1">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Link to="/projects/$projectId/structs" params={{ projectId }} className="hover:underline flex items-center gap-1">
+                    <Link
+                        to={nav.urls.structs()}
+                        className="hover:underline flex items-center gap-1"
+                    >
                         &larr; {t("common:back", { defaultValue: "Back to Structs" })}
                     </Link>
                 </div>
@@ -124,7 +131,7 @@ export function StructSchemaBuilderPage({ projectId, structId }: StructSchemaBui
                             type="button"
                             variant="outline"
                             className="mr-2"
-                            onPress={() => navigate({ to: "/projects/$projectId/structs", params: { projectId } })}
+                            onPress={() => nav.toStructs()}
                         >
                             {t("common:cancel", { defaultValue: "Cancel" })}
                         </Button>

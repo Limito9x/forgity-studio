@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,12 +6,16 @@ import { DescriptionList, DescriptionListItem } from "@/components/custom-ui/dat
 import { SinglePageShell } from "@/components/layout/shells/SinglePageShell";
 import { useGetContentType } from "../hooks/useContentTypes";
 import { useDialogStore } from "@/stores/dialogStore";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
+
+import { useProject } from "@/features/projects/context/ProjectContext";
 
 export function ContentTypeDetailPage() {
     const { t } = useTranslation("contentTypes");
-    const navigate = useNavigate();
+    const nav = useProjectNav();
     const openDialog = useDialogStore((state) => state.openDialog);
-    const { projectId, contentTypeId } = useParams({ strict: false }) as { projectId: string; contentTypeId: string };
+    const { projectId } = useProject();
+    const { contentTypeId } = useParams({ strict: false }) as { contentTypeId: string };
 
     const { data: item, isLoading } = useGetContentType(projectId, contentTypeId);
 
@@ -43,7 +47,7 @@ export function ContentTypeDetailPage() {
                 <>
                     <Button
                         variant="outline"
-                        onClick={() => navigate({ to: "/projects/$projectId/content-types", params: { projectId } })}
+                        onClick={() => nav.toContentTypes()}
                     >
                         {t("common:back", { defaultValue: "Back" })}
                     </Button>

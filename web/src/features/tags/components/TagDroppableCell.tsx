@@ -2,6 +2,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { Tag as TagIcon, X } from "lucide-react";
 import type { TagDropZonePayload, TagLinkDetailDto } from "../types";
 import { useDeleteTagLink } from "../hooks/useTags";
+import { useProjectToolbarStore } from "@/stores/projectToolbarStore";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -18,12 +19,13 @@ export function TagDroppableCell({
     path,
     value,
     entityId,
-    entityType = "ResourceVersion",
+    entityType = "Resource",
     existingTags = [],
     renderValueContent,
 }: TagDroppableCellProps) {
     const isDroppableEnabled = Boolean(entityId);
     const deleteTagLink = useDeleteTagLink();
+    const isDraggingGlobal = useProjectToolbarStore((s) => s.isDragging);
 
     const payload: TagDropZonePayload = {
         type: "tag-drop-zone",
@@ -43,9 +45,10 @@ export function TagDroppableCell({
             ref={setNodeRef}
             data-path={path}
             className={cn(
-                "group/cell relative flex flex-wrap items-center gap-1.5 p-1 rounded-md transition-all min-h-[26px]",
-                isDroppableEnabled && "border border-border/40 hover:border-primary/40 bg-card/40",
-                isOver && "ring-2 ring-primary border-primary bg-primary/25 scale-[1.02] shadow-md z-10"
+                "group/cell relative flex flex-wrap items-center justify-between gap-1.5 p-1 px-1.5 rounded-md transition-all min-h-[28px] w-full",
+                isDroppableEnabled && "border border-border/30 hover:border-primary/40 bg-card/30",
+                isDraggingGlobal && isDroppableEnabled && "border-dashed border-primary/50 bg-primary/5 shadow-2xs",
+                isOver && "ring-2 ring-primary border-primary bg-primary/25 scale-[1.01] shadow-md z-10"
             )}
         >
             {/* The actual value */}

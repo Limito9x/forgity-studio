@@ -19,6 +19,10 @@ export function BuilderConfigRenderer<T extends FieldValues>({
 }: BuilderConfigRendererProps<T>) {
     const registration = getFieldRegistration(type);
 
+    if (registration?.isAvailable === false) {
+        return null;
+    }
+
     if (!registration?.builderFields || registration.builderFields.length === 0) {
         return (
             <div className="text-muted-foreground text-sm italic">

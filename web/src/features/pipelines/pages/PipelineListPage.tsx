@@ -21,6 +21,7 @@ import { usePipelineExport } from "../hooks/usePipelineExportImport";
 import { useDialogStore } from "@/stores/dialogStore";
 import { ActivePipelinesTab } from "../components/pipeline-list/ActivePipelinesTab";
 import { TrashPipelinesTab } from "../components/pipeline-list/TrashPipelinesTab";
+import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 
 // Ensure pipeline dialogs are registered into the global registry
 import "../dialogs";
@@ -30,6 +31,7 @@ interface PipelineListPageProps {
 }
 
 export function PipelineListPage({ projectId }: PipelineListPageProps) {
+  const { studioSlug } = useCurrentStudio();
   const [activeTab, setActiveTab] = useState<"active" | "trash">("active");
 
   const { data: activePipelines = [], isLoading: isActiveLoading } =
@@ -94,8 +96,8 @@ export function PipelineListPage({ projectId }: PipelineListPageProps) {
           </Button>
 
           <Link
-            to="/projects/$projectId/pipeline/nodes/new"
-            params={{ projectId }}
+            to="/s/$studioSlug/projects/$projectId/pipeline/nodes/new"
+            params={{ studioSlug, projectId }}
             className={cn(
               buttonVariants({ variant: "outline", size: "sm" }),
               "gap-1.5 text-xs"

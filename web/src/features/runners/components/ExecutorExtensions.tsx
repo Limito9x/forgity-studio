@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useProjects } from "@/features/projects/hooks/useProjects";
-import { useStudioStore } from "@/stores/studioStore";
+import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 import { RemoteFileBrowserDialog } from "@/components/custom-ui/file-tree";
 import { FolderKanban, FolderOpen, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -26,7 +26,7 @@ export function UnrealExecutorExtension({
 
   const [activeBrowseProjectId, setActiveBrowseProjectId] = useState<string | null>(null);
 
-  const activeStudioId = useStudioStore((state) => state.activeStudioId);
+  const { studioId: activeStudioId } = useCurrentStudio();
   const { data: projectsData, isLoading: isLoadingProjects } = useProjects({
     page: 1,
     pageSize: 100,

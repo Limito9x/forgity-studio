@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useParams } from "@tanstack/react-router";
+import { useOptionalProject } from "@/features/projects/context/ProjectContext";
 import { BaseCombobox } from "@/components/custom-ui/inputs/combobox/BaseCombobox";
 import { useRepositories } from "@/features/repositories/hooks/useRepositories";
 import { useGetRepositoryResources } from "@/gen/endpoints/repositories/repositories";
@@ -34,8 +35,9 @@ export function EntityPinSelect({
   disabled = false,
   multiple = false,
 }: EntityPinSelectProps) {
+  const projectCtx = useOptionalProject();
   const routeParams = useParams({ strict: false }) as { projectId?: string };
-  const effectiveProjectId = projectId || routeParams?.projectId || "";
+  const effectiveProjectId = projectId || projectCtx?.projectId || routeParams?.projectId || "";
 
   const normType = (target || entityType || "resource").toLowerCase().replace(/[\s_-]+/g, "");
   const isResourceRef = normType.includes("resource");

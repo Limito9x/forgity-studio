@@ -4,7 +4,7 @@ import { getAuthState, useAuthStore } from "@/stores/authStore";
 import { useGetProfile } from "@/features/settings/hooks/useProfile";
 import { useGetPermissions } from "@/gen/endpoints/auth/auth";
 import { useStudios } from "@/features/studios/hooks/useStudios";
-import { useStudioStore } from "@/stores/studioStore";
+import { setCurrentStudio, getCurrentStudioSlug } from "@/features/studios/hooks/useCurrentStudio";
 import { AppSplashScreen } from "@/components/layout/app/AppSplashScreen";
 
 export const Route = createFileRoute("/_protected")({
@@ -29,7 +29,6 @@ function ProtectedLayoutComponent() {
 
   const setProfile = useAuthStore((state) => state.setProfile);
   const setPermissions = useAuthStore((state) => state.setPermissions);
-  const { activeStudioId, setActiveStudioId } = useStudioStore();
 
   useEffect(() => {
     if (profile) {
@@ -43,7 +42,7 @@ function ProtectedLayoutComponent() {
     }
   }, [permissions, setPermissions]);
 
-  // Studio Guard & Auto-Sync
+  // Studio Guard
   useEffect(() => {
     if (isStudiosLoading) return;
 
@@ -58,13 +57,12 @@ function ProtectedLayoutComponent() {
       if (isOnboardingPage) {
         navigate({ to: "/", replace: true });
       } else {
-        const exists = studioList.some((s) => s.id === activeStudioId);
-        if (!activeStudioId || !exists) {
-          setActiveStudioId(studioList[0].id);
-        }
+        const lastSlug = getCurrentStudioSlug();
+        const active = studioList.find((s) => s.slug === lastSlug) ?? studioList[0];
+        setCurrentStudio(active);
       }
     }
-  }, [isStudiosLoading, studios, activeStudioId, setActiveStudioId, pathname, navigate]);
+  }, [isStudiosLoading, studios, pathname, navigate]);
 
   const isInitialLoading = isProfileLoading || isPermissionsLoading || isStudiosLoading;
 

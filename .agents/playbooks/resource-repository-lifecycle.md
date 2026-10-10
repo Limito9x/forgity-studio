@@ -97,8 +97,9 @@ Hệ thống GameplayTags cho phép gắn nhãn phân loại theo cấu trúc c�
   2. **Trường/Thuộc tính chi tiết** (`targetSubPath = "slots[0].textures.BASE_COLOR"`): Gán nhãn trực tiếp vào một cell cụ thể trong bảng Metadata của Resource.
 - **Dnd-Kit Integration**:
   - Vùng kéo: `DraggableTagCard` và `TagTreeNodeItem` trong `TagPanel.tsx`.
-  - Vùng thả: `TagDroppableCell` trong `JsonTreeTable.tsx`.
-  - Khi thả: Kích hoạt mutation `createTagLink` với payload `{ projectId, tagPath, entityId, entityType, targetSubPath }`.
+  - **Quy tắc bất biến (DOM Integrity)**: Trong suốt quá trình kéo (`isDraggingGlobal = true`), cây tag trong `TagPanel` **BẮT BUỘC PHẢI GIỮ MOUNT TRONG DOM** (chỉ áp dụng `opacity-40 pointer-events-none` để không che khuất màn hình). Tuyệt đối không dùng cờ kéo để unmount/thu gọn cây tag vì sẽ làm dnd-kit mất node nguồn và hủy sự kiện drop giữa chừng.
+  - Vùng thả: `TagDroppableCell` trong `JsonTreeTable.tsx` được mở rộng `w-full min-h-[28px]` phủ kín toàn bộ ô bảng `<td>`, tự động sáng viền đứt nét khi nhấc tag lên (`border-dashed border-primary/50`).
+  - Khi thả: Kích hoạt mutation `createTagLink` với payload `{ projectId, tagPath, entityId, entityType, targetSubPath }`. Sau khi thành công, tự động invalidate và cập nhật lại cache resource ngay lập tức.
 
 ### 3.3. Tương tác nhanh trên Cây Tag (`TagPanel.tsx`)
 - **Click thông thường**: Mở/thu gọn cấp hiện tại.
@@ -141,3 +142,19 @@ Triết lý **Asset Slots & Asset Link** là nền tảng kết nối giữa Res
 - **Quy tắc vàng**:
   - Tuyệt đối không hardcode đường dẫn vật lý tuyệt đối trong cấu hình node của Pipeline Canvas.
   - Luôn thông qua **Asset Link** để đảm bảo đồ thị có thể Export sang máy khác hoặc chạy trên Runner phân tán mà không bị gãy file path.
+
+---
+
+## 6. GameplayTags Import & Export Engine
+
+Hệ thống cung cấp cơ chế sao lưu, di chuyển và tích hợp GameplayTags giữa các dự án hoặc với engine game ngoài (Unreal Engine):
+
+1. **Định dạng Export**:
+   - **JSON (`.tags.json`)**: Chứa toàn bộ cây tag kèm metadata (`FormatVersion`, `ExportedAt`, `TotalTags`, mảng `tags` gồm `Path`, `Name`, `Color`, `Description`).
+   - **CSV (`.tags.csv`)**: Cấu trúc bảng `Path,Name,Color,Description` tương thích định dạng GameplayTags chuẩn của Unreal Engine (`Tag,Category,Comment`).
+2. **Cơ chế Import & Tái thiết lập phân cấp (Depth-First Hierarchy Ingestion)**:
+   - Backend phân rã đường dẫn theo độ sâu dấu chấm (`path.Split('.').Length`).
+   - Nhập từ tầng 1 đến tầng sâu nhất: tự động tạo các node cha còn thiếu, liên kết `ParentId` chính xác mà không gặp lỗi khóa ngoại.
+   - Hỗ trợ chiến lược xung đột (`ConflictStrategy`):
+     - `Skip`: Bỏ qua nếu tag đã tồn tại (giữ nguyên màu sắc và mô tả cũ).
+     - `Update`: Cập nhật màu sắc (`Color`) và mô tả (`Description`) của tag cũ theo file mới.

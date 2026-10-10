@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Sparkles, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -19,13 +18,14 @@ import { ImpactReconciliationTab } from "../components/script-ingestion/deck-wor
 import { IngestionFooterBar } from "../components/script-ingestion/IngestionFooterBar";
 import { useScriptBatchPublish, type ScriptSource } from "../hooks/useScriptBatchPublish";
 import { ScriptGuidelinesDialog } from "../dialogs/ScriptGuidelinesDialog";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
 
 interface ScriptIngestionPageProps {
   projectId: string;
 }
 
 export function ScriptIngestionPage({ projectId }: ScriptIngestionPageProps) {
-  const navigate = useNavigate();
+  const nav = useProjectNav({ projectId });
 
   const [guidelinesOpen, setGuidelinesOpen] = useState(false);
   const [analyzedNodes, setAnalyzedNodes] = useState<AnalyzedCustomNodeDto[]>([]);
@@ -130,7 +130,7 @@ export function ScriptIngestionPage({ projectId }: ScriptIngestionPageProps) {
     setSelectedIndex(0);
     if (remaining.length === 0) {
       handleReset();
-      navigate({ to: "/projects/$projectId/pipeline/nodes", params: { projectId } });
+      nav.toNodes();
     }
   };
 
@@ -145,12 +145,7 @@ export function ScriptIngestionPage({ projectId }: ScriptIngestionPageProps) {
             variant="ghost"
             size="sm"
             className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            onPress={() =>
-              navigate({
-                to: "/projects/$projectId/pipeline/nodes",
-                params: { projectId },
-              })
-            }
+            onPress={() => nav.toNodes()}
           >
             <ArrowLeft className="size-3.5" />
             Back to Node Library

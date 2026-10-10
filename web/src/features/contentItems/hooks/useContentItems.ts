@@ -6,22 +6,35 @@ import { z } from "zod";
 
 type contentItemQuery = z.infer<typeof GetContentItemsQueryParams>;
 
+const GUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const useContentItems = (params: contentItemQuery, { projectId, contentTypeKey}: {
     projectId: string
     contentTypeKey: string
 }) => {
+    const isValidGuid = Boolean(projectId && GUID_REGEX.test(projectId));
     return ContentItemsApi.useGetContentItems(projectId, contentTypeKey, params, {
         query: {
-            enabled: !!projectId && !!contentTypeKey,
+            enabled: isValidGuid && !!contentTypeKey,
             placeholderData: keepPreviousData,
         }
     });
 };
 
-export const useGetContentItemById = (id: string) => {
-    return ContentItemsApi.useGetContentItemById( id, {
+export const useGetContentItem = (projectId: string, contentTypeKey: string, keyOrId: string) => {
+    const isValidGuid = Boolean(projectId && GUID_REGEX.test(projectId));
+    return ContentItemsApi.useGetContentItem(projectId, contentTypeKey, keyOrId, undefined, {
         query: {
-            enabled: !!id,
+            enabled: isValidGuid && !!contentTypeKey && !!keyOrId,
+        }
+    });
+};
+
+export const useGetContentItemById = (id: string, projectId?: string, contentTypeKey?: string) => {
+    const isValidGuid = Boolean(projectId && GUID_REGEX.test(projectId));
+    return ContentItemsApi.useGetContentItem(projectId ?? "", contentTypeKey ?? "", id, undefined, {
+        query: {
+            enabled: !!id && isValidGuid && !!contentTypeKey,
         }
     });
 };
@@ -49,7 +62,7 @@ export const useUpdateContentItem = (params?: { projectId?: string; contentTypeK
     const queryClient = useQueryClient();
     return ContentItemsApi.useUpdateContentItem({
         mutation: {
-            onSuccess: (_, variables) => {
+            onSuccess: () => {
                 if (params?.projectId && params?.contentTypeKey) {
                     queryClient.invalidateQueries({
                         queryKey: ContentItemsApi.getGetContentItemsQueryKey(params.projectId, params.contentTypeKey)
@@ -57,9 +70,6 @@ export const useUpdateContentItem = (params?: { projectId?: string; contentTypeK
                 }
                 queryClient.invalidateQueries({
                     predicate: (query) => typeof query.queryKey[0] === "string" && query.queryKey[0].includes("/contents")
-                });
-                queryClient.invalidateQueries({
-                    queryKey: ContentItemsApi.getGetContentItemByIdQueryKey(variables.id)
                 });
             }
         }

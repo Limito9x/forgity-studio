@@ -27,6 +27,7 @@ import {
   MenuTrigger,
   Popover,
 } from "react-aria-components";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
 
 interface RepositoryCardProps {
   repository: RepositoryDto;
@@ -34,6 +35,7 @@ interface RepositoryCardProps {
 
 export function RepositoryCard({ repository }: RepositoryCardProps) {
   const openDialog = useDialogStore((state) => state.openDialog);
+  const nav = useProjectNav();
   const runnerCount = (repository as any).runnerCount ?? (repository as any).agentCount ?? 0;
   const resourceCount = repository.resourceCount ?? 0;
 
@@ -135,8 +137,7 @@ export function RepositoryCard({ repository }: RepositoryCardProps) {
 
       <CardFooter className="px-6 pb-4 pt-2">
         <Link
-          to="/projects/$projectId/repositories/$repositoryId"
-          params={{ projectId: repository.projectId, repositoryId: repository.id }}
+          to={nav.urls.repositoryDetail(repository.id)}
           className={cn(
             buttonVariants({ variant: "outline", size: "sm" }),
             "w-full justify-between group-hover:border-primary/50 cursor-pointer"

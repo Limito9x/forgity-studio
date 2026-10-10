@@ -8,6 +8,7 @@ using Automation.Content.Infrastructure.Persistence;
 using Automation.Content.Shared.Dtos;
 using Automation.DynamicForms.Contracts;
 using Automation.Files.Contracts;
+using Automation.SharedKernel.Extensions.Strings;
 
 namespace Automation.Content.Features.ContentItems;
 
@@ -15,6 +16,8 @@ public record CreateContentItemCommand{
     public Guid ProjectId { get; set; }
 
     public string Key { get; set; } = null!;
+
+    public string? ItemKey { get; set; }
 
     public string Name { get; set; } = null!;
 
@@ -69,10 +72,27 @@ public class CreateContentItemHandler(ContentDbContext db, ISchemaApi schemaApi,
             return Result.Fail("ContentType not found");
         }
 
+        var itemKey = string.IsNullOrWhiteSpace(request.ItemKey)
+            ? request.Name.ToSlug()
+            : request.ItemKey.ToSlug();
+
+        if (string.IsNullOrWhiteSpace(itemKey))
+        {
+            return Result.Fail(new Error("Content item key cannot be empty or invalid."));
+        }
+
+        var keyExists = await db.ContentItems
+            .AnyAsync(c => c.ProjectId == request.ProjectId && c.ContentTypeId == contentType.Id && c.Key == itemKey, cancellationToken);
+        if (keyExists)
+        {
+            return Result.Fail(new Error($"ContentItem with key '{itemKey}' already exists in this content type."));
+        }
+
         var item = new ContentItem(
             contentType.Id,
             request.ProjectId,
-            request.Name
+            request.Name,
+            itemKey
         );
 
         db.ContentItems.Add(item);
@@ -110,6 +130,7 @@ public class CreateContentItemHandler(ContentDbContext db, ISchemaApi schemaApi,
             ContentTypeId = item.ContentTypeId,
             ProjectId = item.ProjectId,
             Name = item.Name,
+            Key = item.Key,
             Values = dataResult.Value.Values
         });
     }

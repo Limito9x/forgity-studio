@@ -3,10 +3,11 @@ using Wolverine.Attributes;
 using Automation.Studio.Domain.Entities;
 using Automation.Studio.Infrastructure.Persistence;
 using Automation.Studio.Shared.Dtos;
+using Automation.SharedKernel.Extensions.Strings;
 
 namespace Automation.Studio.Features.Projects;
 
-public record CreateProjectCommand(string Name, Guid? StudioId = null);
+public record CreateProjectCommand(string Name, string? Slug = null, Guid? StudioId = null);
 
 public class CreateProjectValidator : Validator<CreateProjectCommand>
 {
@@ -15,6 +16,10 @@ public class CreateProjectValidator : Validator<CreateProjectCommand>
         RuleFor(x => x.Name)
             .NotEmpty()
             .MaximumLength(255);
+
+        RuleFor(x => x.Slug)
+            .MaximumLength(150)
+            .When(x => !string.IsNullOrEmpty(x.Slug));
     }
 }
 
@@ -75,12 +80,19 @@ public class CreateProjectHandler(
             }
         }
 
-        var project = new Project
+        var slug = string.IsNullOrWhiteSpace(request.Slug) ? request.Name.ToSlug() : request.Slug.ToSlug();
+        if (string.IsNullOrWhiteSpace(slug))
         {
-            Name = request.Name,
-            StudioId = targetStudioId.Value,
-            OwnerId = userProvider.UserId.Value,
-        };
+            return Result.Fail<ProjectDto>("Cannot generate a valid slug from project name.");
+        }
+
+        var slugExists = await db.Projects.AnyAsync(p => p.StudioId == targetStudioId.Value && p.Slug == slug, ct);
+        if (slugExists)
+        {
+            return Result.Fail<ProjectDto>($"Project with slug '{slug}' already exists in this studio.");
+        }
+
+        var project = new Project(targetStudioId.Value, request.Name, slug, userProvider.UserId.Value);
 
         db.Projects.Add(project);
         await db.SaveChangesAsync(ct);

@@ -5,15 +5,18 @@ import { z } from "zod";
 
 type contentTypeQuery = z.infer<typeof GetContentTypesQueryParams>;
 
+const GUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const useContentTypes = (
     params: contentTypeQuery,
     projectId?: string,
     options?: { enabled?: boolean }
 ) => {
+    const isValidGuid = Boolean(projectId && GUID_REGEX.test(projectId));
     return ContentTypesApi.useGetContentTypes(projectId || "", params, {
         query: {
             placeholderData: keepPreviousData,
-            enabled: Boolean(projectId) && (options?.enabled ?? true),
+            enabled: isValidGuid && (options?.enabled ?? true),
         }
     });
 };

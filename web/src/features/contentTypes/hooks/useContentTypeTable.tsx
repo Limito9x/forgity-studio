@@ -1,15 +1,16 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDialogStore } from "@/stores/dialogStore";
 import { useAuthStore } from "@/stores/authStore";
 import { DataTableRowActions, type ActionItem } from "@/components/table/DataTableRowActions";
 import type { BaseSearchParams, useResourceQuery } from "@/lib/useResourceQuery";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, RowSelectionState } from "@tanstack/react-table";
 import type { ContentTypeDto } from "@/gen/model";
 import { EditIcon, TrashIcon, TypeIcon, KeyIcon, FileTextIcon, BlocksIcon } from "lucide-react";
 import { useDataTable } from "@/lib/useDataTable";
-import { useRouter } from "@tanstack/react-router";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
 import { DynamicIcon } from "@/components/custom-ui/DynamicIcon";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export interface UseContentTypeTableOptions {
     data: ContentTypeDto[];
@@ -21,10 +22,38 @@ export function useContentTypeTable({ data, totalCount, resource }: UseContentTy
     const { t } = useTranslation(["contentTypes", "common"]);
     const openDialog = useDialogStore((state) => state.openDialog);
     const hasPermission = useAuthStore((state) => state.hasPermission);
-    const router = useRouter();
+    const nav = useProjectNav();
+    const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
     const columns = useMemo<ColumnDef<ContentTypeDto>[]>(
         () => [
+            {
+                id: "select",
+                header: ({ table }) => (
+                    <div className="flex items-center justify-center pl-1">
+                        <Checkbox
+                            slot="selection"
+                            isSelected={table.getIsAllPageRowsSelected()}
+                            isIndeterminate={table.getIsSomePageRowsSelected()}
+                            onChange={(checked) => table.toggleAllPageRowsSelected(checked)}
+                            aria-label="Select all content types"
+                        />
+                    </div>
+                ),
+                cell: ({ row }) => (
+                    <div className="flex items-center justify-center pl-1">
+                        <Checkbox
+                            slot="selection"
+                            isSelected={row.getIsSelected()}
+                            onChange={(checked) => row.toggleSelected(checked)}
+                            aria-label={`Select ${row.original.displayName}`}
+                        />
+                    </div>
+                ),
+                enableSorting: false,
+                enableHiding: false,
+                size: 38,
+            },
             {
                 accessorKey: "displayName",
                 header: () => t("fields.displayName", { defaultValue: "Display Name" }),
@@ -63,10 +92,7 @@ export function useContentTypeTable({ data, totalCount, resource }: UseContentTy
                             label: t("actions.schemaBuilder", { defaultValue: "Schema Config" }),
                             icon: BlocksIcon,
                             onClick: () => {
-                                router.navigate({
-                                    to: `/projects/$id/content-types/${item.id}/builder`,
-                                    params: { id: item.projectId! }
-                                });
+                                nav.toContentTypeBuilder(item.id!);
                             },
                         },
                         hasPermission("contenttypes:update") && {
@@ -89,10 +115,18 @@ export function useContentTypeTable({ data, totalCount, resource }: UseContentTy
                 },
             },
         ],
-        [openDialog, hasPermission, t, router]
+        [openDialog, hasPermission, t, nav]
     );
 
-    const table = useDataTable({ data, columns, totalCount, resource });
+    const table = useDataTable({
+        data,
+        columns,
+        totalCount,
+        resource,
+        rowSelection,
+        onRowSelectionChange: setRowSelection,
+        getRowId: (row) => row.id!,
+    });
 
-    return { table, columns };
+    return { table, columns, rowSelection, setRowSelection };
 }

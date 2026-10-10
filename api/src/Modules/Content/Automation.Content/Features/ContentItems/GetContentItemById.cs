@@ -8,17 +8,23 @@ using Automation.Files.Contracts;
 
 namespace Automation.Content.Features.ContentItems;
 
-public record GetContentItemByIdQuery(Guid Id);
+public record GetContentItemByIdQuery
+{
+    public Guid? Id { get; set; }
+    public Guid? ProjectId { get; set; }
+    public string? ContentTypeKey { get; set; }
+    public string? KeyOrId { get; set; }
+}
 
-public class GetContentItemByIdEndpoint(IMessageBus bus)
+public class GetContentItemEndpoint(IMessageBus bus)
     : Endpoint<GetContentItemByIdQuery, ContentItemDto>
 {
     public override void Configure()
     {
-        Get(ContentRoutes.ContentItem);
+        Get(ContentRoutes.NestedContentItemDetail);
         Group<ContentItemsGroup>();
         Permissions(P.ContentItem.GetById);
-        Description(x => x.WithName("GetContentItemById"));
+        Description(x => x.WithName("GetContentItem"));
     }
 
     public override async Task HandleAsync(
@@ -37,9 +43,29 @@ public class GetContentItemByIdHandler(ContentDbContext db, ISchemaApi schemaApi
         GetContentItemByIdQuery query,
         CancellationToken ct)
     {
-        var item = await db.ContentItems
-            .Include(x => x.ContentType)
-            .FirstOrDefaultAsync(x => x.Id == query.Id, ct);
+        Domain.Entities.ContentItem? item = null;
+
+        if (query.Id.HasValue)
+        {
+            item = await db.ContentItems
+                .Include(x => x.ContentType)
+                .FirstOrDefaultAsync(x => x.Id == query.Id.Value, ct);
+        }
+        else if (!string.IsNullOrWhiteSpace(query.KeyOrId))
+        {
+            if (Guid.TryParse(query.KeyOrId, out var parsedGuid))
+            {
+                item = await db.ContentItems
+                    .Include(x => x.ContentType)
+                    .FirstOrDefaultAsync(x => x.Id == parsedGuid, ct);
+            }
+            else if (query.ProjectId.HasValue && !string.IsNullOrWhiteSpace(query.ContentTypeKey))
+            {
+                item = await db.ContentItems
+                    .Include(x => x.ContentType)
+                    .FirstOrDefaultAsync(x => x.ProjectId == query.ProjectId.Value && x.ContentType.Key == query.ContentTypeKey && x.Key == query.KeyOrId, ct);
+            }
+        }
         
         if (item is null) return Result.Fail(new NotFoundError("ContentItem not found"));
         
@@ -61,6 +87,7 @@ public class GetContentItemByIdHandler(ContentDbContext db, ISchemaApi schemaApi
             ContentTypeId = item.ContentTypeId,
             ProjectId = item.ProjectId,
             Name = item.Name,
+            Key = item.Key,
             ResolvedData = dataResult.IsSuccess ? dataResult.Value.ResolvedData : null,
             Values = dataResult.IsSuccess ? dataResult.Value.Values : null,
             ThumbnailAssetId = thumbnailAssetId,

@@ -22,12 +22,10 @@ import { Route as AuthResetPasswordRouteImport } from './routes/auth/reset-passw
 import { Route as ProtectedLayoutIndexRouteImport } from './routes/_protected/_layout/index'
 import { Route as ProtectedLayout403RouteImport } from './routes/_protected/_layout/403'
 import { Route as ProtectedLayoutDevRouteImport } from './routes/_protected/_layout/dev'
-import { Route as ProtectedLayoutProjectsRouteRouteImport } from './routes/_protected/_layout/projects/route'
 import { Route as ProtectedLayoutRolesRouteRouteImport } from './routes/_protected/_layout/roles/route'
 import { Route as ProtectedLayoutRunnersRouteImport } from './routes/_protected/_layout/runners'
 import { Route as ProtectedLayoutSettingsRouteRouteImport } from './routes/_protected/_layout/settings/route'
 import { Route as ProtectedLayoutUsersRouteRouteImport } from './routes/_protected/_layout/users/route'
-import { Route as ProtectedLayoutProjectsIndexRouteImport } from './routes/_protected/_layout/projects/index'
 import { Route as ProtectedLayoutRolesIndexRouteImport } from './routes/_protected/_layout/roles/index'
 import { Route as ProtectedLayoutSettingsIndexRouteImport } from './routes/_protected/_layout/settings/index'
 import { Route as ProtectedLayoutSettingsNotificationsRouteImport } from './routes/_protected/_layout/settings/notifications'
@@ -37,34 +35,37 @@ import { Route as ProtectedLayoutSystemAuditLogsRouteImport } from './routes/_pr
 import { Route as ProtectedLayoutSystemSettingsRouteImport } from './routes/_protected/_layout/system/settings'
 import { Route as ProtectedLayoutUsersIndexRouteImport } from './routes/_protected/_layout/users/index'
 import { Route as ProtectedLayoutUsersNewRouteImport } from './routes/_protected/_layout/users/new'
-import { Route as ProtectedProjectProjectsProjectIdRouteRouteImport } from './routes/_protected/_project/projects/$projectId/route'
+import { Route as ProtectedLayoutSStudioSlugIndexRouteImport } from './routes/_protected/_layout/s/$studioSlug/index'
+import { Route as ProtectedLayoutSStudioSlugRunnersRouteImport } from './routes/_protected/_layout/s/$studioSlug/runners'
 import { Route as ProtectedLayoutSystemAuditLogsIndexRouteImport } from './routes/_protected/_layout/system/audit-logs/index'
 import { Route as ProtectedLayoutSystemAuditLogsIdRouteImport } from './routes/_protected/_layout/system/audit-logs/$id'
 import { Route as ProtectedLayoutUsersIdIndexRouteImport } from './routes/_protected/_layout/users/$id/index'
 import { Route as ProtectedLayoutUsersIdEditRouteImport } from './routes/_protected/_layout/users/$id/edit'
-import { Route as ProtectedProjectProjectsProjectIdContentTypesRouteImport } from './routes/_protected/_project/projects/$projectId/content-types'
-import { Route as ProtectedProjectProjectsProjectIdContentsRouteImport } from './routes/_protected/_project/projects/$projectId/contents'
-import { Route as ProtectedProjectProjectsProjectIdOverviewRouteImport } from './routes/_protected/_project/projects/$projectId/overview'
-import { Route as ProtectedProjectProjectsProjectIdRepositoriesRouteImport } from './routes/_protected/_project/projects/$projectId/repositories'
-import { Route as ProtectedProjectProjectsProjectIdStructsRouteImport } from './routes/_protected/_project/projects/$projectId/structs'
-import { Route as ProtectedProjectProjectsProjectIdContentTypesIndexRouteImport } from './routes/_protected/_project/projects/$projectId/content-types/index'
-import { Route as ProtectedProjectProjectsProjectIdContentsIndexRouteImport } from './routes/_protected/_project/projects/$projectId/contents/index'
-import { Route as ProtectedProjectProjectsProjectIdContentsTypeKeyRouteImport } from './routes/_protected/_project/projects/$projectId/contents/$typeKey'
-import { Route as ProtectedProjectProjectsProjectIdPipelineIndexRouteImport } from './routes/_protected/_project/projects/$projectId/pipeline/index'
-import { Route as ProtectedProjectProjectsProjectIdPipelinePipelineIdRouteImport } from './routes/_protected/_project/projects/$projectId/pipeline/$pipelineId'
-import { Route as ProtectedProjectProjectsProjectIdRepositoriesIndexRouteImport } from './routes/_protected/_project/projects/$projectId/repositories/index'
-import { Route as ProtectedProjectProjectsProjectIdRepositoriesRepositoryIdRouteImport } from './routes/_protected/_project/projects/$projectId/repositories/$repositoryId'
-import { Route as ProtectedProjectProjectsProjectIdResourcesResourceIdRouteImport } from './routes/_protected/_project/projects/$projectId/resources/$resourceId'
-import { Route as ProtectedProjectProjectsProjectIdStructsIndexRouteImport } from './routes/_protected/_project/projects/$projectId/structs/index'
-import { Route as ProtectedProjectProjectsProjectIdContentTypesContentTypeIdIndexRouteImport } from './routes/_protected/_project/projects/$projectId/content-types/$contentTypeId/index'
-import { Route as ProtectedProjectProjectsProjectIdContentTypesContentTypeIdBuilderRouteImport } from './routes/_protected/_project/projects/$projectId/content-types/$contentTypeId/builder'
-import { Route as ProtectedProjectProjectsProjectIdContentsTypeKeyIndexRouteImport } from './routes/_protected/_project/projects/$projectId/contents/$typeKey/index'
-import { Route as ProtectedProjectProjectsProjectIdContentsTypeKeyNewRouteImport } from './routes/_protected/_project/projects/$projectId/contents/$typeKey/new'
-import { Route as ProtectedProjectProjectsProjectIdPipelineNodesIndexRouteImport } from './routes/_protected/_project/projects/$projectId/pipeline/nodes/index'
-import { Route as ProtectedProjectProjectsProjectIdPipelineNodesIngestRouteImport } from './routes/_protected/_project/projects/$projectId/pipeline/nodes/ingest'
-import { Route as ProtectedProjectProjectsProjectIdPipelineNodesNewRouteImport } from './routes/_protected/_project/projects/$projectId/pipeline/nodes/new'
-import { Route as ProtectedProjectProjectsProjectIdStructsStructIdBuilderRouteImport } from './routes/_protected/_project/projects/$projectId/structs/$structId/builder'
-import { Route as ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRouteImport } from './routes/_protected/_project/projects/$projectId/contents/$typeKey/$contentItemId/edit'
+import { Route as ProtectedLayoutSStudioSlugProjectsIndexRouteImport } from './routes/_protected/_layout/s/$studioSlug/projects/index'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/route'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/content-types'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/contents'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdOverviewRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/overview'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/repositories'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/structs'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/content-types/index'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/contents/index'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/index'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/$pipelineId'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesIndexRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/repositories/index'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRepositoryIdRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/repositories/$repositoryId'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdResourcesResourceIdRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/resources/$resourceId'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/structs/index'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/index'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/index'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/new'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/index'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/new'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/structs/$structId/builder'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
 
 const ProtectedRoute = ProtectedRouteImport.update({
   id: '/_protected',
@@ -128,12 +129,6 @@ const ProtectedLayoutDevRoute = ProtectedLayoutDevRouteImport.update({
   path: '/dev',
   getParentRoute: () => ProtectedLayoutRoute,
 } as any)
-const ProtectedLayoutProjectsRouteRoute =
-  ProtectedLayoutProjectsRouteRouteImport.update({
-    id: '/projects',
-    path: '/projects',
-    getParentRoute: () => ProtectedLayoutRoute,
-  } as any)
 const ProtectedLayoutRolesRouteRoute =
   ProtectedLayoutRolesRouteRouteImport.update({
     id: '/roles',
@@ -156,12 +151,6 @@ const ProtectedLayoutUsersRouteRoute =
     id: '/users',
     path: '/users',
     getParentRoute: () => ProtectedLayoutRoute,
-  } as any)
-const ProtectedLayoutProjectsIndexRoute =
-  ProtectedLayoutProjectsIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => ProtectedLayoutProjectsRouteRoute,
   } as any)
 const ProtectedLayoutRolesIndexRoute =
   ProtectedLayoutRolesIndexRouteImport.update({
@@ -216,11 +205,17 @@ const ProtectedLayoutUsersNewRoute = ProtectedLayoutUsersNewRouteImport.update({
   path: '/new',
   getParentRoute: () => ProtectedLayoutUsersRouteRoute,
 } as any)
-const ProtectedProjectProjectsProjectIdRouteRoute =
-  ProtectedProjectProjectsProjectIdRouteRouteImport.update({
-    id: '/projects/$projectId',
-    path: '/projects/$projectId',
-    getParentRoute: () => ProtectedProjectRoute,
+const ProtectedLayoutSStudioSlugIndexRoute =
+  ProtectedLayoutSStudioSlugIndexRouteImport.update({
+    id: '/s/$studioSlug/',
+    path: '/s/$studioSlug/',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutSStudioSlugRunnersRoute =
+  ProtectedLayoutSStudioSlugRunnersRouteImport.update({
+    id: '/s/$studioSlug/runners',
+    path: '/s/$studioSlug/runners',
+    getParentRoute: () => ProtectedLayoutRoute,
   } as any)
 const ProtectedLayoutSystemAuditLogsIndexRoute =
   ProtectedLayoutSystemAuditLogsIndexRouteImport.update({
@@ -246,149 +241,207 @@ const ProtectedLayoutUsersIdEditRoute =
     path: '/$id/edit',
     getParentRoute: () => ProtectedLayoutUsersRouteRoute,
   } as any)
-const ProtectedProjectProjectsProjectIdContentTypesRoute =
-  ProtectedProjectProjectsProjectIdContentTypesRouteImport.update({
+const ProtectedLayoutSStudioSlugProjectsIndexRoute =
+  ProtectedLayoutSStudioSlugProjectsIndexRouteImport.update({
+    id: '/s/$studioSlug/projects/',
+    path: '/s/$studioSlug/projects/',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteImport.update({
+    id: '/s/$studioSlug/projects/$projectId',
+    path: '/s/$studioSlug/projects/$projectId',
+    getParentRoute: () => ProtectedProjectRoute,
+  } as any)
+const ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteImport.update({
     id: '/content-types',
     path: '/content-types',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdRouteRoute,
+    getParentRoute: () =>
+      ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
   } as any)
-const ProtectedProjectProjectsProjectIdContentsRoute =
-  ProtectedProjectProjectsProjectIdContentsRouteImport.update({
+const ProtectedProjectSStudioSlugProjectsProjectIdContentsRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteImport.update({
     id: '/contents',
     path: '/contents',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdRouteRoute,
+    getParentRoute: () =>
+      ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
   } as any)
-const ProtectedProjectProjectsProjectIdOverviewRoute =
-  ProtectedProjectProjectsProjectIdOverviewRouteImport.update({
+const ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdOverviewRouteImport.update({
     id: '/overview',
     path: '/overview',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdRouteRoute,
+    getParentRoute: () =>
+      ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
   } as any)
-const ProtectedProjectProjectsProjectIdRepositoriesRoute =
-  ProtectedProjectProjectsProjectIdRepositoriesRouteImport.update({
+const ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRouteImport.update({
     id: '/repositories',
     path: '/repositories',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdRouteRoute,
+    getParentRoute: () =>
+      ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
   } as any)
-const ProtectedProjectProjectsProjectIdStructsRoute =
-  ProtectedProjectProjectsProjectIdStructsRouteImport.update({
+const ProtectedProjectSStudioSlugProjectsProjectIdStructsRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteImport.update({
     id: '/structs',
     path: '/structs',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdRouteRoute,
+    getParentRoute: () =>
+      ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
   } as any)
-const ProtectedProjectProjectsProjectIdContentTypesIndexRoute =
-  ProtectedProjectProjectsProjectIdContentTypesIndexRouteImport.update({
+const ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRouteImport.update(
+    {
+      id: '/',
+      path: '/',
+      getParentRoute: () =>
+        ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute,
+    } as any,
+  )
+const ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRouteImport.update({
     id: '/',
     path: '/',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdContentTypesRoute,
+    getParentRoute: () =>
+      ProtectedProjectSStudioSlugProjectsProjectIdContentsRoute,
   } as any)
-const ProtectedProjectProjectsProjectIdContentsIndexRoute =
-  ProtectedProjectProjectsProjectIdContentsIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdContentsRoute,
-  } as any)
-const ProtectedProjectProjectsProjectIdContentsTypeKeyRoute =
-  ProtectedProjectProjectsProjectIdContentsTypeKeyRouteImport.update({
-    id: '/$typeKey',
-    path: '/$typeKey',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdContentsRoute,
-  } as any)
-const ProtectedProjectProjectsProjectIdPipelineIndexRoute =
-  ProtectedProjectProjectsProjectIdPipelineIndexRouteImport.update({
+const ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteImport.update(
+    {
+      id: '/$typeKey',
+      path: '/$typeKey',
+      getParentRoute: () =>
+        ProtectedProjectSStudioSlugProjectsProjectIdContentsRoute,
+    } as any,
+  )
+const ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRouteImport.update({
     id: '/pipeline/',
     path: '/pipeline/',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdRouteRoute,
+    getParentRoute: () =>
+      ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
   } as any)
-const ProtectedProjectProjectsProjectIdPipelinePipelineIdRoute =
-  ProtectedProjectProjectsProjectIdPipelinePipelineIdRouteImport.update({
-    id: '/pipeline/$pipelineId',
-    path: '/pipeline/$pipelineId',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdRouteRoute,
-  } as any)
-const ProtectedProjectProjectsProjectIdRepositoriesIndexRoute =
-  ProtectedProjectProjectsProjectIdRepositoriesIndexRouteImport.update({
+const ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRouteImport.update(
+    {
+      id: '/pipeline/$pipelineId',
+      path: '/pipeline/$pipelineId',
+      getParentRoute: () =>
+        ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
+    } as any,
+  )
+const ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesIndexRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesIndexRouteImport.update(
+    {
+      id: '/',
+      path: '/',
+      getParentRoute: () =>
+        ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRoute,
+    } as any,
+  )
+const ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRepositoryIdRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRepositoryIdRouteImport.update(
+    {
+      id: '/$repositoryId',
+      path: '/$repositoryId',
+      getParentRoute: () =>
+        ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRoute,
+    } as any,
+  )
+const ProtectedProjectSStudioSlugProjectsProjectIdResourcesResourceIdRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdResourcesResourceIdRouteImport.update(
+    {
+      id: '/resources/$resourceId',
+      path: '/resources/$resourceId',
+      getParentRoute: () =>
+        ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
+    } as any,
+  )
+const ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRouteImport.update({
     id: '/',
     path: '/',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdRepositoriesRoute,
+    getParentRoute: () =>
+      ProtectedProjectSStudioSlugProjectsProjectIdStructsRoute,
   } as any)
-const ProtectedProjectProjectsProjectIdRepositoriesRepositoryIdRoute =
-  ProtectedProjectProjectsProjectIdRepositoriesRepositoryIdRouteImport.update({
-    id: '/$repositoryId',
-    path: '/$repositoryId',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdRepositoriesRoute,
-  } as any)
-const ProtectedProjectProjectsProjectIdResourcesResourceIdRoute =
-  ProtectedProjectProjectsProjectIdResourcesResourceIdRouteImport.update({
-    id: '/resources/$resourceId',
-    path: '/resources/$resourceId',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdRouteRoute,
-  } as any)
-const ProtectedProjectProjectsProjectIdStructsIndexRoute =
-  ProtectedProjectProjectsProjectIdStructsIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdStructsRoute,
-  } as any)
-const ProtectedProjectProjectsProjectIdContentTypesContentTypeIdIndexRoute =
-  ProtectedProjectProjectsProjectIdContentTypesContentTypeIdIndexRouteImport.update(
+const ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRouteImport.update(
     {
       id: '/$contentTypeId/',
       path: '/$contentTypeId/',
-      getParentRoute: () => ProtectedProjectProjectsProjectIdContentTypesRoute,
+      getParentRoute: () =>
+        ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute,
     } as any,
   )
-const ProtectedProjectProjectsProjectIdContentTypesContentTypeIdBuilderRoute =
-  ProtectedProjectProjectsProjectIdContentTypesContentTypeIdBuilderRouteImport.update(
+const ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRouteImport.update(
     {
       id: '/$contentTypeId/builder',
       path: '/$contentTypeId/builder',
-      getParentRoute: () => ProtectedProjectProjectsProjectIdContentTypesRoute,
+      getParentRoute: () =>
+        ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute,
     } as any,
   )
-const ProtectedProjectProjectsProjectIdContentsTypeKeyIndexRoute =
-  ProtectedProjectProjectsProjectIdContentsTypeKeyIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdContentsTypeKeyRoute,
-  } as any)
-const ProtectedProjectProjectsProjectIdContentsTypeKeyNewRoute =
-  ProtectedProjectProjectsProjectIdContentsTypeKeyNewRouteImport.update({
-    id: '/new',
-    path: '/new',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdContentsTypeKeyRoute,
-  } as any)
-const ProtectedProjectProjectsProjectIdPipelineNodesIndexRoute =
-  ProtectedProjectProjectsProjectIdPipelineNodesIndexRouteImport.update({
-    id: '/pipeline/nodes/',
-    path: '/pipeline/nodes/',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdRouteRoute,
-  } as any)
-const ProtectedProjectProjectsProjectIdPipelineNodesIngestRoute =
-  ProtectedProjectProjectsProjectIdPipelineNodesIngestRouteImport.update({
-    id: '/pipeline/nodes/ingest',
-    path: '/pipeline/nodes/ingest',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdRouteRoute,
-  } as any)
-const ProtectedProjectProjectsProjectIdPipelineNodesNewRoute =
-  ProtectedProjectProjectsProjectIdPipelineNodesNewRouteImport.update({
-    id: '/pipeline/nodes/new',
-    path: '/pipeline/nodes/new',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdRouteRoute,
-  } as any)
-const ProtectedProjectProjectsProjectIdStructsStructIdBuilderRoute =
-  ProtectedProjectProjectsProjectIdStructsStructIdBuilderRouteImport.update({
-    id: '/$structId/builder',
-    path: '/$structId/builder',
-    getParentRoute: () => ProtectedProjectProjectsProjectIdStructsRoute,
-  } as any)
-const ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRoute =
-  ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRouteImport.update(
+const ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRouteImport.update(
     {
-      id: '/$contentItemId/edit',
-      path: '/$contentItemId/edit',
+      id: '/',
+      path: '/',
       getParentRoute: () =>
-        ProtectedProjectProjectsProjectIdContentsTypeKeyRoute,
+        ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute,
+    } as any,
+  )
+const ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRouteImport.update(
+    {
+      id: '/new',
+      path: '/new',
+      getParentRoute: () =>
+        ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute,
+    } as any,
+  )
+const ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRouteImport.update(
+    {
+      id: '/pipeline/nodes/',
+      path: '/pipeline/nodes/',
+      getParentRoute: () =>
+        ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
+    } as any,
+  )
+const ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRouteImport.update(
+    {
+      id: '/pipeline/nodes/ingest',
+      path: '/pipeline/nodes/ingest',
+      getParentRoute: () =>
+        ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
+    } as any,
+  )
+const ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRouteImport.update(
+    {
+      id: '/pipeline/nodes/new',
+      path: '/pipeline/nodes/new',
+      getParentRoute: () =>
+        ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
+    } as any,
+  )
+const ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRouteImport.update(
+    {
+      id: '/$structId/builder',
+      path: '/$structId/builder',
+      getParentRoute: () =>
+        ProtectedProjectSStudioSlugProjectsProjectIdStructsRoute,
+    } as any,
+  )
+const ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRouteImport.update(
+    {
+      id: '/$itemKey/edit',
+      path: '/$itemKey/edit',
+      getParentRoute: () =>
+        ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute,
     } as any,
   )
 
@@ -401,51 +454,52 @@ export interface FileRoutesByFullPath {
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
-  '/projects': typeof ProtectedLayoutProjectsRouteRouteWithChildren
   '/roles': typeof ProtectedLayoutRolesRouteRouteWithChildren
   '/settings': typeof ProtectedLayoutSettingsRouteRouteWithChildren
   '/users': typeof ProtectedLayoutUsersRouteRouteWithChildren
   '/403': typeof ProtectedLayout403Route
   '/dev': typeof ProtectedLayoutDevRoute
   '/runners': typeof ProtectedLayoutRunnersRoute
-  '/projects/$projectId': typeof ProtectedProjectProjectsProjectIdRouteRouteWithChildren
   '/settings/notifications': typeof ProtectedLayoutSettingsNotificationsRoute
   '/settings/profile': typeof ProtectedLayoutSettingsProfileRoute
   '/settings/security': typeof ProtectedLayoutSettingsSecurityRoute
   '/system/audit-logs': typeof ProtectedLayoutSystemAuditLogsRouteWithChildren
   '/system/settings': typeof ProtectedLayoutSystemSettingsRoute
   '/users/new': typeof ProtectedLayoutUsersNewRoute
-  '/projects/': typeof ProtectedLayoutProjectsIndexRoute
   '/roles/': typeof ProtectedLayoutRolesIndexRoute
   '/settings/': typeof ProtectedLayoutSettingsIndexRoute
   '/users/': typeof ProtectedLayoutUsersIndexRoute
+  '/s/$studioSlug/runners': typeof ProtectedLayoutSStudioSlugRunnersRoute
   '/system/audit-logs/$id': typeof ProtectedLayoutSystemAuditLogsIdRoute
   '/users/$id/edit': typeof ProtectedLayoutUsersIdEditRoute
-  '/projects/$projectId/content-types': typeof ProtectedProjectProjectsProjectIdContentTypesRouteWithChildren
-  '/projects/$projectId/contents': typeof ProtectedProjectProjectsProjectIdContentsRouteWithChildren
-  '/projects/$projectId/overview': typeof ProtectedProjectProjectsProjectIdOverviewRoute
-  '/projects/$projectId/repositories': typeof ProtectedProjectProjectsProjectIdRepositoriesRouteWithChildren
-  '/projects/$projectId/structs': typeof ProtectedProjectProjectsProjectIdStructsRouteWithChildren
+  '/s/$studioSlug/': typeof ProtectedLayoutSStudioSlugIndexRoute
   '/system/audit-logs/': typeof ProtectedLayoutSystemAuditLogsIndexRoute
   '/users/$id/': typeof ProtectedLayoutUsersIdIndexRoute
-  '/projects/$projectId/contents/$typeKey': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyRouteWithChildren
-  '/projects/$projectId/pipeline/$pipelineId': typeof ProtectedProjectProjectsProjectIdPipelinePipelineIdRoute
-  '/projects/$projectId/repositories/$repositoryId': typeof ProtectedProjectProjectsProjectIdRepositoriesRepositoryIdRoute
-  '/projects/$projectId/resources/$resourceId': typeof ProtectedProjectProjectsProjectIdResourcesResourceIdRoute
-  '/projects/$projectId/content-types/': typeof ProtectedProjectProjectsProjectIdContentTypesIndexRoute
-  '/projects/$projectId/contents/': typeof ProtectedProjectProjectsProjectIdContentsIndexRoute
-  '/projects/$projectId/pipeline/': typeof ProtectedProjectProjectsProjectIdPipelineIndexRoute
-  '/projects/$projectId/repositories/': typeof ProtectedProjectProjectsProjectIdRepositoriesIndexRoute
-  '/projects/$projectId/structs/': typeof ProtectedProjectProjectsProjectIdStructsIndexRoute
-  '/projects/$projectId/content-types/$contentTypeId/builder': typeof ProtectedProjectProjectsProjectIdContentTypesContentTypeIdBuilderRoute
-  '/projects/$projectId/contents/$typeKey/new': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyNewRoute
-  '/projects/$projectId/pipeline/nodes/ingest': typeof ProtectedProjectProjectsProjectIdPipelineNodesIngestRoute
-  '/projects/$projectId/pipeline/nodes/new': typeof ProtectedProjectProjectsProjectIdPipelineNodesNewRoute
-  '/projects/$projectId/structs/$structId/builder': typeof ProtectedProjectProjectsProjectIdStructsStructIdBuilderRoute
-  '/projects/$projectId/content-types/$contentTypeId/': typeof ProtectedProjectProjectsProjectIdContentTypesContentTypeIdIndexRoute
-  '/projects/$projectId/contents/$typeKey/': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyIndexRoute
-  '/projects/$projectId/pipeline/nodes/': typeof ProtectedProjectProjectsProjectIdPipelineNodesIndexRoute
-  '/projects/$projectId/contents/$typeKey/$contentItemId/edit': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRoute
+  '/s/$studioSlug/projects/$projectId': typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteWithChildren
+  '/s/$studioSlug/projects/': typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
+  '/s/$studioSlug/projects/$projectId/content-types': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteWithChildren
+  '/s/$studioSlug/projects/$projectId/contents': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteWithChildren
+  '/s/$studioSlug/projects/$projectId/overview': typeof ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute
+  '/s/$studioSlug/projects/$projectId/repositories': typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRouteWithChildren
+  '/s/$studioSlug/projects/$projectId/structs': typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteWithChildren
+  '/s/$studioSlug/projects/$projectId/contents/$typeKey': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteWithChildren
+  '/s/$studioSlug/projects/$projectId/pipeline/$pipelineId': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRoute
+  '/s/$studioSlug/projects/$projectId/repositories/$repositoryId': typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRepositoryIdRoute
+  '/s/$studioSlug/projects/$projectId/resources/$resourceId': typeof ProtectedProjectSStudioSlugProjectsProjectIdResourcesResourceIdRoute
+  '/s/$studioSlug/projects/$projectId/content-types/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRoute
+  '/s/$studioSlug/projects/$projectId/contents/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRoute
+  '/s/$studioSlug/projects/$projectId/pipeline/': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRoute
+  '/s/$studioSlug/projects/$projectId/repositories/': typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesIndexRoute
+  '/s/$studioSlug/projects/$projectId/structs/': typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRoute
+  '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute
+  '/s/$studioSlug/projects/$projectId/contents/$typeKey/new': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRoute
+  '/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRoute
+  '/s/$studioSlug/projects/$projectId/pipeline/nodes/new': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute
+  '/s/$studioSlug/projects/$projectId/structs/$structId/builder': typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRoute
+  '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute
+  '/s/$studioSlug/projects/$projectId/contents/$typeKey/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute
+  '/s/$studioSlug/projects/$projectId/pipeline/nodes/': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute
+  '/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute
 }
 export interface FileRoutesByTo {
   '/': typeof ProtectedLayoutIndexRoute
@@ -459,38 +513,40 @@ export interface FileRoutesByTo {
   '/403': typeof ProtectedLayout403Route
   '/dev': typeof ProtectedLayoutDevRoute
   '/runners': typeof ProtectedLayoutRunnersRoute
-  '/projects/$projectId': typeof ProtectedProjectProjectsProjectIdRouteRouteWithChildren
   '/settings/notifications': typeof ProtectedLayoutSettingsNotificationsRoute
   '/settings/profile': typeof ProtectedLayoutSettingsProfileRoute
   '/settings/security': typeof ProtectedLayoutSettingsSecurityRoute
   '/system/settings': typeof ProtectedLayoutSystemSettingsRoute
   '/users/new': typeof ProtectedLayoutUsersNewRoute
-  '/projects': typeof ProtectedLayoutProjectsIndexRoute
   '/roles': typeof ProtectedLayoutRolesIndexRoute
   '/settings': typeof ProtectedLayoutSettingsIndexRoute
   '/users': typeof ProtectedLayoutUsersIndexRoute
+  '/s/$studioSlug/runners': typeof ProtectedLayoutSStudioSlugRunnersRoute
   '/system/audit-logs/$id': typeof ProtectedLayoutSystemAuditLogsIdRoute
   '/users/$id/edit': typeof ProtectedLayoutUsersIdEditRoute
-  '/projects/$projectId/overview': typeof ProtectedProjectProjectsProjectIdOverviewRoute
+  '/s/$studioSlug': typeof ProtectedLayoutSStudioSlugIndexRoute
   '/system/audit-logs': typeof ProtectedLayoutSystemAuditLogsIndexRoute
   '/users/$id': typeof ProtectedLayoutUsersIdIndexRoute
-  '/projects/$projectId/pipeline/$pipelineId': typeof ProtectedProjectProjectsProjectIdPipelinePipelineIdRoute
-  '/projects/$projectId/repositories/$repositoryId': typeof ProtectedProjectProjectsProjectIdRepositoriesRepositoryIdRoute
-  '/projects/$projectId/resources/$resourceId': typeof ProtectedProjectProjectsProjectIdResourcesResourceIdRoute
-  '/projects/$projectId/content-types': typeof ProtectedProjectProjectsProjectIdContentTypesIndexRoute
-  '/projects/$projectId/contents': typeof ProtectedProjectProjectsProjectIdContentsIndexRoute
-  '/projects/$projectId/pipeline': typeof ProtectedProjectProjectsProjectIdPipelineIndexRoute
-  '/projects/$projectId/repositories': typeof ProtectedProjectProjectsProjectIdRepositoriesIndexRoute
-  '/projects/$projectId/structs': typeof ProtectedProjectProjectsProjectIdStructsIndexRoute
-  '/projects/$projectId/content-types/$contentTypeId/builder': typeof ProtectedProjectProjectsProjectIdContentTypesContentTypeIdBuilderRoute
-  '/projects/$projectId/contents/$typeKey/new': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyNewRoute
-  '/projects/$projectId/pipeline/nodes/ingest': typeof ProtectedProjectProjectsProjectIdPipelineNodesIngestRoute
-  '/projects/$projectId/pipeline/nodes/new': typeof ProtectedProjectProjectsProjectIdPipelineNodesNewRoute
-  '/projects/$projectId/structs/$structId/builder': typeof ProtectedProjectProjectsProjectIdStructsStructIdBuilderRoute
-  '/projects/$projectId/content-types/$contentTypeId': typeof ProtectedProjectProjectsProjectIdContentTypesContentTypeIdIndexRoute
-  '/projects/$projectId/contents/$typeKey': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyIndexRoute
-  '/projects/$projectId/pipeline/nodes': typeof ProtectedProjectProjectsProjectIdPipelineNodesIndexRoute
-  '/projects/$projectId/contents/$typeKey/$contentItemId/edit': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRoute
+  '/s/$studioSlug/projects/$projectId': typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteWithChildren
+  '/s/$studioSlug/projects': typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
+  '/s/$studioSlug/projects/$projectId/overview': typeof ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute
+  '/s/$studioSlug/projects/$projectId/pipeline/$pipelineId': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRoute
+  '/s/$studioSlug/projects/$projectId/repositories/$repositoryId': typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRepositoryIdRoute
+  '/s/$studioSlug/projects/$projectId/resources/$resourceId': typeof ProtectedProjectSStudioSlugProjectsProjectIdResourcesResourceIdRoute
+  '/s/$studioSlug/projects/$projectId/content-types': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRoute
+  '/s/$studioSlug/projects/$projectId/contents': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRoute
+  '/s/$studioSlug/projects/$projectId/pipeline': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRoute
+  '/s/$studioSlug/projects/$projectId/repositories': typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesIndexRoute
+  '/s/$studioSlug/projects/$projectId/structs': typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRoute
+  '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute
+  '/s/$studioSlug/projects/$projectId/contents/$typeKey/new': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRoute
+  '/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRoute
+  '/s/$studioSlug/projects/$projectId/pipeline/nodes/new': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute
+  '/s/$studioSlug/projects/$projectId/structs/$structId/builder': typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRoute
+  '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute
+  '/s/$studioSlug/projects/$projectId/contents/$typeKey': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute
+  '/s/$studioSlug/projects/$projectId/pipeline/nodes': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute
+  '/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -504,7 +560,6 @@ export interface FileRoutesById {
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
-  '/_protected/_layout/projects': typeof ProtectedLayoutProjectsRouteRouteWithChildren
   '/_protected/_layout/roles': typeof ProtectedLayoutRolesRouteRouteWithChildren
   '/_protected/_layout/settings': typeof ProtectedLayoutSettingsRouteRouteWithChildren
   '/_protected/_layout/users': typeof ProtectedLayoutUsersRouteRouteWithChildren
@@ -512,44 +567,46 @@ export interface FileRoutesById {
   '/_protected/_layout/dev': typeof ProtectedLayoutDevRoute
   '/_protected/_layout/runners': typeof ProtectedLayoutRunnersRoute
   '/_protected/_layout/': typeof ProtectedLayoutIndexRoute
-  '/_protected/_project/projects/$projectId': typeof ProtectedProjectProjectsProjectIdRouteRouteWithChildren
   '/_protected/_layout/settings/notifications': typeof ProtectedLayoutSettingsNotificationsRoute
   '/_protected/_layout/settings/profile': typeof ProtectedLayoutSettingsProfileRoute
   '/_protected/_layout/settings/security': typeof ProtectedLayoutSettingsSecurityRoute
   '/_protected/_layout/system/audit-logs': typeof ProtectedLayoutSystemAuditLogsRouteWithChildren
   '/_protected/_layout/system/settings': typeof ProtectedLayoutSystemSettingsRoute
   '/_protected/_layout/users/new': typeof ProtectedLayoutUsersNewRoute
-  '/_protected/_layout/projects/': typeof ProtectedLayoutProjectsIndexRoute
   '/_protected/_layout/roles/': typeof ProtectedLayoutRolesIndexRoute
   '/_protected/_layout/settings/': typeof ProtectedLayoutSettingsIndexRoute
   '/_protected/_layout/users/': typeof ProtectedLayoutUsersIndexRoute
+  '/_protected/_layout/s/$studioSlug/runners': typeof ProtectedLayoutSStudioSlugRunnersRoute
   '/_protected/_layout/system/audit-logs/$id': typeof ProtectedLayoutSystemAuditLogsIdRoute
   '/_protected/_layout/users/$id/edit': typeof ProtectedLayoutUsersIdEditRoute
-  '/_protected/_project/projects/$projectId/content-types': typeof ProtectedProjectProjectsProjectIdContentTypesRouteWithChildren
-  '/_protected/_project/projects/$projectId/contents': typeof ProtectedProjectProjectsProjectIdContentsRouteWithChildren
-  '/_protected/_project/projects/$projectId/overview': typeof ProtectedProjectProjectsProjectIdOverviewRoute
-  '/_protected/_project/projects/$projectId/repositories': typeof ProtectedProjectProjectsProjectIdRepositoriesRouteWithChildren
-  '/_protected/_project/projects/$projectId/structs': typeof ProtectedProjectProjectsProjectIdStructsRouteWithChildren
+  '/_protected/_layout/s/$studioSlug/': typeof ProtectedLayoutSStudioSlugIndexRoute
   '/_protected/_layout/system/audit-logs/': typeof ProtectedLayoutSystemAuditLogsIndexRoute
   '/_protected/_layout/users/$id/': typeof ProtectedLayoutUsersIdIndexRoute
-  '/_protected/_project/projects/$projectId/contents/$typeKey': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyRouteWithChildren
-  '/_protected/_project/projects/$projectId/pipeline/$pipelineId': typeof ProtectedProjectProjectsProjectIdPipelinePipelineIdRoute
-  '/_protected/_project/projects/$projectId/repositories/$repositoryId': typeof ProtectedProjectProjectsProjectIdRepositoriesRepositoryIdRoute
-  '/_protected/_project/projects/$projectId/resources/$resourceId': typeof ProtectedProjectProjectsProjectIdResourcesResourceIdRoute
-  '/_protected/_project/projects/$projectId/content-types/': typeof ProtectedProjectProjectsProjectIdContentTypesIndexRoute
-  '/_protected/_project/projects/$projectId/contents/': typeof ProtectedProjectProjectsProjectIdContentsIndexRoute
-  '/_protected/_project/projects/$projectId/pipeline/': typeof ProtectedProjectProjectsProjectIdPipelineIndexRoute
-  '/_protected/_project/projects/$projectId/repositories/': typeof ProtectedProjectProjectsProjectIdRepositoriesIndexRoute
-  '/_protected/_project/projects/$projectId/structs/': typeof ProtectedProjectProjectsProjectIdStructsIndexRoute
-  '/_protected/_project/projects/$projectId/content-types/$contentTypeId/builder': typeof ProtectedProjectProjectsProjectIdContentTypesContentTypeIdBuilderRoute
-  '/_protected/_project/projects/$projectId/contents/$typeKey/new': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyNewRoute
-  '/_protected/_project/projects/$projectId/pipeline/nodes/ingest': typeof ProtectedProjectProjectsProjectIdPipelineNodesIngestRoute
-  '/_protected/_project/projects/$projectId/pipeline/nodes/new': typeof ProtectedProjectProjectsProjectIdPipelineNodesNewRoute
-  '/_protected/_project/projects/$projectId/structs/$structId/builder': typeof ProtectedProjectProjectsProjectIdStructsStructIdBuilderRoute
-  '/_protected/_project/projects/$projectId/content-types/$contentTypeId/': typeof ProtectedProjectProjectsProjectIdContentTypesContentTypeIdIndexRoute
-  '/_protected/_project/projects/$projectId/contents/$typeKey/': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyIndexRoute
-  '/_protected/_project/projects/$projectId/pipeline/nodes/': typeof ProtectedProjectProjectsProjectIdPipelineNodesIndexRoute
-  '/_protected/_project/projects/$projectId/contents/$typeKey/$contentItemId/edit': typeof ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId': typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteWithChildren
+  '/_protected/_layout/s/$studioSlug/projects/': typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId/content-types': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteWithChildren
+  '/_protected/_project/s/$studioSlug/projects/$projectId/contents': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteWithChildren
+  '/_protected/_project/s/$studioSlug/projects/$projectId/overview': typeof ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId/repositories': typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRouteWithChildren
+  '/_protected/_project/s/$studioSlug/projects/$projectId/structs': typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteWithChildren
+  '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteWithChildren
+  '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/$pipelineId': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId/repositories/$repositoryId': typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRepositoryIdRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId/resources/$resourceId': typeof ProtectedProjectSStudioSlugProjectsProjectIdResourcesResourceIdRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId/contents/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId/repositories/': typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesIndexRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId/structs/': typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/new': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/new': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId/structs/$structId/builder': typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -562,51 +619,52 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/logout'
     | '/auth/reset-password'
-    | '/projects'
     | '/roles'
     | '/settings'
     | '/users'
     | '/403'
     | '/dev'
     | '/runners'
-    | '/projects/$projectId'
     | '/settings/notifications'
     | '/settings/profile'
     | '/settings/security'
     | '/system/audit-logs'
     | '/system/settings'
     | '/users/new'
-    | '/projects/'
     | '/roles/'
     | '/settings/'
     | '/users/'
+    | '/s/$studioSlug/runners'
     | '/system/audit-logs/$id'
     | '/users/$id/edit'
-    | '/projects/$projectId/content-types'
-    | '/projects/$projectId/contents'
-    | '/projects/$projectId/overview'
-    | '/projects/$projectId/repositories'
-    | '/projects/$projectId/structs'
+    | '/s/$studioSlug/'
     | '/system/audit-logs/'
     | '/users/$id/'
-    | '/projects/$projectId/contents/$typeKey'
-    | '/projects/$projectId/pipeline/$pipelineId'
-    | '/projects/$projectId/repositories/$repositoryId'
-    | '/projects/$projectId/resources/$resourceId'
-    | '/projects/$projectId/content-types/'
-    | '/projects/$projectId/contents/'
-    | '/projects/$projectId/pipeline/'
-    | '/projects/$projectId/repositories/'
-    | '/projects/$projectId/structs/'
-    | '/projects/$projectId/content-types/$contentTypeId/builder'
-    | '/projects/$projectId/contents/$typeKey/new'
-    | '/projects/$projectId/pipeline/nodes/ingest'
-    | '/projects/$projectId/pipeline/nodes/new'
-    | '/projects/$projectId/structs/$structId/builder'
-    | '/projects/$projectId/content-types/$contentTypeId/'
-    | '/projects/$projectId/contents/$typeKey/'
-    | '/projects/$projectId/pipeline/nodes/'
-    | '/projects/$projectId/contents/$typeKey/$contentItemId/edit'
+    | '/s/$studioSlug/projects/$projectId'
+    | '/s/$studioSlug/projects/'
+    | '/s/$studioSlug/projects/$projectId/content-types'
+    | '/s/$studioSlug/projects/$projectId/contents'
+    | '/s/$studioSlug/projects/$projectId/overview'
+    | '/s/$studioSlug/projects/$projectId/repositories'
+    | '/s/$studioSlug/projects/$projectId/structs'
+    | '/s/$studioSlug/projects/$projectId/contents/$typeKey'
+    | '/s/$studioSlug/projects/$projectId/pipeline/$pipelineId'
+    | '/s/$studioSlug/projects/$projectId/repositories/$repositoryId'
+    | '/s/$studioSlug/projects/$projectId/resources/$resourceId'
+    | '/s/$studioSlug/projects/$projectId/content-types/'
+    | '/s/$studioSlug/projects/$projectId/contents/'
+    | '/s/$studioSlug/projects/$projectId/pipeline/'
+    | '/s/$studioSlug/projects/$projectId/repositories/'
+    | '/s/$studioSlug/projects/$projectId/structs/'
+    | '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder'
+    | '/s/$studioSlug/projects/$projectId/contents/$typeKey/new'
+    | '/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest'
+    | '/s/$studioSlug/projects/$projectId/pipeline/nodes/new'
+    | '/s/$studioSlug/projects/$projectId/structs/$structId/builder'
+    | '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/'
+    | '/s/$studioSlug/projects/$projectId/contents/$typeKey/'
+    | '/s/$studioSlug/projects/$projectId/pipeline/nodes/'
+    | '/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -620,38 +678,40 @@ export interface FileRouteTypes {
     | '/403'
     | '/dev'
     | '/runners'
-    | '/projects/$projectId'
     | '/settings/notifications'
     | '/settings/profile'
     | '/settings/security'
     | '/system/settings'
     | '/users/new'
-    | '/projects'
     | '/roles'
     | '/settings'
     | '/users'
+    | '/s/$studioSlug/runners'
     | '/system/audit-logs/$id'
     | '/users/$id/edit'
-    | '/projects/$projectId/overview'
+    | '/s/$studioSlug'
     | '/system/audit-logs'
     | '/users/$id'
-    | '/projects/$projectId/pipeline/$pipelineId'
-    | '/projects/$projectId/repositories/$repositoryId'
-    | '/projects/$projectId/resources/$resourceId'
-    | '/projects/$projectId/content-types'
-    | '/projects/$projectId/contents'
-    | '/projects/$projectId/pipeline'
-    | '/projects/$projectId/repositories'
-    | '/projects/$projectId/structs'
-    | '/projects/$projectId/content-types/$contentTypeId/builder'
-    | '/projects/$projectId/contents/$typeKey/new'
-    | '/projects/$projectId/pipeline/nodes/ingest'
-    | '/projects/$projectId/pipeline/nodes/new'
-    | '/projects/$projectId/structs/$structId/builder'
-    | '/projects/$projectId/content-types/$contentTypeId'
-    | '/projects/$projectId/contents/$typeKey'
-    | '/projects/$projectId/pipeline/nodes'
-    | '/projects/$projectId/contents/$typeKey/$contentItemId/edit'
+    | '/s/$studioSlug/projects/$projectId'
+    | '/s/$studioSlug/projects'
+    | '/s/$studioSlug/projects/$projectId/overview'
+    | '/s/$studioSlug/projects/$projectId/pipeline/$pipelineId'
+    | '/s/$studioSlug/projects/$projectId/repositories/$repositoryId'
+    | '/s/$studioSlug/projects/$projectId/resources/$resourceId'
+    | '/s/$studioSlug/projects/$projectId/content-types'
+    | '/s/$studioSlug/projects/$projectId/contents'
+    | '/s/$studioSlug/projects/$projectId/pipeline'
+    | '/s/$studioSlug/projects/$projectId/repositories'
+    | '/s/$studioSlug/projects/$projectId/structs'
+    | '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder'
+    | '/s/$studioSlug/projects/$projectId/contents/$typeKey/new'
+    | '/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest'
+    | '/s/$studioSlug/projects/$projectId/pipeline/nodes/new'
+    | '/s/$studioSlug/projects/$projectId/structs/$structId/builder'
+    | '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId'
+    | '/s/$studioSlug/projects/$projectId/contents/$typeKey'
+    | '/s/$studioSlug/projects/$projectId/pipeline/nodes'
+    | '/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
   id:
     | '__root__'
     | '/_protected'
@@ -664,7 +724,6 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/logout'
     | '/auth/reset-password'
-    | '/_protected/_layout/projects'
     | '/_protected/_layout/roles'
     | '/_protected/_layout/settings'
     | '/_protected/_layout/users'
@@ -672,44 +731,46 @@ export interface FileRouteTypes {
     | '/_protected/_layout/dev'
     | '/_protected/_layout/runners'
     | '/_protected/_layout/'
-    | '/_protected/_project/projects/$projectId'
     | '/_protected/_layout/settings/notifications'
     | '/_protected/_layout/settings/profile'
     | '/_protected/_layout/settings/security'
     | '/_protected/_layout/system/audit-logs'
     | '/_protected/_layout/system/settings'
     | '/_protected/_layout/users/new'
-    | '/_protected/_layout/projects/'
     | '/_protected/_layout/roles/'
     | '/_protected/_layout/settings/'
     | '/_protected/_layout/users/'
+    | '/_protected/_layout/s/$studioSlug/runners'
     | '/_protected/_layout/system/audit-logs/$id'
     | '/_protected/_layout/users/$id/edit'
-    | '/_protected/_project/projects/$projectId/content-types'
-    | '/_protected/_project/projects/$projectId/contents'
-    | '/_protected/_project/projects/$projectId/overview'
-    | '/_protected/_project/projects/$projectId/repositories'
-    | '/_protected/_project/projects/$projectId/structs'
+    | '/_protected/_layout/s/$studioSlug/'
     | '/_protected/_layout/system/audit-logs/'
     | '/_protected/_layout/users/$id/'
-    | '/_protected/_project/projects/$projectId/contents/$typeKey'
-    | '/_protected/_project/projects/$projectId/pipeline/$pipelineId'
-    | '/_protected/_project/projects/$projectId/repositories/$repositoryId'
-    | '/_protected/_project/projects/$projectId/resources/$resourceId'
-    | '/_protected/_project/projects/$projectId/content-types/'
-    | '/_protected/_project/projects/$projectId/contents/'
-    | '/_protected/_project/projects/$projectId/pipeline/'
-    | '/_protected/_project/projects/$projectId/repositories/'
-    | '/_protected/_project/projects/$projectId/structs/'
-    | '/_protected/_project/projects/$projectId/content-types/$contentTypeId/builder'
-    | '/_protected/_project/projects/$projectId/contents/$typeKey/new'
-    | '/_protected/_project/projects/$projectId/pipeline/nodes/ingest'
-    | '/_protected/_project/projects/$projectId/pipeline/nodes/new'
-    | '/_protected/_project/projects/$projectId/structs/$structId/builder'
-    | '/_protected/_project/projects/$projectId/content-types/$contentTypeId/'
-    | '/_protected/_project/projects/$projectId/contents/$typeKey/'
-    | '/_protected/_project/projects/$projectId/pipeline/nodes/'
-    | '/_protected/_project/projects/$projectId/contents/$typeKey/$contentItemId/edit'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId'
+    | '/_protected/_layout/s/$studioSlug/projects/'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/content-types'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/contents'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/overview'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/repositories'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/structs'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/$pipelineId'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/repositories/$repositoryId'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/resources/$resourceId'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/contents/'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/repositories/'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/structs/'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/new'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/new'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/structs/$structId/builder'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -810,13 +871,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedLayoutDevRouteImport
       parentRoute: typeof ProtectedLayoutRoute
     }
-    '/_protected/_layout/projects': {
-      id: '/_protected/_layout/projects'
-      path: '/projects'
-      fullPath: '/projects'
-      preLoaderRoute: typeof ProtectedLayoutProjectsRouteRouteImport
-      parentRoute: typeof ProtectedLayoutRoute
-    }
     '/_protected/_layout/roles': {
       id: '/_protected/_layout/roles'
       path: '/roles'
@@ -844,13 +898,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/users'
       preLoaderRoute: typeof ProtectedLayoutUsersRouteRouteImport
       parentRoute: typeof ProtectedLayoutRoute
-    }
-    '/_protected/_layout/projects/': {
-      id: '/_protected/_layout/projects/'
-      path: '/'
-      fullPath: '/projects/'
-      preLoaderRoute: typeof ProtectedLayoutProjectsIndexRouteImport
-      parentRoute: typeof ProtectedLayoutProjectsRouteRoute
     }
     '/_protected/_layout/roles/': {
       id: '/_protected/_layout/roles/'
@@ -915,12 +962,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedLayoutUsersNewRouteImport
       parentRoute: typeof ProtectedLayoutUsersRouteRoute
     }
-    '/_protected/_project/projects/$projectId': {
-      id: '/_protected/_project/projects/$projectId'
-      path: '/projects/$projectId'
-      fullPath: '/projects/$projectId'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdRouteRouteImport
-      parentRoute: typeof ProtectedProjectRoute
+    '/_protected/_layout/s/$studioSlug/': {
+      id: '/_protected/_layout/s/$studioSlug/'
+      path: '/s/$studioSlug'
+      fullPath: '/s/$studioSlug/'
+      preLoaderRoute: typeof ProtectedLayoutSStudioSlugIndexRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
+    }
+    '/_protected/_layout/s/$studioSlug/runners': {
+      id: '/_protected/_layout/s/$studioSlug/runners'
+      path: '/s/$studioSlug/runners'
+      fullPath: '/s/$studioSlug/runners'
+      preLoaderRoute: typeof ProtectedLayoutSStudioSlugRunnersRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
     }
     '/_protected/_layout/system/audit-logs/': {
       id: '/_protected/_layout/system/audit-logs/'
@@ -950,183 +1004,183 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedLayoutUsersIdEditRouteImport
       parentRoute: typeof ProtectedLayoutUsersRouteRoute
     }
-    '/_protected/_project/projects/$projectId/content-types': {
-      id: '/_protected/_project/projects/$projectId/content-types'
+    '/_protected/_layout/s/$studioSlug/projects/': {
+      id: '/_protected/_layout/s/$studioSlug/projects/'
+      path: '/s/$studioSlug/projects'
+      fullPath: '/s/$studioSlug/projects/'
+      preLoaderRoute: typeof ProtectedLayoutSStudioSlugProjectsIndexRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
+    }
+    '/_protected/_project/s/$studioSlug/projects/$projectId': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId'
+      path: '/s/$studioSlug/projects/$projectId'
+      fullPath: '/s/$studioSlug/projects/$projectId'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteImport
+      parentRoute: typeof ProtectedProjectRoute
+    }
+    '/_protected/_project/s/$studioSlug/projects/$projectId/content-types': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/content-types'
       path: '/content-types'
-      fullPath: '/projects/$projectId/content-types'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdContentTypesRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdRouteRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/content-types'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
     }
-    '/_protected/_project/projects/$projectId/contents': {
-      id: '/_protected/_project/projects/$projectId/contents'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/contents': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/contents'
       path: '/contents'
-      fullPath: '/projects/$projectId/contents'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdContentsRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdRouteRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/contents'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
     }
-    '/_protected/_project/projects/$projectId/overview': {
-      id: '/_protected/_project/projects/$projectId/overview'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/overview': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/overview'
       path: '/overview'
-      fullPath: '/projects/$projectId/overview'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdOverviewRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdRouteRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/overview'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdOverviewRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
     }
-    '/_protected/_project/projects/$projectId/repositories': {
-      id: '/_protected/_project/projects/$projectId/repositories'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/repositories': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/repositories'
       path: '/repositories'
-      fullPath: '/projects/$projectId/repositories'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdRepositoriesRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdRouteRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/repositories'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
     }
-    '/_protected/_project/projects/$projectId/structs': {
-      id: '/_protected/_project/projects/$projectId/structs'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/structs': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/structs'
       path: '/structs'
-      fullPath: '/projects/$projectId/structs'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdStructsRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdRouteRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/structs'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
     }
-    '/_protected/_project/projects/$projectId/content-types/': {
-      id: '/_protected/_project/projects/$projectId/content-types/'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/'
       path: '/'
-      fullPath: '/projects/$projectId/content-types/'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdContentTypesIndexRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdContentTypesRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/content-types/'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute
     }
-    '/_protected/_project/projects/$projectId/contents/': {
-      id: '/_protected/_project/projects/$projectId/contents/'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/contents/': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/contents/'
       path: '/'
-      fullPath: '/projects/$projectId/contents/'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdContentsIndexRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdContentsRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/contents/'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsRoute
     }
-    '/_protected/_project/projects/$projectId/contents/$typeKey': {
-      id: '/_protected/_project/projects/$projectId/contents/$typeKey'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey'
       path: '/$typeKey'
-      fullPath: '/projects/$projectId/contents/$typeKey'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdContentsTypeKeyRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdContentsRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/contents/$typeKey'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsRoute
     }
-    '/_protected/_project/projects/$projectId/pipeline/': {
-      id: '/_protected/_project/projects/$projectId/pipeline/'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/'
       path: '/pipeline'
-      fullPath: '/projects/$projectId/pipeline/'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdPipelineIndexRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdRouteRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/pipeline/'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
     }
-    '/_protected/_project/projects/$projectId/pipeline/$pipelineId': {
-      id: '/_protected/_project/projects/$projectId/pipeline/$pipelineId'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/$pipelineId': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/$pipelineId'
       path: '/pipeline/$pipelineId'
-      fullPath: '/projects/$projectId/pipeline/$pipelineId'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdPipelinePipelineIdRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdRouteRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/pipeline/$pipelineId'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
     }
-    '/_protected/_project/projects/$projectId/repositories/': {
-      id: '/_protected/_project/projects/$projectId/repositories/'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/repositories/': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/repositories/'
       path: '/'
-      fullPath: '/projects/$projectId/repositories/'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdRepositoriesIndexRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdRepositoriesRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/repositories/'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesIndexRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRoute
     }
-    '/_protected/_project/projects/$projectId/repositories/$repositoryId': {
-      id: '/_protected/_project/projects/$projectId/repositories/$repositoryId'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/repositories/$repositoryId': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/repositories/$repositoryId'
       path: '/$repositoryId'
-      fullPath: '/projects/$projectId/repositories/$repositoryId'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdRepositoriesRepositoryIdRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdRepositoriesRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/repositories/$repositoryId'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRepositoryIdRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRoute
     }
-    '/_protected/_project/projects/$projectId/resources/$resourceId': {
-      id: '/_protected/_project/projects/$projectId/resources/$resourceId'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/resources/$resourceId': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/resources/$resourceId'
       path: '/resources/$resourceId'
-      fullPath: '/projects/$projectId/resources/$resourceId'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdResourcesResourceIdRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdRouteRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/resources/$resourceId'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdResourcesResourceIdRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
     }
-    '/_protected/_project/projects/$projectId/structs/': {
-      id: '/_protected/_project/projects/$projectId/structs/'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/structs/': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/structs/'
       path: '/'
-      fullPath: '/projects/$projectId/structs/'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdStructsIndexRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdStructsRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/structs/'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsRoute
     }
-    '/_protected/_project/projects/$projectId/content-types/$contentTypeId/': {
-      id: '/_protected/_project/projects/$projectId/content-types/$contentTypeId/'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/'
       path: '/$contentTypeId'
-      fullPath: '/projects/$projectId/content-types/$contentTypeId/'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdContentTypesContentTypeIdIndexRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdContentTypesRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute
     }
-    '/_protected/_project/projects/$projectId/content-types/$contentTypeId/builder': {
-      id: '/_protected/_project/projects/$projectId/content-types/$contentTypeId/builder'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder'
       path: '/$contentTypeId/builder'
-      fullPath: '/projects/$projectId/content-types/$contentTypeId/builder'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdContentTypesContentTypeIdBuilderRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdContentTypesRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute
     }
-    '/_protected/_project/projects/$projectId/contents/$typeKey/': {
-      id: '/_protected/_project/projects/$projectId/contents/$typeKey/'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/'
       path: '/'
-      fullPath: '/projects/$projectId/contents/$typeKey/'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdContentsTypeKeyIndexRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdContentsTypeKeyRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/contents/$typeKey/'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute
     }
-    '/_protected/_project/projects/$projectId/contents/$typeKey/new': {
-      id: '/_protected/_project/projects/$projectId/contents/$typeKey/new'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/new': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/new'
       path: '/new'
-      fullPath: '/projects/$projectId/contents/$typeKey/new'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdContentsTypeKeyNewRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdContentsTypeKeyRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/contents/$typeKey/new'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute
     }
-    '/_protected/_project/projects/$projectId/pipeline/nodes/': {
-      id: '/_protected/_project/projects/$projectId/pipeline/nodes/'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/'
       path: '/pipeline/nodes'
-      fullPath: '/projects/$projectId/pipeline/nodes/'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdPipelineNodesIndexRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdRouteRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/pipeline/nodes/'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
     }
-    '/_protected/_project/projects/$projectId/pipeline/nodes/ingest': {
-      id: '/_protected/_project/projects/$projectId/pipeline/nodes/ingest'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest'
       path: '/pipeline/nodes/ingest'
-      fullPath: '/projects/$projectId/pipeline/nodes/ingest'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdPipelineNodesIngestRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdRouteRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
     }
-    '/_protected/_project/projects/$projectId/pipeline/nodes/new': {
-      id: '/_protected/_project/projects/$projectId/pipeline/nodes/new'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/new': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/new'
       path: '/pipeline/nodes/new'
-      fullPath: '/projects/$projectId/pipeline/nodes/new'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdPipelineNodesNewRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdRouteRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/pipeline/nodes/new'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
     }
-    '/_protected/_project/projects/$projectId/structs/$structId/builder': {
-      id: '/_protected/_project/projects/$projectId/structs/$structId/builder'
+    '/_protected/_project/s/$studioSlug/projects/$projectId/structs/$structId/builder': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/structs/$structId/builder'
       path: '/$structId/builder'
-      fullPath: '/projects/$projectId/structs/$structId/builder'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdStructsStructIdBuilderRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdStructsRoute
+      fullPath: '/s/$studioSlug/projects/$projectId/structs/$structId/builder'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsRoute
     }
-    '/_protected/_project/projects/$projectId/contents/$typeKey/$contentItemId/edit': {
-      id: '/_protected/_project/projects/$projectId/contents/$typeKey/$contentItemId/edit'
-      path: '/$contentItemId/edit'
-      fullPath: '/projects/$projectId/contents/$typeKey/$contentItemId/edit'
-      preLoaderRoute: typeof ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRouteImport
-      parentRoute: typeof ProtectedProjectProjectsProjectIdContentsTypeKeyRoute
+    '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
+      path: '/$itemKey/edit'
+      fullPath: '/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute
     }
   }
 }
-
-interface ProtectedLayoutProjectsRouteRouteChildren {
-  ProtectedLayoutProjectsIndexRoute: typeof ProtectedLayoutProjectsIndexRoute
-}
-
-const ProtectedLayoutProjectsRouteRouteChildren: ProtectedLayoutProjectsRouteRouteChildren =
-  {
-    ProtectedLayoutProjectsIndexRoute: ProtectedLayoutProjectsIndexRoute,
-  }
-
-const ProtectedLayoutProjectsRouteRouteWithChildren =
-  ProtectedLayoutProjectsRouteRoute._addFileChildren(
-    ProtectedLayoutProjectsRouteRouteChildren,
-  )
 
 interface ProtectedLayoutRolesRouteRouteChildren {
   ProtectedLayoutRolesIndexRoute: typeof ProtectedLayoutRolesIndexRoute
@@ -1202,7 +1256,6 @@ const ProtectedLayoutSystemAuditLogsRouteWithChildren =
   )
 
 interface ProtectedLayoutRouteChildren {
-  ProtectedLayoutProjectsRouteRoute: typeof ProtectedLayoutProjectsRouteRouteWithChildren
   ProtectedLayoutRolesRouteRoute: typeof ProtectedLayoutRolesRouteRouteWithChildren
   ProtectedLayoutSettingsRouteRoute: typeof ProtectedLayoutSettingsRouteRouteWithChildren
   ProtectedLayoutUsersRouteRoute: typeof ProtectedLayoutUsersRouteRouteWithChildren
@@ -1212,11 +1265,12 @@ interface ProtectedLayoutRouteChildren {
   ProtectedLayoutIndexRoute: typeof ProtectedLayoutIndexRoute
   ProtectedLayoutSystemAuditLogsRoute: typeof ProtectedLayoutSystemAuditLogsRouteWithChildren
   ProtectedLayoutSystemSettingsRoute: typeof ProtectedLayoutSystemSettingsRoute
+  ProtectedLayoutSStudioSlugRunnersRoute: typeof ProtectedLayoutSStudioSlugRunnersRoute
+  ProtectedLayoutSStudioSlugIndexRoute: typeof ProtectedLayoutSStudioSlugIndexRoute
+  ProtectedLayoutSStudioSlugProjectsIndexRoute: typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
 }
 
 const ProtectedLayoutRouteChildren: ProtectedLayoutRouteChildren = {
-  ProtectedLayoutProjectsRouteRoute:
-    ProtectedLayoutProjectsRouteRouteWithChildren,
   ProtectedLayoutRolesRouteRoute: ProtectedLayoutRolesRouteRouteWithChildren,
   ProtectedLayoutSettingsRouteRoute:
     ProtectedLayoutSettingsRouteRouteWithChildren,
@@ -1228,160 +1282,165 @@ const ProtectedLayoutRouteChildren: ProtectedLayoutRouteChildren = {
   ProtectedLayoutSystemAuditLogsRoute:
     ProtectedLayoutSystemAuditLogsRouteWithChildren,
   ProtectedLayoutSystemSettingsRoute: ProtectedLayoutSystemSettingsRoute,
+  ProtectedLayoutSStudioSlugRunnersRoute:
+    ProtectedLayoutSStudioSlugRunnersRoute,
+  ProtectedLayoutSStudioSlugIndexRoute: ProtectedLayoutSStudioSlugIndexRoute,
+  ProtectedLayoutSStudioSlugProjectsIndexRoute:
+    ProtectedLayoutSStudioSlugProjectsIndexRoute,
 }
 
 const ProtectedLayoutRouteWithChildren = ProtectedLayoutRoute._addFileChildren(
   ProtectedLayoutRouteChildren,
 )
 
-interface ProtectedProjectProjectsProjectIdContentTypesRouteChildren {
-  ProtectedProjectProjectsProjectIdContentTypesIndexRoute: typeof ProtectedProjectProjectsProjectIdContentTypesIndexRoute
-  ProtectedProjectProjectsProjectIdContentTypesContentTypeIdBuilderRoute: typeof ProtectedProjectProjectsProjectIdContentTypesContentTypeIdBuilderRoute
-  ProtectedProjectProjectsProjectIdContentTypesContentTypeIdIndexRoute: typeof ProtectedProjectProjectsProjectIdContentTypesContentTypeIdIndexRoute
+interface ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteChildren {
+  ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRoute
+  ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute
+  ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute
 }
 
-const ProtectedProjectProjectsProjectIdContentTypesRouteChildren: ProtectedProjectProjectsProjectIdContentTypesRouteChildren =
+const ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteChildren: ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteChildren =
   {
-    ProtectedProjectProjectsProjectIdContentTypesIndexRoute:
-      ProtectedProjectProjectsProjectIdContentTypesIndexRoute,
-    ProtectedProjectProjectsProjectIdContentTypesContentTypeIdBuilderRoute:
-      ProtectedProjectProjectsProjectIdContentTypesContentTypeIdBuilderRoute,
-    ProtectedProjectProjectsProjectIdContentTypesContentTypeIdIndexRoute:
-      ProtectedProjectProjectsProjectIdContentTypesContentTypeIdIndexRoute,
+    ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRoute,
+    ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute,
+    ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute,
   }
 
-const ProtectedProjectProjectsProjectIdContentTypesRouteWithChildren =
-  ProtectedProjectProjectsProjectIdContentTypesRoute._addFileChildren(
-    ProtectedProjectProjectsProjectIdContentTypesRouteChildren,
+const ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteWithChildren =
+  ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute._addFileChildren(
+    ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteChildren,
   )
 
-interface ProtectedProjectProjectsProjectIdContentsTypeKeyRouteChildren {
-  ProtectedProjectProjectsProjectIdContentsTypeKeyNewRoute: typeof ProtectedProjectProjectsProjectIdContentsTypeKeyNewRoute
-  ProtectedProjectProjectsProjectIdContentsTypeKeyIndexRoute: typeof ProtectedProjectProjectsProjectIdContentsTypeKeyIndexRoute
-  ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRoute: typeof ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRoute
+interface ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteChildren {
+  ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRoute
+  ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute
+  ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute
 }
 
-const ProtectedProjectProjectsProjectIdContentsTypeKeyRouteChildren: ProtectedProjectProjectsProjectIdContentsTypeKeyRouteChildren =
+const ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteChildren: ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteChildren =
   {
-    ProtectedProjectProjectsProjectIdContentsTypeKeyNewRoute:
-      ProtectedProjectProjectsProjectIdContentsTypeKeyNewRoute,
-    ProtectedProjectProjectsProjectIdContentsTypeKeyIndexRoute:
-      ProtectedProjectProjectsProjectIdContentsTypeKeyIndexRoute,
-    ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRoute:
-      ProtectedProjectProjectsProjectIdContentsTypeKeyContentItemIdEditRoute,
+    ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRoute,
+    ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute,
+    ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute,
   }
 
-const ProtectedProjectProjectsProjectIdContentsTypeKeyRouteWithChildren =
-  ProtectedProjectProjectsProjectIdContentsTypeKeyRoute._addFileChildren(
-    ProtectedProjectProjectsProjectIdContentsTypeKeyRouteChildren,
+const ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteWithChildren =
+  ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute._addFileChildren(
+    ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteChildren,
   )
 
-interface ProtectedProjectProjectsProjectIdContentsRouteChildren {
-  ProtectedProjectProjectsProjectIdContentsTypeKeyRoute: typeof ProtectedProjectProjectsProjectIdContentsTypeKeyRouteWithChildren
-  ProtectedProjectProjectsProjectIdContentsIndexRoute: typeof ProtectedProjectProjectsProjectIdContentsIndexRoute
+interface ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteChildren {
+  ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteWithChildren
+  ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRoute
 }
 
-const ProtectedProjectProjectsProjectIdContentsRouteChildren: ProtectedProjectProjectsProjectIdContentsRouteChildren =
+const ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteChildren: ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteChildren =
   {
-    ProtectedProjectProjectsProjectIdContentsTypeKeyRoute:
-      ProtectedProjectProjectsProjectIdContentsTypeKeyRouteWithChildren,
-    ProtectedProjectProjectsProjectIdContentsIndexRoute:
-      ProtectedProjectProjectsProjectIdContentsIndexRoute,
+    ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteWithChildren,
+    ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRoute,
   }
 
-const ProtectedProjectProjectsProjectIdContentsRouteWithChildren =
-  ProtectedProjectProjectsProjectIdContentsRoute._addFileChildren(
-    ProtectedProjectProjectsProjectIdContentsRouteChildren,
+const ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteWithChildren =
+  ProtectedProjectSStudioSlugProjectsProjectIdContentsRoute._addFileChildren(
+    ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteChildren,
   )
 
-interface ProtectedProjectProjectsProjectIdRepositoriesRouteChildren {
-  ProtectedProjectProjectsProjectIdRepositoriesRepositoryIdRoute: typeof ProtectedProjectProjectsProjectIdRepositoriesRepositoryIdRoute
-  ProtectedProjectProjectsProjectIdRepositoriesIndexRoute: typeof ProtectedProjectProjectsProjectIdRepositoriesIndexRoute
+interface ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRouteChildren {
+  ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRepositoryIdRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRepositoryIdRoute
+  ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesIndexRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesIndexRoute
 }
 
-const ProtectedProjectProjectsProjectIdRepositoriesRouteChildren: ProtectedProjectProjectsProjectIdRepositoriesRouteChildren =
+const ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRouteChildren: ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRouteChildren =
   {
-    ProtectedProjectProjectsProjectIdRepositoriesRepositoryIdRoute:
-      ProtectedProjectProjectsProjectIdRepositoriesRepositoryIdRoute,
-    ProtectedProjectProjectsProjectIdRepositoriesIndexRoute:
-      ProtectedProjectProjectsProjectIdRepositoriesIndexRoute,
+    ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRepositoryIdRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRepositoryIdRoute,
+    ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesIndexRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesIndexRoute,
   }
 
-const ProtectedProjectProjectsProjectIdRepositoriesRouteWithChildren =
-  ProtectedProjectProjectsProjectIdRepositoriesRoute._addFileChildren(
-    ProtectedProjectProjectsProjectIdRepositoriesRouteChildren,
+const ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRouteWithChildren =
+  ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRoute._addFileChildren(
+    ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRouteChildren,
   )
 
-interface ProtectedProjectProjectsProjectIdStructsRouteChildren {
-  ProtectedProjectProjectsProjectIdStructsIndexRoute: typeof ProtectedProjectProjectsProjectIdStructsIndexRoute
-  ProtectedProjectProjectsProjectIdStructsStructIdBuilderRoute: typeof ProtectedProjectProjectsProjectIdStructsStructIdBuilderRoute
+interface ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteChildren {
+  ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRoute
+  ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRoute
 }
 
-const ProtectedProjectProjectsProjectIdStructsRouteChildren: ProtectedProjectProjectsProjectIdStructsRouteChildren =
+const ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteChildren: ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteChildren =
   {
-    ProtectedProjectProjectsProjectIdStructsIndexRoute:
-      ProtectedProjectProjectsProjectIdStructsIndexRoute,
-    ProtectedProjectProjectsProjectIdStructsStructIdBuilderRoute:
-      ProtectedProjectProjectsProjectIdStructsStructIdBuilderRoute,
+    ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRoute,
+    ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRoute,
   }
 
-const ProtectedProjectProjectsProjectIdStructsRouteWithChildren =
-  ProtectedProjectProjectsProjectIdStructsRoute._addFileChildren(
-    ProtectedProjectProjectsProjectIdStructsRouteChildren,
+const ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteWithChildren =
+  ProtectedProjectSStudioSlugProjectsProjectIdStructsRoute._addFileChildren(
+    ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteChildren,
   )
 
-interface ProtectedProjectProjectsProjectIdRouteRouteChildren {
-  ProtectedProjectProjectsProjectIdContentTypesRoute: typeof ProtectedProjectProjectsProjectIdContentTypesRouteWithChildren
-  ProtectedProjectProjectsProjectIdContentsRoute: typeof ProtectedProjectProjectsProjectIdContentsRouteWithChildren
-  ProtectedProjectProjectsProjectIdOverviewRoute: typeof ProtectedProjectProjectsProjectIdOverviewRoute
-  ProtectedProjectProjectsProjectIdRepositoriesRoute: typeof ProtectedProjectProjectsProjectIdRepositoriesRouteWithChildren
-  ProtectedProjectProjectsProjectIdStructsRoute: typeof ProtectedProjectProjectsProjectIdStructsRouteWithChildren
-  ProtectedProjectProjectsProjectIdPipelinePipelineIdRoute: typeof ProtectedProjectProjectsProjectIdPipelinePipelineIdRoute
-  ProtectedProjectProjectsProjectIdResourcesResourceIdRoute: typeof ProtectedProjectProjectsProjectIdResourcesResourceIdRoute
-  ProtectedProjectProjectsProjectIdPipelineIndexRoute: typeof ProtectedProjectProjectsProjectIdPipelineIndexRoute
-  ProtectedProjectProjectsProjectIdPipelineNodesIngestRoute: typeof ProtectedProjectProjectsProjectIdPipelineNodesIngestRoute
-  ProtectedProjectProjectsProjectIdPipelineNodesNewRoute: typeof ProtectedProjectProjectsProjectIdPipelineNodesNewRoute
-  ProtectedProjectProjectsProjectIdPipelineNodesIndexRoute: typeof ProtectedProjectProjectsProjectIdPipelineNodesIndexRoute
+interface ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteChildren {
+  ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteWithChildren
+  ProtectedProjectSStudioSlugProjectsProjectIdContentsRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteWithChildren
+  ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute
+  ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRouteWithChildren
+  ProtectedProjectSStudioSlugProjectsProjectIdStructsRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteWithChildren
+  ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRoute
+  ProtectedProjectSStudioSlugProjectsProjectIdResourcesResourceIdRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdResourcesResourceIdRoute
+  ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRoute
+  ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRoute
+  ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute
+  ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute
 }
 
-const ProtectedProjectProjectsProjectIdRouteRouteChildren: ProtectedProjectProjectsProjectIdRouteRouteChildren =
+const ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteChildren: ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteChildren =
   {
-    ProtectedProjectProjectsProjectIdContentTypesRoute:
-      ProtectedProjectProjectsProjectIdContentTypesRouteWithChildren,
-    ProtectedProjectProjectsProjectIdContentsRoute:
-      ProtectedProjectProjectsProjectIdContentsRouteWithChildren,
-    ProtectedProjectProjectsProjectIdOverviewRoute:
-      ProtectedProjectProjectsProjectIdOverviewRoute,
-    ProtectedProjectProjectsProjectIdRepositoriesRoute:
-      ProtectedProjectProjectsProjectIdRepositoriesRouteWithChildren,
-    ProtectedProjectProjectsProjectIdStructsRoute:
-      ProtectedProjectProjectsProjectIdStructsRouteWithChildren,
-    ProtectedProjectProjectsProjectIdPipelinePipelineIdRoute:
-      ProtectedProjectProjectsProjectIdPipelinePipelineIdRoute,
-    ProtectedProjectProjectsProjectIdResourcesResourceIdRoute:
-      ProtectedProjectProjectsProjectIdResourcesResourceIdRoute,
-    ProtectedProjectProjectsProjectIdPipelineIndexRoute:
-      ProtectedProjectProjectsProjectIdPipelineIndexRoute,
-    ProtectedProjectProjectsProjectIdPipelineNodesIngestRoute:
-      ProtectedProjectProjectsProjectIdPipelineNodesIngestRoute,
-    ProtectedProjectProjectsProjectIdPipelineNodesNewRoute:
-      ProtectedProjectProjectsProjectIdPipelineNodesNewRoute,
-    ProtectedProjectProjectsProjectIdPipelineNodesIndexRoute:
-      ProtectedProjectProjectsProjectIdPipelineNodesIndexRoute,
+    ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteWithChildren,
+    ProtectedProjectSStudioSlugProjectsProjectIdContentsRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteWithChildren,
+    ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute,
+    ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRouteWithChildren,
+    ProtectedProjectSStudioSlugProjectsProjectIdStructsRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteWithChildren,
+    ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRoute,
+    ProtectedProjectSStudioSlugProjectsProjectIdResourcesResourceIdRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdResourcesResourceIdRoute,
+    ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRoute,
+    ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRoute,
+    ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute,
+    ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute,
   }
 
-const ProtectedProjectProjectsProjectIdRouteRouteWithChildren =
-  ProtectedProjectProjectsProjectIdRouteRoute._addFileChildren(
-    ProtectedProjectProjectsProjectIdRouteRouteChildren,
+const ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteWithChildren =
+  ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute._addFileChildren(
+    ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteChildren,
   )
 
 interface ProtectedProjectRouteChildren {
-  ProtectedProjectProjectsProjectIdRouteRoute: typeof ProtectedProjectProjectsProjectIdRouteRouteWithChildren
+  ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteWithChildren
 }
 
 const ProtectedProjectRouteChildren: ProtectedProjectRouteChildren = {
-  ProtectedProjectProjectsProjectIdRouteRoute:
-    ProtectedProjectProjectsProjectIdRouteRouteWithChildren,
+  ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute:
+    ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteWithChildren,
 }
 
 const ProtectedProjectRouteWithChildren =

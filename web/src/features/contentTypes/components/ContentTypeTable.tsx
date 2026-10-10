@@ -21,7 +21,7 @@ export function ContentTypeTable({
             table={table}
             columns={columns}
             isLoading={isLoading}
-            caption={t("table.caption", { defaultValue: "ContentType List" })}
+            caption={t("page.listCaption", { defaultValue: "Content Type List" })}
         />
     );
 }

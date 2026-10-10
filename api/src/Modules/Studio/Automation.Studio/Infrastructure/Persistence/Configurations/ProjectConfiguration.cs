@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Automation.Studio.Infrastructure.Persistence.Configurations;
@@ -14,6 +14,13 @@ public class ProjectConfiguration : IEntityTypeConfiguration<Domain.Entities.Pro
         builder.Property(x => x.Name)
             .IsRequired()
             .HasMaxLength(255);
+
+        builder.Property(x => x.Slug)
+            .IsRequired()
+            .HasMaxLength(150);
+
+        builder.HasIndex(x => new { x.StudioId, x.Slug })
+            .IsUnique();
 
         builder.HasOne(x => x.Studio)
             .WithMany(x => x.Projects)

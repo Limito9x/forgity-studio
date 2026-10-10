@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -47,12 +46,16 @@ function formatBytes(bytes?: number, decimals = 2): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
+import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
+
 export function ResourceDetailPage({
   projectId,
   workspaceId,
   resourceId,
 }: ResourceDetailPageProps) {
-  const navigate = useNavigate();
+  const { studioSlug } = useCurrentStudio();
+  const nav = useProjectNav({ studioSlug, projectId });
   const { data: resource, isLoading, isError, refetch } = useResourceDetail(resourceId);
 
   const [activeTab, setActiveTab] = useState<"metadata" | "versions">("metadata");
@@ -78,15 +81,9 @@ export function ResourceDetailPage({
             className="size-9 rounded-xl cursor-pointer shrink-0"
             onClick={() => {
               if (workspaceId) {
-                navigate({
-                  to: "/projects/$projectId/repositories/$repositoryId",
-                  params: { projectId, repositoryId: workspaceId },
-                });
+                nav.toRepositoryDetail(workspaceId);
               } else {
-                navigate({
-                  to: "/projects/$projectId/repositories",
-                  params: { projectId },
-                });
+                nav.toRepositories();
               }
             }}
             aria-label="Back"
@@ -163,12 +160,7 @@ export function ResourceDetailPage({
             <Button
               variant="outline"
               size="sm"
-              onClick={() =>
-                navigate({
-                  to: "/projects/$projectId/repositories/$repositoryId",
-                  params: { projectId, repositoryId: workspaceId },
-                })
-              }
+              onClick={() => nav.toRepositoryDetail(workspaceId)}
               className="gap-1.5 cursor-pointer text-xs h-8"
             >
               <FolderGit2 className="size-3.5 text-primary" /> Repository
@@ -192,12 +184,7 @@ export function ResourceDetailPage({
           <Button
             variant="outline"
             size="sm"
-            onClick={() =>
-              navigate({
-                to: "/projects/$projectId/repositories",
-                params: { projectId },
-              })
-            }
+            onClick={() => nav.toRepositories()}
             className="mt-4 text-xs cursor-pointer"
           >
             Back to Repositories

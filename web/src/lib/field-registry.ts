@@ -27,6 +27,7 @@ export interface FieldBuilderSpec {
 export interface FieldRegistration {
   type: string
   component: ComponentType<any>
+  isAvailable?: boolean
   builderFields?: FieldBuilderSpec[]
   buildSchema?: (properties: any, field?: FieldDefinition<any, any>) => ZodType
   resolveProps?: (properties: any, context?: Record<string,any>) => Record<string, any>
@@ -57,6 +58,10 @@ export class ScopedFieldRegistry {
   getAllTypes(): string[] {
     const parentTypes = this.parent ? this.parent.getAllTypes() : [];
     return [...new Set([...parentTypes, ...this._controls.keys()])];
+  }
+
+  getAvailableTypes(): string[] {
+    return this.getAllTypes().filter((type) => this.get(type)?.isAvailable !== false);
   }
 }
 

@@ -5,13 +5,16 @@ import type { DialogProps } from "@/lib/dialog-registry";
 import { useTranslation } from "react-i18next";
 import { useCreateStruct } from "../hooks/useStructs";
 import { createStructSchema, type CreateStructInput } from "../schemas/createStructSchema";
-import { useNavigate } from "@tanstack/react-router";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
 import { toast } from "sonner";
+
+import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 
 export function CreateStructDialog({ open, onOpenChange, data }: DialogProps<{ projectId: string }>) {
     const { t } = useTranslation("structs");
+    const { studioSlug } = useCurrentStudio();
     const projectId = data?.projectId ?? "";
-    const navigate = useNavigate();
+    const nav = useProjectNav({ studioSlug, projectId });
     const createStruct = useCreateStruct({ projectId });
 
     const form = useForm<CreateStructInput>({
@@ -32,10 +35,7 @@ export function CreateStructDialog({ open, onOpenChange, data }: DialogProps<{ p
                     onOpenChange(false);
                     form.reset();
                     // Navigate directly to the schema builder for the new struct
-                    navigate({
-                        to: "/projects/$projectId/structs/$structId/builder",
-                        params: { projectId, structId: createdStruct.id || "" }
-                    });
+                    nav.toStructBuilder(createdStruct.id || "");
                 },
                 onError: (error: any) => {
                     toast.error(error?.message || "Failed to create struct");

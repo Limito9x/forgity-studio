@@ -17,6 +17,9 @@ export interface ResourcePageShellProps {
     /** Text for the Add button. Default is "Add" */
     addLabel?: string;
 
+    /** Extra action buttons rendered in header (e.g. Export, Import) */
+    actions?: React.ReactNode;
+
     /** Action for the Refresh button */
     onRefresh?: () => void;
     isRefreshing?: boolean;
@@ -39,6 +42,7 @@ export function ResourcePageShell({
     icon: IconProp,
     onAdd,
     addLabel,
+    actions,
     onRefresh,
     isRefreshing,
     resource,
@@ -73,6 +77,7 @@ export function ResourcePageShell({
                     ) : null}
                 </div>
                 <div className="flex items-center gap-2">
+                    {actions}
                     {onRefresh && (
                         <Button 
                             variant="outline" 

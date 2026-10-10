@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { useSearch } from "@tanstack/react-router";
 import { usePipelineNodeMutations, useCustomNodeById } from "../hooks/usePipelines";
 import { NodeMetaForm } from "../components/node-editor/NodeMetaForm";
 import { ScriptIngestionPage } from "./ScriptIngestionPage";
@@ -11,6 +11,7 @@ import { PinCardinality } from "@/gen/model/pinCardinality";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Save, Loader2, Workflow } from "lucide-react";
 import { toast } from "sonner";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
 
 interface CreateCustomNodePageProps {
   projectId: string;
@@ -24,7 +25,7 @@ export function CreateCustomNodePage({ projectId }: CreateCustomNodePageProps) {
 }
 
 function CustomNodeMetadataEditor({ projectId, editNodeId }: CreateCustomNodePageProps & { editNodeId: string }) {
-  const navigate = useNavigate();
+  const nav = useProjectNav({ projectId });
   const { updateNode, isUpdatingNode } = usePipelineNodeMutations(projectId);
 
   const { data: existingNode, isLoading: isLoadingExisting } = useCustomNodeById(editNodeId);
@@ -122,10 +123,7 @@ function CustomNodeMetadataEditor({ projectId, editNodeId }: CreateCustomNodePag
       assetId: null, originalFileName: null, inputs, outputs,
     } });
 
-    navigate({
-      to: "/projects/$projectId/pipeline/nodes",
-      params: { projectId },
-    });
+    nav.toNodes();
   };
 
   return (
@@ -133,13 +131,14 @@ function CustomNodeMetadataEditor({ projectId, editNodeId }: CreateCustomNodePag
       {/* Top Breadcrumb & Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
         <div className="space-y-1">
-          <Link
-            to="/projects/$projectId/pipeline/nodes"
-            params={{ projectId }}
-            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition mb-1"
+          <Button
+            variant="ghost"
+            size="sm"
+            onPress={() => nav.toNodes()}
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition mb-1 h-auto p-0 hover:bg-transparent"
           >
             <ArrowLeft className="size-3.5" /> Back to Node Library
-          </Link>
+          </Button>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <Workflow className="size-6 text-primary" />
             {editNodeId ? "Edit Custom Node" : "Create Custom Node"}
@@ -156,12 +155,7 @@ function CustomNodeMetadataEditor({ projectId, editNodeId }: CreateCustomNodePag
             type="button"
             variant="outline"
             size="sm"
-            onPress={() =>
-              navigate({
-                to: "/projects/$projectId/pipeline/nodes",
-                params: { projectId },
-              })
-            }
+            onPress={() => nav.toNodes()}
           >
             Cancel
           </Button>
@@ -201,9 +195,7 @@ function CustomNodeMetadataEditor({ projectId, editNodeId }: CreateCustomNodePag
         <div className="rounded-lg border border-border p-4 space-y-3">
           <p className="text-sm">Saved script: {existingNode?.originalFileName || "No stored script"}</p>
           <p className="text-xs text-muted-foreground">Use batch ingestion to analyze and publish a replacement for this node key.</p>
-          <Button variant="outline" onPress={() => navigate({
-            to: "/projects/$projectId/pipeline/nodes/ingest", params: { projectId },
-          })}>Publish replacement script</Button>
+          <Button variant="outline" onPress={() => nav.toNodeIngest()}>Publish replacement script</Button>
         </div>
       </div>
 

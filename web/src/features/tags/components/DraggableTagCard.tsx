@@ -35,16 +35,35 @@ export function DraggableTagCard({
 
     const tagColor = tag.color || "#3b82f6";
 
+    if (isOverlay) {
+        return (
+            <div
+                className="pointer-events-none cursor-grabbing inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-card/95 border border-primary/70 shadow-2xl ring-2 ring-primary/40 backdrop-blur-md select-none text-xs max-w-sm animate-in zoom-in-95 duration-100"
+            >
+                <div
+                    className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs"
+                    style={{ backgroundColor: tagColor }}
+                />
+                <span className="font-semibold text-foreground tracking-tight shrink-0">
+                    {tag.name}
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[180px]">
+                    {tag.path}
+                </span>
+                <TagIcon className="w-3 h-3 text-primary shrink-0 opacity-80" />
+            </div>
+        );
+    }
+
     return (
         <div
-            ref={isOverlay ? undefined : setNodeRef}
-            {...(isOverlay ? {} : listeners)}
-            {...(isOverlay ? {} : attributes)}
+            ref={setNodeRef}
+            {...listeners}
+            {...attributes}
+            title={`${tag.path}${tag.description ? ` • ${tag.description}` : ""}`}
             className={cn(
                 "group relative flex items-center justify-between p-2 rounded-lg border select-none text-xs transition-all",
-                isOverlay
-                    ? "bg-card/95 border-primary shadow-2xl ring-2 ring-primary/40 cursor-grabbing scale-105"
-                    : isDragging
+                isDragging
                     ? "opacity-30 border-dashed border-primary/60 bg-primary/5"
                     : "border-border/60 bg-card/50 hover:bg-card hover:border-border hover:shadow-xs cursor-grab active:cursor-grabbing"
             )}
@@ -59,7 +78,10 @@ export function DraggableTagCard({
                     <span className="font-semibold text-foreground truncate tracking-tight">
                         {tag.name}
                     </span>
-                    <span className="text-[10px] text-muted-foreground/70 truncate font-mono">
+                    <span
+                        className="text-[10px] text-muted-foreground/70 truncate font-mono group-hover:text-muted-foreground transition-colors"
+                        title={tag.path}
+                    >
                         {tag.path}
                     </span>
                 </div>

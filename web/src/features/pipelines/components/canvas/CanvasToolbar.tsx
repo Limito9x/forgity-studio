@@ -21,6 +21,7 @@ import { useReactFlow } from "@xyflow/react";
 import { cn } from "@/lib/utils";
 import { useUpdatePipelineMutation } from "../../hooks/usePipelines";
 import { usePipelineExport } from "../../hooks/usePipelineExportImport";
+import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 
 interface CanvasToolbarProps {
   projectId: string;
@@ -45,6 +46,7 @@ export function CanvasToolbar({
   onValidate,
   isValidating,
 }: CanvasToolbarProps) {
+  const { studioSlug } = useCurrentStudio();
   const { fitView, zoomIn, zoomOut } = useReactFlow();
   const updateMutation = useUpdatePipelineMutation(projectId, pipelineId);
   const { exportSingle, isExportingSingle } = usePipelineExport();
@@ -81,6 +83,12 @@ export function CanvasToolbar({
     );
   };
 
+  const isManual =
+    triggerType === 0 ||
+    triggerType === "Manual" ||
+    triggerType === undefined ||
+    triggerType === null;
+
   const renderTriggerBadge = () => {
     if (triggerType === 1 || triggerType === "OnResourceCreated") {
       return (
@@ -111,8 +119,8 @@ export function CanvasToolbar({
       {/* Left: Back & Title */}
       <div className="flex items-center gap-3 min-w-0">
         <Link
-          to="/projects/$projectId/pipeline"
-          params={{ projectId }}
+          to="/s/$studioSlug/projects/$projectId/pipeline"
+          params={{ studioSlug, projectId }}
           className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8 text-muted-foreground")}
         >
           <ArrowLeft className="h-4 w-4" />
@@ -237,10 +245,30 @@ export function CanvasToolbar({
         </Button>
 
         {/* Run Pipeline Button */}
-        <Button size="sm" onPress={onOpenRunModal} className="h-8 text-xs gap-1.5 shadow-sm">
-          <Play className="h-3.5 w-3.5 fill-current" />
-          <span>Run Pipeline</span>
-        </Button>
+        {isManual ? (
+          <Button size="sm" onPress={onOpenRunModal} className="h-8 text-xs gap-1.5 shadow-sm">
+            <Play className="h-3.5 w-3.5 fill-current" />
+            <span>Run Pipeline</span>
+          </Button>
+        ) : (
+          <div
+            title={`This pipeline is configured for automated trigger (${
+              triggerType === 1 || triggerType === "OnResourceCreated"
+                ? "On Resource Created"
+                : "On Version Updated"
+            }) and cannot be triggered manually.`}
+            className="flex items-center"
+          >
+            <Button
+              size="sm"
+              isDisabled
+              className="h-8 text-xs gap-1.5 opacity-60 cursor-not-allowed bg-muted text-muted-foreground hover:bg-muted"
+            >
+              <Play className="h-3.5 w-3.5 fill-current opacity-40" />
+              <span>Auto-Triggered</span>
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

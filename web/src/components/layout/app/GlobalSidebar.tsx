@@ -16,7 +16,7 @@ import {
   SidebarMenuSubItem,
   SidebarGroupAction,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, Users, Settings2, Shield, Settings, MonitorCog, Logs, Cpu, Plus, FolderKanban, FolderGit2, Workflow } from "lucide-react";
+import { LayoutDashboard, Users, Settings2, Shield, Settings, MonitorCog, Logs, Cpu, Plus, FolderKanban, FolderGit2 } from "lucide-react";
 import { NavUser } from "./NavUser";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useProjects } from "@/features/projects/hooks/useProjects";
@@ -52,35 +52,33 @@ const navItems = [
   }
 ] as const;
 
+import { StudioSwitcher } from "@/features/studios/components/StudioSwitcher";
+import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
+
 export function GlobalSidebar() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   const hasAnyPermission = useAuthStore(state => state.hasAnyPermission);
-  const { data: projectsData } = useProjects({ pageSize: 10, page: 1 });
+  const { studioId: activeStudioId, studioSlug: activeStudioSlug } = useCurrentStudio();
+  const { data: projectsData } = useProjects({
+    pageSize: 10,
+    page: 1,
+    studioId: activeStudioId || undefined,
+  });
+
+  const allProjectsUrl = activeStudioSlug ? `/s/${activeStudioSlug}/projects` : "/projects";
 
   const handleNav = (url: string) => {
     startTransition(() => {
-      navigate({ to: url });
+      navigate({ to: url as any });
     });
   };
 
   return (
     <Sidebar>
-      <SidebarHeader className="border-b border-sidebar-border/40 pb-3">
-        <div className="flex items-center gap-3 px-2 py-1">
-          <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold shadow-sm">
-            <Workflow className="size-4" />
-          </div>
-          <div className="flex flex-col min-w-0">
-            <span className="truncate text-sm font-semibold tracking-tight text-sidebar-foreground">
-              Automation Studio
-            </span>
-            <span className="truncate text-[10px] uppercase font-mono tracking-wider text-muted-foreground">
-              Pipeline Engine
-            </span>
-          </div>
-        </div>
+      <SidebarHeader className="border-b border-sidebar-border/40 pb-2">
+        <StudioSwitcher />
       </SidebarHeader>
       <SidebarContent>
         {/* Projects Group */}
@@ -92,23 +90,38 @@ export function GlobalSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton isActive={pathname === "/projects"} onPress={() => handleNav("/projects")}>
+                <SidebarMenuButton
+                  isActive={pathname === "/projects" || (activeStudioSlug ? pathname === `/s/${activeStudioSlug}/projects` : false)}
+                  onPress={() => handleNav(allProjectsUrl)}
+                >
                   <FolderKanban className="size-4" />
                   <span>All Projects</span>
                 </SidebarMenuButton>
                 {projectsData?.items && projectsData.items.length > 0 && (
                   <SidebarMenuSub className="my-1 mr-0 ml-3.5 px-1.5 border-l border-border/50">
-                    {projectsData.items.map((project) => (
-                      <SidebarMenuSubItem key={project.id}>
-                        <SidebarMenuSubButton
-                          isActive={pathname.startsWith(`/projects/${project.id}`)}
-                          onPress={() => handleNav(`/projects/${project.id}/pipeline`)}
-                        >
-                          <FolderGit2 className="size-3.5 text-muted-foreground" />
-                          <span className="truncate">{project.name}</span>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    ))}
+                    {projectsData.items.map((project) => {
+                      const isProjectActive =
+                        pathname.startsWith(`/projects/${project.id}`) ||
+                        (project.slug ? pathname.includes(`/projects/${project.slug}`) : false);
+
+                      return (
+                        <SidebarMenuSubItem key={project.id}>
+                          <SidebarMenuSubButton
+                            isActive={isProjectActive}
+                            onPress={() =>
+                              handleNav(
+                                activeStudioSlug
+                                  ? `/s/${activeStudioSlug}/projects/${project.slug || project.id}/pipeline`
+                                  : `/projects/${project.id}/pipeline`
+                              )
+                            }
+                          >
+                            <FolderGit2 className="size-3.5 text-muted-foreground" />
+                            <span className="truncate">{project.name}</span>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      );
+                    })}
                   </SidebarMenuSub>
                 )}
               </SidebarMenuItem>
@@ -129,17 +142,29 @@ export function GlobalSidebar() {
                   if (featurePrefix && !hasAnyPermission(featurePrefix)) {
                     return null;
                   }
+
+                  let targetUrl: string = item.url;
+                  let isItemActive = pathname === item.url;
+
+                  if (item.title === "Dashboard") {
+                    targetUrl = activeStudioSlug ? `/s/${activeStudioSlug}` : "/";
+                    isItemActive = pathname === "/" || (activeStudioSlug ? pathname === `/s/${activeStudioSlug}` : false);
+                  } else if (item.title === "Runners") {
+                    targetUrl = activeStudioSlug ? `/s/${activeStudioSlug}/runners` : "/runners";
+                    isItemActive = pathname === "/runners" || (activeStudioSlug ? pathname === `/s/${activeStudioSlug}/runners` : false);
+                  }
+
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton
-                        isActive={pathname === item.url}
-                        onPress={() => handleNav(item.url)}
+                        isActive={isItemActive}
+                        onPress={() => handleNav(targetUrl)}
                       >
                         <Icon />
                         <span>{item.title}</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
-                  )
+                  );
                 }
 
                 const visibleSubItems = item.items.filter(subItem => {

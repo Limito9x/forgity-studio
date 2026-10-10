@@ -93,6 +93,11 @@ export function buildDynamicSchema(
             ? registry.get(field.type as string)
             : getFieldRegistration(field.type as string);
 
+        if (registration?.isAvailable === false) {
+            shape[field.name as string] = z.any().optional().nullable();
+            continue;
+        }
+
         let fieldSchema: z.ZodTypeAny;
 
         if (registration?.buildSchema) {

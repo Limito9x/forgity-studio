@@ -9,6 +9,7 @@ namespace Automation.Studio.Features.Projects;
 public class GetProjectsQuery : PagedQuery
 {
     public Guid? StudioId { get; set; }
+    public string? StudioSlug { get; set; }
 }
 
 public class GetProjectsEndpoint(IMessageBus bus)
@@ -63,6 +64,11 @@ public class GetProjectsHandler(StudioDbContext db, ICurrentUserProvider userPro
         if (query.StudioId.HasValue && query.StudioId.Value != Guid.Empty)
         {
             queryable = queryable.Where(x => x.StudioId == query.StudioId.Value);
+        }
+        else if (!string.IsNullOrWhiteSpace(query.StudioSlug))
+        {
+            var sSlug = query.StudioSlug.Trim().ToLowerInvariant();
+            queryable = queryable.Where(x => x.Studio.Slug == sSlug);
         }
 
         var result = await queryable

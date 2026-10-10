@@ -1,4 +1,3 @@
-import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Workflow,
   Archive,
@@ -17,7 +16,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Menu,
@@ -28,6 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { PipelineSummaryDto } from "@/gen/model";
 import { useDialogStore } from "@/stores/dialogStore";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
 
 interface PipelineCardProps {
   pipeline: PipelineSummaryDto;
@@ -46,7 +46,7 @@ export function PipelineCard({
   onRestore,
   isRestoring,
 }: PipelineCardProps) {
-  const navigate = useNavigate();
+  const nav = useProjectNav({ projectId });
   const openDialog = useDialogStore((state) => state.openDialog);
 
   const getTriggerBadge = (type?: number | string) => {
@@ -147,12 +147,7 @@ export function PipelineCard({
               <Popover className="min-w-[150px] rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg">
                 <Menu className="outline-none space-y-0.5 text-xs">
                   <MenuItem
-                    onAction={() =>
-                      navigate({
-                        to: "/projects/$projectId/pipeline/$pipelineId",
-                        params: { projectId, pipelineId: p.id },
-                      })
-                    }
+                    onAction={() => nav.toPipeline(p.id)}
                     className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 outline-none hover:bg-accent hover:text-accent-foreground cursor-pointer"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
@@ -214,17 +209,15 @@ export function PipelineCard({
           </span>
 
           {mode === "active" ? (
-            <Link
-              to="/projects/$projectId/pipeline/$pipelineId"
-              params={{ projectId, pipelineId: p.id }}
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "sm" }),
-                "h-7 text-xs gap-1 group-hover:text-primary font-medium"
-              )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs gap-1 group-hover:text-primary font-medium"
+              onPress={() => nav.toPipeline(p.id)}
             >
               <span>Open Canvas</span>
               <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-            </Link>
+            </Button>
           ) : (
             <div className="flex items-center gap-1.5">
               <Button

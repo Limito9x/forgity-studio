@@ -4,9 +4,6 @@ import { Plus } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useTranslation } from "react-i18next";
 import { BuilderBlock } from "@/components/dynamic-form/BuilderBlock";
-import { getFieldRegistry } from "@/lib/field-registry";
-import { normalizeTypeName } from "@/components/dynamic-form/BuilderBlock";
-import { useMemo } from "react";
 
 export function FormBuilder({ builderContext }: { builderContext?: Record<string, any> }) {
     const { t } = useTranslation("contentTypes");
@@ -15,11 +12,6 @@ export function FormBuilder({ builderContext }: { builderContext?: Record<string
         control,
         name: "fieldsConfig",
     });
-
-    const availableTypes = useMemo(() => {
-        return Array.from(getFieldRegistry().keys())
-            .map(k => ({ label: normalizeTypeName(k), value: k }));
-    }, []);
 
     return (
         <Card>
@@ -46,7 +38,6 @@ export function FormBuilder({ builderContext }: { builderContext?: Record<string
                         index={index}
                         onRemove={() => remove(index)}
                         namePrefix="fieldsConfig"
-                        availableTypes={availableTypes}
                         builderContext={builderContext}
                     />
                 ))}

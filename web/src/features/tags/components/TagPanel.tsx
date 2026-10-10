@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useTagTree, useDeleteTag, type TagTreeNodeDto } from "../hooks/useTags";
+import { useExportTags } from "../hooks/useTagsExportImport";
 import { useProjectToolbarStore } from "@/stores/projectToolbarStore";
 import { useDialogStore } from "@/stores/dialogStore";
 import "@/features/tags/dialogs";
@@ -19,7 +20,16 @@ import {
     Layers,
     ChevronsDownUp,
     ChevronsUpDown,
+    Download,
+    Upload,
+    FileJson,
+    FileSpreadsheet,
 } from "lucide-react";
+import {
+    DropdownMenu,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,9 +65,44 @@ export function TagPanel({ projectId, contextTitle }: TagPanelProps) {
     const closePanel = useProjectToolbarStore((s) => s.closePanel);
     const isCollapsed = useProjectToolbarStore((s) => s.isCollapsed);
     const toggleCollapse = useProjectToolbarStore((s) => s.toggleCollapse);
+    const isDraggingGlobal = useProjectToolbarStore((s) => s.isDragging);
     const openDialog = useDialogStore((s) => s.openDialog);
 
     const isMinimized = isCollapsed;
+    const { mutate: exportTags, isPending: isExporting } = useExportTags();
+
+    // Resizable panel width state
+    const [panelWidth, setPanelWidth] = useState<number>(() => {
+        try {
+            const saved = localStorage.getItem("tag-panel-width");
+            return saved ? Math.max(340, Math.min(800, parseInt(saved, 10))) : 480;
+        } catch {
+            return 480;
+        }
+    });
+
+    const handleMouseDownResize = (e: React.MouseEvent) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        const startWidth = panelWidth;
+
+        const handleMouseMove = (moveEvent: MouseEvent) => {
+            const deltaX = startX - moveEvent.clientX;
+            const newWidth = Math.max(320, Math.min(800, startWidth + deltaX));
+            setPanelWidth(newWidth);
+        };
+
+        const handleMouseUp = () => {
+            document.removeEventListener("mousemove", handleMouseMove);
+            document.removeEventListener("mouseup", handleMouseUp);
+            try {
+                localStorage.setItem("tag-panel-width", panelWidth.toString());
+            } catch {}
+        };
+
+        document.addEventListener("mousemove", handleMouseMove);
+        document.addEventListener("mouseup", handleMouseUp);
+    };
 
     const { data: treeData, isLoading } = useTagTree(
         { projectId },
@@ -148,13 +193,24 @@ export function TagPanel({ projectId, contextTitle }: TagPanelProps) {
     return (
         <aside
             aria-label="GameplayTags Explorer"
+            style={{ width: `${panelWidth}px` }}
             className={cn(
-                "fixed right-12 top-16 bottom-4 w-80 md:w-96 z-40 bg-card/95 backdrop-blur-2xl border border-border/80 rounded-2xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ease-in-out",
+                "fixed right-12 top-16 bottom-4 z-40 bg-card/95 backdrop-blur-2xl border border-border/80 rounded-2xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ease-in-out",
                 isMinimized
                     ? "h-14 max-h-14 border-primary/40 shadow-lg"
-                    : "h-auto max-h-[calc(100vh-5rem)]"
+                    : "h-auto max-h-[calc(100vh-5rem)]",
+                isDraggingGlobal && "opacity-30 pointer-events-none scale-95 origin-top-right shadow-none"
             )}
         >
+            {/* Left Edge Resize Handle */}
+            <div
+                onMouseDown={handleMouseDownResize}
+                onDoubleClick={() => setPanelWidth(480)}
+                title="Drag left/right to resize panel width • Double-click to reset"
+                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-primary/20 active:bg-primary/40 transition-colors z-50 group flex items-center justify-center select-none"
+            >
+                <div className="w-0.5 h-8 rounded-full bg-border/60 group-hover:bg-primary/80 transition-colors" />
+            </div>
             {/* Header */}
             <div className="px-4 py-2.5 border-b border-border/70 flex items-center justify-between gap-2 bg-muted/20 shrink-0 h-14">
                 <div className="flex items-center gap-2.5 min-w-0">
@@ -192,6 +248,46 @@ export function TagPanel({ projectId, contextTitle }: TagPanelProps) {
                             <ChevronsUpDown className="w-3.5 h-3.5" />
                         )}
                     </Button>
+
+                    {/* Import Tags */}
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer"
+                        onClick={() => openDialog("import-tags", { projectId })}
+                        aria-label="Import Tags (.tags.json / .tags.csv)"
+                    >
+                        <Upload className="w-3.5 h-3.5" />
+                    </Button>
+
+                    {/* Export Tags Dropdown */}
+                    <DropdownMenuTrigger>
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer"
+                            isDisabled={isExporting || totalTagsCount === 0}
+                            aria-label="Export Tags (.tags.json / .tags.csv)"
+                        >
+                            <Download className="w-3.5 h-3.5" />
+                        </Button>
+                        <DropdownMenu placement="bottom end">
+                            <DropdownMenuItem
+                                onAction={() => exportTags({ projectId, format: "json" })}
+                                className="cursor-pointer gap-2"
+                            >
+                                <FileJson className="w-4 h-4 text-primary" />
+                                <span>Export as JSON (.tags.json)</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onAction={() => exportTags({ projectId, format: "csv" })}
+                                className="cursor-pointer gap-2"
+                            >
+                                <FileSpreadsheet className="w-4 h-4 text-emerald-500" />
+                                <span>Export as CSV (.tags.csv)</span>
+                            </DropdownMenuItem>
+                        </DropdownMenu>
+                    </DropdownMenuTrigger>
                     <Button
                         size="sm"
                         variant="outline"
@@ -431,13 +527,7 @@ function TagTreeNodeItem({
                     {...listeners}
                     {...attributes}
                     className="flex items-center gap-1.5 min-w-0 flex-1 cursor-grab active:cursor-grabbing p-0.5 rounded"
-                    title={
-                        hasChildren
-                            ? isExpanded
-                                ? "Drag tag to assign, or Click to collapse (Shift+Click to collapse branch)"
-                                : "Drag tag to assign, or Click to expand (Shift+Click to expand branch)"
-                            : "Drag tag to assign"
-                    }
+                    title={`${node.path}${node.description ? `\n• ${node.description}` : ""}\n\n• Drag to assign tag\n• ${hasChildren ? "Click to toggle branch (Shift+Click to toggle all sub-branches)" : "Leaf tag"}`}
                     onClick={(e) => {
                         if (hasChildren) {
                             toggleExpand(node, e.shiftKey);
@@ -465,13 +555,16 @@ function TagTreeNodeItem({
                         />
                     )}
 
-                    {/* Node Name & Path */}
-                    <span className="font-medium text-foreground truncate">{node.name}</span>
-                    {level > 0 && (
-                        <span className="text-[10px] text-muted-foreground/50 truncate font-mono hidden sm:inline">
-                            .{node.name}
+                    {/* Node Name & Full Path */}
+                    <div className="flex items-baseline gap-1.5 min-w-0 flex-1">
+                        <span className="font-semibold text-foreground shrink-0">{node.name}</span>
+                        <span
+                            className="text-[10px] text-muted-foreground/50 font-mono truncate group-hover:text-muted-foreground transition-colors"
+                            title={node.path}
+                        >
+                            {node.path}
                         </span>
-                    )}
+                    </div>
                 </div>
 
                 {/* Hover Quick Actions */}

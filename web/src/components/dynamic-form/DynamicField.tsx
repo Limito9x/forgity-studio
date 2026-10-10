@@ -10,6 +10,11 @@ export function DynamicField<T extends FieldValues>({
     registry?: ScopedFieldRegistry;
 }) {
     const registration = registry ? registry.get(field.type as string) : getFieldRegistration(field.type as string);
+
+    if (registration?.isAvailable === false) {
+        return null;
+    }
+
     const Component = registration?.component;
 
     if (!Component) {

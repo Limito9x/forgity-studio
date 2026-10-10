@@ -2,12 +2,13 @@ import { BaseFormDialog } from "@/components/custom-ui/overlays/dialog/BaseFormD
 import type { DialogProps } from "@/lib/dialog-registry";
 import { useCreateStudio } from "../hooks/useStudios";
 import { StudioForm } from "../components/StudioForm";
-import { useStudioStore } from "@/stores/studioStore";
+import { setCurrentStudio } from "../hooks/useCurrentStudio";
 import { toast } from "sonner";
+import { useNavigate } from "@tanstack/react-router";
 
 export function CreateStudioDialog({ open, onOpenChange }: DialogProps<undefined>) {
   const createStudio = useCreateStudio();
-  const setActiveStudioId = useStudioStore((s) => s.setActiveStudioId);
+  const navigate = useNavigate();
 
   return (
     <BaseFormDialog
@@ -32,8 +33,11 @@ export function CreateStudioDialog({ open, onOpenChange }: DialogProps<undefined
             {
               onSuccess: (data) => {
                 toast.success(`Studio "${data.name}" created successfully`);
-                setActiveStudioId(data.id);
+                setCurrentStudio(data);
                 onOpenChange(false);
+                if (data.slug) {
+                  navigate({ to: `/s/${data.slug}/projects` as any });
+                }
               },
             }
           );

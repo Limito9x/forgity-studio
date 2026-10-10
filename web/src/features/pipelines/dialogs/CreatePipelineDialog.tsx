@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,14 +12,15 @@ import {
 } from "@/components/ui/dialog";
 import type { DialogProps } from "@/lib/dialog-registry";
 import { useCreatePipelineMutation } from "../hooks/usePipelines";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
 
 export function CreatePipelineDialog({
   open,
   onOpenChange,
   data,
 }: DialogProps<{ projectId: string }>) {
-  const navigate = useNavigate();
   const projectId = data?.projectId || "";
+  const nav = useProjectNav({ projectId });
   const createMutation = useCreatePipelineMutation(projectId);
   const [pipelineName, setPipelineName] = useState("");
 
@@ -38,10 +38,7 @@ export function CreatePipelineDialog({
       setPipelineName("");
 
       if (created?.id) {
-        navigate({
-          to: "/projects/$projectId/pipeline/$pipelineId",
-          params: { projectId, pipelineId: created.id },
-        });
+        nav.toPipeline(created.id);
       }
     } catch {
       // Error handled by mutation toast

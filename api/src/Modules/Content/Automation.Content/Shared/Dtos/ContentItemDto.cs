@@ -8,6 +8,7 @@ public record ContentItemDto
     public Guid ContentTypeId { get; set; }
     public Guid ProjectId { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string Key { get; set; } = string.Empty;
     public JsonDocument? ResolvedData { get; set; }
     public JsonDocument? Values { get; set; }
     public Guid? ThumbnailAssetId { get; set; }
