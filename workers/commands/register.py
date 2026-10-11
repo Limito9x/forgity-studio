@@ -38,23 +38,33 @@ def get_machine_key() -> str:
     return f"{socket.gethostname()}-{node}"
 
 
-def run():
+def run(api_url: str = None, setup_token: str = None, runner_name: str = None, non_interactive: bool = False):
     print("==================================================")
     print("    AUTOMATION RUNNER REGISTRATION CLI (TOKEN)    ")
     print("==================================================")
 
-    api_url = input(f"Enter API Base URL [{DEFAULT_API_URL}]: ").strip()
     if not api_url:
-        api_url = DEFAULT_API_URL
+        if non_interactive:
+            api_url = DEFAULT_API_URL
+        else:
+            prompt_url = input(f"Enter API Base URL [{DEFAULT_API_URL}]: ").strip()
+            api_url = prompt_url if prompt_url else DEFAULT_API_URL
 
-    print("\n--- Register Runner via Setup Token ---")
-    setup_token = input("Enter Setup Token (obtained from Web Dashboard): ").strip()
+    # Ensure api_url doesn't end with trailing slash
+    api_url = api_url.rstrip("/")
+
+    if not setup_token:
+        if non_interactive:
+            print("[ERROR] Setup Token cannot be empty in non-interactive mode! Provide --token <token>.")
+            sys.exit(1)
+        print("\n--- Register Runner via Setup Token ---")
+        setup_token = input("Enter Setup Token (obtained from Web Dashboard): ").strip()
 
     if not setup_token:
         print("[ERROR] Setup Token cannot be empty!")
         sys.exit(1)
 
-    hostname = socket.gethostname()
+    hostname = runner_name.strip() if runner_name else socket.gethostname()
     machine_key = get_machine_key()
 
     print("\n[HOST INFORMATION]")

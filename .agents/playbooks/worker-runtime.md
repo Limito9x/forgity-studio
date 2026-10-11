@@ -67,7 +67,7 @@ graph TD
 ```
 
 - **Atomic File Download:** File được tải vào file tạm đuôi `.tmp` trước. Chỉ khi verify đúng SHA-256 mới dùng `os.replace` để đưa vào vị trí cache chính thức, tránh tình trạng file bị lỗi khi mạng đứt giữa chừng.
-- **Local Fallback:** Chỉ khi không có `script_url` và `script_hash`, Worker mới dò tìm script tích hợp sẵn trong thư mục nội bộ `worker/scripts/`.
+- **Local Fallback:** Chỉ khi không có `script_url` và `script_hash`, Worker mới dò tìm script tích hợp sẵn trong thư viện phẳng `workers/pipelines/` (và fallback `worker/scripts/`).
 
 ---
 
@@ -100,7 +100,53 @@ Hàm `cleanup(dry_run=False)` trong [runtime_storage.py](file:///d:/FullStack/Au
 
 ---
 
-## 6. Tóm Tắt Quy Tắc Cho Agent Khi Chạm Vào Worker
+---
+
+## 6. Kiến Trúc Daemon Supervisor & Bộ Lệnh Dịch Vụ (`runner service`)
+
+Worker Daemon là một tiến trình **headless 100% (không dùng pystray GUI)**, được giám sát tự động bởi bộ quản lý dịch vụ gốc của từng hệ điều hành:
+
+### 6.1. Cơ Chế Giám Sát Theo Từng Hệ Điều Hành
+- **Windows (On Logon - User Session)**:
+  - Khởi chạy ngầm thông qua `pythonw.exe cli.py start` (không mở cửa sổ console).
+  - Ưu tiên 1: Đăng ký Windows Task Scheduler task `\Automation\RunnerDaemon` với trigger `At logon` (`/SC ONLOGON /RU %USERNAME%`).
+  - Fallback an toàn (khi không có quyền Administrator): Tự động ghi vào **Windows Current User Startup Registry** (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run: AutomationRunnerDaemon`).
+  - **Lợi ích cốt lõi:** Tiến trình chạy trong phiên đăng nhập của người dùng nên Blender và Unreal Engine có **100% quyền truy cập GPU driver (CUDA, OptiX, DirectX 12, Vulkan)**, tránh triệt để lỗi crash mất GPU do *Session 0 Isolation* của Windows Services truyền thống.
+- **Linux**: Sử dụng `systemd --user` unit (`~/.config/systemd/user/automation-runner.service`) kèm `loginctl enable-linger $USER` để daemon tiếp tục chạy ngay cả khi ngắt kết nối SSH.
+- **macOS**: Sử dụng `launchd` LaunchAgent (`~/Library/LaunchAgents/com.automation.runner.plist`).
+
+### 6.2. Bộ Lệnh Quản Lý Dịch Vụ CLI
+```bash
+runner service install [--no-autostart]   # Đăng ký daemon vào hệ điều hành
+runner service uninstall                  # Gỡ bỏ daemon khỏi hệ điều hành
+runner service start                      # Khởi động daemon chạy ngầm
+runner service stop                       # Dừng daemon một cách an toàn (graceful)
+runner service restart                    # Khởi động lại daemon
+runner service status                     # Báo cáo trạng thái (Running, PID, Auto-Start)
+runner service logs [-n 50] [-f]          # Xem log tập trung và live follow
+```
+
+### 6.3. Khóa PID Đơn Instance & Log Rotation Tập Trung
+- **Single-instance Enforcement:** Sử dụng file `worker/runtime/runner.pid`. Nếu phát hiện instance khác đang hoạt động, daemon từ chối khởi chạy trùng lặp.
+- **Log Rotation:** Root logger ghi log ra `worker/logs/runner.log` thông qua `RotatingFileHandler` (20MB x 5 backups) giúp ổ đĩa không bị tràn khi chạy dài ngày.
+
+---
+
+## 7. Quy Trình Cài Đặt One-Liner Dòng Lệnh (1-Click Bootstrap)
+- **Windows (PowerShell)**:
+  ```powershell
+  & ([scriptblock]::Create((irm "http://<api-host>/api/runners/bootstrap/install.ps1"))) -Url "http://<api-host>/api" -Token "AGT-xxxx"
+  ```
+- **Linux/macOS (Bash)**:
+  ```bash
+  curl -fsSL http://<api-host>/api/runners/bootstrap/install.sh | bash -s -- --url "http://<api-host>/api" --token "AGT-xxxx"
+  ```
+- **Real-Time Pairing Handshake:** Sau khi cài đặt và gửi thông tin phần cứng qua `runner register --non-interactive`, Backend lưu trạng thái vào cache `runner_token_status:{token}`. Web UI modal tự động bắt được trạng thái này qua endpoint `GET /api/runners/tokens/{token}/status` và hiển thị màn hình chúc mừng mà không cần tải lại trang.
+
+---
+
+## 8. Tóm Tắt Quy Tắc Cho Agent Khi Chạm Vào Worker
 1. **Luôn dùng `settings()[0]` để lấy Runtime Root:** Tuyệt đối không hardcode đường dẫn `os.path.join(..., "temp")` lung tung ngoài thư mục runtime.
 2. **Không bỏ qua Mutex Lock:** Mọi thao tác tiêu thụ task và dọn dẹp đều phải bọc qua `storage_lock()`.
 3. **Script từ xa bắt buộc có URL & SHA-256:** Không bao giờ cho phép thực thi script từ xa trôi nổi mà không kiểm tra mã băm bảo mật.
+4. **Không đưa GUI dependencies (như pystray) vào Daemon:** Runner Daemon bắt buộc phải duy trì tính chất headless 100%.

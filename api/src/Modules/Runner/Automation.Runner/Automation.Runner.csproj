@@ -23,4 +23,8 @@
         <Protobuf Include="$(SharedProtoDir)agent.proto" ProtoRoot="$(SharedProtoDir)" GrpcServices="Server" Link="Protos\agent.proto" />
     </ItemGroup>
 
+    <ItemGroup>
+        <None Include="..\..\..\..\..\workers\scripts\*" Link="Scripts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
 </Project>

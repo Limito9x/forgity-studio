@@ -1,17 +1,39 @@
+import atexit
+import signal
+import sys
 import threading
 import time
 import logging
-from core.config import load_config, save_config, get_rabbitmq_parameters
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+
+from core.config import load_config, save_config, get_rabbitmq_parameters, WORKERS_ROOT
 from core.runtime_storage import settings
 from core.system.hardware import get_hardware_snapshot
+from core.daemon.pid_lock import acquire_pid, release_pid, get_running_pid
 from commands import connect
 from commands.rescan_hardware import sync_hardware_to_backend
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%H:%M:%S"
-)
+# Configure rotating file logger
+log_dir = Path(WORKERS_ROOT) / "worker" / "logs"
+log_dir.mkdir(parents=True, exist_ok=True)
+log_file = log_dir / "runner.log"
+
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+
+formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S")
+
+# Console handler
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(formatter)
+root_logger.addHandler(console_handler)
+
+# Rotating file handler (20MB x 5 backups)
+file_handler = RotatingFileHandler(str(log_file), maxBytes=20 * 1024 * 1024, backupCount=5, encoding="utf-8")
+file_handler.setFormatter(formatter)
+root_logger.addHandler(file_handler)
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -80,24 +102,47 @@ def run_pipeline_worker():
 
 def run():
     print("[INFO] Starting Automation Runner Daemon...")
-    # Fail invalid deployment settings before entering the reconnect loop.
-    settings()
-    get_rabbitmq_parameters()
 
-    # 1. Hardware auto-diff check
-    check_and_sync_hardware_diff()
+    # Single-instance enforcement
+    if not acquire_pid():
+        running_pid = get_running_pid()
+        print(f"[ERROR] Another runner instance is already running (PID: {running_pid}).")
+        print("        Use 'runner service status' or 'runner service stop' to manage it.")
+        sys.exit(1)
 
-    # 2. Start unified RabbitMQ Pipeline Worker in background thread
-    if PipelineConsumer is not None:
-        t1 = threading.Thread(target=run_pipeline_worker, daemon=True)
-        t1.start()
-        print("[OK] Background Pipeline Task Worker thread initialized.")
+    atexit.register(release_pid)
 
-    # 3. Start gRPC Connect stream to maintain heartbeat & listen for commands from Backend
-    print("[OK] Starting gRPC Stream & Command Listener...")
+    def handle_signal(sig, frame):
+        print(f"\n[INFO] Received signal {sig}, terminating gracefully...")
+        release_pid()
+        sys.exit(0)
+
     try:
+        signal.signal(signal.SIGINT, handle_signal)
+        signal.signal(signal.SIGTERM, handle_signal)
+    except Exception:
+        pass
+
+    try:
+        # Fail invalid deployment settings before entering the reconnect loop.
+        settings()
+        get_rabbitmq_parameters()
+
+        # 1. Hardware auto-diff check
+        check_and_sync_hardware_diff()
+
+        # 2. Start unified RabbitMQ Pipeline Worker in background thread
+        if PipelineConsumer is not None:
+            t1 = threading.Thread(target=run_pipeline_worker, daemon=True)
+            t1.start()
+            print("[OK] Background Pipeline Task Worker thread initialized.")
+
+        # 3. Start gRPC Connect stream to maintain heartbeat & listen for commands from Backend
+        print("[OK] Starting gRPC Stream & Command Listener...")
         connect.run()
     except KeyboardInterrupt:
         print("\n[STOP] Runner daemon stopped.")
+    finally:
+        release_pid()
 
 

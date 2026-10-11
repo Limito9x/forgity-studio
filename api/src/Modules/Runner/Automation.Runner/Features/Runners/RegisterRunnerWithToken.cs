@@ -125,6 +125,10 @@ public class RegisterRunnerWithTokenHandler(RunnerDbContext db, ICacheService ca
             }
         }
 
+        // Cache the claimed/connected status for Real-time pairing handshake with Web UI
+        var statusDto = new RunnerTokenStatusDto("connected", runnerId, runnerName, machineKey, DateTimeOffset.UtcNow);
+        await cache.SetAsync($"runner_token_status:{command.SetupToken}", statusDto, TimeSpan.FromMinutes(10), ct);
+
         return Result.Ok(new RegisterRunnerResultDto(
             runnerId,
             runnerName,
@@ -133,3 +137,11 @@ public class RegisterRunnerWithTokenHandler(RunnerDbContext db, ICacheService ca
         ));
     }
 }
+
+public record RunnerTokenStatusDto(
+    string Status,
+    Guid? RunnerId = null,
+    string? RunnerName = null,
+    string? MachineKey = null,
+    DateTimeOffset? ConnectedAt = null
+);

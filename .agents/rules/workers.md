@@ -6,9 +6,11 @@ Quy tắc áp dụng bắt buộc khi xây dựng, mở rộng hoặc sửa đ�
 
 ## 1. Môi Trường Thực Thi & Kiến Trúc Phân Tầng
 
-Worker sử dụng Python 3.12+ (venv tại `workers/worker/venv`). Hệ thống phân tách thành hai tầng độc lập:
-1. **Tầng Host (Executor)** tại `workers/worker/executors/`: Quản lý vòng đời tiến trình phần mềm đồ họa (Blender, Unreal, Python CLI).
-2. **Tầng Guest (Stage Runner)** tại `workers/worker/scripts/`: Đoạn code mồi chạy ngầm BÊN TRONG tiến trình con để điều phối các step và tương tác trực tiếp với RAM của engine.
+Worker sử dụng Python 3.12+ (venv tại `workers/worker/venv`). Hệ thống phân tách thành 3 phân vùng độc lập và phẳng:
+1. **Tầng Host & Daemon (Runner Runtime)** tại `workers/worker/executors/`, `core/`, `commands/`: Quản lý vòng đời tiến trình phần mềm đồ họa (Blender, Unreal, Python CLI) và giao tiếp RabbitMQ/gRPC.
+2. **Tầng Guest (Stage Runner)** tại `workers/worker/scripts/`: Đoạn code mồi chạy ngầm BÊN TRONG tiến trình con (`stage_runner.py`, `ue_stage_runner.py`, `lib/`) để điều phối các step và tương tác trực tiếp với RAM của engine.
+3. **Kho Script Nghiệp Vụ (Pipeline Scripts Library)** tại `workers/pipelines/`: Chứa các script nghiệp vụ độc lập (`blender/`, `unreal/`, `daz/`, `inspectors/`, `ai/`) được upload lên Pipeline Canvas hoặc đóng gói Bundle. Thư mục này **không thuộc mã nguồn đóng gói của Runner client**.
+4. **Kịch Bản Kiểm Thử & Luồng Chạy Thử** tại `workers/tests/flows/daz_to_ue5/`: Chứa toàn bộ kịch bản test luồng Daz ➔ Blender ➔ UE5 độc lập, không để file test lẫn lộn trong thư mục nghiệp vụ.
 
 ---
 

@@ -6,9 +6,11 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { DialogBody } from './DialogBody';
 import { cn } from '@/lib/utils';
 
 export type DialogSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | 'full';
+export type DialogHeight = 'auto' | 'sm' | 'md' | 'lg' | 'xl' | 'full';
 
 export interface BaseDialogProps {
     open: boolean;
@@ -18,7 +20,10 @@ export interface BaseDialogProps {
     children?: ReactNode;
     footer?: ReactNode;
     className?: string;
+    bodyClassName?: string;
     size?: DialogSize;
+    height?: DialogHeight;
+    scrollable?: boolean;
 }
 
 const sizeClasses: Record<DialogSize, string> = {
@@ -32,6 +37,17 @@ const sizeClasses: Record<DialogSize, string> = {
     full: 'sm:max-w-[95vw] w-full',
 };
 
+const heightClasses: Record<DialogHeight, string> = {
+    auto: 'h-auto',
+    sm: 'h-[380px]',
+    md: 'h-[520px]',
+    lg: 'h-[680px]',
+    xl: 'h-[820px]',
+    full: 'h-[calc(100vh-3.5rem)]',
+};
+
+export { DialogBody };
+
 export function BaseDialog({
     open,
     onOpenChange,
@@ -40,15 +56,26 @@ export function BaseDialog({
     children,
     footer,
     className,
+    bodyClassName,
     size = 'md',
+    height = 'auto',
+    scrollable = true,
 }: BaseDialogProps) {
     return (
-        <Dialog isOpen={open} onOpenChange={onOpenChange} className={cn(sizeClasses[size], className)}>
+        <Dialog
+            isOpen={open}
+            onOpenChange={onOpenChange}
+            className={cn(sizeClasses[size], heightClasses[height], className)}
+        >
             <DialogHeader>
                 <DialogTitle>{title}</DialogTitle>
                 {description && <DialogDescription>{description}</DialogDescription>}
             </DialogHeader>
-            {children}
+
+            <DialogBody className={cn(!scrollable && 'overflow-visible', bodyClassName)}>
+                {children}
+            </DialogBody>
+
             {footer && <DialogFooter>{footer}</DialogFooter>}
         </Dialog>
     );
