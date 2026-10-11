@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { FormPageShell } from "@/components/layout/shells/FormPageShell";
 import { CreateUserForm } from "../components/CreateUserForm";
 import { useCreateUser } from "../hooks/useUsers";
-import type { CreateUserOutput } from "../schemas/createUserSchema";
+import type { CreateUserDetailOutput } from "../schemas/createUserSchema";
 
 export function CreateUserPage() {
     const { t } = useTranslation("users");
@@ -11,7 +11,7 @@ export function CreateUserPage() {
     const router = useRouter();
     const { mutate, isPending } = useCreateUser();
 
-    const handleSubmit = (data: CreateUserOutput) => {
+    const handleSubmit = (data: CreateUserDetailOutput) => {
         mutate(
             { data },
             {
