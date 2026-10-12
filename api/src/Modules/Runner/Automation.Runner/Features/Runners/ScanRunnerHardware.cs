@@ -4,7 +4,6 @@ using Automation.Runner.Shared.Dtos;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
-using RunnerDto = Automation.Runner.Shared.Dtos.RunnerDto;
 
 namespace Automation.Runner.Features.Runners;
 

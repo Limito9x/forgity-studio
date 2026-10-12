@@ -5,7 +5,7 @@
  * Digital Content Creation Automation Studio Engine & API
  * OpenAPI spec version: 1.0.0
  */
-import type { RunnerDto2 } from "./runnerDto2";
+import type { RunnerDto } from "./runnerDto";
 
 export interface RunnerStudioDto {
   id: string;
@@ -16,5 +16,5 @@ export interface RunnerStudioDto {
   isApproved: boolean;
   createdAt: string;
   /** @nullable */
-  runner?: RunnerDto2 | null;
+  runner?: RunnerDto | null;
 }

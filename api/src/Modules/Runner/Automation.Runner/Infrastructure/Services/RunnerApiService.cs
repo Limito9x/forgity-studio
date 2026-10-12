@@ -324,7 +324,7 @@ public class RunnerApiService(
                     {
                         try
                         {
-                            runner.HardwareDetails = System.Text.Json.JsonSerializer.Deserialize<Automation.Runner.Domain.Entities.RunnerHardwareProfile>(
+                            runner.HardwareDetails = System.Text.Json.JsonSerializer.Deserialize<Automation.Runner.Contracts.RunnerHardwareProfile>(
                                 hwResult.HardwareDetailsJson,
                                 new System.Text.Json.JsonSerializerOptions
                                 {
@@ -354,6 +354,92 @@ public class RunnerApiService(
             return Result.Fail<bool>($"Failed to send hardware scan command: {ex.Message}");
         }
     }
+
+    public async Task<Result<RunnerUploadResultDto>> SendUploadCommandAsync(
+        Guid runnerId,
+        IEnumerable<RunnerUploadItemDto> items,
+        CancellationToken ct = default
+    )
+    {
+        if (!registry.TryGet(runnerId, out var connection) || connection is null)
+        {
+            return Result.Fail<RunnerUploadResultDto>(
+                $"Runner với ID '{runnerId}' chưa kết nối gRPC ngầm."
+            );
+        }
+
+        var itemList = items.ToList();
+        var commandId = Guid.NewGuid().ToString();
+        var uploadCommand = new UploadFilesCommand
+        {
+            CommandId = commandId,
+        };
+
+        foreach (var item in itemList)
+        {
+            uploadCommand.Items.Add(new UploadFileItem
+            {
+                FilePath = item.FilePath ?? string.Empty,
+                PresignedUrl = item.PresignedUrl ?? string.Empty,
+                ContentType = string.IsNullOrWhiteSpace(item.ContentType) ? "application/octet-stream" : item.ContentType,
+                AssetId = item.AssetId.ToString(),
+                ResourceVersionId = item.ResourceVersionId.ToString(),
+            });
+        }
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromMinutes(2));
+
+        var task = commandTracker.RegisterCommandAsync(commandId, cts.Token);
+
+        try
+        {
+            await connection.ResponseStream.WriteAsync(
+                new ServerMessage { UploadFilesCommand = uploadCommand },
+                cts.Token
+            );
+
+            var response = await task;
+
+            if (!response.Success)
+            {
+                return Result.Fail<RunnerUploadResultDto>(
+                    $"Lỗi tải lên từ Runner: {response.ErrorMessage}"
+                );
+            }
+
+            var uploadResult = response.UploadFilesResult;
+            var totalBytesUploaded = uploadResult?.TotalBytesUploaded ?? 0;
+            var itemResults = uploadResult?.Items
+                .Select(x => new RunnerUploadItemResultDto(
+                    Guid.TryParse(x.AssetId, out var aid) ? aid : Guid.Empty,
+                    Guid.TryParse(x.ResourceVersionId, out var vid) ? vid : Guid.Empty,
+                    x.Success,
+                    x.BytesUploaded,
+                    x.ErrorMessage
+                ))
+                .ToList() ?? [];
+
+            return Result.Ok(
+                new RunnerUploadResultDto(
+                    commandId,
+                    true,
+                    null,
+                    totalBytesUploaded,
+                    itemResults
+                )
+            );
+        }
+        catch (OperationCanceledException)
+        {
+            return Result.Fail<RunnerUploadResultDto>("Quá thời gian chờ phản hồi upload từ Runner (Timeout 120s). Vui lòng kiểm tra tiến trình Daemon.");
+        }
+        catch (Exception ex)
+        {
+            return Result.Fail<RunnerUploadResultDto>($"Lỗi khi gửi lệnh upload: {ex.Message}");
+        }
+    }
+
 
     public async Task<Result<IReadOnlyList<RunnerExecutorConfigDto>>> GetExecutorConfigsAsync(
         Guid runnerId,

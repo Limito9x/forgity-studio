@@ -15,7 +15,7 @@ class AgentMessage(_message.Message):
     def __init__(self, agent_id: _Optional[str] = ..., command_response: _Optional[_Union[CommandResponse, _Mapping]] = ...) -> None: ...
 
 class CommandResponse(_message.Message):
-    __slots__ = ("command_id", "success", "error_message", "scan_result", "browse_result", "scan_executors_result", "scan_hardware_result")
+    __slots__ = ("command_id", "success", "error_message", "scan_result", "browse_result", "scan_executors_result", "scan_hardware_result", "upload_files_result")
     COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
     SUCCESS_FIELD_NUMBER: _ClassVar[int]
     ERROR_MESSAGE_FIELD_NUMBER: _ClassVar[int]
@@ -23,6 +23,7 @@ class CommandResponse(_message.Message):
     BROWSE_RESULT_FIELD_NUMBER: _ClassVar[int]
     SCAN_EXECUTORS_RESULT_FIELD_NUMBER: _ClassVar[int]
     SCAN_HARDWARE_RESULT_FIELD_NUMBER: _ClassVar[int]
+    UPLOAD_FILES_RESULT_FIELD_NUMBER: _ClassVar[int]
     command_id: str
     success: bool
     error_message: str
@@ -30,7 +31,30 @@ class CommandResponse(_message.Message):
     browse_result: BrowseCommandResult
     scan_executors_result: ScanExecutorsCommandResult
     scan_hardware_result: ScanHardwareCommandResult
-    def __init__(self, command_id: _Optional[str] = ..., success: _Optional[bool] = ..., error_message: _Optional[str] = ..., scan_result: _Optional[_Union[ScanCommandResult, _Mapping]] = ..., browse_result: _Optional[_Union[BrowseCommandResult, _Mapping]] = ..., scan_executors_result: _Optional[_Union[ScanExecutorsCommandResult, _Mapping]] = ..., scan_hardware_result: _Optional[_Union[ScanHardwareCommandResult, _Mapping]] = ...) -> None: ...
+    upload_files_result: UploadFilesCommandResult
+    def __init__(self, command_id: _Optional[str] = ..., success: _Optional[bool] = ..., error_message: _Optional[str] = ..., scan_result: _Optional[_Union[ScanCommandResult, _Mapping]] = ..., browse_result: _Optional[_Union[BrowseCommandResult, _Mapping]] = ..., scan_executors_result: _Optional[_Union[ScanExecutorsCommandResult, _Mapping]] = ..., scan_hardware_result: _Optional[_Union[ScanHardwareCommandResult, _Mapping]] = ..., upload_files_result: _Optional[_Union[UploadFilesCommandResult, _Mapping]] = ...) -> None: ...
+
+class UploadFilesCommandResult(_message.Message):
+    __slots__ = ("items", "total_bytes_uploaded")
+    ITEMS_FIELD_NUMBER: _ClassVar[int]
+    TOTAL_BYTES_UPLOADED_FIELD_NUMBER: _ClassVar[int]
+    items: _containers.RepeatedCompositeFieldContainer[UploadFileItemResult]
+    total_bytes_uploaded: int
+    def __init__(self, items: _Optional[_Iterable[_Union[UploadFileItemResult, _Mapping]]] = ..., total_bytes_uploaded: _Optional[int] = ...) -> None: ...
+
+class UploadFileItemResult(_message.Message):
+    __slots__ = ("asset_id", "resource_version_id", "success", "bytes_uploaded", "error_message")
+    ASSET_ID_FIELD_NUMBER: _ClassVar[int]
+    RESOURCE_VERSION_ID_FIELD_NUMBER: _ClassVar[int]
+    SUCCESS_FIELD_NUMBER: _ClassVar[int]
+    BYTES_UPLOADED_FIELD_NUMBER: _ClassVar[int]
+    ERROR_MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    asset_id: str
+    resource_version_id: str
+    success: bool
+    bytes_uploaded: int
+    error_message: str
+    def __init__(self, asset_id: _Optional[str] = ..., resource_version_id: _Optional[str] = ..., success: _Optional[bool] = ..., bytes_uploaded: _Optional[int] = ..., error_message: _Optional[str] = ...) -> None: ...
 
 class ScanHardwareCommandResult(_message.Message):
     __slots__ = ("os_platform", "cpu_model", "total_ram_bytes", "primary_gpu_name", "primary_gpu_vram_bytes", "hardware_details_json")
@@ -131,16 +155,18 @@ class BrowseItemMessage(_message.Message):
     def __init__(self, name: _Optional[str] = ..., path: _Optional[str] = ..., is_directory: _Optional[bool] = ..., size_bytes: _Optional[int] = ...) -> None: ...
 
 class ServerMessage(_message.Message):
-    __slots__ = ("scan_command", "browse_command", "scan_executors_command", "scan_hardware_command")
+    __slots__ = ("scan_command", "browse_command", "scan_executors_command", "scan_hardware_command", "upload_files_command")
     SCAN_COMMAND_FIELD_NUMBER: _ClassVar[int]
     BROWSE_COMMAND_FIELD_NUMBER: _ClassVar[int]
     SCAN_EXECUTORS_COMMAND_FIELD_NUMBER: _ClassVar[int]
     SCAN_HARDWARE_COMMAND_FIELD_NUMBER: _ClassVar[int]
+    UPLOAD_FILES_COMMAND_FIELD_NUMBER: _ClassVar[int]
     scan_command: ScanCommand
     browse_command: BrowseCommand
     scan_executors_command: ScanExecutorsCommand
     scan_hardware_command: ScanHardwareCommand
-    def __init__(self, scan_command: _Optional[_Union[ScanCommand, _Mapping]] = ..., browse_command: _Optional[_Union[BrowseCommand, _Mapping]] = ..., scan_executors_command: _Optional[_Union[ScanExecutorsCommand, _Mapping]] = ..., scan_hardware_command: _Optional[_Union[ScanHardwareCommand, _Mapping]] = ...) -> None: ...
+    upload_files_command: UploadFilesCommand
+    def __init__(self, scan_command: _Optional[_Union[ScanCommand, _Mapping]] = ..., browse_command: _Optional[_Union[BrowseCommand, _Mapping]] = ..., scan_executors_command: _Optional[_Union[ScanExecutorsCommand, _Mapping]] = ..., scan_hardware_command: _Optional[_Union[ScanHardwareCommand, _Mapping]] = ..., upload_files_command: _Optional[_Union[UploadFilesCommand, _Mapping]] = ...) -> None: ...
 
 class ScanCommand(_message.Message):
     __slots__ = ("command_id", "directory_path", "extensions")
@@ -173,3 +199,25 @@ class ScanHardwareCommand(_message.Message):
     COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
     command_id: str
     def __init__(self, command_id: _Optional[str] = ...) -> None: ...
+
+class UploadFilesCommand(_message.Message):
+    __slots__ = ("command_id", "items")
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    ITEMS_FIELD_NUMBER: _ClassVar[int]
+    command_id: str
+    items: _containers.RepeatedCompositeFieldContainer[UploadFileItem]
+    def __init__(self, command_id: _Optional[str] = ..., items: _Optional[_Iterable[_Union[UploadFileItem, _Mapping]]] = ...) -> None: ...
+
+class UploadFileItem(_message.Message):
+    __slots__ = ("file_path", "presigned_url", "content_type", "asset_id", "resource_version_id")
+    FILE_PATH_FIELD_NUMBER: _ClassVar[int]
+    PRESIGNED_URL_FIELD_NUMBER: _ClassVar[int]
+    CONTENT_TYPE_FIELD_NUMBER: _ClassVar[int]
+    ASSET_ID_FIELD_NUMBER: _ClassVar[int]
+    RESOURCE_VERSION_ID_FIELD_NUMBER: _ClassVar[int]
+    file_path: str
+    presigned_url: str
+    content_type: str
+    asset_id: str
+    resource_version_id: str
+    def __init__(self, file_path: _Optional[str] = ..., presigned_url: _Optional[str] = ..., content_type: _Optional[str] = ..., asset_id: _Optional[str] = ..., resource_version_id: _Optional[str] = ...) -> None: ...

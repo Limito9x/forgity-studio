@@ -1,5 +1,5 @@
 import type {
-  RunnerDto2,
+  RunnerDto,
   RunnerHardwareProfile,
   RunnerGpuInfo,
   RunnerDiskInfo,
@@ -11,7 +11,7 @@ import type {
 } from "@/gen/model";
 
 export type {
-  RunnerDto2,
+  RunnerDto,
   RunnerHardwareProfile,
   RunnerGpuInfo,
   RunnerDiskInfo,
@@ -20,11 +20,4 @@ export type {
   ConfigureRunnerExecutorRequest,
   SetupTokenDto,
   AttachRunnerToStudioRequest,
-};
-
-/**
- * RunnerDto đầy đủ thông tin phần cứng được map từ RunnerDto2 của Orval
- */
-export type RunnerDto = RunnerDto2 & {
-  isOnline?: boolean;
 };

@@ -5,6 +5,6 @@
  * Digital Content Creation Automation Studio Engine & API
  * OpenAPI spec version: 1.0.0
  */
-import type { RunnerDto2 } from "./runnerDto2";
+import type { RunnerDto } from "./runnerDto";
 
-export type IReadOnlyListOfRunnerDto = RunnerDto2[];
+export type IReadOnlyListOfRunnerDto = RunnerDto[];

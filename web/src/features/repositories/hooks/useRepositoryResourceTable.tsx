@@ -2,7 +2,9 @@ import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   type ColumnDef,
+  type SortingState,
   getCoreRowModel,
+  getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -44,6 +46,7 @@ export function useRepositoryResourceTable({
   const { studioSlug } = useCurrentStudio();
   const nav = useProjectNav({ studioSlug, projectId });
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({});
+  const [sorting, setSorting] = useState<SortingState>([]);
 
   const assignMutation = useAssignResourcesContent(repositoryId);
 
@@ -138,7 +141,7 @@ export function useRepositoryResourceTable({
         size: 40,
       },
       {
-        accessorKey: "name",
+        accessorKey: "displayName",
         header: "Resource File",
         meta: { label: "Name", icon: FileCode },
         cell: ({ row }) => {
@@ -290,6 +293,7 @@ export function useRepositoryResourceTable({
         id: "actions",
         header: "Detail & Metadata",
         meta: { label: "Detail", icon: Eye },
+        enableSorting: false,
         cell: ({ row }) => {
           const item = row.original;
 
@@ -325,12 +329,15 @@ export function useRepositoryResourceTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     rowCount: totalCount,
     getRowId: (row) => row.id,
     state: {
       rowSelection,
+      sorting,
     },
     onRowSelectionChange: setRowSelection,
+    onSortingChange: setSorting,
   });
 
   return {

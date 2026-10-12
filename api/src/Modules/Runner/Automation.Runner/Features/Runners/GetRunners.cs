@@ -1,3 +1,4 @@
+using Automation.Runner.Features.Connections;
 using Automation.Runner.Infrastructure.Persistence;
 using Automation.Runner.Shared.Dtos;
 using Automation.SharedKernel.Infrastructure.Persistence;
@@ -35,7 +36,7 @@ public class GetRunnersEndpoint(IMessageBus bus, ICurrentStudioProvider currentS
 }
 
 [NonTransactional]
-public class GetRunnersHandler(RunnerDbContext db)
+public class GetRunnersHandler(RunnerDbContext db, IRunnerConnectionRegistry? registry = null)
 {
     public async Task<Result<IReadOnlyList<RunnerDto>>> HandleAsync(GetRunnersQuery query, CancellationToken ct)
     {
@@ -56,7 +57,12 @@ public class GetRunnersHandler(RunnerDbContext db)
             .OrderByDescending(x => x.CreatedAt)
             .ToListAsync(ct);
 
-        var runners = entities.Adapt<IReadOnlyList<RunnerDto>>();
-        return Result.Ok(runners);
+        var runners = entities.Select(e =>
+        {
+            var dto = e.Adapt<RunnerDto>();
+            return dto with { IsOnline = registry?.TryGet(e.Id, out _) ?? false };
+        }).ToList();
+
+        return Result.Ok<IReadOnlyList<RunnerDto>>(runners);
     }
 }

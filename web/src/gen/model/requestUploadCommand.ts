@@ -11,4 +11,6 @@ export interface RequestUploadCommand {
   items: ListOfUploadRequestItemDto;
   /** @nullable */
   storageProfileId?: string | null;
+  /** @nullable */
+  projectId?: string | null;
 }

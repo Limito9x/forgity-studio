@@ -12,6 +12,8 @@ public class ResourceVersion : AuditableEntity
     public string FileHash { get; set; } = string.Empty;
     public long SizeBytes { get; set; }
     public System.Text.Json.JsonDocument? Metadata { get; set; }
+    public Guid? AssetLinkId { get; set; }
+    public bool IsCloudSynced { get; set; } = false;
     private readonly List<ResourceVersionLocation> _locations = new();
     public IReadOnlyList<ResourceVersionLocation> Locations => _locations.AsReadOnly();
 
@@ -113,4 +115,12 @@ public class ResourceVersion : AuditableEntity
         }
         UpdatedAt = DateTimeOffset.UtcNow;
     }
+
+    public void SetCloudSynced(Guid assetLinkId)
+    {
+        AssetLinkId = assetLinkId;
+        IsCloudSynced = true;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
 }
+

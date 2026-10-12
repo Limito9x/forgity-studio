@@ -11,7 +11,7 @@ import {
   Layers,
   XCircle,
 } from "lucide-react";
-import type { RunnerDto } from "../types";
+import type { RunnerDto, RunnerDiskInfo } from "../types";
 import {
   formatBytes,
   formatCpuModel,
@@ -49,7 +49,7 @@ export function RunnerCard({
 
   const ramText = runner.totalRamBytes ? formatBytes(runner.totalRamBytes) : null;
 
-  const disks = runner.hardwareDetails?.disks ?? [];
+  const disks = (runner.hardwareDetails?.disks ?? []) as RunnerDiskInfo[];
 
   return (
     <Card className="flex flex-col justify-between border border-border/80 bg-card hover:border-primary/40 hover:shadow-md transition-all duration-200">

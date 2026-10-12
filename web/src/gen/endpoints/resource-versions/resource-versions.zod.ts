@@ -9,6 +9,7 @@ import * as zod from 'zod/mini';
 
 
 export const getResourceVersionsResponseStatusDefault = 0;
+export const getResourceVersionsResponseIsCloudSyncedDefault = false;
 
 export const GetResourceVersionsResponseItem = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
@@ -40,9 +41,24 @@ export const GetResourceVersionsResponseItem = /*#__PURE__*/ zod.object({
   "machineKey": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "runnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "rootPath": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
-})))
+}))),
+  "assetLinkId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "isCloudSynced": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), getResourceVersionsResponseIsCloudSyncedDefault)
 })
 export const GetResourceVersionsResponse = /*#__PURE__*/ zod.array(GetResourceVersionsResponseItem)
+
+export const GetResourceVersionDownloadUrlParams = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid()
+})
+
+export const GetResourceVersionDownloadUrlResponse = /*#__PURE__*/ zod.object({
+  "resourceVersionId": /*#__PURE__*/ zod.uuid(),
+  "versionNo": /*#__PURE__*/ zod.int(),
+  "fileName": /*#__PURE__*/ zod.string(),
+  "downloadUrl": /*#__PURE__*/ zod.string(),
+  "sizeBytes": /*#__PURE__*/ zod.int(),
+  "contentType": /*#__PURE__*/ zod.string()
+})
 
 export const PublishResourceVersionParams = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid()
@@ -57,6 +73,7 @@ export const PublishResourceVersionBody = /*#__PURE__*/ zod.object({
 })
 
 export const publishResourceVersionResponseStatusDefault = 0;
+export const publishResourceVersionResponseIsCloudSyncedDefault = false;
 
 export const PublishResourceVersionResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
@@ -88,6 +105,8 @@ export const PublishResourceVersionResponse = /*#__PURE__*/ zod.object({
   "machineKey": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "runnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "rootPath": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
-})))
+}))),
+  "assetLinkId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "isCloudSynced": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), publishResourceVersionResponseIsCloudSyncedDefault)
 })
 

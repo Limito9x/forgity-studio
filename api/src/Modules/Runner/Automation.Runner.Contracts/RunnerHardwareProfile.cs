@@ -1,4 +1,4 @@
-namespace Automation.Runner.Domain.Entities;
+namespace Automation.Runner.Contracts;
 
 public class RunnerHardwareProfile
 {

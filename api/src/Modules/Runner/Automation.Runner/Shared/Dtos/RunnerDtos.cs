@@ -1,24 +1,6 @@
-using System.Text.Json;
-using Automation.Runner.Domain.Entities;
+global using Automation.Runner.Contracts;
 
 namespace Automation.Runner.Shared.Dtos;
-
-public record RunnerDto(
-    Guid Id,
-    string Name,
-    string MachineKey,
-    bool IsActive,
-    DateTimeOffset? LastSeenAt,
-    DateTimeOffset CreatedAt,
-    string? OsPlatform = null,
-    string? CpuModel = null,
-    long? TotalRamBytes = null,
-    string? PrimaryGpuName = null,
-    long? PrimaryGpuVramBytes = null,
-    DateTimeOffset? LastHardwareScannedAt = null,
-    RunnerHardwareProfile? HardwareDetails = null,
-    IReadOnlyList<RunnerExecutorConfigDto>? ExecutorConfigs = null
-);
 
 public record RabbitMqConfigDto(
     string Host,
@@ -36,17 +18,6 @@ public record RegisterRunnerResultDto(
     RabbitMqConfigDto? RabbitMq = null
 );
 
-public record RunnerExecutorConfigDto(
-    Guid Id,
-    Guid RunnerId,
-    string ExecutorKey,
-    string ExecutablePath,
-    string? Version,
-    bool IsEnabled,
-    JsonDocument? Settings,
-    DateTimeOffset CreatedAt
-);
-
 public record RunnerStudioDto(
     Guid Id,
     Guid RunnerId,
@@ -58,30 +29,9 @@ public record RunnerStudioDto(
 );
 
 // Backward-compatibility aliases
-public record AgentDto(
-    Guid Id,
-    string Name,
-    string MachineKey,
-    bool IsActive,
-    DateTimeOffset? LastSeenAt,
-    DateTimeOffset CreatedAt,
-    IReadOnlyList<RunnerExecutorConfigDto>? ExecutorConfigs = null
-) : RunnerDto(Id, Name, MachineKey, IsActive, LastSeenAt, CreatedAt, ExecutorConfigs: ExecutorConfigs);
-
 public record RegisterAgentResultDto(
     Guid Id,
     string Name,
     string MachineKey,
     string RegistrationToken
 ) : RegisterRunnerResultDto(Id, Name, MachineKey, RegistrationToken);
-
-public record AgentExecutorConfigDto(
-    Guid Id,
-    Guid RunnerId,
-    string ExecutorKey,
-    string ExecutablePath,
-    string? Version,
-    bool IsEnabled,
-    JsonDocument? Settings,
-    DateTimeOffset CreatedAt
-) : RunnerExecutorConfigDto(Id, RunnerId, ExecutorKey, ExecutablePath, Version, IsEnabled, Settings, CreatedAt);
