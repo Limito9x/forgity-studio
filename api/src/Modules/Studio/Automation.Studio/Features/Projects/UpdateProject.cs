@@ -7,7 +7,7 @@ using Automation.SharedKernel.Extensions.Strings;
 
 namespace Automation.Studio.Features.Projects;
 
-public record UpdateProjectCommand(Guid Id, string Name, string? Slug = null);
+public record UpdateProjectCommand(Guid Id, string Name, string? Slug = null, Guid? StorageProfileId = null);
 
 public class UpdateProjectValidator : Validator<UpdateProjectCommand>
 {
@@ -81,7 +81,7 @@ public class UpdateProjectHandler(StudioDbContext db, ICurrentUserProvider userP
             }
         }
 
-        project.Update(request.Name, targetSlug);
+        project.Update(request.Name, targetSlug, request.StorageProfileId);
         await db.SaveChangesAsync(ct);
         
         return Result.Ok(project.Adapt<ProjectDto>());

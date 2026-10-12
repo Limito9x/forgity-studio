@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { BaseDialog } from "@/components/custom-ui/overlays/dialog/BaseDialog";
 import type { DialogProps } from "@/lib/dialog-registry";
 import { useGenerateSetupToken } from "../hooks/useRunners";
+import { useTokenStatusPolling } from "../hooks/useTokenStatusPolling";
 import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -13,6 +15,11 @@ import {
   Terminal,
   Clock,
   ShieldCheck,
+  CheckCircle2,
+  Cpu,
+  Monitor,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 export function ConnectRunnerDialog({
@@ -20,11 +27,18 @@ export function ConnectRunnerDialog({
   onOpenChange,
 }: DialogProps<undefined>) {
   const [token, setToken] = useState<string>("");
+  const [selectedOs, setSelectedOs] = useState<"windows" | "linux" | "macos">("windows");
   const [copiedToken, setCopiedToken] = useState(false);
-  const [copiedCommand, setCopiedCommand] = useState(false);
+  const [copiedOneLiner, setCopiedOneLiner] = useState(false);
+  const [showManual, setShowManual] = useState(false);
 
+  const queryClient = useQueryClient();
   const { studioId: activeStudioId } = useCurrentStudio();
   const generateTokenMutation = useGenerateSetupToken();
+
+  // Real-time polling for runner handshake
+  const tokenStatusQuery = useTokenStatusPolling(token, open);
+  const isConnected = tokenStatusQuery.data?.status === "connected";
 
   const handleGenerate = () => {
     generateTokenMutation.mutate(
@@ -52,11 +66,22 @@ export function ConnectRunnerDialog({
     }
     if (!open) {
       setCopiedToken(false);
-      setCopiedCommand(false);
+      setCopiedOneLiner(false);
+      setShowManual(false);
     }
   }, [open]);
 
-  const copyToClipboard = async (text: string, type: "token" | "command") => {
+  // When connection succeeds, refresh runner lists
+  useEffect(() => {
+    if (isConnected) {
+      queryClient.invalidateQueries({ queryKey: ["runners"] });
+      toast.success(
+        `Workstation '${tokenStatusQuery.data?.runnerName || "Runner"}' connected successfully!`
+      );
+    }
+  }, [isConnected]);
+
+  const copyToClipboard = async (text: string, type: "token" | "oneliner") => {
     try {
       await navigator.clipboard.writeText(text);
       if (type === "token") {
@@ -64,170 +89,241 @@ export function ConnectRunnerDialog({
         setTimeout(() => setCopiedToken(false), 2000);
         toast.success("Setup token copied to clipboard");
       } else {
-        setCopiedCommand(true);
-        setTimeout(() => setCopiedCommand(false), 2000);
-        toast.success("Command copied to clipboard");
+        setCopiedOneLiner(true);
+        setTimeout(() => setCopiedOneLiner(false), 2000);
+        toast.success("One-liner install command copied to clipboard");
       }
     } catch {
       toast.error("Failed to copy to clipboard");
     }
   };
 
-  const registerCommand = `.\\runner.bat register`;
+  const currentOrigin = typeof window !== "undefined" ? window.location.origin : "http://localhost:5189";
+  const apiBaseUrl = `${currentOrigin}/api`;
+
+  const getOneLinerCommand = () => {
+    const bootstrapUrl = `${apiBaseUrl}/runners/bootstrap`;
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : "";
+
+    if (selectedOs === "windows") {
+      return `irm "${bootstrapUrl}/install.ps1${tokenParam}" | iex`;
+    }
+    return `curl -fsSL "${bootstrapUrl}/install.sh${tokenParam}" | bash`;
+  };
+
+  const oneLinerCommand = getOneLinerCommand();
 
   return (
     <BaseDialog
       open={open}
       onOpenChange={onOpenChange}
       title="Connect New Runner"
-      description={`Pair a local graphic workstation, render PC, or cloud worker to ${appConfig.name}.`}
+      description={`Pair a local workstation, render PC, or cloud GPU node to ${appConfig.name}.`}
       size="lg"
       footer={
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <ShieldCheck className="size-4 text-emerald-500" />
-            <span>Secure 1-time mutual pairing</span>
+            <span>Secure 1-time mutual token handshake</span>
           </div>
           <Button
-            variant="outline"
+            variant={isConnected ? "default" : "outline"}
             size="sm"
             onPress={() => onOpenChange(false)}
             className="cursor-pointer"
           >
-            Done
+            {isConnected ? "Done & View Runners" : "Close"}
           </Button>
         </div>
       }
     >
-      <div className="space-y-5 py-1">
-        {/* Token Card */}
-        <div className="rounded-xl border border-border/80 bg-muted/40 p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-              <Clock className="size-3.5 text-primary" />
-              <span>One-Time Setup Token (15m validity)</span>
-            </span>
+      <div className="space-y-4 py-1">
+        {isConnected ? (
+          /* Live Connected Success Card */
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-6 text-center space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-500">
+              <CheckCircle2 className="size-7" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-foreground">
+                Workstation Connected Successfully!
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Your runner daemon is online, verified, and ready to execute automation pipeline tasks.
+              </p>
+            </div>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={handleGenerate}
-              isDisabled={generateTokenMutation.isPending}
-              className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
-            >
-              <RefreshCw
-                className={`size-3.5 mr-1 ${
-                  generateTokenMutation.isPending ? "animate-spin" : ""
+            <div className="mx-auto max-w-md rounded-lg border border-border/80 bg-background/80 p-3 text-left space-y-1.5 text-xs font-mono">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center gap-1.5">
+                  <Monitor className="size-3.5 text-primary" />
+                  <span>Runner Name:</span>
+                </span>
+                <span className="font-semibold text-foreground">
+                  {tokenStatusQuery.data?.runnerName || "Workstation"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground flex items-center gap-1.5">
+                  <Cpu className="size-3.5 text-primary" />
+                  <span>Machine Key:</span>
+                </span>
+                <span className="text-muted-foreground truncate max-w-[200px]">
+                  {tokenStatusQuery.data?.machineKey || "N/A"}
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Active Pairing Workflow */
+          <>
+            {/* OS Tab Selector */}
+            <div className="flex items-center justify-between gap-2 p-1 bg-muted/60 rounded-lg border">
+              <button
+                type="button"
+                onClick={() => setSelectedOs("windows")}
+                className={`flex-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded-md text-xs font-medium transition-all ${
+                  selectedOs === "windows"
+                    ? "bg-background text-foreground shadow-sm font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
-              />
-              <span>Generate New</span>
-            </Button>
-          </div>
-
-          {generateTokenMutation.isPending && !token ? (
-            <div className="h-12 flex items-center justify-center text-xs text-muted-foreground animate-pulse bg-background/50 rounded-lg border border-dashed">
-              Generating secure pairing token...
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <div className="flex-1 font-mono text-sm sm:text-base font-bold tracking-wider px-3.5 py-2.5 bg-background rounded-lg border border-border/80 text-foreground overflow-x-auto select-all">
-                {token || "Click Generate New"}
-              </div>
-
-              <Button
-                variant="secondary"
-                size="default"
-                isDisabled={!token}
-                onPress={() => copyToClipboard(token, "token")}
-                className="cursor-pointer shrink-0 gap-1.5 font-medium"
               >
-                {copiedToken ? (
-                  <>
-                    <Check className="size-4 text-emerald-500" />
-                    <span>Copied</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="size-4" />
-                    <span>Copy Token</span>
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
-        </div>
-
-        {/* 3 Step Guide */}
-        <div className="space-y-3">
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Quick Pairing Steps
-          </h4>
-
-          <div className="grid gap-3 text-sm">
-            {/* Step 1 */}
-            <div className="flex items-start gap-3 p-3 rounded-lg border border-border/60 bg-card">
-              <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs">
-                1
-              </div>
-              <div className="space-y-1 flex-1">
-                <p className="font-medium text-foreground leading-snug">
-                  Open terminal in your worker directory
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Navigate to the <code className="px-1 py-0.5 rounded bg-muted font-mono">workers/</code> directory on your workstation.
-                </p>
-              </div>
+                <span>🪟 Windows (PowerShell)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedOs("linux")}
+                className={`flex-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded-md text-xs font-medium transition-all ${
+                  selectedOs === "linux"
+                    ? "bg-background text-foreground shadow-sm font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span>🐧 Linux (Bash)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedOs("macos")}
+                className={`flex-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded-md text-xs font-medium transition-all ${
+                  selectedOs === "macos"
+                    ? "bg-background text-foreground shadow-sm font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span>🍎 macOS (Terminal)</span>
+              </button>
             </div>
 
-            {/* Step 2 */}
-            <div className="flex items-start gap-3 p-3 rounded-lg border border-border/60 bg-card">
-              <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs">
-                2
+            {/* 1-Click One-Liner Hero Box */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground flex items-center gap-1.5">
+                  <Terminal className="size-3.5 text-primary" />
+                  <span>1-Click Bootstrap Installation</span>
+                </span>
+                <span className="flex items-center gap-1 text-[11px] text-amber-500 font-medium animate-pulse">
+                  <Clock className="size-3" />
+                  <span>Waiting for runner connection...</span>
+                </span>
               </div>
-              <div className="space-y-2 flex-1 min-w-0">
-                <p className="font-medium text-foreground leading-snug">
-                  Execute the registration command
-                </p>
-                <div className="flex items-center justify-between gap-2 p-2 rounded-md bg-zinc-950 text-zinc-100 dark:bg-zinc-900 border font-mono text-xs">
-                  <div className="flex items-center gap-2 overflow-x-auto">
-                    <Terminal className="size-3.5 text-zinc-400 shrink-0" />
-                    <span className="truncate">{registerCommand}</span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onPress={() => copyToClipboard(registerCommand, "command")}
-                    className="h-6 px-2 text-zinc-300 hover:text-white hover:bg-zinc-800 cursor-pointer shrink-0"
-                  >
-                    {copiedCommand ? (
-                      <Check className="size-3 text-emerald-400" />
-                    ) : (
-                      <Copy className="size-3" />
-                    )}
-                  </Button>
+
+              <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-zinc-950 text-zinc-100 dark:bg-zinc-900 border border-zinc-800 font-mono text-xs shadow-inner min-w-0">
+                <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto select-all pr-2 scrollbar-thin">
+                  <span className="text-emerald-400 select-none shrink-0">$</span>
+                  <span className="whitespace-nowrap font-mono">{oneLinerCommand}</span>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  When prompted, paste the Setup Token from above.
-                </p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  isDisabled={!token}
+                  onPress={() => copyToClipboard(oneLinerCommand, "oneliner")}
+                  className="cursor-pointer shrink-0 gap-1.5 font-medium h-8 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border-zinc-700"
+                >
+                  {copiedOneLiner ? (
+                    <>
+                      <Check className="size-3.5 text-emerald-400" />
+                      <span>Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="size-3.5" />
+                      <span>Copy 1-Click</span>
+                    </>
+                  )}
+                </Button>
               </div>
+
+              <p className="text-[11px] text-muted-foreground">
+                Paste and run this single command in terminal. It automatically provisions Python virtualenv, registers your runner, and sets up the background daemon.
+              </p>
             </div>
 
-            {/* Step 3 */}
-            <div className="flex items-start gap-3 p-3 rounded-lg border border-border/60 bg-card">
-              <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs">
-                3
-              </div>
-              <div className="space-y-1 flex-1">
-                <p className="font-medium text-foreground leading-snug">
-                  Automatic discovery & hardware profiling
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  The runner will immediately scan its CPU, RAM, GPUs (e.g. RTX 3050), and disks, then appear live on your dashboard.
-                </p>
-              </div>
+            {/* Token Details & Manual Options Accordion */}
+            <div className="rounded-xl border border-border/80 bg-muted/30 overflow-hidden text-xs">
+              <button
+                type="button"
+                onClick={() => setShowManual(!showManual)}
+                className="w-full flex items-center justify-between p-3 text-left hover:bg-muted/50 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-foreground">Advanced / Manual Options & Token</span>
+                  <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-background border">
+                    {token || "Loading..."}
+                  </span>
+                </div>
+                {showManual ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+              </button>
+
+              {showManual && (
+                <div className="p-3 border-t border-border/60 bg-background/50 space-y-3 animate-in fade-in-50">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <Clock className="size-3 text-primary" />
+                      <span>Setup Token (Valid for 30 minutes)</span>
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onPress={handleGenerate}
+                      isDisabled={generateTokenMutation.isPending}
+                      className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+                    >
+                      <RefreshCw
+                        className={`size-3 mr-1 ${
+                          generateTokenMutation.isPending ? "animate-spin" : ""
+                        }`}
+                      />
+                      <span>Regenerate</span>
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center gap-2 font-mono">
+                    <input
+                      readOnly
+                      value={token}
+                      className="flex-1 px-2.5 py-1.5 rounded-md border bg-muted/50 text-foreground select-all text-xs"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onPress={() => copyToClipboard(token, "token")}
+                      className="h-8 shrink-0 cursor-pointer text-xs"
+                    >
+                      {copiedToken ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                    </Button>
+                  </div>
+
+                  <div className="space-y-1.5 pt-1 text-[11px] text-muted-foreground">
+                    <p className="font-semibold text-foreground">Manual local setup (if repository source is already cloned):</p>
+                    <pre className="p-2 rounded bg-muted font-mono overflow-x-auto select-all">
+                      {`.\\runner.bat register --url "${apiBaseUrl}" --token "${token}" --non-interactive\n.\\runner.bat service install\n.\\runner.bat service start`}
+                    </pre>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </BaseDialog>
   );

@@ -28,6 +28,10 @@ public sealed class AssetLinkApiTests : IDisposable
         _db.Database.EnsureCreated();
         var storage = Substitute.For<IObjectStorageService>();
         storage.GetPublicUrl(Arg.Any<string>()).Returns(x => "https://storage.example/" + x.Arg<string>());
+        var storageFactory = Substitute.For<IStorageServiceFactory>();
+        storageFactory.GetDefaultStorageService().Returns(storage);
+        storageFactory.GetStorageServiceAsync(Arg.Any<Guid?>(), Arg.Any<CancellationToken>()).Returns(storage);
+        storageFactory.GetPublicUrl(Arg.Any<Guid?>(), Arg.Any<string>()).Returns(x => storage.GetPublicUrl(x.ArgAt<string>(1)));
         var registry = new AssetRegistry([
             new RegisteredAssetSlot("PipelineNode", "NodeConfig", new AssetCategoryOptions
             {
@@ -40,7 +44,7 @@ public sealed class AssetLinkApiTests : IDisposable
                 AllowMultiple = true, MaxCount = 1
             })
         ]);
-        _api = new AssetApiService(_db, storage, registry);
+        _api = new AssetApiService(_db, storageFactory, registry);
     }
 
     private async Task<Asset> SeedAsset(bool confirmed = true, long size = 10, string contentType = "text/plain")
@@ -279,7 +283,11 @@ public sealed class AssetLinkApiTests : IDisposable
         await using var db = new FilesDbContext(new DbContextOptionsBuilder<FilesDbContext>()
             .UseSqlite(_connection).AddInterceptors(interceptor).Options);
         var storage = Substitute.For<IObjectStorageService>();
-        var api = new AssetApiService(db, storage, new AssetRegistry([
+        var storageFactory = Substitute.For<IStorageServiceFactory>();
+        storageFactory.GetDefaultStorageService().Returns(storage);
+        storageFactory.GetStorageServiceAsync(Arg.Any<Guid?>(), Arg.Any<CancellationToken>()).Returns(storage);
+        storageFactory.GetPublicUrl(Arg.Any<Guid?>(), Arg.Any<string>()).Returns(x => storage.GetPublicUrl(x.ArgAt<string>(1)));
+        var api = new AssetApiService(db, storageFactory, new AssetRegistry([
             new RegisteredAssetSlot("PipelineNode", "NodeConfig", new AssetCategoryOptions
             {
                 AllowMultiple = true, AllowSubSlots = true

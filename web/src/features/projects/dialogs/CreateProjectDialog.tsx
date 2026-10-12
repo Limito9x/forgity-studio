@@ -26,10 +26,12 @@ export function CreateProjectDialog({ open, onOpenChange }: DialogProps<undefine
                         data: {
                             ...values,
                             studioId: activeStudioId || undefined,
+                            storageProfileId: values.storageProfileId || undefined,
                         },
                     }, {
                         onSuccess: () => onOpenChange(false)
                     });
+
                 }}
             />
         </BaseFormDialog>

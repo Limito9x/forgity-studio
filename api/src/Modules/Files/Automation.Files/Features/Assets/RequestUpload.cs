@@ -6,10 +6,15 @@ using Wolverine;
 using Automation.Files.Contracts;
 using Automation.Files.Infrastructure.Persistence;
 using Automation.SharedKernel.Extensions.Results;
+using Automation.Studio.Contracts;
 
 namespace Automation.Files.Features.Assets;
 
-public record RequestUploadCommand(List<UploadRequestItemDto> Items);
+public record RequestUploadCommand(
+    List<UploadRequestItemDto> Items, 
+    Guid? StorageProfileId = null,
+    Guid? ProjectId = null
+);
 
 public class RequestUploadValidator : AbstractValidator<RequestUploadCommand>
 {
@@ -57,10 +62,16 @@ public class RequestUploadEndpoint(IMessageBus bus) : Endpoint<RequestUploadComm
 }
 
 [Transactional(typeof(FilesDbContext))]
-public class RequestUploadHandler(IAssetApi assetApi)
+public class RequestUploadHandler(IAssetApi assetApi, IProjectsApi projectsApi)
 {
     public async Task<Result<IReadOnlyList<AssetUploadDto>>> HandleAsync(RequestUploadCommand command, CancellationToken ct)
     {
-        return await assetApi.RequestUploadAsync(command.Items, ct);
+        var targetStorageProfileId = command.StorageProfileId;
+        if (!targetStorageProfileId.HasValue && command.ProjectId.HasValue)
+        {
+            targetStorageProfileId = await projectsApi.GetProjectStorageProfileIdAsync(command.ProjectId.Value, ct);
+        }
+
+        return await assetApi.RequestUploadAsync(command.Items, targetStorageProfileId, ct);
     }
 }

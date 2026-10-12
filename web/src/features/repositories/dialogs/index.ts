@@ -52,3 +52,5 @@ registerDialog({
   id: "attach-runner-to-repository",
   component: AttachRunnerDialog,
 });
+
+export { PublishVersionDialog } from "./PublishVersionDialog";

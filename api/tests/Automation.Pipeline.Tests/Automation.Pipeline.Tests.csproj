@@ -25,6 +25,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\src\Modules\Pipeline\Automation.Pipeline\Automation.Pipeline.csproj" />
         <ProjectReference Include="..\..\src\Modules\Files\Automation.Files\Automation.Files.csproj" />
+        <ProjectReference Include="..\..\src\Modules\Repository\Automation.Repository\Automation.Repository.csproj" />
     </ItemGroup>
 
 </Project>

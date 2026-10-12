@@ -38,23 +38,33 @@ def get_machine_key() -> str:
     return f"{socket.gethostname()}-{node}"
 
 
-def run():
+def run(api_url: str = None, setup_token: str = None, runner_name: str = None, non_interactive: bool = False):
     print("==================================================")
     print("    AUTOMATION RUNNER REGISTRATION CLI (TOKEN)    ")
     print("==================================================")
 
-    api_url = input(f"Enter API Base URL [{DEFAULT_API_URL}]: ").strip()
     if not api_url:
-        api_url = DEFAULT_API_URL
+        if non_interactive:
+            api_url = DEFAULT_API_URL
+        else:
+            prompt_url = input(f"Enter API Base URL [{DEFAULT_API_URL}]: ").strip()
+            api_url = prompt_url if prompt_url else DEFAULT_API_URL
 
-    print("\n--- Register Runner via Setup Token ---")
-    setup_token = input("Enter Setup Token (obtained from Web Dashboard): ").strip()
+    # Ensure api_url doesn't end with trailing slash
+    api_url = api_url.rstrip("/")
+
+    if not setup_token:
+        if non_interactive:
+            print("[ERROR] Setup Token cannot be empty in non-interactive mode! Provide --token <token>.")
+            sys.exit(1)
+        print("\n--- Register Runner via Setup Token ---")
+        setup_token = input("Enter Setup Token (obtained from Web Dashboard): ").strip()
 
     if not setup_token:
         print("[ERROR] Setup Token cannot be empty!")
         sys.exit(1)
 
-    hostname = socket.gethostname()
+    hostname = runner_name.strip() if runner_name else socket.gethostname()
     machine_key = get_machine_key()
 
     print("\n[HOST INFORMATION]")
@@ -97,6 +107,17 @@ def run():
     now_iso = datetime.now(timezone.utc).isoformat()
 
     # Save to local configuration
+    rabbitmq_payload = result.get("rabbitMq")
+    rabbitmq_config = None
+    if isinstance(rabbitmq_payload, dict):
+        rabbitmq_config = {
+            "host": rabbitmq_payload.get("host") or "localhost",
+            "port": rabbitmq_payload.get("port") or 5672,
+            "username": rabbitmq_payload.get("username") or "guest",
+            "password": rabbitmq_payload.get("password") or "guest",
+            "virtual_host": rabbitmq_payload.get("virtualHost") or "/",
+        }
+
     config = {
         **(load_config() or {}),
         "apiUrl": api_url,
@@ -116,6 +137,9 @@ def run():
             "lastScannedAt": now_iso,
         }
     }
+
+    if rabbitmq_config:
+        config["rabbitmq"] = rabbitmq_config
 
     save_config(config)
     print(f"\n[OK] Configuration securely saved to: {os.path.abspath(CONFIG_FILE)}")

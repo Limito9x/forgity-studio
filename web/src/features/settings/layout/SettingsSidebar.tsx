@@ -15,6 +15,7 @@ const settingsNavItems = [
   },
 ]
 
+
 interface SettingsSidebarProps {
   className?: string
 }

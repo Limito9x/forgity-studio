@@ -22,7 +22,8 @@ public record RunPipelineRequest(Dictionary<string, object?>? RuntimeInputs = nu
 
 public record RunPipelineCommand(
     Guid PipelineId,
-    Dictionary<string, object?>? RuntimeInputs = null
+    Dictionary<string, object?>? RuntimeInputs = null,
+    bool IsEventTrigger = false
 );
 
 public record TriggerPipelineExecutionMessage(

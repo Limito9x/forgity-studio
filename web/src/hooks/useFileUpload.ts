@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { uploadMultipleAssetsFlow } from "@/lib/upload-utils";
+import { uploadMultipleAssetsFlow, type AssetUploadOptions } from "@/lib/upload-utils";
 
 import type { ConfirmAssetDto } from "@/gen/model";
 import type { AssetDto } from "@/gen/model/assetDto";
@@ -25,6 +25,8 @@ interface UseAssetFieldOptions {
     value: (string | FileValueItem)[];
     onChange: (value: FileValueItem[]) => void;
     initialAssets?: AssetDto[];
+    storageProfileId?: string | null;
+    projectId?: string | null;
 }
 
 const generateKey = () => {
@@ -42,6 +44,8 @@ export function useAssetField({
     value,
     onChange,
     initialAssets,
+    storageProfileId,
+    projectId,
 }: UseAssetFieldOptions) {
     const [assetItems, setAssetItems] = useState<UploadAssetItem[]>([]);
     const [uploadingItems, setUploadingItems] = useState<UploadingItem[]>([]);
@@ -80,7 +84,7 @@ export function useAssetField({
                 file: item.file
             }));
 
-            const result = await uploadMultipleAssetsFlow(payload);
+            const result = await uploadMultipleAssetsFlow(payload, { storageProfileId, projectId });
 
             if (result && result.length > 0) {
                 const newCompletedItems: UploadAssetItem[] = result.map(res => {
@@ -113,7 +117,7 @@ export function useAssetField({
                 }
             });
         }
-    }, [value, onChange]);
+    }, [value, onChange, storageProfileId, projectId]);
 
     const removeAsset = useCallback((assetId: string) => {
         setAssetItems(prev => prev.filter(asset => asset.id !== assetId && asset.key !== assetId));

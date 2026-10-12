@@ -6,6 +6,7 @@ using Automation.Repository.Domain.Entities;
 using Automation.Repository.Features.Repositories;
 using Automation.Repository.Infrastructure.Persistence;
 using Automation.Repository.Shared.Dtos;
+using Automation.Runner.Contracts;
 using Gridify;
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
@@ -44,7 +45,11 @@ public class GetRepositoryResourcesEndpoint(IMessageBus bus)
 }
 
 [NonTransactional]
-public class GetRepositoryResourcesHandler(RepositoryDbContext db, IContentApi contentApi)
+public class GetRepositoryResourcesHandler(
+    RepositoryDbContext db,
+    IContentApi contentApi,
+    IRunnerApi runnerApi
+)
 {
     public async Task<Result<PagedResult<WorkspaceResourceDto>>> HandleAsync(
         GetRepositoryResourcesQuery query,
@@ -96,7 +101,24 @@ public class GetRepositoryResourcesHandler(RepositoryDbContext db, IContentApi c
             return pagedResult.ToResult();
         }
 
-        // 4. Enrich dữ liệu Content từ Map vào DTO
+        // Lấy thông tin Runner cho các resource đang bị lock
+        var lockedRunnerIds = pagedResult.Value.Items
+            .Where(r => r.IsLocked && r.LockedByRunnerId.HasValue)
+            .Select(r => r.LockedByRunnerId!.Value)
+            .Distinct()
+            .ToList();
+
+        IReadOnlyDictionary<Guid, RunnerDto> runnerMap = new Dictionary<Guid, RunnerDto>();
+        if (lockedRunnerIds.Count > 0)
+        {
+            var runnerMapResult = await runnerApi.GetAgentsMapByIdsAsync(lockedRunnerIds, ct);
+            if (runnerMapResult.IsSuccess && runnerMapResult.Value != null)
+            {
+                runnerMap = runnerMapResult.Value;
+            }
+        }
+
+        // 4. Enrich dữ liệu Content và Lock từ Map vào DTO
         var dtos = pagedResult
             .Value.Items.Select(r => new WorkspaceResourceDto(
                 Id: r.Id,
@@ -112,7 +134,12 @@ public class GetRepositoryResourcesHandler(RepositoryDbContext db, IContentApi c
                 VersionCount: r.Versions.Count,
                 CreatedAt: r.CreatedAt,
                 LatestVersionId: r.Versions.OrderByDescending(v => v.VersionNo).Select(v => (Guid?)v.Id).FirstOrDefault(),
-                LatestVersionNo: r.Versions.OrderByDescending(v => v.VersionNo).Select(v => (int?)v.VersionNo).FirstOrDefault()
+                LatestVersionNo: r.Versions.OrderByDescending(v => v.VersionNo).Select(v => (int?)v.VersionNo).FirstOrDefault(),
+                LatestVersionStatus: r.Versions.OrderByDescending(v => v.VersionNo).Select(v => (Automation.Repository.Domain.Enums.ResourceVersionStatus?)v.Status).FirstOrDefault(),
+                IsLocked: r.IsLocked,
+                LockedByRunnerId: r.LockedByRunnerId,
+                LockedByRunnerName: r.LockedByRunnerId != null && runnerMap.TryGetValue(r.LockedByRunnerId.Value, out var rn) ? rn.Name : null,
+                LockedAt: r.LockedAt
             ))
             .ToList();
 

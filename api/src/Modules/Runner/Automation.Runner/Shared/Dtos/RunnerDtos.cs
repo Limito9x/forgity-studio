@@ -20,11 +20,20 @@ public record RunnerDto(
     IReadOnlyList<RunnerExecutorConfigDto>? ExecutorConfigs = null
 );
 
+public record RabbitMqConfigDto(
+    string Host,
+    int Port,
+    string Username,
+    string Password,
+    string VirtualHost
+);
+
 public record RegisterRunnerResultDto(
     Guid Id,
     string Name,
     string MachineKey,
-    string RegistrationToken
+    string RegistrationToken,
+    RabbitMqConfigDto? RabbitMq = null
 );
 
 public record RunnerExecutorConfigDto(

@@ -6,6 +6,7 @@ import { useGetPermissions } from "@/gen/endpoints/auth/auth";
 import { useStudios } from "@/features/studios/hooks/useStudios";
 import { setCurrentStudio, getCurrentStudioSlug } from "@/features/studios/hooks/useCurrentStudio";
 import { AppSplashScreen } from "@/components/layout/app/AppSplashScreen";
+import { ServerTroubleScreen } from "@/components/layout/app/ServerTroubleScreen";
 
 export const Route = createFileRoute("/_protected")({
   beforeLoad: ({ location }) => {
@@ -23,9 +24,27 @@ function ProtectedLayoutComponent() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
-  const { data: profile, isLoading: isProfileLoading } = useGetProfile();
-  const { data: permissions, isLoading: isPermissionsLoading } = useGetPermissions();
-  const { data: studios, isLoading: isStudiosLoading } = useStudios();
+  const {
+    data: profile,
+    isLoading: isProfileLoading,
+    error: profileError,
+    refetch: refetchProfile,
+  } = useGetProfile();
+
+  const {
+    data: permissions,
+    isLoading: isPermissionsLoading,
+    error: permissionsError,
+    refetch: refetchPermissions,
+  } = useGetPermissions();
+
+  const {
+    data: studios,
+    isLoading: isStudiosLoading,
+    error: studiosError,
+    isError: isStudiosError,
+    refetch: refetchStudios,
+  } = useStudios();
 
   const setProfile = useAuthStore((state) => state.setProfile);
   const setPermissions = useAuthStore((state) => state.setPermissions);
@@ -42,9 +61,9 @@ function ProtectedLayoutComponent() {
     }
   }, [permissions, setPermissions]);
 
-  // Studio Guard
+  // Studio Guard: Chỉ chạy khi API thành công, TUYỆT ĐỐI không chạy khi server gặp lỗi kết nối!
   useEffect(() => {
-    if (isStudiosLoading) return;
+    if (isStudiosLoading || isStudiosError) return;
 
     const studioList = studios ?? [];
     const isOnboardingPage = pathname === "/onboarding";
@@ -62,7 +81,7 @@ function ProtectedLayoutComponent() {
         setCurrentStudio(active);
       }
     }
-  }, [isStudiosLoading, studios, pathname, navigate]);
+  }, [isStudiosLoading, isStudiosError, studios, pathname, navigate]);
 
   const isInitialLoading = isProfileLoading || isPermissionsLoading || isStudiosLoading;
 
@@ -70,8 +89,24 @@ function ProtectedLayoutComponent() {
     return <AppSplashScreen message="Initializing workspace..." />;
   }
 
-  // Chuyển tiếp êm dịu sang onboarding nếu chưa có studio
-  if (!isStudiosLoading && (!studios || studios.length === 0) && pathname !== "/onboarding") {
+  // Fallback sang ServerTroubleScreen khi server gặp trục trặc kết nối
+  const hasServerTrouble = Boolean(studiosError || profileError || permissionsError);
+  if (hasServerTrouble) {
+    return (
+      <ServerTroubleScreen
+        onRetry={async () => {
+          await Promise.all([
+            refetchStudios(),
+            refetchProfile(),
+            refetchPermissions(),
+          ]);
+        }}
+      />
+    );
+  }
+
+  // Chuyển tiếp êm dịu sang onboarding nếu chưa có studio (chỉ khi API đã trả về thành công 200 mảng rỗng)
+  if (!isStudiosLoading && !isStudiosError && studios?.length === 0 && pathname !== "/onboarding") {
     return <AppSplashScreen message="Setting up your environment..." />;
   }
 

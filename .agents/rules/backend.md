@@ -92,3 +92,23 @@ Quy tắc áp dụng bắt buộc khi xây dựng hoặc sửa đổi mã nguồ
       - Từ thư mục gốc dự án: `.\build-dotnet.ps1`
       - Từ thư mục `api/`: `.\cli build`
 
+18. **Quy Tắc Bảo Mật Khóa Bí Mật Bên Thứ Ba (Secret Protection & Encryption):**
+    - **Phân định Hash vs Encryption:**
+      - *Cần lấy lại chuỗi gốc để gọi API đối tác* (S3 Secret Key, AI API Key như OpenAI/Anthropic/Gemini, SMTP Password, Webhook Signing Key): **BẮT BUỘC dùng Mã hóa 2 chiều đối xứng (Symmetric Encryption)**. Tuyệt đối không băm SHA vì một khi đã băm thì không thể lấy lại key để kết nối.
+      - *Chỉ cần so khớp khi xác thực* (Mật khẩu người dùng, Runner Setup Token, Personal Access Token): Dùng Hashing (Argon2id/bcrypt cho mật khẩu, SHA-256 cho Token).
+    - **Sử dụng Dịch Vụ Cốt Lõi từ `Automation.SharedKernel`:**
+      - Interface: `Automation.SharedKernel.Abstractions.Security.ISecretProtector` (`Protect(plainText)` và `Unprotect(cipherText)`).
+      - Triển khai: `AesGcmSecretProtector` sử dụng thuật toán **AES-256-GCM** (kèm Nonce 12B ngẫu nhiên và Auth Tag 16B chống tampering).
+      - Định dạng lưu trữ: `enc:v1:<Base64 Payload>`. Có cơ chế **Graceful Fallback**: nếu chuỗi chưa có prefix `enc:v1:` (dữ liệu cũ chưa mã hóa), tự động trả về nguyên văn để tránh lỗi runtime.
+    - **Tự động hóa qua EF Core `EncryptedSecretConverter` (Trong suốt 100%):**
+      - KHÔNG gọi `Protect`/`Unprotect` thủ công rải rác ở Handler hay Service.
+      - Tại `DbContext.OnModelCreating`, gắn ValueConverter cho thuộc tính bí mật:
+        ```csharp
+        modelBuilder.Entity<StorageProfile>()
+            .Property(x => x.SecretKey)
+            .HasMaxLength(1000)
+            .HasConversion((ValueConverter)new EncryptedSecretConverter(secretProtector));
+        ```
+      - *Cơ chế vận hành:* EF Core tự động mã hóa trước khi INSERT/UPDATE vào PostgreSQL, và tự động giải mã khi SELECT lên memory. Code nghiệp vụ trong Domain, Application và Handlers làm việc với Plaintext hoàn toàn tự nhiên!
+
+

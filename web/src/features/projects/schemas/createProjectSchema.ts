@@ -11,7 +11,9 @@ export const createProjectSchema = z.object({
                 message: "Slug must contain only lowercase letters, numbers, and hyphens",
             }
         ),
+    storageProfileId: z.string().optional(),
 });
+
 
 export type CreateProjectInput = z.input<typeof createProjectSchema>;
 export type CreateProjectOutput = z.output<typeof createProjectSchema>;

@@ -25,6 +25,7 @@ import { Route as ProtectedLayoutDevRouteImport } from './routes/_protected/_lay
 import { Route as ProtectedLayoutRolesRouteRouteImport } from './routes/_protected/_layout/roles/route'
 import { Route as ProtectedLayoutRunnersRouteImport } from './routes/_protected/_layout/runners'
 import { Route as ProtectedLayoutSettingsRouteRouteImport } from './routes/_protected/_layout/settings/route'
+import { Route as ProtectedLayoutStorageRouteImport } from './routes/_protected/_layout/storage'
 import { Route as ProtectedLayoutUsersRouteRouteImport } from './routes/_protected/_layout/users/route'
 import { Route as ProtectedLayoutRolesIndexRouteImport } from './routes/_protected/_layout/roles/index'
 import { Route as ProtectedLayoutSettingsIndexRouteImport } from './routes/_protected/_layout/settings/index'
@@ -37,6 +38,7 @@ import { Route as ProtectedLayoutUsersIndexRouteImport } from './routes/_protect
 import { Route as ProtectedLayoutUsersNewRouteImport } from './routes/_protected/_layout/users/new'
 import { Route as ProtectedLayoutSStudioSlugIndexRouteImport } from './routes/_protected/_layout/s/$studioSlug/index'
 import { Route as ProtectedLayoutSStudioSlugRunnersRouteImport } from './routes/_protected/_layout/s/$studioSlug/runners'
+import { Route as ProtectedLayoutSStudioSlugStorageRouteImport } from './routes/_protected/_layout/s/$studioSlug/storage'
 import { Route as ProtectedLayoutSystemAuditLogsIndexRouteImport } from './routes/_protected/_layout/system/audit-logs/index'
 import { Route as ProtectedLayoutSystemAuditLogsIdRouteImport } from './routes/_protected/_layout/system/audit-logs/$id'
 import { Route as ProtectedLayoutUsersIdIndexRouteImport } from './routes/_protected/_layout/users/$id/index'
@@ -146,6 +148,11 @@ const ProtectedLayoutSettingsRouteRoute =
     path: '/settings',
     getParentRoute: () => ProtectedLayoutRoute,
   } as any)
+const ProtectedLayoutStorageRoute = ProtectedLayoutStorageRouteImport.update({
+  id: '/storage',
+  path: '/storage',
+  getParentRoute: () => ProtectedLayoutRoute,
+} as any)
 const ProtectedLayoutUsersRouteRoute =
   ProtectedLayoutUsersRouteRouteImport.update({
     id: '/users',
@@ -215,6 +222,12 @@ const ProtectedLayoutSStudioSlugRunnersRoute =
   ProtectedLayoutSStudioSlugRunnersRouteImport.update({
     id: '/s/$studioSlug/runners',
     path: '/s/$studioSlug/runners',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutSStudioSlugStorageRoute =
+  ProtectedLayoutSStudioSlugStorageRouteImport.update({
+    id: '/s/$studioSlug/storage',
+    path: '/s/$studioSlug/storage',
     getParentRoute: () => ProtectedLayoutRoute,
   } as any)
 const ProtectedLayoutSystemAuditLogsIndexRoute =
@@ -460,6 +473,7 @@ export interface FileRoutesByFullPath {
   '/403': typeof ProtectedLayout403Route
   '/dev': typeof ProtectedLayoutDevRoute
   '/runners': typeof ProtectedLayoutRunnersRoute
+  '/storage': typeof ProtectedLayoutStorageRoute
   '/settings/notifications': typeof ProtectedLayoutSettingsNotificationsRoute
   '/settings/profile': typeof ProtectedLayoutSettingsProfileRoute
   '/settings/security': typeof ProtectedLayoutSettingsSecurityRoute
@@ -470,6 +484,7 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof ProtectedLayoutSettingsIndexRoute
   '/users/': typeof ProtectedLayoutUsersIndexRoute
   '/s/$studioSlug/runners': typeof ProtectedLayoutSStudioSlugRunnersRoute
+  '/s/$studioSlug/storage': typeof ProtectedLayoutSStudioSlugStorageRoute
   '/system/audit-logs/$id': typeof ProtectedLayoutSystemAuditLogsIdRoute
   '/users/$id/edit': typeof ProtectedLayoutUsersIdEditRoute
   '/s/$studioSlug/': typeof ProtectedLayoutSStudioSlugIndexRoute
@@ -513,6 +528,7 @@ export interface FileRoutesByTo {
   '/403': typeof ProtectedLayout403Route
   '/dev': typeof ProtectedLayoutDevRoute
   '/runners': typeof ProtectedLayoutRunnersRoute
+  '/storage': typeof ProtectedLayoutStorageRoute
   '/settings/notifications': typeof ProtectedLayoutSettingsNotificationsRoute
   '/settings/profile': typeof ProtectedLayoutSettingsProfileRoute
   '/settings/security': typeof ProtectedLayoutSettingsSecurityRoute
@@ -522,6 +538,7 @@ export interface FileRoutesByTo {
   '/settings': typeof ProtectedLayoutSettingsIndexRoute
   '/users': typeof ProtectedLayoutUsersIndexRoute
   '/s/$studioSlug/runners': typeof ProtectedLayoutSStudioSlugRunnersRoute
+  '/s/$studioSlug/storage': typeof ProtectedLayoutSStudioSlugStorageRoute
   '/system/audit-logs/$id': typeof ProtectedLayoutSystemAuditLogsIdRoute
   '/users/$id/edit': typeof ProtectedLayoutUsersIdEditRoute
   '/s/$studioSlug': typeof ProtectedLayoutSStudioSlugIndexRoute
@@ -566,6 +583,7 @@ export interface FileRoutesById {
   '/_protected/_layout/403': typeof ProtectedLayout403Route
   '/_protected/_layout/dev': typeof ProtectedLayoutDevRoute
   '/_protected/_layout/runners': typeof ProtectedLayoutRunnersRoute
+  '/_protected/_layout/storage': typeof ProtectedLayoutStorageRoute
   '/_protected/_layout/': typeof ProtectedLayoutIndexRoute
   '/_protected/_layout/settings/notifications': typeof ProtectedLayoutSettingsNotificationsRoute
   '/_protected/_layout/settings/profile': typeof ProtectedLayoutSettingsProfileRoute
@@ -577,6 +595,7 @@ export interface FileRoutesById {
   '/_protected/_layout/settings/': typeof ProtectedLayoutSettingsIndexRoute
   '/_protected/_layout/users/': typeof ProtectedLayoutUsersIndexRoute
   '/_protected/_layout/s/$studioSlug/runners': typeof ProtectedLayoutSStudioSlugRunnersRoute
+  '/_protected/_layout/s/$studioSlug/storage': typeof ProtectedLayoutSStudioSlugStorageRoute
   '/_protected/_layout/system/audit-logs/$id': typeof ProtectedLayoutSystemAuditLogsIdRoute
   '/_protected/_layout/users/$id/edit': typeof ProtectedLayoutUsersIdEditRoute
   '/_protected/_layout/s/$studioSlug/': typeof ProtectedLayoutSStudioSlugIndexRoute
@@ -625,6 +644,7 @@ export interface FileRouteTypes {
     | '/403'
     | '/dev'
     | '/runners'
+    | '/storage'
     | '/settings/notifications'
     | '/settings/profile'
     | '/settings/security'
@@ -635,6 +655,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/users/'
     | '/s/$studioSlug/runners'
+    | '/s/$studioSlug/storage'
     | '/system/audit-logs/$id'
     | '/users/$id/edit'
     | '/s/$studioSlug/'
@@ -678,6 +699,7 @@ export interface FileRouteTypes {
     | '/403'
     | '/dev'
     | '/runners'
+    | '/storage'
     | '/settings/notifications'
     | '/settings/profile'
     | '/settings/security'
@@ -687,6 +709,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/users'
     | '/s/$studioSlug/runners'
+    | '/s/$studioSlug/storage'
     | '/system/audit-logs/$id'
     | '/users/$id/edit'
     | '/s/$studioSlug'
@@ -730,6 +753,7 @@ export interface FileRouteTypes {
     | '/_protected/_layout/403'
     | '/_protected/_layout/dev'
     | '/_protected/_layout/runners'
+    | '/_protected/_layout/storage'
     | '/_protected/_layout/'
     | '/_protected/_layout/settings/notifications'
     | '/_protected/_layout/settings/profile'
@@ -741,6 +765,7 @@ export interface FileRouteTypes {
     | '/_protected/_layout/settings/'
     | '/_protected/_layout/users/'
     | '/_protected/_layout/s/$studioSlug/runners'
+    | '/_protected/_layout/s/$studioSlug/storage'
     | '/_protected/_layout/system/audit-logs/$id'
     | '/_protected/_layout/users/$id/edit'
     | '/_protected/_layout/s/$studioSlug/'
@@ -892,6 +917,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedLayoutSettingsRouteRouteImport
       parentRoute: typeof ProtectedLayoutRoute
     }
+    '/_protected/_layout/storage': {
+      id: '/_protected/_layout/storage'
+      path: '/storage'
+      fullPath: '/storage'
+      preLoaderRoute: typeof ProtectedLayoutStorageRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
+    }
     '/_protected/_layout/users': {
       id: '/_protected/_layout/users'
       path: '/users'
@@ -974,6 +1006,13 @@ declare module '@tanstack/react-router' {
       path: '/s/$studioSlug/runners'
       fullPath: '/s/$studioSlug/runners'
       preLoaderRoute: typeof ProtectedLayoutSStudioSlugRunnersRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
+    }
+    '/_protected/_layout/s/$studioSlug/storage': {
+      id: '/_protected/_layout/s/$studioSlug/storage'
+      path: '/s/$studioSlug/storage'
+      fullPath: '/s/$studioSlug/storage'
+      preLoaderRoute: typeof ProtectedLayoutSStudioSlugStorageRouteImport
       parentRoute: typeof ProtectedLayoutRoute
     }
     '/_protected/_layout/system/audit-logs/': {
@@ -1262,10 +1301,12 @@ interface ProtectedLayoutRouteChildren {
   ProtectedLayout403Route: typeof ProtectedLayout403Route
   ProtectedLayoutDevRoute: typeof ProtectedLayoutDevRoute
   ProtectedLayoutRunnersRoute: typeof ProtectedLayoutRunnersRoute
+  ProtectedLayoutStorageRoute: typeof ProtectedLayoutStorageRoute
   ProtectedLayoutIndexRoute: typeof ProtectedLayoutIndexRoute
   ProtectedLayoutSystemAuditLogsRoute: typeof ProtectedLayoutSystemAuditLogsRouteWithChildren
   ProtectedLayoutSystemSettingsRoute: typeof ProtectedLayoutSystemSettingsRoute
   ProtectedLayoutSStudioSlugRunnersRoute: typeof ProtectedLayoutSStudioSlugRunnersRoute
+  ProtectedLayoutSStudioSlugStorageRoute: typeof ProtectedLayoutSStudioSlugStorageRoute
   ProtectedLayoutSStudioSlugIndexRoute: typeof ProtectedLayoutSStudioSlugIndexRoute
   ProtectedLayoutSStudioSlugProjectsIndexRoute: typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
 }
@@ -1278,12 +1319,15 @@ const ProtectedLayoutRouteChildren: ProtectedLayoutRouteChildren = {
   ProtectedLayout403Route: ProtectedLayout403Route,
   ProtectedLayoutDevRoute: ProtectedLayoutDevRoute,
   ProtectedLayoutRunnersRoute: ProtectedLayoutRunnersRoute,
+  ProtectedLayoutStorageRoute: ProtectedLayoutStorageRoute,
   ProtectedLayoutIndexRoute: ProtectedLayoutIndexRoute,
   ProtectedLayoutSystemAuditLogsRoute:
     ProtectedLayoutSystemAuditLogsRouteWithChildren,
   ProtectedLayoutSystemSettingsRoute: ProtectedLayoutSystemSettingsRoute,
   ProtectedLayoutSStudioSlugRunnersRoute:
     ProtectedLayoutSStudioSlugRunnersRoute,
+  ProtectedLayoutSStudioSlugStorageRoute:
+    ProtectedLayoutSStudioSlugStorageRoute,
   ProtectedLayoutSStudioSlugIndexRoute: ProtectedLayoutSStudioSlugIndexRoute,
   ProtectedLayoutSStudioSlugProjectsIndexRoute:
     ProtectedLayoutSStudioSlugProjectsIndexRoute,

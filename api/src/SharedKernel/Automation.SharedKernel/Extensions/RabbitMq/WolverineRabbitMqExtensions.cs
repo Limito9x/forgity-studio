@@ -21,6 +21,8 @@ public static class WolverineRabbitMqExtensions
         var pass = configuration["RabbitMQ:Password"] ?? "guest";
         var virtualHost = configuration["RabbitMQ:VirtualHost"] ?? "/";
 
+        SharedRabbitMqConfigHolder.Current = new(host, port, user, pass, virtualHost);
+
         options.UseRabbitMq(transport =>
         {
             transport.HostName = host;
@@ -33,5 +35,29 @@ public static class WolverineRabbitMqExtensions
         .AutoProvision();
 
         return options;
+    }
+}
+
+public record SharedRabbitMqConfig(
+    string Host,
+    int Port,
+    string Username,
+    string Password,
+    string VirtualHost
+);
+
+public static class SharedRabbitMqConfigHolder
+{
+    private static SharedRabbitMqConfig? _current;
+    public static SharedRabbitMqConfig Current
+    {
+        get => _current ?? new SharedRabbitMqConfig(
+            Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "localhost",
+            int.TryParse(Environment.GetEnvironmentVariable("RABBITMQ_PORT"), out var p) ? p : 5672,
+            Environment.GetEnvironmentVariable("RABBITMQ_USER") ?? "guest",
+            Environment.GetEnvironmentVariable("RABBITMQ_PASSWORD") ?? "guest",
+            Environment.GetEnvironmentVariable("RABBITMQ_VHOST") ?? "/"
+        );
+        set => _current = value;
     }
 }
