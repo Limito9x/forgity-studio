@@ -5,7 +5,13 @@ from core.grpc_client import get_channel
 from core.config import get_config
 from core import agent_pb2
 from core import agent_pb2_grpc
-from handlers import handle_browse, handle_scan_executors, handle_scan_sync, handle_scan_hardware
+from handlers import (
+    handle_browse,
+    handle_scan_executors,
+    handle_scan_sync,
+    handle_scan_hardware,
+    handle_upload,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +47,13 @@ def handle_server_message(agent_id: str, server_msg: agent_pb2.ServerMessage, ms
         response = handle_scan_sync(server_msg.scan_command)
     elif payload_case == "scan_hardware_command":
         response = handle_scan_hardware(server_msg.scan_hardware_command)
+    elif payload_case == "upload_files_command":
+        response = handle_upload(server_msg.upload_files_command)
     else:
+
         logger.warning(f"Received unknown server payload case: '{payload_case}'")
         return
+
 
 
     if response is not None:

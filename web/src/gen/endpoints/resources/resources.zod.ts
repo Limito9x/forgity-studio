@@ -25,6 +25,7 @@ export const GetAvailableAgentsBody = /*#__PURE__*/ zod.object({
 })
 
 export const getAvailableAgentsResponseAvailableResourcesItemLatestVersionOneStatusDefault = 0;
+export const getAvailableAgentsResponseAvailableResourcesItemLatestVersionOneIsCloudSyncedDefault = false;
 
 export const GetAvailableAgentsResponseItem = /*#__PURE__*/ zod.object({
   "agentId": /*#__PURE__*/ zod.uuid(),
@@ -63,7 +64,9 @@ export const GetAvailableAgentsResponseItem = /*#__PURE__*/ zod.object({
   "machineKey": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "runnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "rootPath": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
-})))
+}))),
+  "assetLinkId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "isCloudSynced": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), getAvailableAgentsResponseAvailableResourcesItemLatestVersionOneIsCloudSyncedDefault)
 }))
 }))
 })
@@ -98,6 +101,7 @@ export const GetResourceByIdParams = /*#__PURE__*/ zod.object({
 })
 
 export const getResourceByIdResponseVersionsOneItemStatusDefault = 0;
+export const getResourceByIdResponseVersionsOneItemIsCloudSyncedDefault = false;
 export const getResourceByIdResponseIsLockedDefault = false;
 
 export const GetResourceByIdResponse = /*#__PURE__*/ zod.object({
@@ -139,7 +143,9 @@ export const GetResourceByIdResponse = /*#__PURE__*/ zod.object({
   "machineKey": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "runnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "rootPath": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
-})))
+}))),
+  "assetLinkId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "isCloudSynced": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), getResourceByIdResponseVersionsOneItemIsCloudSyncedDefault)
 }))),
   "isLocked": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), getResourceByIdResponseIsLockedDefault),
   "lockedByRunnerId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),

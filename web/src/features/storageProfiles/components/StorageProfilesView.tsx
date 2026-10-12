@@ -16,7 +16,6 @@ import {
   ShieldCheck,
   Database,
   HelpCircle,
-  Info,
 } from "lucide-react";
 import { Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import {

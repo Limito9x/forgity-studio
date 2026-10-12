@@ -143,8 +143,11 @@ public record ResourceVersionDto(
     ResourceVersionStatus Status = ResourceVersionStatus.Draft,
     System.Text.Json.JsonDocument? Metadata = null,
     IReadOnlyDictionary<string, IReadOnlyList<Automation.Tag.Contracts.Dtos.TagLinkDetailDto>>? TagsByPath = null,
-    IReadOnlyList<ResourceVersionLocationDto>? Locations = null
+    IReadOnlyList<ResourceVersionLocationDto>? Locations = null,
+    Guid? AssetLinkId = null,
+    bool IsCloudSynced = false
 );
+
 
 public record ResourceDiffItem(
     string RelativePath,

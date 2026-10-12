@@ -40,7 +40,8 @@ export const RequestUploadBody = /*#__PURE__*/ zod.object({
   "sizeBytes": /*#__PURE__*/ zod.int().check(/*#__PURE__*/ zod.gt(requestUploadBodyItemsItemSizeBytesExclusiveMin)),
   "contentType": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(1))
 })).check(/*#__PURE__*/ zod.minLength(1)),
-  "storageProfileId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid())
+  "storageProfileId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "projectId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid())
 })
 
 export const RequestUploadResponseItem = /*#__PURE__*/ zod.object({

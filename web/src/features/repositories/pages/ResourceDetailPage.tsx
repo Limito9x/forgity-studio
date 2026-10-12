@@ -23,14 +23,18 @@ import {
   CheckCircle2,
   Lock,
   Unlock,
+  Cloud,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   useResourceDetail,
   useUnlockResource,
+  useDownloadResourceVersion,
   type ResourceVersionDto,
   type ResourceVersionLocationDto,
 } from "../hooks/useRepositories";
+
 import { ResourceMetadataTab } from "../components/ResourceMetadataTab";
 import { PublishVersionDialog } from "../dialogs/PublishVersionDialog";
 import { TagTool } from "@/features/tags/components/TagTool";
@@ -76,6 +80,37 @@ export function ResourceDetailPage({
   const isLatestDraft = latestVersion ? (latestVersion.status === 0 || (latestVersion as any).status === undefined) : false;
 
   const unlockMutation = useUnlockResource(resourceId, workspaceId);
+  const downloadMutation = useDownloadResourceVersion();
+  const [downloadingVersionId, setDownloadingVersionId] = useState<string | null>(null);
+
+  const handleDownload = (ver: ResourceVersionDto) => {
+    setDownloadingVersionId(ver.id);
+    downloadMutation.mutate(
+      ver.id,
+      {
+        onSuccess: (data) => {
+          setDownloadingVersionId(null);
+          if (data?.downloadUrl) {
+            toast.success(`Download started for ${data.fileName || "asset"}`);
+            const link = document.createElement("a");
+            link.href = data.downloadUrl;
+            link.download = data.fileName || resource?.name || "asset";
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          } else {
+            toast.error("Download URL not found.");
+          }
+        },
+        onError: (err: any) => {
+          setDownloadingVersionId(null);
+          toast.error(err?.message || "Failed to get download URL.");
+        },
+      }
+    );
+  };
 
   const handleForceUnlock = () => {
     unlockMutation.mutate(
@@ -136,9 +171,13 @@ export function ResourceDetailPage({
                     <Badge variant="outline" className="text-amber-500 border-amber-500/30 bg-amber-500/10 text-[10px]">
                       Draft
                     </Badge>
+                  ) : latestVersion?.isCloudSynced ? (
+                    <Badge variant="outline" className="text-emerald-500 border-emerald-500/30 bg-emerald-500/10 text-[10px] gap-1">
+                      <Cloud className="size-3" /> Published (Cloud Synced)
+                    </Badge>
                   ) : (
-                    <Badge variant="outline" className="text-emerald-500 border-emerald-500/30 bg-emerald-500/10 text-[10px]">
-                      Published
+                    <Badge variant="outline" className="text-muted-foreground border-border bg-muted/20 text-[10px] gap-1">
+                      <HardDrive className="size-3" /> Published (Local)
                     </Badge>
                   )}
                 </div>
@@ -202,6 +241,23 @@ export function ResourceDetailPage({
             >
               <CheckCircle2 className="size-3.5" />
               <span>Publish v{latestVersion.versionNo}</span>
+            </Button>
+          )}
+
+          {latestVersion && latestVersion.isCloudSynced && (
+            <Button
+              variant="outline"
+              size="sm"
+              isDisabled={downloadingVersionId === latestVersion.id}
+              onClick={() => handleDownload(latestVersion)}
+              className="gap-1.5 cursor-pointer text-xs h-8 text-primary border-primary/30 hover:bg-primary/10 font-medium"
+            >
+              {downloadingVersionId === latestVersion.id ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Download className="size-3.5" />
+              )}
+              <span>Download v{latestVersion.versionNo}</span>
             </Button>
           )}
 
@@ -378,12 +434,19 @@ export function ResourceDetailPage({
                                 >
                                   Draft
                                 </Badge>
+                              ) : ver.isCloudSynced ? (
+                                <Badge
+                                  variant="outline"
+                                  className="text-emerald-500 border-emerald-500/30 bg-emerald-500/10 text-[10px] gap-1"
+                                >
+                                  <Cloud className="size-3" /> Published (Cloud)
+                                </Badge>
                               ) : (
                                 <Badge
                                   variant="outline"
-                                  className="text-emerald-500 border-emerald-500/30 bg-emerald-500/10 text-[10px]"
+                                  className="text-muted-foreground border-border bg-muted/20 text-[10px] gap-1"
                                 >
-                                  Published
+                                  <HardDrive className="size-3" /> Published (Local)
                                 </Badge>
                               )}
                               {isLatest && (
@@ -404,20 +467,39 @@ export function ResourceDetailPage({
                               </div>
                             </div>
 
-                            {(ver.status === 0 || (ver as any).status === undefined) && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onPress={() => {
-                                  setVersionToPublish(ver);
-                                  setIsPublishOpen(true);
-                                }}
-                                className="h-7 px-2.5 text-xs gap-1.5 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10 cursor-pointer shrink-0"
-                              >
-                                <CheckCircle2 className="size-3.5" />
-                                <span>Publish</span>
-                              </Button>
-                            )}
+                            <div className="flex items-center gap-2 shrink-0">
+                              {ver.isCloudSynced && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  isDisabled={downloadingVersionId === ver.id}
+                                  onClick={() => handleDownload(ver)}
+                                  className="h-7 px-2.5 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/10 cursor-pointer font-medium"
+                                >
+                                  {downloadingVersionId === ver.id ? (
+                                    <Loader2 className="size-3.5 animate-spin" />
+                                  ) : (
+                                    <Download className="size-3.5" />
+                                  )}
+                                  <span>Download Asset</span>
+                                </Button>
+                              )}
+
+                              {(ver.status === 0 || (ver as any).status === undefined) && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onPress={() => {
+                                    setVersionToPublish(ver);
+                                    setIsPublishOpen(true);
+                                  }}
+                                  className="h-7 px-2.5 text-xs gap-1.5 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/10 cursor-pointer"
+                                >
+                                  <CheckCircle2 className="size-3.5" />
+                                  <span>Publish</span>
+                                </Button>
+                              )}
+                            </div>
                           </div>
 
                           {ver.notes && (

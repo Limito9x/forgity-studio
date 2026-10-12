@@ -22,6 +22,7 @@ import type {
   PublishResourceVersionCommand,
   ResourceVersionStatus,
 } from "@/gen/model";
+import { useMutation } from "@tanstack/react-query";
 
 export type {
   RepositoryDto,
@@ -151,15 +152,28 @@ export const useAssignResourcesContent = (repositoryId?: string) => {
         [`/api/repositories/${repositoryId}/resources`],
       ]
     : [["repositories"]];
-  return createMutationHook(ResourcesApi.useAssignResourcesContent, queryKeys)();
+  return createMutationHook(
+    ResourcesApi.useAssignResourcesContent,
+    queryKeys,
+  )();
 };
 
-export const usePublishResourceVersion = (resourceId?: string, repositoryId?: string) => {
+export const usePublishResourceVersion = (
+  resourceId?: string,
+  repositoryId?: string,
+) => {
   const queryKeys = [
     ["resources"],
     ["resource-versions"],
-    ...(resourceId ? [["resources", resourceId], [`/api/resources/${resourceId}`]] : []),
-    ...(repositoryId ? [["repositories", repositoryId, "resources"], [`/api/repositories/${repositoryId}/resources`]] : []),
+    ...(resourceId
+      ? [["resources", resourceId], [`/api/resources/${resourceId}`]]
+      : []),
+    ...(repositoryId
+      ? [
+          ["repositories", repositoryId, "resources"],
+          [`/api/repositories/${repositoryId}/resources`],
+        ]
+      : []),
   ];
 
   return createMutationHook(
@@ -168,16 +182,32 @@ export const usePublishResourceVersion = (resourceId?: string, repositoryId?: st
   )();
 };
 
-export const useUnlockResource = (resourceId?: string, repositoryId?: string) => {
+export const useUnlockResource = (
+  resourceId?: string,
+  repositoryId?: string,
+) => {
   const queryKeys = [
     ["resources"],
-    ...(resourceId ? [["resources", resourceId], [`/api/resources/${resourceId}`]] : []),
-    ...(repositoryId ? [["repositories", repositoryId, "resources"], [`/api/repositories/${repositoryId}/resources`]] : []),
+    ...(resourceId
+      ? [["resources", resourceId], [`/api/resources/${resourceId}`]]
+      : []),
+    ...(repositoryId
+      ? [
+          ["repositories", repositoryId, "resources"],
+          [`/api/repositories/${repositoryId}/resources`],
+        ]
+      : []),
   ];
 
-  return createMutationHook(
-    ResourcesApi.useUnlockResource,
-    queryKeys,
-  )();
+  return createMutationHook(ResourcesApi.useUnlockResource, queryKeys)();
 };
 
+export const useDownloadResourceVersion = () => {
+  return useMutation({
+    mutationFn: async (versionId: string) => {
+      const res =
+        await ResourceVersionsApi.getResourceVersionDownloadUrl(versionId);
+      return res;
+    },
+  });
+};

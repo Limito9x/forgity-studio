@@ -13,6 +13,8 @@ export const GetRunnersQueryParams = /*#__PURE__*/ zod.object({
   "studioId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid())
 })
 
+export const getRunnersResponseIsOnlineDefault = false;
+
 export const GetRunnersResponseItem = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "name": /*#__PURE__*/ zod.string(),
@@ -20,6 +22,7 @@ export const GetRunnersResponseItem = /*#__PURE__*/ zod.object({
   "isActive": /*#__PURE__*/ zod.boolean(),
   "lastSeenAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "isOnline": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), getRunnersResponseIsOnlineDefault),
   "osPlatform": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "cpuModel": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "totalRamBytes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
@@ -77,6 +80,8 @@ export const GetStudioRunnersParams = /*#__PURE__*/ zod.object({
   "studioId": /*#__PURE__*/ zod.uuid()
 })
 
+export const getStudioRunnersResponseRunnerOneIsOnlineDefault = false;
+
 export const GetStudioRunnersResponseItem = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "runnerId": /*#__PURE__*/ zod.uuid(),
@@ -91,6 +96,7 @@ export const GetStudioRunnersResponseItem = /*#__PURE__*/ zod.object({
   "isActive": /*#__PURE__*/ zod.boolean(),
   "lastSeenAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "isOnline": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), getStudioRunnersResponseRunnerOneIsOnlineDefault),
   "osPlatform": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "cpuModel": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "totalRamBytes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
@@ -141,6 +147,8 @@ export const GenerateSetupTokenResponse = /*#__PURE__*/ zod.object({
   "studioId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid())
 })
 
+export const getMyRunnerResponseIsOnlineDefault = false;
+
 export const GetMyRunnerResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "name": /*#__PURE__*/ zod.string(),
@@ -148,6 +156,7 @@ export const GetMyRunnerResponse = /*#__PURE__*/ zod.object({
   "isActive": /*#__PURE__*/ zod.boolean(),
   "lastSeenAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "isOnline": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), getMyRunnerResponseIsOnlineDefault),
   "osPlatform": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "cpuModel": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "totalRamBytes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
@@ -391,6 +400,8 @@ export const UpdateRunnerHardwareProfileBody = /*#__PURE__*/ zod.object({
 }))
 })
 
+export const updateRunnerHardwareProfileResponseIsOnlineDefault = false;
+
 export const UpdateRunnerHardwareProfileResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "name": /*#__PURE__*/ zod.string(),
@@ -398,6 +409,7 @@ export const UpdateRunnerHardwareProfileResponse = /*#__PURE__*/ zod.object({
   "isActive": /*#__PURE__*/ zod.boolean(),
   "lastSeenAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "isOnline": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), updateRunnerHardwareProfileResponseIsOnlineDefault),
   "osPlatform": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "cpuModel": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "totalRamBytes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
@@ -440,6 +452,8 @@ export const ScanRunnerHardwareParams = /*#__PURE__*/ zod.object({
   "runnerId": /*#__PURE__*/ zod.uuid()
 })
 
+export const scanRunnerHardwareResponseIsOnlineDefault = false;
+
 export const ScanRunnerHardwareResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "name": /*#__PURE__*/ zod.string(),
@@ -447,6 +461,7 @@ export const ScanRunnerHardwareResponse = /*#__PURE__*/ zod.object({
   "isActive": /*#__PURE__*/ zod.boolean(),
   "lastSeenAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "isOnline": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), scanRunnerHardwareResponseIsOnlineDefault),
   "osPlatform": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "cpuModel": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "totalRamBytes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
@@ -494,6 +509,8 @@ export const AttachRunnerToStudioBody = /*#__PURE__*/ zod.object({
   "alias": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
+export const attachRunnerToStudioResponseRunnerOneIsOnlineDefault = false;
+
 export const AttachRunnerToStudioResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "runnerId": /*#__PURE__*/ zod.uuid(),
@@ -508,6 +525,7 @@ export const AttachRunnerToStudioResponse = /*#__PURE__*/ zod.object({
   "isActive": /*#__PURE__*/ zod.boolean(),
   "lastSeenAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "isOnline": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), attachRunnerToStudioResponseRunnerOneIsOnlineDefault),
   "osPlatform": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "cpuModel": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "totalRamBytes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),

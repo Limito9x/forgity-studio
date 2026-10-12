@@ -25,6 +25,7 @@ import type {
   ErrorResponse,
   IReadOnlyListOfResourceVersionDto,
   PublishResourceVersionCommand,
+  ResourceVersionDownloadDto,
   ResourceVersionDto,
 } from "../../model";
 
@@ -178,6 +179,164 @@ export function useGetResourceVersions<
   queryKey: DataTag<QueryKey, TData, TError>;
 } {
   const queryOptions = getGetResourceVersionsQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getResourceVersionDownloadUrl = (
+  id: string,
+  signal?: AbortSignal,
+) => {
+  return customInstance<ResourceVersionDownloadDto>({
+    url: `/api/resource-versions/${id}/download-url`,
+    method: "GET",
+    signal,
+  });
+};
+
+export const getGetResourceVersionDownloadUrlQueryKey = (id: string) => {
+  return [`/api/resource-versions/${id}/download-url`] as const;
+};
+
+export const getGetResourceVersionDownloadUrlQueryOptions = <
+  TData = Awaited<ReturnType<typeof getResourceVersionDownloadUrl>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getResourceVersionDownloadUrl>>,
+        TError,
+        TData
+      >
+    >;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetResourceVersionDownloadUrlQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getResourceVersionDownloadUrl>>
+  > = ({ signal }) => getResourceVersionDownloadUrl(id, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: id !== null && id !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getResourceVersionDownloadUrl>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetResourceVersionDownloadUrlQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getResourceVersionDownloadUrl>>
+>;
+export type GetResourceVersionDownloadUrlQueryError = void;
+
+export function useGetResourceVersionDownloadUrl<
+  TData = Awaited<ReturnType<typeof getResourceVersionDownloadUrl>>,
+  TError = void,
+>(
+  id: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getResourceVersionDownloadUrl>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getResourceVersionDownloadUrl>>,
+          TError,
+          Awaited<ReturnType<typeof getResourceVersionDownloadUrl>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetResourceVersionDownloadUrl<
+  TData = Awaited<ReturnType<typeof getResourceVersionDownloadUrl>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getResourceVersionDownloadUrl>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getResourceVersionDownloadUrl>>,
+          TError,
+          Awaited<ReturnType<typeof getResourceVersionDownloadUrl>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetResourceVersionDownloadUrl<
+  TData = Awaited<ReturnType<typeof getResourceVersionDownloadUrl>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getResourceVersionDownloadUrl>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useGetResourceVersionDownloadUrl<
+  TData = Awaited<ReturnType<typeof getResourceVersionDownloadUrl>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getResourceVersionDownloadUrl>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetResourceVersionDownloadUrlQueryOptions(
+    id,
+    options,
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<
     TData,

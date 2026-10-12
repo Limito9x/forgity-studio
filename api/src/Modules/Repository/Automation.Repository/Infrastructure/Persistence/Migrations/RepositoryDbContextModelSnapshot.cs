@@ -184,6 +184,9 @@ namespace Automation.Repository.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("AssetLinkId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -194,6 +197,9 @@ namespace Automation.Repository.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("IsCloudSynced")
+                        .HasColumnType("boolean");
 
                     b.Property<JsonDocument>("Metadata")
                         .HasColumnType("jsonb");

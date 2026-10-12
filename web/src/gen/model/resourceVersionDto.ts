@@ -22,4 +22,7 @@ export interface ResourceVersionDto {
   tagsByPath?: IReadOnlyDictionaryOfStringAndIReadOnlyListOfTagLinkDetailDto | null;
   /** @nullable */
   locations?: unknown[] | null;
+  /** @nullable */
+  assetLinkId?: string | null;
+  isCloudSynced?: boolean;
 }

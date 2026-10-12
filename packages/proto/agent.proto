@@ -30,7 +30,21 @@ message CommandResponse {
         BrowseCommandResult browse_result = 5;
         ScanExecutorsCommandResult scan_executors_result = 6;
         ScanHardwareCommandResult scan_hardware_result = 7;
+        UploadFilesCommandResult upload_files_result = 8;
     }
+}
+
+message UploadFilesCommandResult {
+    repeated UploadFileItemResult items = 1;
+    int64 total_bytes_uploaded = 2;
+}
+
+message UploadFileItemResult {
+    string asset_id = 1;
+    string resource_version_id = 2;
+    bool success = 3;
+    int64 bytes_uploaded = 4;
+    string error_message = 5;
 }
 
 message ScanHardwareCommandResult {
@@ -101,6 +115,7 @@ message ServerMessage {
         BrowseCommand browse_command = 2;
         ScanExecutorsCommand scan_executors_command = 3;
         ScanHardwareCommand scan_hardware_command = 4;
+        UploadFilesCommand upload_files_command = 5;
     }
 }
 
@@ -123,3 +138,17 @@ message ScanExecutorsCommand {
 message ScanHardwareCommand {
     string command_id = 1;
 }
+
+message UploadFilesCommand {
+    string command_id = 1;
+    repeated UploadFileItem items = 2;
+}
+
+message UploadFileItem {
+    string file_path = 1;
+    string presigned_url = 2;
+    string content_type = 3;
+    string asset_id = 4;
+    string resource_version_id = 5;
+}
+

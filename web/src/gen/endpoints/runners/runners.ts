@@ -38,7 +38,7 @@ import type {
   RegisterRunnerResultDto,
   RegisterRunnerWithTokenCommand,
   ReportExecutorConfigsRequest,
-  RunnerDto2,
+  RunnerDto,
   RunnerExecutorConfigDto,
   RunnerStudioDto,
   RunnerTokenStatusDto,
@@ -731,7 +731,7 @@ export const useGenerateSetupToken = <TError = void, TContext = unknown>(
   );
 };
 export const getMyRunner = (signal?: AbortSignal) => {
-  return customInstance<RunnerDto2>({
+  return customInstance<RunnerDto>({
     url: `/api/runners/me`,
     method: "GET",
     signal,
@@ -1637,7 +1637,7 @@ export const updateRunnerHardwareProfile = (
   updateRunnerHardwareProfileRequest: UpdateRunnerHardwareProfileRequest,
   signal?: AbortSignal,
 ) => {
-  return customInstance<RunnerDto2>({
+  return customInstance<RunnerDto>({
     url: `/api/runners/${runnerId}/hardware-profile`,
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1715,7 +1715,7 @@ export const useUpdateRunnerHardwareProfile = <
   );
 };
 export const scanRunnerHardware = (runnerId: string, signal?: AbortSignal) => {
-  return customInstance<RunnerDto2>({
+  return customInstance<RunnerDto>({
     url: `/api/runners/${runnerId}/hardware/scan`,
     method: "POST",
     signal,
