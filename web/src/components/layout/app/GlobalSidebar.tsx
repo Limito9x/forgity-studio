@@ -16,7 +16,7 @@ import {
   SidebarMenuSubItem,
   SidebarGroupAction,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, Users, Settings2, Shield, Settings, MonitorCog, Logs, Cpu, Plus, FolderKanban, FolderGit2 } from "lucide-react";
+import { LayoutDashboard, Users, Settings2, Shield, Settings, MonitorCog, Logs, Cpu, Plus, FolderKanban, FolderGit2, HardDrive } from "lucide-react";
 import { NavUser } from "./NavUser";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useProjects } from "@/features/projects/hooks/useProjects";
@@ -33,6 +33,11 @@ const navItems = [
     url: "/runners",
     icon: Cpu,
     featurePrefix: "runner:"
+  },
+  {
+    title: "Storage",
+    url: "/storage",
+    icon: HardDrive,
   },
   {
     title: "Identity",
@@ -152,6 +157,9 @@ export function GlobalSidebar() {
                   } else if (item.title === "Runners") {
                     targetUrl = activeStudioSlug ? `/s/${activeStudioSlug}/runners` : "/runners";
                     isItemActive = pathname === "/runners" || (activeStudioSlug ? pathname === `/s/${activeStudioSlug}/runners` : false);
+                  } else if (item.title === "Storage") {
+                    targetUrl = activeStudioSlug ? `/s/${activeStudioSlug}/storage` : "/storage";
+                    isItemActive = pathname === "/storage" || (activeStudioSlug ? pathname === `/s/${activeStudioSlug}/storage` : false);
                   }
 
                   return (

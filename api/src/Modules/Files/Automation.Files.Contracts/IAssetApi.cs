@@ -58,6 +58,12 @@ public interface IAssetApi
     Task<Result<IReadOnlyList<AssetUploadDto>>> RequestUploadAsync(
         IEnumerable<UploadRequestItemDto> requests,
         CancellationToken ct = default
+    ) => RequestUploadAsync(requests, null, ct);
+
+    Task<Result<IReadOnlyList<AssetUploadDto>>> RequestUploadAsync(
+        IEnumerable<UploadRequestItemDto> requests,
+        Guid? storageProfileId,
+        CancellationToken ct = default
     );
 
     // Confirm Upload Multiple

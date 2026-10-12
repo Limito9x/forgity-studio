@@ -2,15 +2,18 @@ using Automation.Files.Contracts;
 using Automation.Files.Domain.Entities;
 using Automation.Files.Infrastructure.Persistence;
 using Automation.Files.Infrastructure.Storage;
+using Automation.SystemAbstractions;
 using FluentResults;
 using Microsoft.EntityFrameworkCore;
+using Wolverine;
 
 namespace Automation.Files.Infrastructure;
 
 public class AssetApiService(
     FilesDbContext dbContext,
-    IObjectStorageService storageService,
-    AssetRegistry assetRegistry
+    IStorageServiceFactory storageFactory,
+    AssetRegistry assetRegistry,
+    IMessageBus? bus = null
 ) : IAssetApi
 {
     public async Task<IReadOnlyList<AssetLinkSyncResult>> SyncLinksAsync(
@@ -317,12 +320,13 @@ public class AssetApiService(
         string.Equals(link.SlotKey, owner.SlotKey, StringComparison.OrdinalIgnoreCase);
 
     private AssetLinkDto ToLinkDto(AssetLink link) => new(
-        link.Id, link.AssetId, storageService.GetPublicUrl(link.Asset.StoragePath),
+        link.Id, link.AssetId, storageFactory.GetPublicUrl(link.Asset.StorageProfileId, link.Asset.StoragePath),
         link.OriginalName, link.Asset.ContentType, link.Asset.SizeBytes,
         link.SortOrder, link.SlotKey, link.CreatedAt, link.Asset.HashSha256);
 
     public async Task<Result<IReadOnlyList<AssetUploadDto>>> RequestUploadAsync(
         IEnumerable<UploadRequestItemDto> requests,
+        Guid? storageProfileId = null,
         CancellationToken ct = default
     )
     {
@@ -331,11 +335,51 @@ public class AssetApiService(
         if (requestList.Count == 0)
             return Result.Ok<IReadOnlyList<AssetUploadDto>>(resultList);
 
+        Domain.Entities.StorageProfile? profile = null;
+        if (storageProfileId.HasValue && storageProfileId.Value != Guid.Empty)
+        {
+            profile = await dbContext.StorageProfiles.AsNoTracking().FirstOrDefaultAsync(x => x.Id == storageProfileId.Value, ct);
+            if (profile == null)
+            {
+                return Result.Fail<IReadOnlyList<AssetUploadDto>>($"Storage profile '{storageProfileId.Value}' was not found.");
+            }
+        }
+
         var hashes = requestList.Select(x => x.HashSha256).Distinct().ToList();
         var existingAssets = await dbContext
-            .Assets.Where(x => hashes.Contains(x.HashSha256))
+            .Assets.Where(x => hashes.Contains(x.HashSha256) && x.StorageProfileId == storageProfileId)
             .ToListAsync(ct);
 
+        long? effectiveQuotaBytes = profile?.StorageQuotaBytes;
+        if (profile == null || profile.ProviderType == Domain.Enums.StorageProviderType.StudioCloud)
+        {
+            if (!effectiveQuotaBytes.HasValue)
+            {
+                effectiveQuotaBytes = await GetStudioCloudDefaultQuotaBytesAsync(ct);
+            }
+        }
+
+        if (effectiveQuotaBytes.HasValue)
+        {
+            var currentUsedBytes = await dbContext.Assets
+                .Where(x => x.StorageProfileId == storageProfileId || (storageProfileId == null && x.StorageProfileId == null))
+                .SumAsync(x => (long?)x.SizeBytes, ct) ?? 0L;
+
+            var incomingBytes = requestList
+                .Where(r => !existingAssets.Any(e => e.HashSha256 == r.HashSha256 && e.SizeBytes == r.SizeBytes && e.IsConfirmed))
+                .Sum(r => r.SizeBytes);
+
+            if (currentUsedBytes + incomingBytes > effectiveQuotaBytes.Value)
+            {
+                var usedMb = Math.Round((double)currentUsedBytes / (1024 * 1024), 2);
+                var incomingMb = Math.Round((double)incomingBytes / (1024 * 1024), 2);
+                var quotaMb = Math.Round((double)effectiveQuotaBytes.Value / (1024 * 1024), 2);
+                return Result.Fail<IReadOnlyList<AssetUploadDto>>(
+                    $"Storage quota exceeded for '{profile?.Name ?? "Studio Cloud"}'. Used: {usedMb}MB, Incoming: {incomingMb}MB, Quota: {quotaMb}MB.");
+            }
+        }
+
+        var storageService = await storageFactory.GetStorageServiceAsync(storageProfileId, ct);
         var newAssets = new List<Asset>();
         var urlTasks = new List<(Asset asset, Task<string> urlTask)>();
 
@@ -370,7 +414,8 @@ public class AssetApiService(
                     req.SizeBytes,
                     req.ContentType,
                     req.Extension,
-                    req.HashSha256
+                    req.HashSha256,
+                    storageProfileId
                 );
                 newAssets.Add(asset);
                 existingAssets.Add(asset); // Keep track in case there are duplicates in the request itself
@@ -429,7 +474,8 @@ public class AssetApiService(
 
         var verifyTasks = unconfirmedAssets.Select(async asset =>
         {
-            var actualSize = await storageService.GetFileSizeAsync(asset.StoragePath, ct);
+            var service = await storageFactory.GetStorageServiceAsync(asset.StorageProfileId, ct);
+            var actualSize = await service.GetFileSizeAsync(asset.StoragePath, ct);
             if (actualSize == null)
                 return Result.Fail($"File not found on storage for asset '{asset.Id}'.");
 
@@ -454,7 +500,7 @@ public class AssetApiService(
                 asset.Id,
                 asset.ContentType,
                 asset.SizeBytes,
-                storageService.GetPublicUrl(asset.StoragePath)
+                storageFactory.GetPublicUrl(asset.StorageProfileId, asset.StoragePath)
             ))
             .ToList();
 
@@ -663,7 +709,7 @@ public class AssetApiService(
             .Select(x => new AssetLinkDto(
                 x.Id,
                 x.AssetId,
-                storageService.GetPublicUrl(x.Asset.StoragePath),
+                storageFactory.GetPublicUrl(x.Asset.StorageProfileId, x.Asset.StoragePath),
                 x.OriginalName,
                 x.Asset.ContentType,
                 x.Asset.SizeBytes,
@@ -691,7 +737,7 @@ public class AssetApiService(
             .Select(x => new AssetLinkDto(
                 x.Id,
                 x.AssetId,
-                storageService.GetPublicUrl(x.Asset.StoragePath),
+                storageFactory.GetPublicUrl(x.Asset.StorageProfileId, x.Asset.StoragePath),
                 x.OriginalName,
                 x.Asset.ContentType,
                 x.Asset.SizeBytes,
@@ -730,7 +776,7 @@ public class AssetApiService(
                     x.OriginalName,
                     x.Asset.ContentType,
                     x.Asset.SizeBytes,
-                    storageService.GetPublicUrl(x.Asset.StoragePath)
+                    storageFactory.GetPublicUrl(x.Asset.StorageProfileId, x.Asset.StoragePath)
                 ))
                 .ToList()
         );
@@ -750,7 +796,7 @@ public class AssetApiService(
             System.IO.Path.GetFileName(asset.StoragePath),
             asset.ContentType,
             asset.SizeBytes,
-            storageService.GetPublicUrl(asset.StoragePath)
+            storageFactory.GetPublicUrl(asset.StorageProfileId, asset.StoragePath)
         ));
     }
 
@@ -767,7 +813,7 @@ public class AssetApiService(
                 System.IO.Path.GetFileName(asset.StoragePath),
                 asset.ContentType,
                 asset.SizeBytes,
-                storageService.GetPublicUrl(asset.StoragePath)
+                storageFactory.GetPublicUrl(asset.StorageProfileId, asset.StoragePath)
             )).ToList()
         );
     }
@@ -799,7 +845,7 @@ public class AssetApiService(
                 new AssetLinkDto(
                     link.Id,
                     link.AssetId,
-                    storageService.GetPublicUrl(link.Asset.StoragePath),
+                    storageFactory.GetPublicUrl(link.Asset.StorageProfileId, link.Asset.StoragePath),
                     link.OriginalName,
                     link.Asset.ContentType,
                     link.Asset.SizeBytes,
@@ -881,4 +927,25 @@ public class AssetApiService(
 
         return Result.Ok();
     }
+
+    private async Task<long> GetStudioCloudDefaultQuotaBytesAsync(CancellationToken ct)
+    {
+        if (bus != null)
+        {
+            try
+            {
+                var settingResult = await bus.InvokeAsync<Result<string>>(new GetSystemSettingByKeyQuery("Storage:StudioCloudDefaultQuotaMb"), ct);
+                if (settingResult.IsSuccess && long.TryParse(settingResult.Value, out var quotaMb) && quotaMb > 0)
+                {
+                    return quotaMb * 1024 * 1024;
+                }
+            }
+            catch
+            {
+                // Fallback to default
+            }
+        }
+        return 200L * 1024 * 1024;
+    }
 }
+

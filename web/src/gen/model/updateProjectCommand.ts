@@ -18,4 +18,6 @@ export interface UpdateProjectCommand {
    * @nullable
    */
   slug?: string | null;
+  /** @nullable */
+  storageProfileId?: string | null;
 }

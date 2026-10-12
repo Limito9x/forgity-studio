@@ -46,7 +46,11 @@ public sealed class CustomScriptPublishTests : IDisposable
         _files.Database.EnsureCreated();
         var storage = Substitute.For<IObjectStorageService>();
         storage.GetPublicUrl(Arg.Any<string>()).Returns("https://storage.example/script.py");
-        _assets = new(_files, storage, new AssetRegistry([
+        var storageFactory = Substitute.For<IStorageServiceFactory>();
+        storageFactory.GetDefaultStorageService().Returns(storage);
+        storageFactory.GetStorageServiceAsync(Arg.Any<Guid?>(), Arg.Any<CancellationToken>()).Returns(storage);
+        storageFactory.GetPublicUrl(Arg.Any<Guid?>(), Arg.Any<string>()).Returns(x => storage.GetPublicUrl(x.ArgAt<string>(1)));
+        _assets = new(_files, storageFactory, new AssetRegistry([
             new RegisteredAssetSlot("NodeDefinition", "CustomScript", new AssetCategoryOptions
             { AllowMultiple = false, MaxCount = 1, MaxSizeBytes = 1024, AllowedContentTypes = [] })]));
     }

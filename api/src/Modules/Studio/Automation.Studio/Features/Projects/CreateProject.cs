@@ -7,7 +7,7 @@ using Automation.SharedKernel.Extensions.Strings;
 
 namespace Automation.Studio.Features.Projects;
 
-public record CreateProjectCommand(string Name, string? Slug = null, Guid? StudioId = null);
+public record CreateProjectCommand(string Name, string? Slug = null, Guid? StudioId = null, Guid? StorageProfileId = null);
 
 public class CreateProjectValidator : Validator<CreateProjectCommand>
 {
@@ -92,7 +92,7 @@ public class CreateProjectHandler(
             return Result.Fail<ProjectDto>($"Project with slug '{slug}' already exists in this studio.");
         }
 
-        var project = new Project(targetStudioId.Value, request.Name, slug, userProvider.UserId.Value);
+        var project = new Project(targetStudioId.Value, request.Name, slug, userProvider.UserId.Value, request.StorageProfileId);
 
         db.Projects.Add(project);
         await db.SaveChangesAsync(ct);

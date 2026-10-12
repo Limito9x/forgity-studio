@@ -9,4 +9,6 @@ import type { ListOfUploadRequestItemDto } from "./listOfUploadRequestItemDto";
 
 export interface RequestUploadCommand {
   items: ListOfUploadRequestItemDto;
+  /** @nullable */
+  storageProfileId?: string | null;
 }

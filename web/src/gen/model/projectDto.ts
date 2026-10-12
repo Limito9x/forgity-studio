@@ -11,4 +11,6 @@ export interface ProjectDto {
   name: string;
   slug: string;
   studioId: string;
+  /** @nullable */
+  storageProfileId?: string | null;
 }

@@ -22,6 +22,8 @@ public class ProjectConfiguration : IEntityTypeConfiguration<Domain.Entities.Pro
         builder.HasIndex(x => new { x.StudioId, x.Slug })
             .IsUnique();
 
+        builder.HasIndex(x => x.StorageProfileId);
+
         builder.HasOne(x => x.Studio)
             .WithMany(x => x.Projects)
             .HasForeignKey(x => x.StudioId)

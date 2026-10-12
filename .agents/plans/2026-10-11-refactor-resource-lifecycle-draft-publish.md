@@ -205,28 +205,72 @@ Lộ trình được chia làm 3 Phase độc lập, từ cấp bách nhất (ch
 
 ---
 
-### Phase 3: Tầng Lưu Trữ Studio & Đồng Bộ Cloud Trực Tiếp (BYOS)
-> **Mục tiêu:** Hỗ trợ đa dạng hạ tầng lưu trữ (S3, MinIO, NAS) mà không phụ thuộc vào 1 máy local duy nhất, sẵn sàng mở rộng quy mô.
+### Phase 3: Tầng Lưu Trữ Studio & Đồng Bộ Cloud Trực Tiếp (Multi-Bucket & BYOS)
+> **Mục tiêu:** Mở rộng module `Automation.Files` hỗ trợ đa nguồn Storage (Studio Cloud mặc định có Quota 200MB và Custom S3 BYOS không giới hạn), gắn Storage Profile ở cấp Project, và hoàn thiện luồng Runner streaming upload khi Publish.
 
-#### Backend:
-- [ ] Xây dựng Entity / Cấu hình `StudioStorageProfile`:
-  - Định nghĩa các loại Provider: `LocalOnly`, `S3Compatible` (AWS S3, MinIO, Cloudflare R2), `SharedNetworkDrive` (SMB/NFS).
-  - Mã hóa an toàn các khóa bảo mật (Access Key / Secret Key).
-- [ ] Xây dựng `StorageServiceFactory` (chuẩn S3 API dùng `AWSSDK.S3`).
-- [ ] Xây dựng Endpoint cấp Presigned URL:
-  - `GET /api/resources/{id}/versions/{versionNo}/presigned-upload-url`.
-  - `GET /api/resources/{id}/versions/{versionNo}/presigned-download-url`.
-- [ ] Sự kiện `ConfirmCloudUploadCompleted`: Cập nhật `ResourceVersion.IsCloudSynced = true`.
+#### 🔹 Sub-phase 3.1: Nâng cấp Core `Automation.Files` (Multi-Bucket & Scoped CAS)
+- [x] **Mở rộng Entity `Asset` & Database Migration (`Automation.Files`):**
+  - Bổ sung cột `public Guid? StorageProfileId { get; set; }` (Null = Default System Storage từ Env).
+  - Cập nhật Unique Index từ `HashSha256` đơn lẻ thành Compound Unique Index: `(HashSha256, StorageProfileId)` với `AreNullsDistinct(false)` chống va chạm Deduplication xuyên Bucket. Đã apply migration `AddStorageProfileIdToAssets` lên PostgreSQL thành công.
+- [x] **Xây dựng `IStorageServiceFactory` & S3 Client Pool:**
+  - Tạo `S3StorageService` đa năng, tái cấu trúc `R2StorageService` kế thừa từ `S3StorageService`.
+  - Tạo `StorageServiceFactory` quản lý S3 Client Pool cache động qua `ConcurrentDictionary` và fallback về Default S3 Service từ Env.
+  - Khai báo interface `IStorageProfileResolver` và `StorageConfigDto` trong `Automation.Files.Contracts`.
+- [x] **Mở rộng Contract `IAssetApi` & `AssetApiService`:**
+  - Bổ sung tham số `Guid? storageProfileId = null` vào `RequestUploadAsync` (hỗ trợ cả 2 overload cho backward-compatibility).
+  - Cập nhật `RequestUploadCommand`, `ConfirmUploadAsync`, và `GetPublicUrl` hoạt động trơn tru với đa nguồn lưu trữ.
+  - Toàn bộ 24 test case của `Automation.Files.Tests` và 12 test case của `CustomScriptPublishTests` đều PASSED 100%.
 
-#### Worker Daemon & Pipeline:
-- [ ] Thêm lệnh cho Worker Daemon: Tự động chạy tác vụ nền upload file thẳng lên Cloud qua Presigned URL khi có yêu cầu Publish.
-- [ ] Runner B khi cần thực thi pipeline trên resource mà chưa có file local: Tự động tải từ Cloud về bộ nhớ đệm cache (`cache/assets/`).
+#### 🔹 Sub-phase 3.2: Quản lý Storage Profiles trong Module `Files` & Binding Cấp Project
+- [x] **Xây dựng Entity `StorageProfile` trong Module `Automation.Files`:**
+  - Định nghĩa `StorageProfile`: `StudioId`, `Name`, `ProviderType` (`StudioCloud = 0`, `CustomS3 = 1`), `BucketName`, `ServiceUrl`, `Region`, `AccessKey`, `SecretKey`, `PublicBaseUrl`, `StorageQuotaBytes` (Tổng dung lượng lưu trữ phân bổ cho Studio, null cho Unlimited Custom S3), `IsDefault`.
+  - Khóa ngoại liên kết trực tiếp `Asset.StorageProfileId` $\rightarrow$ `StorageProfile.Id`.
+  - Đã tạo migrations `AddStorageProfilesToFiles` và `RenameMaxFileSizeBytesToStorageQuotaBytes` áp dụng lên PostgreSQL.
+- [x] **Tích hợp `Storage:StudioCloudDefaultQuotaMb` với Module `Automation.System`:**
+  - Đăng ký `services.AddSystemSetting("Storage:StudioCloudDefaultQuotaMb", "200", "number", ...)` trong `FilesModule.cs`.
+  - Cơ chế `SystemSettingsInitializer : IHostedService` tự động seed bản ghi vào bảng `system.SystemSettings` khi khởi động.
+  - Quota Guard trong `AssetApiService.RequestUploadAsync`: tính `currentUsedBytes = SUM(Asset.SizeBytes)` + `incomingBytes`, so sánh với `effectiveQuotaBytes` (đọc động từ System Setting qua Wolverine bus, fallback 200MB).
+- [x] **API Endpoints Quản Lý Storage Profiles (`Automation.Files`):**
+  - `GET /api/storage-profiles?studioId=...`: Lấy danh sách Storage Profiles kèm `usedSizeBytes` (tính từ Assets) và `storageQuotaBytes`.
+  - `GET /api/storage-profiles/{id}`: Lấy chi tiết Storage Profile theo Id kèm dung lượng đã dùng.
+  - `POST /api/storage-profiles`: Kết nối Custom S3 Storage (BYOS) mới (tự động xử lý default profile).
+  - `PUT /api/storage-profiles/{id}`: Cập nhật Storage Profile (bảo lưu SecretKey khi không nhập lại, cập nhật Quota, invalidate cache).
+  - `DELETE /api/storage-profiles/{id}`: Xóa Storage Profile (bảo vệ nếu có Asset đang trỏ tới).
+  - `POST /api/storage-profiles/test-connection`: Kiểm tra quyền đọc/ghi vào bucket S3.
+- [x] **Cập nhật Entity `Project` trong `Automation.Studio` (Binding):**
+  - Thêm trường `public Guid? StorageProfileId { get; set; }` vào entity `Project`.
+  - Migration EF Core `AddStorageProfileIdToProjects` đã áp dụng lên PostgreSQL.
+  - Cập nhật `ProjectDto`, `CreateProjectCommand`, `UpdateProjectCommand` để lưu và trả về `StorageProfileId`.
+- [x] **Giao diện Web:**
+  - **Di chuyển lên Studio Level (Ngang hàng với Runners):** Route `/s/$studioSlug/storage` và route fallback `/storage`, xuất hiện trực tiếp trên `GlobalSidebar` dưới Runners (loại bỏ khỏi `/settings/storage` cá nhân).
+  - **Storage Profiles View (`StorageProfilesView.tsx`):** Thẻ "Studio Cloud" hiển thị Badge "System Managed", thanh tiến trình dung lượng trực quan (Used / 200MB, hiển thị %, đổi màu theo ngưỡng cảnh báo). Thẻ "Custom S3" có Badge "BYOS", endpoint và nút Test Connection.
+  - **Dialog Kết Nối S3 (`StorageProfileDialog.tsx`):** Tinh gọn quy trình kết nối Custom S3 (BYOS), loại bỏ việc nhập thủ công gây nhầm lẫn cho Studio Cloud.
+  - **Project Creation Form:** Dropdown `FormSelect` chọn Storage Destination gắn cho Project (kèm hiển thị Default nếu để trống).
+  - Toàn bộ 31 test case `Automation.Files.Tests` pass 100%, Frontend build production (`tsc -b && vite build`) thành công 100%.
+
+
+#### 🔹 Sub-phase 3.3: Luồng Publish End-to-End (Web $\leftrightarrow$ API $\leftrightarrow$ Runner Daemon)
+- [ ] **Cập nhật Entity `ResourceVersion` (`Automation.Repository`):**
+  - Bổ sung cột `public Guid? AssetLinkId { get; set; }`.
+  - Bổ sung cờ `public bool IsCloudSynced { get; set; } = false`.
+  - Tạo EF Core Migration tương ứng.
+- [ ] **Tái cấu trúc `PublishResourceVersionHandler`:**
+  - Nhận lệnh Publish $\rightarrow$ Tra cứu `StorageProfileId` của Project sở hữu Repository (hoặc Profile mặc định của Studio).
+  - Gọi `IAssetApi.RequestUploadAsync` để lấy `PresignedUrl`.
+  - Bắn lệnh xuống Runner Daemon (hoặc Background Task) yêu cầu upload tệp.
+- [ ] **Runner Daemon Streaming Upload:**
+  - Đọc tệp từ đường dẫn local mount của Runner.
+  - Streaming HTTP PUT trực tiếp lên Presigned URL (không trung chuyển qua .NET API Server).
+  - Báo cáo hoàn tất lên API `ConfirmUpload` $\rightarrow$ API đánh dấu `IsCloudSynced = true`, liên kết `VerifyAndLinkAsync`.
+- [ ] **Giao diện Web Resource & Download:**
+  - Bảng Versions và Header Resource hiển thị Badge: **`Published (Cloud Synced)`**.
+  - Bổ sung nút **"Download Asset"** (lấy Presigned Download URL từ `IAssetApi`).
 
 ---
 
 ## 4. Danh Mục Tệp Sửa Đổi & Tạo Mới (File Breakdown)
 
-### Phase 1 (Triển khai trước):
+### Phase 1 & 2 (Đã hoàn thành):
 | Subproject | Đường dẫn tệp | Hành động | Mô tả |
 | :--- | :--- | :---: | :--- |
 | `api/` | `src/Modules/Repository/Automation.Repository/Domain/Enums/ResourceVersionStatus.cs` | **Tạo mới** | Enum trạng thái Version: `Draft`, `Published`, `Archived`. |
@@ -238,6 +282,22 @@ Lộ trình được chia làm 3 Phase độc lập, từ cấp bách nhất (ch
 | `web/` | `src/features/repositories/components/RepositorySyncTab.tsx` | Sửa đổi | Đổi tên nút thành Scan & Register Local, bỏ ô commit note. |
 | `web/` | `src/features/repositories/components/ResourceDetailPage.tsx` | Sửa đổi | Bổ sung Badge Draft/Published và nút Publish Version. |
 | `web/` | `src/features/repositories/hooks/useRepositories.ts` | Sửa đổi | Thêm mutation hook bọc API Publish Resource Version. |
+
+### Phase 3 (Kế hoạch triển khai):
+| Subproject | Đường dẫn tệp | Hành động | Mô tả |
+| :--- | :--- | :---: | :--- |
+| `api/` | `src/Modules/Files/Automation.Files/Domain/Entities/Asset.cs` | Sửa đổi | ✅ Đã bổ sung trường `StorageProfileId`. |
+| `api/` | `src/Modules/Files/Automation.Files/Infrastructure/Persistence/Migrations/` | **Tạo mới** | ✅ Đã migration compound unique index `(HashSha256, StorageProfileId)`. |
+| `api/` | `src/Modules/Files/Automation.Files/Infrastructure/Storage/IStorageServiceFactory.cs` | **Tạo mới** | ✅ Factory quản lý kết nối S3 động và fallback. |
+| `api/` | `src/Modules/Files/Automation.Files/Infrastructure/AssetApiService.cs` | Sửa đổi | ✅ Hỗ trợ `StorageProfileId` trong Upload/Confirm. |
+| `api/` | `src/Modules/Files/Automation.Files/Domain/Entities/StorageProfile.cs` | **Tạo mới** | Entity lưu cấu hình S3 cấp Studio trong module Files. |
+| `api/` | `src/Modules/Files/Automation.Files/Features/StorageProfiles/` | **Tạo mới** | Vertical slices: Get, Create, Update, Delete, TestConnection. |
+| `api/` | `src/Modules/Studio/Automation.Studio/Domain/Entities/Project.cs` | Sửa đổi | Bổ sung trường binding `StorageProfileId`. |
+| `api/` | `src/Modules/Repository/Automation.Repository/Domain/Entities/ResourceVersion.cs` | Sửa đổi | Bổ sung `AssetLinkId`, `IsCloudSynced`. |
+| `api/` | `src/Modules/Repository/Automation.Repository/Features/ResourceVersions/PublishResourceVersion.cs` | Sửa đổi | Kết nối luồng RequestUpload & Confirm. |
+| `web/` | `src/features/storage-profiles/` hoặc Studio Settings | **Tạo mới** | Quản lý Storage Profiles của Studio và Test Connection. |
+| `web/` | `src/features/projects/` | Sửa đổi | Dropdown chọn Storage Profile gắn cho Project. |
+| `workers/`| `pipeline_worker/runners/` hoặc Daemon service | Sửa đổi | Tác vụ streaming upload HTTP PUT lên presigned URL. |
 
 ---
 

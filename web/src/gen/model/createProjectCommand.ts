@@ -20,4 +20,6 @@ export interface CreateProjectCommand {
   slug?: string | null;
   /** @nullable */
   studioId?: string | null;
+  /** @nullable */
+  storageProfileId?: string | null;
 }
