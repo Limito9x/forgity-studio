@@ -87,6 +87,22 @@ public class CompareRepositoryResourcesHandler(
         allRelativePaths.UnionWith(fileDictionary.Keys);
         allRelativePaths.UnionWith(resourceDictionary.Keys);
 
+        var lockedRunnerIds = resourceDictionary.Values
+            .Where(r => r.IsLocked && r.LockedByRunnerId.HasValue)
+            .Select(r => r.LockedByRunnerId!.Value)
+            .Distinct()
+            .ToList();
+
+        IReadOnlyDictionary<Guid, RunnerDto> lockedRunnerMap = new Dictionary<Guid, RunnerDto>();
+        if (lockedRunnerIds.Count > 0)
+        {
+            var mapResult = await runnerApi.GetAgentsMapByIdsAsync(lockedRunnerIds, ct);
+            if (mapResult.IsSuccess && mapResult.Value != null)
+            {
+                lockedRunnerMap = mapResult.Value;
+            }
+        }
+
         var added = new List<ResourceDiffItem>();
         var modified = new List<ResourceDiffItem>();
         var deleted = new List<ResourceDiffItem>();
@@ -151,6 +167,13 @@ public class CompareRepositoryResourcesHandler(
 
                 if (latestVersion != null && latestVersion.FileHash != localFile!.Hash)
                 {
+                    var isLockedByOther = dbResource.IsLockedByOther(command.RunnerId);
+                    string? lockedByRunnerName = null;
+                    if (dbResource.LockedByRunnerId.HasValue && lockedRunnerMap.TryGetValue(dbResource.LockedByRunnerId.Value, out var lockedRunner))
+                    {
+                        lockedByRunnerName = lockedRunner.Name;
+                    }
+
                     modified.Add(
                         new ResourceDiffItem(
                             relativePath,
@@ -158,7 +181,11 @@ public class CompareRepositoryResourcesHandler(
                             localFile.Hash,
                             localFile.SizeBytes,
                             dbResource.Extension,
-                            latestVersion.Adapt<ResourceVersionDto>()
+                            latestVersion.Adapt<ResourceVersionDto>(),
+                            isLockedByOther,
+                            dbResource.LockedByRunnerId,
+                            lockedByRunnerName,
+                            dbResource.LockedAt
                         )
                     );
                 }

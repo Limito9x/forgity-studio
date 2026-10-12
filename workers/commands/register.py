@@ -107,6 +107,17 @@ def run(api_url: str = None, setup_token: str = None, runner_name: str = None, n
     now_iso = datetime.now(timezone.utc).isoformat()
 
     # Save to local configuration
+    rabbitmq_payload = result.get("rabbitMq")
+    rabbitmq_config = None
+    if isinstance(rabbitmq_payload, dict):
+        rabbitmq_config = {
+            "host": rabbitmq_payload.get("host") or "localhost",
+            "port": rabbitmq_payload.get("port") or 5672,
+            "username": rabbitmq_payload.get("username") or "guest",
+            "password": rabbitmq_payload.get("password") or "guest",
+            "virtual_host": rabbitmq_payload.get("virtualHost") or "/",
+        }
+
     config = {
         **(load_config() or {}),
         "apiUrl": api_url,
@@ -126,6 +137,9 @@ def run(api_url: str = None, setup_token: str = None, runner_name: str = None, n
             "lastScannedAt": now_iso,
         }
     }
+
+    if rabbitmq_config:
+        config["rabbitmq"] = rabbitmq_config
 
     save_config(config)
     print(f"\n[OK] Configuration securely saved to: {os.path.abspath(CONFIG_FILE)}")

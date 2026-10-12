@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { DraggableResourceRowHandle } from "../components/DraggableResourceRowHandle";
 import { useAssignResourcesContent } from "./useRepositories";
 import type { WorkspaceResourceDto } from "@/gen/model";
@@ -19,6 +20,7 @@ import {
   GitBranch,
   Eye,
   Calendar,
+  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
@@ -239,15 +241,48 @@ export function useRepositoryResourceTable({
         cell: ({ row }) => {
           const item = row.original;
           const count = item.versionCount;
+          // latestVersionStatus: 0 = Draft, 1 = Published
+          const isDraft =
+            item.latestVersionStatus === 0 ||
+            (item.latestVersionStatus as any) === "Draft" ||
+            item.latestVersionStatus === undefined ||
+            item.latestVersionStatus === null;
 
           return (
-            <Link
-              to={nav.urls.resourceDetail(item.id, repositoryId)}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-muted hover:bg-primary/15 hover:text-primary text-xs font-mono font-medium text-foreground transition-colors"
-            >
-              <GitBranch className="size-3 text-muted-foreground" />
-              v{count && count > 0 ? count : 1}
-            </Link>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Link
+                to={nav.urls.resourceDetail(item.id, repositoryId)}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-muted hover:bg-primary/15 hover:text-primary text-xs font-mono font-medium text-foreground transition-colors"
+              >
+                <GitBranch className="size-3 text-muted-foreground" />
+                v{item.latestVersionNo ?? (count && count > 0 ? count : 1)}
+              </Link>
+              {isDraft ? (
+                <Badge
+                  variant="outline"
+                  className="text-amber-500 border-amber-500/30 bg-amber-500/10 text-[10px] px-1 py-0 h-4"
+                >
+                  Draft
+                </Badge>
+              ) : (
+                <Badge
+                  variant="outline"
+                  className="text-emerald-500 border-emerald-500/30 bg-emerald-500/10 text-[10px] px-1 py-0 h-4"
+                >
+                  Published
+                </Badge>
+              )}
+              {item.isLocked && (
+                <Badge
+                  variant="outline"
+                  className="text-rose-500 border-rose-500/30 bg-rose-500/10 text-[10px] px-1 py-0 h-4 gap-0.5 font-mono"
+                  title={item.lockedByRunnerName ? `Locked by ${item.lockedByRunnerName}` : "Locked by Runner"}
+                >
+                  <Lock className="size-2.5" />
+                  {item.lockedByRunnerName || "Locked"}
+                </Badge>
+              )}
+            </div>
           );
         },
       },

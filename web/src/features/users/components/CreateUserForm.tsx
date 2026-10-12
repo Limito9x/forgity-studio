@@ -45,15 +45,16 @@ export function CreateUserForm({ onSubmit }: UserFormProps) {
                     type="email"
                     placeholder={t("placeholders.email", { defaultValue: "email@example.com" })}
                 />
+                <FormApiCombobox
+                    control={form.control}
+                    label={t("fields.roleId", { defaultValue: "Role" })}
+                    name="roleId"
+                    placeholder={t("placeholders.roleId", { defaultValue: "Select a role" })}
+                    useOptions={useRoleOptions}
+                    getItemValue={(item) => item.value}
+                />
             </FormGrid>
-            <FormApiCombobox
-                control={form.control}
-                label={t("fields.roleId", { defaultValue: "Role" })}
-                name="roleId"
-                placeholder={t("placeholders.roleId", { defaultValue: "Select a role" })}
-                useOptions={useRoleOptions}
-                getItemValue={(item) => item.value}
-            />
+
         </Form>
     )
 }

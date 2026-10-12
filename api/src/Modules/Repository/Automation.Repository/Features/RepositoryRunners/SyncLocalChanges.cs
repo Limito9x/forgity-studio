@@ -1,5 +1,6 @@
 using Automation.Repository.Contracts;
 using Automation.Repository.Domain.Entities;
+using Automation.Repository.Domain.Enums;
 using Automation.Repository.Infrastructure.Persistence;
 using Automation.Repository.Shared.Dtos;
 using Automation.Repository.Shared.Helpers;
@@ -134,7 +135,9 @@ public class SyncLocalChangesHandler(RepositoryDbContext dbContext, IMessageBus 
                     GetNewResourceName(x.RelativePath, x.Name ?? Path.GetFileName(x.RelativePath) ?? "Unnamed"),
                     x.RelativePath,
                     x.LocalHash ?? "",
-                    x.LocalFileSize ?? 0
+                    x.LocalFileSize ?? 0,
+                    cmd.Notes,
+                    cmd.RunnerId
                 )
             )
             .ToList();
@@ -169,20 +172,54 @@ public class SyncLocalChangesHandler(RepositoryDbContext dbContext, IMessageBus 
         {
             if (existingItems.TryGetValue(mod.RelativePath, out var item))
             {
-                var newVersion = item.AddNewVersion(
-                    repositoryRunnerId,
-                    mod.LocalHash ?? "",
-                    mod.LocalFileSize ?? 0,
-                    cmd.Notes
-                );
-                dbContext.ResourceVersions.Add(newVersion);
-                modCount++;
-                createdVersions.Add(new ResourceVersionCreatedInfo(
-                    newVersion.Id,
-                    item.Extension,
-                    item.ContentId,
-                    item.RelativePath
-                ));
+                // Kiểm tra xem tệp có đang bị lock bởi Runner khác không
+                if (item.IsLockedByOther(cmd.RunnerId))
+                {
+                    // Tệp đang bị giữ bởi Runner khác -> Không ghi đè để bảo vệ công sức
+                    continue;
+                }
+
+                // Gán hoặc gia hạn Lock cho Runner này
+                item.Lock(cmd.RunnerId);
+
+                var latestVersion = item.LatestVersion;
+                if (latestVersion != null && latestVersion.Status == ResourceVersionStatus.Draft)
+                {
+                    // Cập nhật in-place phiên bản nháp hiện tại, giữ nguyên VersionNo
+                    latestVersion.UpdateDraft(
+                        mod.LocalHash ?? "",
+                        mod.LocalFileSize ?? 0,
+                        cmd.Notes
+                    );
+                    latestVersion.AddLocation(repositoryRunnerId);
+
+                    modCount++;
+                    createdVersions.Add(new ResourceVersionCreatedInfo(
+                        latestVersion.Id,
+                        item.Extension,
+                        item.ContentId,
+                        item.RelativePath
+                    ));
+                }
+                else
+                {
+                    // Phiên bản trước đã công bố (hoặc chưa có) -> Tạo phiên bản mới v(N+1) ở trạng thái Draft
+                    var newVersion = item.AddNewVersion(
+                        repositoryRunnerId,
+                        mod.LocalHash ?? "",
+                        mod.LocalFileSize ?? 0,
+                        cmd.Notes,
+                        ResourceVersionStatus.Draft
+                    );
+                    dbContext.ResourceVersions.Add(newVersion);
+                    modCount++;
+                    createdVersions.Add(new ResourceVersionCreatedInfo(
+                        newVersion.Id,
+                        item.Extension,
+                        item.ContentId,
+                        item.RelativePath
+                    ));
+                }
             }
         }
 

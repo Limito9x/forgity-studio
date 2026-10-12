@@ -129,11 +129,15 @@ public class RegisterRunnerWithTokenHandler(RunnerDbContext db, ICacheService ca
         var statusDto = new RunnerTokenStatusDto("connected", runnerId, runnerName, machineKey, DateTimeOffset.UtcNow);
         await cache.SetAsync($"runner_token_status:{command.SetupToken}", statusDto, TimeSpan.FromMinutes(10), ct);
 
+        var rmq = Automation.SharedKernel.Extensions.RabbitMq.SharedRabbitMqConfigHolder.Current;
+        var rmqConfig = new RabbitMqConfigDto(rmq.Host, rmq.Port, rmq.Username, rmq.Password, rmq.VirtualHost);
+
         return Result.Ok(new RegisterRunnerResultDto(
             runnerId,
             runnerName,
             machineKey,
-            registrationToken
+            registrationToken,
+            rmqConfig
         ));
     }
 }

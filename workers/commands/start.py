@@ -36,10 +36,13 @@ root_logger.addHandler(file_handler)
 
 logger = logging.getLogger(__name__)
 
+_pipeline_import_error = None
 try:
     from worker.pipeline_consumer import PipelineConsumer
 except Exception as e:
     PipelineConsumer = None
+    _pipeline_import_error = e
+    logger.exception(f"Failed to import PipelineConsumer: {e}")
 
 
 def check_and_sync_hardware_diff():
@@ -136,6 +139,8 @@ def run():
             t1 = threading.Thread(target=run_pipeline_worker, daemon=True)
             t1.start()
             print("[OK] Background Pipeline Task Worker thread initialized.")
+        else:
+            print(f"[ERROR] Background Pipeline Task Worker could not start due to import failure: {_pipeline_import_error}")
 
         # 3. Start gRPC Connect stream to maintain heartbeat & listen for commands from Backend
         print("[OK] Starting gRPC Stream & Command Listener...")

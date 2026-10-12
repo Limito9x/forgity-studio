@@ -1,3 +1,5 @@
+using Automation.Repository.Domain.Enums;
+
 namespace Automation.Repository.Domain.Entities;
 
 public class ResourceVersion : AuditableEntity
@@ -5,6 +7,7 @@ public class ResourceVersion : AuditableEntity
     public Guid ResourceId { get; set; }
     public ResourceItem Resource { get; set; } = null!;
     public int VersionNo { get; set; }
+    public ResourceVersionStatus Status { get; set; } = ResourceVersionStatus.Draft;
     public string? Notes { get; set; }
     public string FileHash { get; set; } = string.Empty;
     public long SizeBytes { get; set; }
@@ -19,7 +22,8 @@ public class ResourceVersion : AuditableEntity
         int versionNo,
         long sizeBytes,
         string fileHash,
-        string? notes = null
+        string? notes = null,
+        ResourceVersionStatus status = ResourceVersionStatus.Draft
     )
     {
         ResourceId = resourceId;
@@ -27,6 +31,7 @@ public class ResourceVersion : AuditableEntity
         Notes = notes;
         FileHash = fileHash;
         SizeBytes = sizeBytes;
+        Status = status;
     }
 
     internal ResourceVersionLocation AddLocation(
@@ -84,4 +89,28 @@ public class ResourceVersion : AuditableEntity
     }
 
     public void SetMetadata(System.Text.Json.JsonDocument? metadata) => UpdateMetadata(metadata);
+
+    public void UpdateDraft(string fileHash, long sizeBytes, string? notes = null)
+    {
+        if (Status != ResourceVersionStatus.Draft)
+            throw new InvalidOperationException($"Cannot update version {VersionNo} because it has already been {Status}.");
+
+        FileHash = fileHash;
+        SizeBytes = sizeBytes;
+        if (!string.IsNullOrWhiteSpace(notes))
+        {
+            Notes = notes;
+        }
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void MarkAsPublished(string? notes = null)
+    {
+        Status = ResourceVersionStatus.Published;
+        if (!string.IsNullOrWhiteSpace(notes))
+        {
+            Notes = notes;
+        }
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
 }

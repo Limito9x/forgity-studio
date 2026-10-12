@@ -3,6 +3,7 @@ import { createMutationHook } from "@/lib/query-utils";
 import * as RepositoriesApi from "@/gen/endpoints/repositories/repositories";
 import * as RepositoryRunnersApi from "@/gen/endpoints/repository-runners/repository-runners";
 import * as ResourcesApi from "@/gen/endpoints/resources/resources";
+import * as ResourceVersionsApi from "@/gen/endpoints/resource-versions/resource-versions";
 import type {
   RepositoryDto,
   RepositoryDetailDto,
@@ -18,6 +19,8 @@ import type {
   DiffResult,
   SyncLocalChangesCommand,
   SyncLocalChangesResultDto,
+  PublishResourceVersionCommand,
+  ResourceVersionStatus,
 } from "@/gen/model";
 
 export type {
@@ -34,6 +37,8 @@ export type {
   DiffResult,
   SyncLocalChangesCommand,
   SyncLocalChangesResultDto,
+  PublishResourceVersionCommand,
+  ResourceVersionStatus,
 };
 
 export const useRepositories = (projectId: string) => {
@@ -147,5 +152,32 @@ export const useAssignResourcesContent = (repositoryId?: string) => {
       ]
     : [["repositories"]];
   return createMutationHook(ResourcesApi.useAssignResourcesContent, queryKeys)();
+};
+
+export const usePublishResourceVersion = (resourceId?: string, repositoryId?: string) => {
+  const queryKeys = [
+    ["resources"],
+    ["resource-versions"],
+    ...(resourceId ? [["resources", resourceId], [`/api/resources/${resourceId}`]] : []),
+    ...(repositoryId ? [["repositories", repositoryId, "resources"], [`/api/repositories/${repositoryId}/resources`]] : []),
+  ];
+
+  return createMutationHook(
+    ResourceVersionsApi.usePublishResourceVersion,
+    queryKeys,
+  )();
+};
+
+export const useUnlockResource = (resourceId?: string, repositoryId?: string) => {
+  const queryKeys = [
+    ["resources"],
+    ...(resourceId ? [["resources", resourceId], [`/api/resources/${resourceId}`]] : []),
+    ...(repositoryId ? [["repositories", repositoryId, "resources"], [`/api/repositories/${repositoryId}/resources`]] : []),
+  ];
+
+  return createMutationHook(
+    ResourcesApi.useUnlockResource,
+    queryKeys,
+  )();
 };
 

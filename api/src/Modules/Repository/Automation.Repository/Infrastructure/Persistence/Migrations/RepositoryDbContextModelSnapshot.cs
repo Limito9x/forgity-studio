@@ -141,6 +141,15 @@ namespace Automation.Repository.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<DateTimeOffset?>("LockedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("LockedByRunnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("LockedByUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("RelativePath")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -198,6 +207,9 @@ namespace Automation.Repository.Infrastructure.Persistence.Migrations
 
                     b.Property<long>("SizeBytes")
                         .HasColumnType("bigint");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");

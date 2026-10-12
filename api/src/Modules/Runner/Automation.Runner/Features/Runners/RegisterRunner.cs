@@ -46,6 +46,9 @@ public class RegisterRunnerHandler(RunnerDbContext db)
         var existingRunner = await db.Runners
             .FirstOrDefaultAsync(x => x.MachineKey == command.MachineKey, ct);
 
+        var rmq = Automation.SharedKernel.Extensions.RabbitMq.SharedRabbitMqConfigHolder.Current;
+        var rmqConfig = new RabbitMqConfigDto(rmq.Host, rmq.Port, rmq.Username, rmq.Password, rmq.VirtualHost);
+
         if (existingRunner is not null)
         {
             if (!existingRunner.IsActive)
@@ -58,7 +61,8 @@ public class RegisterRunnerHandler(RunnerDbContext db)
                 existingRunner.Id,
                 existingRunner.Name,
                 existingRunner.MachineKey,
-                existingRunner.RegistrationToken
+                existingRunner.RegistrationToken,
+                rmqConfig
             ));
         }
 
@@ -82,7 +86,8 @@ public class RegisterRunnerHandler(RunnerDbContext db)
             runner.Id,
             runner.Name,
             runner.MachineKey,
-            runner.RegistrationToken
+            runner.RegistrationToken,
+            rmqConfig
         ));
     }
 }
