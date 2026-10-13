@@ -60,8 +60,19 @@ export function downloadPackageFile(data: PipelinePackageDto, customFileName?: s
 
 export function usePipelineExport() {
   const exportSingleMutation = useMutation({
-    mutationFn: async ({ id, fileName }: { id: string; fileName?: string }) => {
-      const packageData = await exportPipeline(id);
+    mutationFn: async ({
+      id,
+      fileName,
+      mode = "FullBackup",
+    }: {
+      id: string;
+      fileName?: string;
+      mode?: "FullBackup" | "CleanTemplate";
+    }) => {
+      const packageData = await exportPipelineBatch({
+        pipelineIds: [id],
+        mode: mode === "CleanTemplate" ? 1 : 0,
+      } as any);
       downloadPackageFile(packageData, fileName);
       return packageData;
     },
@@ -83,11 +94,16 @@ export function usePipelineExport() {
     mutationFn: async ({
       pipelineIds,
       customFileName,
+      mode = "FullBackup",
     }: {
       pipelineIds: string[];
       customFileName?: string;
+      mode?: "FullBackup" | "CleanTemplate";
     }) => {
-      const packageData = await exportPipelineBatch({ pipelineIds });
+      const packageData = await exportPipelineBatch({
+        pipelineIds,
+        mode: mode === "CleanTemplate" ? 1 : 0,
+      } as any);
       downloadPackageFile(packageData, customFileName);
       return packageData;
     },

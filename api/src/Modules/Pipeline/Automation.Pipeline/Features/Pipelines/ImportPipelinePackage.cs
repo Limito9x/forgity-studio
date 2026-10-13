@@ -11,6 +11,8 @@ using Automation.Pipeline.Engine;
 using Automation.Pipeline.Features.Pipelines.Dtos;
 using Automation.Pipeline.Infrastructure.Persistence;
 
+using Automation.Studio.Contracts;
+
 namespace Automation.Pipeline.Features.Pipelines;
 
 public class ImportPipelinePackageEndpoint(IMessageBus bus) : Endpoint<ImportPipelinePackageRequest, ImportPipelinePackageResponseDto>
@@ -37,7 +39,8 @@ public class ImportPipelinePackageHandler(
     PipelineDbContext db,
     IAssetApi assetApi,
     IHttpClientFactory httpClientFactory,
-    ILogger<ImportPipelinePackageHandler> logger
+    ILogger<ImportPipelinePackageHandler> logger,
+    IProjectsApi? projectsApi = null
 )
 {
     public async Task<Result<ImportPipelinePackageResponseDto>> HandleAsync(
@@ -49,6 +52,13 @@ public class ImportPipelinePackageHandler(
         if (package == null || package.Pipelines == null || package.Pipelines.Count == 0)
         {
             return Result.Fail<ImportPipelinePackageResponseDto>("Package contains no pipelines to import.");
+        }
+
+        // Lấy target StorageProfileId từ Project đích nếu có cấu hình riêng (BYOS)
+        Guid? targetStorageProfileId = null;
+        if (projectsApi != null)
+        {
+            targetStorageProfileId = await projectsApi.GetProjectStorageProfileIdAsync(request.ProjectId, ct);
         }
 
         // 1. Install or Map Custom Scripts (Batch-First)
@@ -72,12 +82,17 @@ public class ImportPipelinePackageHandler(
                 customNodeKeyToId[k] = v.Id;
             }
 
-            if (scriptsToInstall.Count > 0)
+            // Lọc ra các script có nội dung hợp lệ (bỏ qua script rỗng)
+            var validScriptsToInstall = scriptsToInstall
+                .Where(s => !string.IsNullOrWhiteSpace(s.ScriptContent))
+                .ToList();
+
+            if (validScriptsToInstall.Count > 0)
             {
                 // A. Chuẩn bị Batch Request Upload cho toàn bộ scripts cần cài đặt
                 var scriptUploadItems = new List<(PipelinePackageScriptDto script, byte[] bytes, UploadRequestItemDto req)>();
 
-                foreach (var s in scriptsToInstall)
+                foreach (var s in validScriptsToInstall)
                 {
                     var text = s.ScriptContent ?? string.Empty;
                     var bytes = System.Text.Encoding.UTF8.GetBytes(text);
@@ -96,9 +111,10 @@ public class ImportPipelinePackageHandler(
                     scriptUploadItems.Add((s, bytes, reqItem));
                 }
 
-                // B. Batch Request Upload tới IAssetApi (CAS Deduplication)
+                // B. Batch Request Upload tới IAssetApi với đúng target targetStorageProfileId
                 var batchUploadResult = await assetApi.RequestUploadAsync(
                     scriptUploadItems.Select(x => x.req),
+                    targetStorageProfileId,
                     ct
                 );
 
@@ -278,15 +294,24 @@ public class ImportPipelinePackageHandler(
                         configValues["pipelineId"] = realChildId;
                     }
                 }
-                else if (n.Kind == PipelineNodeKind.Custom)
+                var nodeMetadata = n.Metadata != null ? new Dictionary<string, object?>(n.Metadata) : new Dictionary<string, object?>();
+
+                if (n.Kind == PipelineNodeKind.Custom)
                 {
                     // Luôn giữ đúng chính xác Key của Custom Script làm RefId (human-readable, không dùng GUID)
                     refId = !string.IsNullOrWhiteSpace(n.CustomScriptKey)
                         ? n.CustomScriptKey
                         : n.RefId;
+
+                    // Nếu script không có trong customNodeKeyToId và cũng không có trong Project -> đánh dấu unresolvedScript
+                    if (!customNodeKeyToId.ContainsKey(refId) &&
+                        !await db.NodeDefinitions.AnyAsync(x => x.ProjectId == request.ProjectId && x.Key == refId, ct))
+                    {
+                        nodeMetadata["unresolvedScript"] = true;
+                    }
                 }
 
-                // Remap and clone File Parameters for newNodeId
+                // Remap and clone File Parameters for newNodeId (Preserve as Unbound if not resolvable)
                 foreach (var (k, v) in configValues.ToList())
                 {
                     if (PipelineFileValue.TryGetLinkId(v, out var fileLinkId))
@@ -295,18 +320,85 @@ public class ImportPipelinePackageHandler(
                         var cloneResult = await assetApi.ResolveOrCloneLinkAsync(fileLinkId, owner, ct);
                         if (cloneResult.IsSuccess)
                         {
-                            configValues[k] = new PipelineFileParameter(cloneResult.Value.AssetLinkId);
+                            var finalLinkId = cloneResult.Value.AssetLinkId;
+
+                            // Nếu target Project có cấu hình Storage Profile riêng (BYOS), tự động di chuyển Asset sang storage đích
+                            if (targetStorageProfileId.HasValue)
+                            {
+                                var migrateResult = await assetApi.MigrateAssetsStorageAsync(
+                                    [new MigrateAssetItem(cloneResult.Value.AssetId, DeleteSource: false)],
+                                    targetStorageProfileId,
+                                    ct: ct
+                                );
+
+                                if (migrateResult.IsSuccess && migrateResult.Value.Count > 0 && migrateResult.Value[0].IsSuccess)
+                                {
+                                    var migratedAssetId = migrateResult.Value[0].MigratedAssetId;
+                                    if (migratedAssetId.HasValue && migratedAssetId.Value != cloneResult.Value.AssetId)
+                                    {
+                                        var relinkResult = await assetApi.CreateLinkAsync(
+                                            new AssetLinkRequestItem(migratedAssetId.Value, cloneResult.Value.OriginalName),
+                                            owner,
+                                            ct: ct
+                                        );
+                                        if (relinkResult.IsSuccess)
+                                        {
+                                            finalLinkId = relinkResult.Value.AssetLinkId;
+                                        }
+                                    }
+                                }
+                            }
+
+                            configValues[k] = new PipelineFileParameter(finalLinkId);
                         }
                         else
                         {
-                            logger.LogWarning(
-                                "Could not resolve asset link {LinkId} for imported node {NodeId} slot {SlotKey}: {Error}. Clearing invalid pin.",
+                            PipelinePackageFilePinMetadataDto? pinMeta = null;
+                            n.FilePins?.TryGetValue(k, out pinMeta);
+                            logger.LogInformation(
+                                "Could not resolve asset link {LinkId} for imported node {NodeId} slot {SlotKey}. Preserving as Unbound Pin.",
                                 fileLinkId,
                                 newNodeId,
-                                k,
-                                string.Join("; ", cloneResult.Errors.Select(e => e.Message))
+                                k
                             );
-                            configValues.Remove(k);
+                            configValues[k] = new
+                            {
+                                status = "unbound",
+                                originalFileName = pinMeta?.OriginalFileName,
+                                hashSha256 = pinMeta?.HashSha256,
+                                sizeBytes = pinMeta?.SizeBytes,
+                                contentType = pinMeta?.ContentType
+                            };
+                        }
+                    }
+                    else if (PipelineFileValue.TryGetUnbound(v, out var unboundInfo) && unboundInfo != null)
+                    {
+                        configValues[k] = new
+                        {
+                            status = "unbound",
+                            originalFileName = unboundInfo.OriginalFileName,
+                            hashSha256 = unboundInfo.HashSha256,
+                            sizeBytes = unboundInfo.SizeBytes,
+                            contentType = unboundInfo.ContentType
+                        };
+                    }
+                }
+
+                // Đảm bảo các pin trong n.FilePins chưa có trong configValues cũng được đưa vào dưới dạng Unbound
+                if (n.FilePins != null)
+                {
+                    foreach (var (k, pinMeta) in n.FilePins)
+                    {
+                        if (!configValues.ContainsKey(k) || configValues[k] == null)
+                        {
+                            configValues[k] = new
+                            {
+                                status = "unbound",
+                                originalFileName = pinMeta.OriginalFileName,
+                                hashSha256 = pinMeta.HashSha256,
+                                sizeBytes = pinMeta.SizeBytes,
+                                contentType = pinMeta.ContentType
+                            };
                         }
                     }
                 }
@@ -318,9 +410,9 @@ public class ImportPipelinePackageHandler(
                 }
 
                 JsonDocument? metadataDoc = null;
-                if (n.Metadata != null && n.Metadata.Count > 0)
+                if (nodeMetadata.Count > 0)
                 {
-                    metadataDoc = JsonDocument.Parse(JsonSerializer.Serialize(n.Metadata));
+                    metadataDoc = JsonDocument.Parse(JsonSerializer.Serialize(nodeMetadata));
                 }
 
                 var nodeEntity = new PipelineNode(

@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
+using Automation.Pipeline.Constants;
+using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Features.Pipelines.Dtos;
 using Automation.Pipeline.Infrastructure.Persistence;
 
@@ -107,31 +109,73 @@ public class ValidatePipelinePackageHandler(
             ));
         }
 
+        var validationWarnings = new List<string>();
+
         // Check Custom Script dependencies
         var scriptPreviews = new List<PipelineScriptDependencyPreviewDto>();
         var packageScripts = package.Dependencies?.CustomScripts ?? [];
 
+        // Collect all custom keys referenced across pipeline nodes in graph
+        var customNodeKeysInGraph = pipelines
+            .SelectMany(p => p.Graph?.Nodes ?? [])
+            .Where(n => n.Kind == PipelineNodeKind.Custom)
+            .Select(n => !string.IsNullOrWhiteSpace(n.CustomScriptKey) ? n.CustomScriptKey : n.RefId)
+            .Where(k => !string.IsNullOrWhiteSpace(k))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var allScriptKeysToQuery = packageScripts.Select(s => s.Key)
+            .Concat(customNodeKeysInGraph)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var existingNodeKeys = await db.NodeDefinitions
+            .AsNoTracking()
+            .Where(nd => nd.ProjectId == query.ProjectId && allScriptKeysToQuery.Contains(nd.Key))
+            .Select(nd => nd.Key)
+            .ToListAsync(ct);
+
+        var existingKeySet = new HashSet<string>(existingNodeKeys, StringComparer.OrdinalIgnoreCase);
+        var packageScriptMap = packageScripts.ToDictionary(s => s.Key, s => s, StringComparer.OrdinalIgnoreCase);
+
         if (packageScripts.Count > 0)
         {
-            var scriptKeys = packageScripts.Select(s => s.Key).ToList();
-            var existingNodeKeys = await db.NodeDefinitions
-                .AsNoTracking()
-                .Where(nd => nd.ProjectId == query.ProjectId && scriptKeys.Contains(nd.Key))
-                .Select(nd => nd.Key)
-                .ToListAsync(ct);
-
-            var existingKeySet = new HashSet<string>(existingNodeKeys, StringComparer.OrdinalIgnoreCase);
-
             foreach (var s in packageScripts)
             {
+                var hasContent = !string.IsNullOrWhiteSpace(s.ScriptContent);
+                var alreadyExists = existingKeySet.Contains(s.Key);
+
+                if (!alreadyExists && !hasContent)
+                {
+                    validationWarnings.Add($"Custom script '{s.Key}' has empty or missing script content in package.");
+                }
+
                 scriptPreviews.Add(new PipelineScriptDependencyPreviewDto(
                     Key: s.Key,
                     Name: s.Name,
                     Executor: s.Executor,
                     ContentHash: s.ContentHash,
                     FileName: s.FileName,
-                    AlreadyExists: existingKeySet.Contains(s.Key)
+                    AlreadyExists: alreadyExists,
+                    HasScriptContent: hasContent
                 ));
+            }
+        }
+
+        // Validate custom nodes in graph against available scripts
+        foreach (var p in pipelines)
+        {
+            if (p.Graph?.Nodes == null) continue;
+            foreach (var n in p.Graph.Nodes.Where(node => node.Kind == PipelineNodeKind.Custom))
+            {
+                var key = !string.IsNullOrWhiteSpace(n.CustomScriptKey) ? n.CustomScriptKey : n.RefId;
+                var inProject = existingKeySet.Contains(key);
+                var inPackageWithContent = packageScriptMap.TryGetValue(key, out var pkgScript) && !string.IsNullOrWhiteSpace(pkgScript.ScriptContent);
+
+                if (!inProject && !inPackageWithContent)
+                {
+                    validationWarnings.Add($"Pipeline '{p.Name}': Custom node '{n.Label}' requires script '{key}' which has no source code in this package and does not exist in the project.");
+                }
             }
         }
 
@@ -157,7 +201,8 @@ public class ValidatePipelinePackageHandler(
             PackageMetadata: package.Metadata ?? new PipelinePackageMetadataDto(pipelines.Count, pipelines.Count(p => p.IsRoot), pipelines.Count(p => !p.IsRoot)),
             Pipelines: pipelinePreviews,
             Scripts: scriptPreviews,
-            ContentTypes: contentTypePreviews
+            ContentTypes: contentTypePreviews,
+            ValidationWarnings: validationWarnings.Count > 0 ? validationWarnings : null
         );
 
         return Result.Ok(response);

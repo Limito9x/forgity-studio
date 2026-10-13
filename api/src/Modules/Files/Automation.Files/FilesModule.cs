@@ -55,6 +55,7 @@ public class FilesModule : IModule
         services.AddTransient<Jobs.TickerQJobs>();
 
         services.AddSingleton<AssetRegistry>();
+        services.AddSingleton<Automation.Files.Infrastructure.Tracking.IStorageMigrationJobTracker, Automation.Files.Infrastructure.Tracking.StorageMigrationJobTracker>();
     }
 
     public void ConfigureWolverine(WolverineOptions options)

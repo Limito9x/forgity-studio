@@ -23,14 +23,24 @@ export function ActionToolNodeView({ id: _id, data, selected }: NodeProps) {
 
   const showExecIn = execInputs.length > 0;
 
+  const isUnresolvedScript = Boolean(nodeData.metadata?.["unresolvedScript"]);
+
   // Determine badge label
-  const badgeLabel = isBreakStruct
+  const badgeLabel = isUnresolvedScript
+    ? "Missing Script"
+    : isBreakStruct
     ? structType
     : nodeData.executor
     ? nodeData.executor === "dotNet" || nodeData.executor === "builtin"
       ? "Core"
       : nodeData.executor
     : null;
+
+  const badgeVariantClass = isUnresolvedScript
+    ? "border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-500/10 font-semibold"
+    : isBreakStruct
+    ? "border-sky-500/40 text-sky-600 dark:text-sky-400 bg-sky-500/10 font-semibold"
+    : "capitalize";
 
   return (
     <NodeCard
@@ -40,12 +50,12 @@ export function ActionToolNodeView({ id: _id, data, selected }: NodeProps) {
     >
       <NodeHeader
         icon={nodeData.category ? <Box className="h-4 w-4" /> : <FileCode className="h-4 w-4" />}
-        iconBgClass="bg-blue-500/15 text-blue-500"
+        iconBgClass={isUnresolvedScript ? "bg-amber-500/15 text-amber-500" : "bg-blue-500/15 text-blue-500"}
         headerBgClass="border-border/70 bg-muted/50"
         title={nodeData.label}
         subtitle={nodeData.refId}
         badgeLabel={badgeLabel}
-        badgeVariantClass={isBreakStruct ? "border-sky-500/40 text-sky-600 dark:text-sky-400 bg-sky-500/10 font-semibold" : "capitalize"}
+        badgeVariantClass={badgeVariantClass}
         status={nodeData.executionStatus}
       />
 
@@ -63,6 +73,11 @@ export function ActionToolNodeView({ id: _id, data, selected }: NodeProps) {
               {dataInputs.map((pin, idx) => {
                 const pinId = pin.id || `in_${idx}`;
                 const hasConfig = nodeData.configValues?.[pinId] !== undefined;
+                const pinAsset = nodeData.fileAssets?.[pinId];
+                const rawPinVal = nodeData.configValues?.[pinId];
+                const isUnbound =
+                  pinAsset?.status === "Unbound" ||
+                  (typeof rawPinVal === "object" && rawPinVal !== null && (rawPinVal as any).status === "unbound");
 
                 return (
                   <PinInputRow
@@ -70,6 +85,7 @@ export function ActionToolNodeView({ id: _id, data, selected }: NodeProps) {
                     pin={pin}
                     pinId={pinId}
                     hasConfig={hasConfig}
+                    isUnbound={isUnbound}
                   />
                 );
               })}

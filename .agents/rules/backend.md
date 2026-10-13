@@ -111,4 +111,13 @@ Quy tắc áp dụng bắt buộc khi xây dựng hoặc sửa đổi mã nguồ
         ```
       - *Cơ chế vận hành:* EF Core tự động mã hóa trước khi INSERT/UPDATE vào PostgreSQL, và tự động giải mã khi SELECT lên memory. Code nghiệp vụ trong Domain, Application và Handlers làm việc với Plaintext hoàn toàn tự nhiên!
 
+19. **Quy Chuẩn Kiểm Thử Tích Hợp (Integration Testing with WebApplicationFactory & Testcontainers):**
+    - Ưu tiên kiểm thử tích hợp (Integration Tests) tự động trong thư mục `api/tests/` thay vì phụ thuộc vào việc bật server thủ công hoặc chạy browser test chậm chạp.
+    - **`WebApplicationFactory<Program>`**: Khởi chạy ứng dụng Web in-memory trong cùng tiến trình test runner (không mở cổng socket ngoài, không lo xung đột cổng `5189`/`50051`, và hoàn toàn KHÔNG gây lỗi Lock DLL khi build).
+    - **`Testcontainers` (PostgreSql, RabbitMQ)**: Tự động khởi tạo hạ tầng Docker cô lập cho phiên test, chạy xong tự động hủy và dọn dẹp sạch sẽ 100% dữ liệu rác, không làm ô nhiễm DB phát triển `localhost:5433`.
+    - **Tự động hóa hoàn toàn**: Mọi luồng nghiệp vụ E2E phức tạp (Export/Import Pipeline Package, Auth, Hydration, Handshake) phải chạy trơn tru thông qua lệnh chuẩn:
+      ```bash
+      dotnet test api/tests/Automation.Pipeline.Tests
+      ```
+
 

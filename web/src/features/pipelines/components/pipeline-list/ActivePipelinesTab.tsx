@@ -8,7 +8,7 @@ interface ActivePipelinesTabProps {
   projectId: string;
   pipelines: PipelineSummaryDto[];
   isLoading: boolean;
-  onExportSingle: (id: string) => void;
+  onExportSingle: (id: string, mode?: "FullBackup" | "CleanTemplate") => void;
 }
 
 export function ActivePipelinesTab({

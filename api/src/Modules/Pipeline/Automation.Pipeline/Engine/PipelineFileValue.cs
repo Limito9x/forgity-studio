@@ -5,6 +5,13 @@ using Automation.Pipeline.Domain.ValueObjects;
 
 namespace Automation.Pipeline.Engine;
 
+public record PipelineUnboundFileInfo(
+    string? OriginalFileName,
+    string? HashSha256,
+    long? SizeBytes,
+    string? ContentType
+);
+
 public static class PipelineFileValue
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -37,6 +44,25 @@ public static class PipelineFileValue
             nameProp.ValueKind == JsonValueKind.String)
         {
             originalName = nameProp.GetString();
+            return true;
+        }
+        return false;
+    }
+
+    public static bool TryGetUnbound(object? value, out PipelineUnboundFileInfo? info)
+    {
+        info = null;
+        var json = AsJson(value);
+        if (json.ValueKind == JsonValueKind.Object &&
+            json.TryGetProperty("status", out var statusProp) &&
+            statusProp.ValueKind == JsonValueKind.String &&
+            string.Equals(statusProp.GetString(), "unbound", StringComparison.OrdinalIgnoreCase))
+        {
+            string? name = json.TryGetProperty("originalFileName", out var np) && np.ValueKind == JsonValueKind.String ? np.GetString() : null;
+            string? hash = json.TryGetProperty("hashSha256", out var hp) && hp.ValueKind == JsonValueKind.String ? hp.GetString() : null;
+            string? ctype = json.TryGetProperty("contentType", out var cp) && cp.ValueKind == JsonValueKind.String ? cp.GetString() : null;
+            long? size = json.TryGetProperty("sizeBytes", out var sp) && sp.ValueKind == JsonValueKind.Number && sp.TryGetInt64(out var s) ? s : null;
+            info = new PipelineUnboundFileInfo(name, hash, size, ctype);
             return true;
         }
         return false;

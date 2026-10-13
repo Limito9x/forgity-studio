@@ -9,6 +9,7 @@ interface PinInputRowProps {
   pin: PinDefinition;
   pinId: string;
   hasConfig?: boolean;
+  isUnbound?: boolean;
   canRemove?: boolean;
   onRemove?: (e: MouseEvent, pinId: string) => void;
 }
@@ -17,6 +18,7 @@ export function PinInputRow({
   pin,
   pinId,
   hasConfig = false,
+  isUnbound = false,
   canRemove = false,
   onRemove,
 }: PinInputRowProps) {
@@ -51,9 +53,11 @@ export function PinInputRow({
         <span className={cn("text-[9px] font-mono font-semibold px-1 py-0.2 rounded bg-muted/60", visual.textClass)}>
           {typeBadge}
         </span>
-        {hasConfig && (
+        {isUnbound ? (
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" title="Missing file: requires re-upload" />
+        ) : hasConfig ? (
           <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" title="Configured statically" />
-        )}
+        ) : null}
         {canRemove && onRemove && (
           <button
             type="button"
