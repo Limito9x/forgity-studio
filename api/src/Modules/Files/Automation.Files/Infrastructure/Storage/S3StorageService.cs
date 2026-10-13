@@ -1,5 +1,6 @@
 using Amazon.S3;
 using Amazon.S3.Model;
+using Amazon.S3.Transfer;
 
 namespace Automation.Files.Infrastructure.Storage;
 
@@ -100,5 +101,38 @@ public class S3StorageService(IAmazonS3 s3Client, string bucketName, string? pub
             
         var baseUrl = PublicBaseUrl?.TrimEnd('/');
         return string.IsNullOrEmpty(baseUrl) ? storagePath : $"{baseUrl}/{storagePath}";
+    }
+
+    public async Task<Stream> OpenReadStreamAsync(string storagePath, CancellationToken ct = default)
+    {
+        var request = new GetObjectRequest
+        {
+            BucketName = BucketName,
+            Key = storagePath
+        };
+
+        var response = await s3Client.GetObjectAsync(request, ct);
+        return response.ResponseStream;
+    }
+
+    public async Task UploadStreamAsync(string storagePath, Stream contentStream, string contentType, long? expectedLength = null, CancellationToken ct = default)
+    {
+        var uploadRequest = new TransferUtilityUploadRequest
+        {
+            BucketName = BucketName,
+            Key = storagePath,
+            InputStream = contentStream,
+            ContentType = contentType,
+            PartSize = 8 * 1024 * 1024 // 8MB chunking for safe streamed upload
+        };
+
+        var transferUtility = new TransferUtility(s3Client);
+        await transferUtility.UploadAsync(uploadRequest, ct);
+    }
+
+    public async Task<bool> ExistsAsync(string storagePath, CancellationToken ct = default)
+    {
+        var size = await GetFileSizeAsync(storagePath, ct);
+        return size.HasValue;
     }
 }

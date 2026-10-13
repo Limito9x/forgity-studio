@@ -33,7 +33,7 @@ interface PipelineCardProps {
   pipeline: PipelineSummaryDto;
   mode: "active" | "trash";
   projectId: string;
-  onExportSingle?: (id: string) => void;
+  onExportSingle?: (id: string, mode?: "FullBackup" | "CleanTemplate") => void;
   onRestore?: (pipeline: PipelineSummaryDto) => void;
   isRestoring?: boolean;
 }
@@ -154,13 +154,22 @@ export function PipelineCard({
                     <span>Open Canvas</span>
                   </MenuItem>
                   {onExportSingle && (
-                    <MenuItem
-                      onAction={() => onExportSingle(p.id)}
-                      className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 outline-none hover:bg-accent hover:text-accent-foreground cursor-pointer"
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                      <span>Export Package</span>
-                    </MenuItem>
+                    <>
+                      <MenuItem
+                        onAction={() => onExportSingle(p.id, "FullBackup")}
+                        className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 outline-none hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        <span>Export (Full Bundle)</span>
+                      </MenuItem>
+                      <MenuItem
+                        onAction={() => onExportSingle(p.id, "CleanTemplate")}
+                        className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 outline-none hover:bg-accent hover:text-accent-foreground cursor-pointer text-muted-foreground"
+                      >
+                        <FileCode className="h-3.5 w-3.5" />
+                        <span>Export Clean Template</span>
+                      </MenuItem>
+                    </>
                   )}
                   <MenuItem
                     onAction={() =>

@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
 using Automation.Runner.Infrastructure.Persistence;
 using Automation.Runner.Shared.Dtos;
+using Automation.SharedKernel.Infrastructure.RabbitMq;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
 
 namespace Automation.Runner.Features.Runners;
@@ -39,15 +41,21 @@ public class RegisterRunnerEndpoint(IMessageBus bus) : Endpoint<RegisterRunnerCo
 }
 
 [Transactional(typeof(RunnerDbContext))]
-public class RegisterRunnerHandler(RunnerDbContext db)
+public class RegisterRunnerHandler(
+    RunnerDbContext db,
+    IRabbitMqProvisioningService? provisioningService = null,
+    ILogger<RegisterRunnerHandler>? logger = null
+)
 {
     public async Task<Result<RegisterRunnerResultDto>> HandleAsync(RegisterRunnerCommand command, CancellationToken ct)
     {
         var existingRunner = await db.Runners
             .FirstOrDefaultAsync(x => x.MachineKey == command.MachineKey, ct);
 
-        var rmq = Automation.SharedKernel.Extensions.RabbitMq.SharedRabbitMqConfigHolder.Current;
-        var rmqConfig = new RabbitMqConfigDto(rmq.Host, rmq.Port, rmq.Username, rmq.Password, rmq.VirtualHost);
+        Guid runnerId;
+        string runnerName;
+        string machineKey;
+        string registrationToken;
 
         if (existingRunner is not null)
         {
@@ -57,37 +65,93 @@ public class RegisterRunnerHandler(RunnerDbContext db)
                 await db.SaveChangesAsync(ct);
             }
 
-            return Result.Ok(new RegisterRunnerResultDto(
-                existingRunner.Id,
-                existingRunner.Name,
-                existingRunner.MachineKey,
-                existingRunner.RegistrationToken,
-                rmqConfig
-            ));
+            runnerId = existingRunner.Id;
+            runnerName = existingRunner.Name;
+            machineKey = existingRunner.MachineKey;
+            registrationToken = existingRunner.RegistrationToken;
+        }
+        else
+        {
+            var tokenBytes = new byte[32];
+            using var rng = RandomNumberGenerator.Create();
+            rng.GetBytes(tokenBytes);
+            registrationToken = Convert.ToBase64String(tokenBytes);
+
+            var runner = new Domain.Entities.Runner
+            {
+                Name = command.Name,
+                MachineKey = command.MachineKey,
+                RegistrationToken = registrationToken,
+                IsActive = true
+            };
+
+            db.Runners.Add(runner);
+            await db.SaveChangesAsync(ct);
+
+            runnerId = runner.Id;
+            runnerName = runner.Name;
+            machineKey = runner.MachineKey;
         }
 
-        var tokenBytes = new byte[32];
-        using var rng = RandomNumberGenerator.Create();
-        rng.GetBytes(tokenBytes);
-        var registrationToken = Convert.ToBase64String(tokenBytes);
+        var rmq = Automation.SharedKernel.Extensions.RabbitMq.SharedRabbitMqConfigHolder.Current;
+        RabbitMqConfigDto rmqConfig;
 
-        var runner = new Domain.Entities.Runner
+        if (provisioningService != null)
         {
-            Name = command.Name,
-            MachineKey = command.MachineKey,
-            RegistrationToken = registrationToken,
-            IsActive = true
-        };
+            var dynamicUsername = $"rn_{runnerId:N}";
+            var dynamicPassword = GenerateSecurePassword(32);
 
-        db.Runners.Add(runner);
-        await db.SaveChangesAsync(ct);
+            var provisionResult = await provisioningService.ProvisionRunnerUserAsync(
+                dynamicUsername,
+                dynamicPassword,
+                rmq.VirtualHost,
+                runnerId,
+                ct
+            );
+
+            if (provisionResult.IsSuccess)
+            {
+                rmqConfig = new RabbitMqConfigDto(
+                    rmq.Host,
+                    rmq.Port,
+                    dynamicUsername,
+                    dynamicPassword,
+                    rmq.VirtualHost
+                );
+            }
+            else
+            {
+                logger?.LogWarning(
+                    "Failed to provision dynamic RabbitMQ user for runner {RunnerId}: {Error}. Falling back to default shared credentials.",
+                    runnerId,
+                    string.Join("; ", provisionResult.Errors.Select(e => e.Message))
+                );
+                rmqConfig = new RabbitMqConfigDto(rmq.Host, rmq.Port, rmq.Username, rmq.Password, rmq.VirtualHost);
+            }
+        }
+        else
+        {
+            rmqConfig = new RabbitMqConfigDto(rmq.Host, rmq.Port, rmq.Username, rmq.Password, rmq.VirtualHost);
+        }
 
         return Result.Ok(new RegisterRunnerResultDto(
-            runner.Id,
-            runner.Name,
-            runner.MachineKey,
-            runner.RegistrationToken,
+            runnerId,
+            runnerName,
+            machineKey,
+            registrationToken,
             rmqConfig
         ));
+    }
+
+    private static string GenerateSecurePassword(int length = 32)
+    {
+        const string validChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
+        var bytes = RandomNumberGenerator.GetBytes(length);
+        var chars = new char[length];
+        for (var i = 0; i < length; i++)
+        {
+            chars[i] = validChars[bytes[i] % validChars.Length];
+        }
+        return new string(chars);
     }
 }

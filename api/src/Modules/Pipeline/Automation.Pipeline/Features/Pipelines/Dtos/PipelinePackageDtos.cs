@@ -40,6 +40,19 @@ public record PipelinePackageGraphDto(
     IReadOnlyList<PipelinePackageEdgeDto> Edges
 );
 
+public enum ExportPipelineMode
+{
+    FullBackup = 0,
+    CleanTemplate = 1
+}
+
+public record PipelinePackageFilePinMetadataDto(
+    string? OriginalFileName,
+    long? SizeBytes,
+    string? HashSha256,
+    string? ContentType
+);
+
 public record PipelinePackageNodeDto(
     string TempId,
     string RefId,
@@ -55,7 +68,8 @@ public record PipelinePackageNodeDto(
     string? ParentTempId = null,
     NodeSize? Size = null,
     Dictionary<string, object?>? Metadata = null,
-    string? CustomScriptKey = null
+    string? CustomScriptKey = null,
+    Dictionary<string, PipelinePackageFilePinMetadataDto>? FilePins = null
 );
 
 public record PipelinePackageEdgeDto(
@@ -93,7 +107,8 @@ public record PipelinePackageContentTypeDto(
 );
 
 public record ExportPipelineBatchRequest(
-    List<Guid> PipelineIds
+    List<Guid> PipelineIds,
+    ExportPipelineMode Mode = ExportPipelineMode.FullBackup
 );
 
 public record ValidatePipelinePackageRequest(
@@ -107,7 +122,8 @@ public record ValidatePipelinePackageResponseDto(
     PipelinePackageMetadataDto PackageMetadata,
     IReadOnlyList<PipelinePackageItemPreviewDto> Pipelines,
     IReadOnlyList<PipelineScriptDependencyPreviewDto> Scripts,
-    IReadOnlyList<PipelineContentTypeDependencyPreviewDto> ContentTypes
+    IReadOnlyList<PipelineContentTypeDependencyPreviewDto> ContentTypes,
+    IReadOnlyList<string>? ValidationWarnings = null
 );
 
 public record PipelinePackageItemPreviewDto(
@@ -128,7 +144,8 @@ public record PipelineScriptDependencyPreviewDto(
     string Executor,
     string ContentHash,
     string FileName,
-    bool AlreadyExists
+    bool AlreadyExists,
+    bool HasScriptContent = true
 );
 
 public record PipelineContentTypeDependencyPreviewDto(

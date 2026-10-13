@@ -183,7 +183,7 @@ export function PipelineListPage({ projectId }: PipelineListPageProps) {
           projectId={projectId}
           pipelines={activePipelines}
           isLoading={isActiveLoading}
-          onExportSingle={(id) => exportSingle({ id })}
+          onExportSingle={(id, mode) => exportSingle({ id, mode })}
         />
       ) : (
         <TrashPipelinesTab

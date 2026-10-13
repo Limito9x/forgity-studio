@@ -363,12 +363,46 @@ public class PipelineGraphDtoBuilder(
                 if (PipelineFileValue.TryGetLinkId(value, out var linkId))
                 {
                     fileAssets[pin.Id] = filesById.TryGetValue(linkId, out var file)
-                        ? new(linkId, file.AssetId, file.OriginalName, file.ContentType, file.SizeBytes, "Available")
+                        ? new(linkId, file.AssetId, file.OriginalName, file.ContentType, file.SizeBytes, "Available", file.HashSha256)
                         : new(linkId, null, null, null, null, "Unavailable");
+                }
+                else if (PipelineFileValue.TryGetUnbound(value, out var unboundInfo) && unboundInfo != null)
+                {
+                    fileAssets[pin.Id] = new(
+                        null,
+                        null,
+                        unboundInfo.OriginalFileName,
+                        unboundInfo.ContentType,
+                        unboundInfo.SizeBytes,
+                        "Unbound",
+                        unboundInfo.HashSha256
+                    );
                 }
                 else if (PipelineFileValue.AsJson(value).ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.ToString()))
                     fileAssets[pin.Id] = new(null, null, null, null, null, "RequiresRelink");
             }
+
+            // Also check any unbound pins in ConfigValues that may not be listed in n.Inputs
+            if (n.ConfigValues != null)
+            {
+                foreach (var (k, v) in n.ConfigValues)
+                {
+                    if (fileAssets.ContainsKey(k)) continue;
+                    if (PipelineFileValue.TryGetUnbound(v, out var unboundInfo) && unboundInfo != null)
+                    {
+                        fileAssets[k] = new(
+                            null,
+                            null,
+                            unboundInfo.OriginalFileName,
+                            unboundInfo.ContentType,
+                            unboundInfo.SizeBytes,
+                            "Unbound",
+                            unboundInfo.HashSha256
+                        );
+                    }
+                }
+            }
+
             return n with { FileAssets = fileAssets };
         }).ToList();
 

@@ -111,7 +111,8 @@ public record PipelineFileAssetDto(
     string? OriginalName,
     string? ContentType,
     long? SizeBytes,
-    string Status
+    string Status,
+    string? HashSha256 = null
 );
 
 public record PipelineEdgeGraphDto(
