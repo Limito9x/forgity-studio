@@ -1,4 +1,4 @@
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -75,11 +75,10 @@ export function RunnerCard({
             {/* Online Status Badge (always pinned top-right) */}
             <Badge
               variant={isOnline ? "default" : "secondary"}
-              className={`shrink-0 h-5.5 px-2.5 gap-1.5 text-[11px] font-medium whitespace-nowrap ${
-                isOnline
+              className={`shrink-0 h-5.5 px-2.5 gap-1.5 text-[11px] font-medium whitespace-nowrap ${isOnline
                   ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
                   : "bg-muted text-muted-foreground border-border"
-              }`}
+                }`}
             >
               {isOnline ? (
                 <>
@@ -200,9 +199,8 @@ export function RunnerCard({
                       </div>
                       <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all duration-300 ${
-                            isHighUsage ? "bg-destructive" : "bg-primary"
-                          }`}
+                          className={`h-full rounded-full transition-all duration-300 ${isHighUsage ? "bg-destructive" : "bg-primary"
+                            }`}
                           style={{ width: `${usedPct}%` }}
                         />
                       </div>
