@@ -57,14 +57,29 @@ fi
 mkdir -p "$INSTALL_DIR"
 echo " - Installation Directory: $INSTALL_DIR"
 
-# Auto-download runner package from API if cli.py is not present
+# Auto-download runner package if cli.py is not present
 if [ ! -f "$INSTALL_DIR/cli.py" ]; then
-    echo " - Downloading runner package from $URL/runners/bootstrap/package.zip..."
-    TMP_ZIP="/tmp/automation-runner.zip"
-    curl -fsSL "$URL/runners/bootstrap/package.zip" -o "$TMP_ZIP"
-    unzip -q -o "$TMP_ZIP" -d "$INSTALL_DIR"
-    rm -f "$TMP_ZIP"
-    echo " - Runner package extracted successfully."
+    echo " - Downloading runner package..."
+    TMP_ZIP="/tmp/forgity-runner.zip"
+    PACKAGE_URLS=(
+        "https://github.com/Limito9x/forgity-studio/releases/latest/download/forgity-runner.zip"
+        "$URL/runners/bootstrap/package.zip"
+    )
+    DOWNLOAD_SUCCESS=false
+    for P_URL in "${PACKAGE_URLS[@]}"; do
+        echo "   Fetching from $P_URL..."
+        if curl -fsSL "$P_URL" -o "$TMP_ZIP"; then
+            unzip -q -o "$TMP_ZIP" -d "$INSTALL_DIR"
+            rm -f "$TMP_ZIP"
+            echo " - Runner package extracted successfully."
+            DOWNLOAD_SUCCESS=true
+            break
+        fi
+    done
+    if [ "$DOWNLOAD_SUCCESS" = false ]; then
+        echo "[ERROR] Failed to download runner package from all available sources."
+        exit 1
+    fi
 else
     echo " - Found local runner source files at $INSTALL_DIR"
 fi

@@ -48,7 +48,6 @@ public class CreateStorageProfileEndpoint(IMessageBus bus) : Endpoint<CreateStor
     {
         Post("");
         Group<StorageProfilesGroup>();
-        AllowAnonymous();
     }
 
     public override async Task HandleAsync(CreateStorageProfileCommand req, CancellationToken ct)

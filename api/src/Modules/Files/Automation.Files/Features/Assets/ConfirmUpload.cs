@@ -28,7 +28,6 @@ public class ConfirmUploadEndpoint(IMessageBus bus) : Endpoint<ConfirmUploadComm
     {
         Post("confirm-upload");
         Group<AssetsGroup>();
-        AllowAnonymous(); // Depending on auth setup
     }
 
     public override async Task HandleAsync(ConfirmUploadCommand req, CancellationToken ct)

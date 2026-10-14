@@ -62,10 +62,29 @@ if (-not $InstallDir) {
 }
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 $zipPath = ""$env:TEMP\forgity-runner.zip""
-Write-Host "" - Downloading runner package from $Url/runners/bootstrap/package.zip..."" -ForegroundColor Cyan
-Invoke-WebRequest -Uri ""$Url/runners/bootstrap/package.zip"" -OutFile $zipPath
-Expand-Archive -Path $zipPath -DestinationPath $InstallDir -Force
-Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+Write-Host "" - Downloading runner package..."" -ForegroundColor Cyan
+$packageUrls = @(
+    ""https://github.com/Limito9x/forgity-studio/releases/latest/download/forgity-runner.zip"",
+    ""$Url/runners/bootstrap/package.zip""
+)
+$downloadSuccess = $false
+foreach ($pUrl in $packageUrls) {
+    try {
+        Write-Host ""   Fetching from $pUrl..."" -ForegroundColor Gray
+        Invoke-WebRequest -Uri $pUrl -OutFile $zipPath -TimeoutSec 60
+        Expand-Archive -Path $zipPath -DestinationPath $InstallDir -Force
+        Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+        $downloadSuccess = $true
+        Write-Host "" - Runner package extracted successfully."" -ForegroundColor Green
+        break
+    } catch {
+        Write-Host ""   Could not download from $pUrl, trying alternative..."" -ForegroundColor DarkGray
+    }
+}
+if (-not $downloadSuccess) {
+    Write-Host ""[ERROR] Failed to download runner package from all available sources."" -ForegroundColor Red
+    exit 1
+}
 
 $venvPath = ""$InstallDir\worker\venv""
 $venvPython = ""$venvPath\Scripts\python.exe""

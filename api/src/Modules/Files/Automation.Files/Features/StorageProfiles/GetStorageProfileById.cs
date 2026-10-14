@@ -15,7 +15,6 @@ public class GetStorageProfileByIdEndpoint(IMessageBus bus) : Endpoint<GetStorag
     {
         Get("{id}");
         Group<StorageProfilesGroup>();
-        AllowAnonymous();
     }
 
     public override async Task HandleAsync(GetStorageProfileByIdQuery req, CancellationToken ct)

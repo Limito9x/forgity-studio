@@ -38,7 +38,8 @@ public class UploadRequestItemValidator : AbstractValidator<UploadRequestItemDto
             .Must(x => x.StartsWith(".")).WithMessage("Extension must start with a dot.");
 
         RuleFor(x => x.SizeBytes)
-            .GreaterThan(0).WithMessage("Size must be greater than 0.");
+            .GreaterThan(0).WithMessage("Size must be greater than 0.")
+            .LessThanOrEqualTo(5L * 1024 * 1024 * 1024).WithMessage("File size cannot exceed 5GB.");
             
         RuleFor(x => x.ContentType)
             .NotEmpty().WithMessage("Content type is required.");
@@ -51,7 +52,6 @@ public class RequestUploadEndpoint(IMessageBus bus) : Endpoint<RequestUploadComm
     {
         Post("request-upload");
         Group<AssetsGroup>();
-        AllowAnonymous(); // Depending on auth setup
     }
 
     public override async Task HandleAsync(RequestUploadCommand req, CancellationToken ct)

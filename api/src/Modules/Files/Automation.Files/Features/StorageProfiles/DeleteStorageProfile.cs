@@ -17,7 +17,6 @@ public class DeleteStorageProfileEndpoint(IMessageBus bus) : Endpoint<DeleteStor
     {
         Delete("{id}");
         Group<StorageProfilesGroup>();
-        AllowAnonymous();
     }
 
     public override async Task HandleAsync(DeleteStorageProfileCommand req, CancellationToken ct)

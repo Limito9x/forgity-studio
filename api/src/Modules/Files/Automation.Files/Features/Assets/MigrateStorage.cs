@@ -53,7 +53,6 @@ public class MigrateStorageEndpoint(
     {
         Post("migrate");
         Group<AssetsGroup>();
-        AllowAnonymous();
     }
 
     public override async Task HandleAsync(MigrateStorageRequest req, CancellationToken ct)
@@ -85,7 +84,6 @@ public class GetMigrationJobStatusEndpoint(IMessageBus bus) : Endpoint<GetMigrat
     {
         Get("migrate-jobs/{jobId:guid}");
         Group<AssetsGroup>();
-        AllowAnonymous();
     }
 
     public override async Task HandleAsync(GetMigrationJobStatusQuery req, CancellationToken ct)

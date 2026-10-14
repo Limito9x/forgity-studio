@@ -42,7 +42,6 @@ public class UpdateStorageProfileEndpoint(IMessageBus bus) : Endpoint<UpdateStor
     {
         Put("{id}");
         Group<StorageProfilesGroup>();
-        AllowAnonymous();
     }
 
     public override async Task HandleAsync(UpdateStorageProfileCommand req, CancellationToken ct)

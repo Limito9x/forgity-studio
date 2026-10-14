@@ -40,7 +40,6 @@ public class TestStorageConnectionEndpoint(IMessageBus bus) : Endpoint<TestStora
     {
         Post("test-connection");
         Group<StorageProfilesGroup>();
-        AllowAnonymous();
     }
 
     public override async Task HandleAsync(TestStorageConnectionCommand req, CancellationToken ct)
