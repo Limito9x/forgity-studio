@@ -1,18 +1,24 @@
-name: Build and Push Docker Images
+name: Build and Push Web Image
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "develop"]
     tags: ["v*.*.*"]
+    paths:
+      - "web/**"
+      - "packages/proto/**"
+      - ".github/workflows/docker-web.yml"
+      - "!**.md"
+      - "!docs/**"
   workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ${{ github.repository_owner }}/forgity
+  IMAGE_NAME: ${{ github.repository_owner }}/forgity-web
 
 jobs:
-  build-and-push:
-    name: Build & Publish Container Images to GHCR
+  build-and-push-web:
+    name: Build & Publish Web Image to GHCR
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -32,34 +38,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # =========================================================================
-      # 1. API Image Build & Push
-      # =========================================================================
-      - name: Extract Docker metadata for API
-        id: meta_api
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-api
-          tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,format=short
-
-      - name: Build and push API Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: api/Dockerfile
-          push: true
-          tags: ${{ steps.meta_api.outputs.tags }}
-          labels: ${{ steps.meta_api.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      # =========================================================================
-      # 2. Web UI Build & Push
-      # =========================================================================
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -80,9 +58,9 @@ jobs:
         id: meta_web
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-web
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,format=short
