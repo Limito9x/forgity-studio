@@ -61,7 +61,7 @@ def build_package(version_override: str = None, output_dir: str = None) -> tuple
     dist_dir = Path(output_dir) if output_dir else (WORKERS_ROOT / "dist")
     dist_dir.mkdir(parents=True, exist_ok=True)
 
-    zip_filename = f"automation-runner-v{version}.zip"
+    zip_filename = f"forgity-runner-v{version}.zip"
     zip_path = dist_dir / zip_filename
     if zip_path.exists():
         zip_path.unlink()
@@ -92,8 +92,16 @@ def build_package(version_override: str = None, output_dir: str = None) -> tuple
     with open(sha_file, "w", encoding="utf-8") as f:
         f.write(f"{sha256}  {zip_filename}\n")
 
+    # Also create unversioned alias for direct bootstrap download
+    alias_path = dist_dir / "forgity-runner.zip"
+    shutil.copy2(zip_path, alias_path)
+    alias_sha = dist_dir / "forgity-runner.zip.sha256"
+    with open(alias_sha, "w", encoding="utf-8") as f:
+        f.write(f"{sha256}  forgity-runner.zip\n")
+
     print(f"\n[SUCCESS] Package built successfully!")
     print(f"  Archive:  {zip_path} ({zip_path.stat().st_size:,} bytes)")
+    print(f"  Alias:    {alias_path}")
     print(f"  SHA-256:  {sha256}")
     print(f"  Checksum: {sha_file}")
 

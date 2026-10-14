@@ -51,14 +51,16 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: "Automation Studio Runner v${{ steps.get_version.outputs.VERSION }}"
+          name: "Forgity Runner v${{ steps.get_version.outputs.VERSION }}"
           draft: false
           prerelease: false
           files: |
-            workers/dist/automation-runner-*.zip
-            workers/dist/automation-runner-*.zip.sha256
+            workers/dist/forgity-runner-*.zip
+            workers/dist/forgity-runner-*.zip.sha256
+            workers/dist/forgity-runner.zip
+            workers/dist/forgity-runner.zip.sha256
           body: |
-            ## Automation Studio Runner Daemon Release
+            ## Forgity Runner Daemon Release
             
             ### Included in this package:
             - Pre-compiled Protobuf stubs (`agent_pb2.py`, `execution_state.py`)
@@ -70,7 +72,7 @@ jobs:
             ### Verification
             Download the archive and verify the checksum using:
             ```bash
-            sha256sum -c automation-runner-v${{ steps.get_version.outputs.VERSION }}.zip.sha256
+            sha256sum -c forgity-runner-v${{ steps.get_version.outputs.VERSION }}.zip.sha256
             ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

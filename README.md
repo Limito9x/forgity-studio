@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⚡ Automation Studio
+# ⚡ Forgity Studio
 
 ### *Extensible Distributed Workflow Orchestration & Digital Asset Pipeline Platform*
 
@@ -18,226 +18,147 @@
   A production-grade, distributed workflow automation engine and node-based studio designed to orchestrate complex digital asset pipelines, DCC tools, and creative automation across heterogeneous environments.
 </p>
 
-[Architecture Overview](#-architecture-overview) •
-[Core Pillars](#-core-pillars) •
-[Monorepo Structure](#-monorepo-structure) •
+[Key Features](#-key-features) •
+[Architecture](#-architecture) •
+[Monorepo Layout](#-monorepo-layout) •
 [Quick Start](#-quick-start) •
-[Extensibility](#-extensibility)
+[Runner Daemon](#-runner-daemon) •
+[CI/CD & Releases](#-cicd--releases)
 
 </div>
 
 ---
 
-## 🚀 What is Automation Studio?
+## 🚀 What is Forgity Studio?
 
-Managing digital asset pipelines across heterogeneous tools (Blender, Unreal Engine, Daz, DCC suites, rendering farms, and custom toolchains) is notoriously fragile. Studios often rely on disconnected Python scripts, ad-hoc CLI triggers, and manual file transfers that break easily and leak system memory.
+Managing digital asset pipelines across heterogeneous tools (Blender, Unreal Engine, Daz, DCC suites, rendering farms, and custom toolchains) is notoriously fragile. Studios often rely on disconnected Python scripts, ad-hoc CLI triggers, and manual file transfers that break easily and leak system resources.
 
-**Automation Studio** solves this by providing:
+**Forgity Studio** solves this by providing:
 1. **Interactive Node-based Canvas (DAG)**: A visual graph workflow editor where technical artists and engineers assemble multi-stage pipelines with typed inputs/outputs (Pins).
-2. **Robust Backend Core (.NET 10)**: A Vertical Slice Architecture (VSA) Modular Monolith with transactional outbox, real-time WebSocket state dispatch, and gRPC execution services.
+2. **Robust Backend Core (.NET 10)**: A Vertical Slice Architecture (VSA) Modular Monolith with transactional outbox, real-time WebSocket state dispatch, and bidirectional gRPC execution services.
 3. **Headless Distributed Workers (Python)**: Daemon agents running on local workstations or render nodes that execute pipeline stages in isolated subprocess sessions with automated memory management.
 
 ---
 
-## 🏛️ Architecture Overview
+## 🏛️ Architecture
 
-The platform is designed around a decoupled, event-driven architecture connecting visual clients, backend orchestrators, and headless execution daemons:
+Forgity Studio connects visual clients, backend orchestrators, and headless execution daemons in an event-driven lifecycle:
 
-```mermaid
-flowchart TD
-    subgraph UI ["Studio Frontend (web/)"]
-        Canvas["React 19 Interactive Canvas\n(Node Graph / Dynamic Forms)"]
-        ClientHooks["TanStack Query / Mutation Hooks\n(Orval Typed Client)"]
-    end
-
-    subgraph API ["Backend Modular Monolith (api/ - .NET 10)"]
-        FE["FastEndpoints (VSA Endpoints)"]
-        Bus["Wolverine Message Bus & Outbox"]
-        Engine["Pipeline DAG Engine\n(Topological Sorter / Pin Resolver)"]
-        gRPCServer["gRPC State Server\n(agent.proto / execution_state.proto)"]
-        DB[("PostgreSQL\n(EF Core)")]
-    end
-
-    subgraph Queue ["Message Broker"]
-        RMQ["RabbitMQ\n(stage_tasks / step_progress / stage_results)"]
-    end
-
-    subgraph Daemon ["Distributed Pipeline Worker (workers/ - Python)"]
-        Consumer["PipelineConsumer\n(RabbitMQ Daemon)"]
-        Executors{"Executor Factory"}
-        BlenderExec["Blender Subprocess\n(stage_runner.py)"]
-        UEExec["Unreal Engine Subprocess\n(ue_stage_runner.py)"]
-        PyExec["Python CLI Subprocess\n(stage_runner.py)"]
-    end
-
-    Canvas <-->|REST API & WebSocket| FE
-    FE --> Bus
-    Bus --> Engine
-    Engine --> DB
-    Engine -->|Publish StageTask| RMQ
-    RMQ -->|Consume Task| Consumer
-    Consumer --> Executors
-    Executors --> BlenderExec
-    Executors --> UEExec
-    Executors --> PyExec
-
-    BlenderExec -.->|JIT Pull Inputs & Report Output| gRPCServer
-    UEExec -.->|JIT Pull Inputs & Report Output| gRPCServer
-    Consumer -->|Realtime Progress & Results| RMQ
-    RMQ -->|Consume Progress| Bus
-```
+- **Web UI (`web/`)**: React 19 + Vite + Tailwind CSS + TanStack Router/Query. Interactive node graph canvas with dynamic forms and realtime SignalR progress streaming.
+- **Backend Core (`api/`)**: .NET 10 Modular Monolith + FastEndpoints + Wolverine + EF Core (PostgreSQL) + Redis + RabbitMQ. Handles DAG planning, change tracking, security, and message distribution.
+- **Protobuf Contracts (`packages/proto/`)**: Single Source of Truth for bidirectional gRPC contracts (`agent.proto`, `execution_state.proto`).
+- **Distributed Runner Daemon (`workers/`)**: Python 3.12+ daemon managing subprocess execution for DCC tools (Blender, Unreal Engine) with isolated execution and self-healing cleanup.
 
 ---
 
-## 🌟 Core Pillars
+## 🌟 Key Features
 
 ### 1. Visual DAG & Dynamic Pin System
-- **Node-Based Orchestration**: Construct complex pipelines using Directed Acyclic Graphs (DAG) with dependency resolution and cycle detection.
+- **Node-Based Orchestration**: Construct complex pipelines using Directed Acyclic Graphs (DAG) with topological sorting and cycle validation.
 - **Granular Pin Typing**: Strong contract-driven pin bindings (`$ref` and intra-stage data flow) allowing downstream steps to seamlessly consume upstream outputs in-memory.
 - **Dynamic Form Engine**: Schema-driven forms rendered dynamically with Zod validation, supporting custom input controls and scoped field registries.
 
-### 2. Host Daemon vs. Guest Stage Runner Architecture
-- **Complete Isolation**: Software like Blender and Unreal Engine are spawned as dedicated headless subprocesses (`UnrealEditor-Cmd.exe`, `blender --background`). If an engine encounters a native segmentation fault, the main worker host remains completely unaffected.
-- **In-RAM Batching**: Stages execute all constituent steps inside a single engine RAM session, eliminating slow engine restart overhead.
-- **Automated Memory Recycling**: Built-in hooks automatically execute datablock purges (`bpy.ops.outliner.orphans_purge()`) and Unreal Engine garbage collection (`unreal.SystemLibrary.collect_garbage()`) after each step.
+### 2. Host Daemon vs. Guest Stage Runner Isolation
+- **Process Isolation**: Heavy tools like Blender and Unreal Engine run as dedicated headless subprocesses (`UnrealEditor-Cmd.exe`, `blender --background`). If an engine encounters a native segmentation fault, the main worker host remains completely unaffected.
+- **Automated Memory Cleanup**: Background sweepers eliminate zombie subprocesses and reclaim unmanaged engine memory after each stage completes.
 
-### 3. Single Source of Truth Contracts (`packages/proto/`)
-- All cross-service gRPC communication contracts (`agent.proto`, `execution_state.proto`) are centralized in `packages/proto/`.
-- .NET projects reference shared protos using `<Protobuf ProtoRoot="..." Link="..." />` with automated compilation on build.
-- Python workers compile protobuf contracts directly via `python cli.py compile-protos`.
-
-### 4. Digital Asset Management (DAM) & Semantic Tagging
-- **Immutable Version History**: Tracks files across local workspaces and distributed runners (`ResourceVersionLocation`), generating cryptographic SHA-256 checksums on sync.
-- **Deep Inspection Metadata**: Automated pipeline inspection nodes (`daz_inspector`, `blender_inspector`) parse 3D structures (bones, meshes, material slots, textures) into an interactive JSON Tree.
-- **Hierarchical GameplayTags & Drag-and-Drop**: Fine-grained tag assignment directly to specific metadata properties (`targetSubPath`), powered by an intuitive tree explorer with recursive Shift+Click navigation.
-
-### 5. Unified Package Bundle & Portability
-- **Self-Contained Pipeline Bundles**: Export and import complete pipelines with recursive SubPipelines, Custom Node Library scripts, and asset dependencies into unified bundles.
-- **Deterministic Key Remapping & Integrity**: Asset slot links and node keys are automatically remapped and validated with SHA-256 hashes during cross-project and cross-machine imports.
+### 3. Smart Collaborative Locking & Zero-Byte Storage
+- **File & Resource Tracking**: Multi-storage profile management (Studio Cloud S3/MinIO vs BYOS local filesystem).
+- **CAS Deduplication**: Content-Addressable Storage using SHA-256 prevents redundant uploads and enables instantaneous zero-byte copies.
 
 ---
 
-## 📂 Monorepo Structure
+## 📁 Monorepo Layout
 
-```
-Automation/
-├── packages/
-│   └── proto/                      # 📜 Single Source of Truth gRPC contracts
-│       ├── agent.proto             # Agent connection, heartbeat & file browsing
-│       └── execution_state.proto   # JIT input resolution & step output reporting
-│
-├── api/                            # 🚀 Backend Core (.NET 10 Modular Monolith)
+```text
+Forgity/
+├── api/                    # .NET 10 Modular Monolith (FastEndpoints, Wolverine, EF Core)
 │   ├── src/
-│   │   ├── Automation.Api/         # Host Web API & Middleware configuration
-│   │   ├── Modules/                # Independent business slices (Pipelines, DynamicForms,
-│   │   │                           # Repositories, Tags, Content, Runners, Assets, Identity...)
-│   │   └── SharedKernel/           # Shared abstractions & infrastructural extensions
-│   ├── tests/                      # Automated unit & integration test suites
-│   └── tools/Automation.Cli/       # Scaffolding CLI for instant module & CRUD generation
-│
-├── web/                            # 🎨 Studio Frontend (React 19 + TypeScript + Vite)
+│   │   ├── Automation.Api/ # Host Application Entry Point & Web Host
+│   │   ├── Modules/        # Modular Monolith slices (Pipeline, Runner, Repository, Files, etc.)
+│   │   └── SharedKernel/   # Cross-cutting abstractions, Outbox, and Behaviors
+│   └── tests/              # Unit & Integration Tests
+├── web/                    # Frontend SPA & Tauri Desktop App (React 19, Vite, Tailwind CSS)
 │   ├── src/
-│   │   ├── components/             # Shadcn UI (powered by React Aria Components)
-│   │   ├── features/               # Domain feature modules (Pipelines, Repositories, Tags, Runners, Forms)
-│   │   ├── gen/                    # Auto-generated typed API clients (via Orval)
-│   │   └── lib/                    # Core utilities (Temporal API, Axios client)
-│   └── public/                     # Static assets and icons
-│
-├── workers/                        # ⚙️ Headless Pipeline Worker (Python 3.12+)
-│   ├── commands/                   # Agent CLI commands (start, register, browse, scan)
-│   ├── core/                       # Compiled gRPC stubs & shared network clients
-│   └── worker/
-│       ├── executors/              # Host Process Managers (Blender, Unreal, Python)
-│       └── scripts/                # Guest Stage Runners (stage_runner.py, ue_stage_runner.py)
-│
-├── docs/                           # 📚 Centralized Technical Documentation
-│   ├── architecture/               # System architecture & inter-service flow
-│   ├── backend/                    # VSA philosophy, Pipeline Engine & Pin System
-│   ├── frontend/                   # React Aria patterns, Canvas specifications & rules
-│   └── workers/                    # Host-Guest Subprocess guide & lifecycle
-│
-└── .agents/                        # 🤖 AI Coding Assistant & Team Orchestration
-    ├── AGENTS.md                   # Master Router & Resource Index
-    ├── rules/                      # Scoped guidelines (backend, frontend, workers, general)
-    └── skills/                     # 15+ automated skills for development & scaffolding
+│   │   ├── features/       # Feature slices (pipelines, runners, repositories, contents)
+│   │   └── gen/            # Auto-generated API client from OpenAPI specs
+│   └── Dockerfile          # Ultra-lightweight Zero-CPU Nginx Production runtime
+├── workers/                # Python 3.12+ Distributed Runner Daemon & DCC Executors
+│   ├── core/               # gRPC client, state store, daemon supervisor
+│   ├── worker/             # Subprocess runners for Blender, Unreal, and Python scripts
+│   └── scripts/            # 1-Click Installers (install.ps1, install.sh)
+├── packages/proto/         # Protobuf single source of truth (agent.proto, execution_state.proto)
+├── docker-compose.yml      # Orchestration for Web, API, Postgres, RabbitMQ, Redis
+└── .github/workflows/      # Automated CI/CD (GHCR Container Publish & Runner Releases)
 ```
 
 ---
 
 ## ⚡ Quick Start
 
-### Prerequisites
+### 1. Prerequisites
+- [Docker Desktop](https://www.docker.com/) (with WSL2 enabled on Windows)
+- [Node.js 22+](https://nodejs.org/) & [pnpm](https://pnpm.io/)
 - [.NET 10 SDK](https://dotnet.microsoft.com/)
-- [Node.js 20+](https://nodejs.org/) & [pnpm](https://pnpm.io/)
-- [Python 3.12+](https://python.org/)
-- [Docker](https://www.docker.com/) (for PostgreSQL & RabbitMQ)
+- [Python 3.12+](https://www.python.org/)
 
-### 1. Launch Infrastructure
+### 2. Launch Local Environment (Docker Compose)
+
+Clone the repository and spin up all core infrastructure:
+
 ```bash
-# Run PostgreSQL and RabbitMQ containers
-docker run -d --name automation-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16
-docker run -d --name automation-rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+git clone https://github.com/limito9x/automation-studio.git
+cd automation-studio
+
+# Copy environment variables
+cp .env.example .env
+
+# Start all containers (API, Web, PostgreSQL, RabbitMQ, Redis)
+docker compose up -d
 ```
 
-### 2. Start Backend API (`api/`)
-```bash
-cd api
-dotnet restore
-dotnet run --project src/Automation.Api
-# Swagger available at: http://localhost:5189/swagger
+Access the studio services:
+- **Web Studio**: [http://localhost](http://localhost)
+- **API Swagger / OpenAPI**: [http://localhost:5189/swagger](http://localhost:5189/swagger)
+- **RabbitMQ Dashboard**: [http://localhost:15672](http://localhost:15672) (Username: `limito9x`, Password: see `.env`)
+
+---
+
+## 💻 Runner Daemon (Workstation Setup)
+
+Render nodes and local developer workstations connect to the Studio via the **Forgity Runner Daemon**:
+
+### 1-Click Installation (Windows PowerShell)
+
+Open PowerShell as Administrator and run:
+
+```powershell
+irm "http://localhost:5189/api/runners/bootstrap/install.ps1?token=<YOUR_RUNNER_TOKEN>" | iex
 ```
 
-### 3. Start Studio Web Frontend (`web/`)
+*The runner automatically installs to `$env:LOCALAPPDATA\Forgity\runner`, creates a background task supervisor, and establishes real-time gRPC & RabbitMQ connections back to the Studio.*
+
+### 1-Click Installation (Linux / macOS Bash)
+
 ```bash
-cd web
-pnpm install
-pnpm dev
-# Studio UI available at: http://localhost:5173
-```
-
-### 4. Start Pipeline Worker Daemon (`workers/`)
-```bash
-cd workers
-python -m venv worker/venv
-.\worker\venv\Scripts\activate
-pip install -r worker/requirements.txt
-
-# (Optional) Recompile shared protobuf contracts
-python cli.py compile-protos
-
-# Start background pipeline worker & gRPC stream
-python cli.py start
+curl -fsSL "http://localhost:5189/api/runners/bootstrap/install.sh?token=<YOUR_RUNNER_TOKEN>" | bash
 ```
 
 ---
 
-## 🧩 Extensibility
+## 📦 CI/CD & Releases
 
-### Adding a New Pipeline Tool (Backend)
-Tools represent the functional nodes on the Canvas. Implement `BaseResolverTool` within `api/src/Modules/Pipeline/`:
-```csharp
-[Tool("custom_tool_key", "Custom Tool Name", Category = "Geometry")]
-public class CustomGeometryTool : BaseResolverTool
-{
-    [ToolPin(PinDirection.Input, DataType = PinDataTypes.String)]
-    public string InputPath { get; set; } = string.Empty;
+The project includes pre-configured GitHub Actions workflows:
 
-    [ToolPin(PinDirection.Output, DataType = PinDataTypes.String)]
-    public string OutputPath { get; set; } = string.Empty;
-}
-```
-
-### Adding a New Engine Executor (Worker)
-To support a new DCC or engine (e.g. Maya, Houdini, Unity):
-1. Inherit from `BaseSubprocessExecutor` in `workers/worker/executors/`.
-2. Implement `build_command(task)` with target executable and headless arguments.
-3. Register the new executor key in `EXECUTOR_REGISTRY` (`workers/worker/executors/__init__.py`).
+1. **Docker Container Publishing (`docker-publish.yml`)**:
+   - Automatically builds and pushes production images to GitHub Container Registry:
+     - `ghcr.io/<owner>/forgity-api:latest`
+     - `ghcr.io/<owner>/forgity-web:latest`
+2. **Runner Distribution (`release-runner.yml`)**:
+   - Compiles Protobuf stubs, packages clean standalone archives (`forgity-runner-vX.Y.Z.zip` & `forgity-runner.zip`), calculates SHA-256 checksums, and publishes official GitHub Releases.
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **GNU Affero General Public License v3.0 (GNU AGPLv3)**. See the [LICENSE](LICENSE) file for the full license text.
-
-> **Commercial & Enterprise Licensing**:  
-> For studios or organizations seeking to integrate, customize, or operate Automation Studio in commercial environments without being subject to the network copyleft obligations of the AGPLv3, commercial and enterprise licensing options are available.
+This project is licensed under the terms of the GNU Affero General Public License v3.0 ([AGPL-3.0](LICENSE)).
