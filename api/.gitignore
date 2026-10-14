@@ -9,3 +9,4 @@ Generated/
 appsettings.*.json
 /tools/
 rename-template.ps1
+config/

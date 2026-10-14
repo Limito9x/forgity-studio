@@ -26,16 +26,20 @@ public static class WolverineRabbitMqExtensions
         var mgmtScheme = configuration["RabbitMQ:ManagementScheme"] ?? "http";
         var mgmtUrl = configuration["RabbitMQ:ManagementUrl"] ?? $"{mgmtScheme}://{host}:{mgmtPort}";
 
+        var isSsl = false;
+
         // Support full CloudAMQP / AMQP URL connection string if provided
         var urlStr = configuration["RabbitMQ:Url"]
             ?? configuration["CLOUDAMQP_URL"]
             ?? Environment.GetEnvironmentVariable("CLOUDAMQP_URL")
             ?? Environment.GetEnvironmentVariable("RABBITMQ_URL");
 
+        Uri? parsedUri = null;
         if (!string.IsNullOrWhiteSpace(urlStr) && Uri.TryCreate(urlStr, UriKind.Absolute, out var uri))
         {
+            parsedUri = uri;
             host = uri.Host;
-            var isSsl = uri.Scheme.Equals("amqps", StringComparison.OrdinalIgnoreCase);
+            isSsl = uri.Scheme.Equals("amqps", StringComparison.OrdinalIgnoreCase);
             port = uri.Port > 0 ? uri.Port : (isSsl ? 5671 : 5672);
 
             if (!string.IsNullOrEmpty(uri.UserInfo))
@@ -53,17 +57,36 @@ public static class WolverineRabbitMqExtensions
 
             mgmtUrl = configuration["RabbitMQ:ManagementUrl"] ?? $"https://{host}";
         }
+        else
+        {
+            var sslStr = configuration["RabbitMQ:EnableSsl"] ?? configuration["RabbitMQ:Ssl"];
+            isSsl = bool.TryParse(sslStr, out var s) ? s : port == 5671;
+        }
 
         SharedRabbitMqConfigHolder.Current = new(host, port, user, pass, virtualHost, mgmtUrl);
 
         options.UseRabbitMq(transport =>
         {
-            transport.HostName = host;
-            transport.Port = port;
-            transport.UserName = user;
-            transport.Password = pass;
-            transport.VirtualHost = virtualHost;
-            transport.RequestedConnectionTimeout = TimeSpan.FromSeconds(3);
+            if (parsedUri != null)
+            {
+                transport.Uri = parsedUri;
+            }
+            else
+            {
+                transport.HostName = host;
+                transport.Port = port;
+                transport.UserName = user;
+                transport.Password = pass;
+                transport.VirtualHost = virtualHost;
+            }
+
+            if (isSsl)
+            {
+                transport.Ssl.Enabled = true;
+                transport.Ssl.ServerName = host;
+            }
+
+            transport.RequestedConnectionTimeout = TimeSpan.FromSeconds(15);
         })
         .AutoProvision();
 
