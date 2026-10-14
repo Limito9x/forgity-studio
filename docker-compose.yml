@@ -1,0 +1,86 @@
+services:
+  # 1. Database PostgreSQL
+  db:
+    image: postgres:17-alpine
+    container_name: ${PROJECT_NAME}-db-${ENV_MODE:-dev}
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # 2. Redis Cache & Queue
+  redis:
+    image: redis:alpine
+    container_name: ${PROJECT_NAME}-redis-${ENV_MODE:-dev}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
+  # 3. RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: ${PROJECT_NAME}-rabbitmq-${ENV_MODE:-dev}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  # 4. Forgity Backend API (.NET 10)
+  api:
+    image: forgity-api:latest
+    container_name: ${PROJECT_NAME}-api-${ENV_MODE:-dev}
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+      - rabbitmq
+    ports:
+      - "5189:5189"
+      - "50051:50051"
+    mem_limit: 1024m
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - DOTNET_gcServer=0
+      - DOTNET_TieredPGO=0
+      - DOTNET_TC_QuickJitForLoops=1
+      - ConnectionStrings__Default=Host=db;Port=5432;Database=${POSTGRES_DATABASE};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      - ConnectionStrings__Redis=redis:6379,abortConnect=False
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__Username=${RABBITMQ_USER}
+      - RabbitMQ__Password=${RABBITMQ_PASS}
+      - RabbitMQ__VirtualHost=/
+      - RabbitMQ__ManagementPort=15672
+      - RabbitMQ__ManagementScheme=http
+
+  # 5. Forgity Web UI (React + Vite + Nginx SPA)
+  web:
+    image: forgity-web:latest
+    container_name: ${PROJECT_NAME}-web-${ENV_MODE:-dev}
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+
+volumes:
+  pgdata:
+  redis_data:
+  rabbitmq_data:

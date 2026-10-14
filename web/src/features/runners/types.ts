@@ -1,5 +1,5 @@
 import type {
-  RunnerDto,
+  RunnerDto as GenRunnerDto,
   RunnerHardwareProfile,
   RunnerGpuInfo,
   RunnerDiskInfo,
@@ -10,8 +10,11 @@ import type {
   AttachRunnerToStudioRequest,
 } from "@/gen/model";
 
+export type RunnerDto = GenRunnerDto & {
+  appVersion?: string | null;
+};
+
 export type {
-  RunnerDto,
   RunnerHardwareProfile,
   RunnerGpuInfo,
   RunnerDiskInfo,

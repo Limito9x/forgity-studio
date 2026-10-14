@@ -23,14 +23,14 @@ public class GetRunnerPackageEndpoint : EndpointWithoutRequest
         // Check if pre-packaged zip exists in Docker image or assets
         var prebuiltZipCandidates = new[]
         {
-            Path.Combine(AppContext.BaseDirectory, "assets", "automation-runner.zip"),
-            Path.Combine(Directory.GetCurrentDirectory(), "assets", "automation-runner.zip")
+            Path.Combine(AppContext.BaseDirectory, "assets", "forgity-runner.zip"),
+            Path.Combine(Directory.GetCurrentDirectory(), "assets", "forgity-runner.zip")
         };
         var prebuiltZip = prebuiltZipCandidates.FirstOrDefault(File.Exists);
         if (prebuiltZip is not null)
         {
             HttpContext.Response.ContentType = "application/zip";
-            HttpContext.Response.Headers.Append("Content-Disposition", "attachment; filename=\"automation-runner.zip\"");
+            HttpContext.Response.Headers.Append("Content-Disposition", "attachment; filename=\"forgity-runner.zip\"");
             await using var fileStream = File.OpenRead(prebuiltZip);
             await fileStream.CopyToAsync(HttpContext.Response.Body, ct);
             return;

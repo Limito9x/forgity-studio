@@ -15,7 +15,8 @@ public record RunnerDto(
     long? PrimaryGpuVramBytes = null,
     DateTimeOffset? LastHardwareScannedAt = null,
     RunnerHardwareProfile? HardwareDetails = null,
-    IReadOnlyList<RunnerExecutorConfigDto>? ExecutorConfigs = null
+    IReadOnlyList<RunnerExecutorConfigDto>? ExecutorConfigs = null,
+    string? AppVersion = null
 );
 
 // Backward-compatibility alias
@@ -34,7 +35,8 @@ public record AgentDto(
     long? PrimaryGpuVramBytes = null,
     DateTimeOffset? LastHardwareScannedAt = null,
     RunnerHardwareProfile? HardwareDetails = null,
-    IReadOnlyList<RunnerExecutorConfigDto>? ExecutorConfigs = null
+    IReadOnlyList<RunnerExecutorConfigDto>? ExecutorConfigs = null,
+    string? AppVersion = null
 ) : RunnerDto(
     Id,
     Name,
@@ -50,5 +52,6 @@ public record AgentDto(
     PrimaryGpuVramBytes,
     LastHardwareScannedAt,
     HardwareDetails,
-    ExecutorConfigs
+    ExecutorConfigs,
+    AppVersion
 );

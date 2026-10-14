@@ -145,8 +145,40 @@ runner service logs [-n 50] [-f]          # Xem log tập trung và live follow
 
 ---
 
-## 8. Tóm Tắt Quy Tắc Cho Agent Khi Chạm Vào Worker
+---
+
+## 9. Chuẩn Hóa Packaging Release, Version Handshake & Remote In-Place Auto-Update
+
+### 9.1. Quản Lý Phiên Bản & Handshake gRPC
+- **File `VERSION` tập trung:** Nằm tại thư mục gốc của Worker daemon (`workers/VERSION`). Hàm `get_worker_version()` (`core/version.py`) tự động đọc phiên bản này.
+- **Handshake khởi tạo:** Khi Daemon kết nối gRPC tới Backend (`AgentMessage`), nó gửi kèm trường `app_version`.
+- **Lưu trữ Backend:** `RunnerGrpcService` tự động cập nhật `Runner.AppVersion` và `Runner.LastSeenAt` trong PostgreSQL, hiển thị trực quan phiên bản trên giao diện Web UI (Badge `v1.0.0`).
+
+### 9.2. Quy Trình Đóng Gói Sạch (Release Packaging)
+- **Script đóng gói tự động:** `python workers/tools/package_release.py [--version x.y.z] [--output-dir dir]`.
+- **Các bước thực thi:**
+  1. Tự động biên dịch lại toàn bộ Proto contracts (`compile_protos.py`) đảm bảo stubs Python luôn đồng bộ với `packages/proto`.
+  2. Nén toàn bộ mã nguồn sạch của daemon vào file `automation-runner-v{version}.zip`.
+  3. **Tuyệt đối loại trừ:** `__pycache__`, `.pytest_cache`, `.venv`, `venv`, `config.json`, `agent_config.json`, `.env`, `.storage.lock`, `cache/`, `temp/`, `logs/`, `dist/`.
+  4. Tính toán và sinh file mã băm SHA-256 `automation-runner-v{version}.zip.sha256`.
+- **CI/CD Tự Động (GitHub Actions):** File workflow `.github/workflows/release-runner.yml` tự động kích hoạt khi push tag `v*.*.*` hoặc qua `workflow_dispatch`, thực hiện đóng gói và publish Release artifact lên GitHub Releases.
+
+### 9.3. Cơ Chế Nâng Cấp Từ Xa In-Place (Remote Auto-Update)
+- **Khởi phát từ Server:** Quản trị viên kích hoạt nút **Update** trên Web UI hoặc gọi API `POST /api/runners/{runnerId}/upgrade` với `{ downloadUrl, targetVersion, expectedSha256 }`.
+- **Lệnh gRPC `UpdateRunnerCommand`:** Backend gửi payload qua stream hai chiều.
+- **Thực thi an toàn tại Daemon (`update_handler.py`):**
+  1. Tải gói zip về `workers/temp/update_{version}.zip`.
+  2. Kiểm tra mã băm SHA-256 đối chiếu với `expectedSha256` (nếu không khớp, hủy cập nhật ngay lập tức).
+  3. Giải nén đè mã nguồn mới vào thư mục chạy hiện tại. **BẢO TỒN TUYỆT ĐỐI:** `config.json`, `agent_config.json`, `.env`, `.venv/`, `cache/`, `logs/`, `temp/`.
+  4. Cập nhật file `VERSION` lên phiên bản mới.
+  5. Phản hồi `UpdateRunnerCommandResult(current_version, updated_version, restart_scheduled=true)`.
+  6. Sau 2 giây, kích hoạt tiến trình graceful restart daemon (qua OS Service Manager hoặc spawn process mới).
+
+---
+
+## 10. Tóm Tắt Quy Tắc Cho Agent Khi Chạm Vào Worker
 1. **Luôn dùng `settings()[0]` để lấy Runtime Root:** Tuyệt đối không hardcode đường dẫn `os.path.join(..., "temp")` lung tung ngoài thư mục runtime.
 2. **Không bỏ qua Mutex Lock:** Mọi thao tác tiêu thụ task và dọn dẹp đều phải bọc qua `storage_lock()`.
 3. **Script từ xa bắt buộc có URL & SHA-256:** Không bao giờ cho phép thực thi script từ xa trôi nổi mà không kiểm tra mã băm bảo mật.
 4. **Không đưa GUI dependencies (như pystray) vào Daemon:** Runner Daemon bắt buộc phải duy trì tính chất headless 100%.
+5. **Bảo tồn tệp bí mật và môi trường:** Tuyệt đối không xóa hay ghi đè `config.json` và `.venv/` khi nâng cấp hay đóng gói Runner.

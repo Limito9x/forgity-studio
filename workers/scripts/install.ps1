@@ -11,7 +11,7 @@
 $Url        = "http://localhost:5189/api"
 $Token      = ""
 $Name       = ""
-$AppName    = "Automation Studio"
+$AppName    = "Forgity Studio"
 $InstallDir = ""
 
 $ErrorActionPreference = "Stop"
@@ -55,9 +55,7 @@ if (-not $InstallDir) {
     }
 
     if (-not $InstallDir) {
-        $slug = ($AppName -replace '[^\w\-]+', '').Trim()
-        if (-not $slug) { $slug = "Automation" }
-        $InstallDir = "$env:LOCALAPPDATA\$slug\runner"
+        $InstallDir = "$env:LOCALAPPDATA\Forgity\runner"
     }
 }
 

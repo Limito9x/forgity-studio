@@ -71,6 +71,7 @@ builder.Services.AddRateLimitingServices(builder.Configuration);
 
 builder.Services.AddGlobalExceptionHandling();
 
+builder.Services.AddCustomCors(builder.Configuration);
 builder.Services.AddAuthentication();
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
@@ -91,6 +92,8 @@ app.Lifetime.ApplicationStopping.Register(() =>
 app.UseGlobalExceptionHandling();
 
 app.UseCustomSerilogRequestLogging();
+
+app.UseCustomCors();
 
 app.UseRateLimiter();
 

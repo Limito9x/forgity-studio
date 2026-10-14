@@ -98,8 +98,9 @@ export function ConnectRunnerDialog({
     }
   };
 
+  const envApiUrl = (import.meta.env.VITE_API_URL as string)?.trim();
   const currentOrigin = typeof window !== "undefined" ? window.location.origin : "http://localhost:5189";
-  const apiBaseUrl = `${currentOrigin}/api`;
+  const apiBaseUrl = envApiUrl ? `${envApiUrl.replace(/\/+$/, "")}/api` : `${currentOrigin}/api`;
 
   const getOneLinerCommand = () => {
     const bootstrapUrl = `${apiBaseUrl}/runners/bootstrap`;

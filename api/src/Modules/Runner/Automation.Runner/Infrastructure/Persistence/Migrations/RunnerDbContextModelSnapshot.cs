@@ -34,6 +34,10 @@ namespace Automation.Runner.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("AppVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<string>("CpuModel")
                         .IsRequired()
                         .HasMaxLength(255)

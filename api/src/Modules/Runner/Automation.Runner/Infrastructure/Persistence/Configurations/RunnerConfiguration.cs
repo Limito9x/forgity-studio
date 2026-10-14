@@ -33,6 +33,9 @@ public class RunnerConfiguration : IEntityTypeConfiguration<Domain.Entities.Runn
         builder.Property(x => x.PrimaryGpuName)
             .HasMaxLength(255);
 
+        builder.Property(x => x.AppVersion)
+            .HasMaxLength(50);
+
         var jsonOptions = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true

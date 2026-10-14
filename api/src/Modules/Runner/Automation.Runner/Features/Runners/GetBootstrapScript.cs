@@ -29,7 +29,7 @@ public class GetBootstrapScriptEndpoint(IConfiguration config) : Endpoint<GetBoo
         var appName = config["AppConfig:Name"]?.Trim();
         if (string.IsNullOrWhiteSpace(appName))
         {
-            appName = "Automation Studio";
+            appName = "Forgity Studio";
         }
 
         var foundPath = ResolveScriptPath(scriptName);
@@ -46,7 +46,7 @@ public class GetBootstrapScriptEndpoint(IConfiguration config) : Endpoint<GetBoo
 $Url        = ""http://localhost:5189/api""
 $Token      = """"
 $Name       = """"
-$AppName    = ""Automation Studio""
+$AppName    = ""Forgity Studio""
 $InstallDir = """"
 
 $ErrorActionPreference = ""Stop""
@@ -58,12 +58,10 @@ Write-Host (""   {0}   "" -f $title) -ForegroundColor Cyan
 Write-Host $bannerLine -ForegroundColor Cyan
 
 if (-not $InstallDir) {
-    $slug = ($AppName -replace '[^\w\-]+', '').Trim()
-    if (-not $slug) { $slug = ""Automation"" }
-    $InstallDir = ""$env:LOCALAPPDATA\$slug\runner""
+    $InstallDir = ""$env:LOCALAPPDATA\Forgity\runner""
 }
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-$zipPath = ""$env:TEMP\automation-runner.zip""
+$zipPath = ""$env:TEMP\forgity-runner.zip""
 Write-Host "" - Downloading runner package from $Url/runners/bootstrap/package.zip..."" -ForegroundColor Cyan
 Invoke-WebRequest -Uri ""$Url/runners/bootstrap/package.zip"" -OutFile $zipPath
 Expand-Archive -Path $zipPath -DestinationPath $InstallDir -Force

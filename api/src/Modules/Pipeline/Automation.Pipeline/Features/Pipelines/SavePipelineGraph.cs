@@ -48,13 +48,17 @@ public class SavePipelineGraphHandler(
     ILogger<SavePipelineGraphHandler> logger
 )
 {
+    private static readonly JsonSerializerOptions JsonWebOptions = new(JsonSerializerDefaults.Web);
+
     public async Task<Result<PipelineGraphDto>> HandleAsync(
         SavePipelineGraphCommand command,
         CancellationToken ct
     )
     {
         var pipeline = await db
-            .Pipelines.Include(x => x.Nodes)
+            .Pipelines
+            .AsSplitQuery()
+            .Include(x => x.Nodes)
             .Include(x => x.Edges)
             .FirstOrDefaultAsync(x => x.Id == command.PipelineId, ct);
 
@@ -191,7 +195,7 @@ public class SavePipelineGraphHandler(
                 {
                     configDoc = JsonSerializer.SerializeToDocument(
                         nodeItem.ConfigValues,
-                        new JsonSerializerOptions(JsonSerializerDefaults.Web)
+                        JsonWebOptions
                     );
                 }
 
@@ -218,7 +222,7 @@ public class SavePipelineGraphHandler(
                 {
                     metadataDoc = JsonSerializer.SerializeToDocument(
                         nodeItem.Metadata,
-                        new JsonSerializerOptions(JsonSerializerDefaults.Web)
+                        JsonWebOptions
                     );
                 }
 
@@ -227,14 +231,17 @@ public class SavePipelineGraphHandler(
                         ? new NodeSize(nodeItem.Width.Value, nodeItem.Height.Value)
                         : null;
 
+                var posX = nodeItem.Position != null ? nodeItem.Position.X : nodeItem.PositionX;
+                var posY = nodeItem.Position != null ? nodeItem.Position.Y : nodeItem.PositionY;
+
                 if (nodeItem.Id.HasValue && nodeItem.Id.Value != Guid.Empty)
                 {
                     var existing = pipeline.Nodes.FirstOrDefault(n => n.Id == nodeItem.Id.Value);
                     if (existing != null)
                     {
                         existing.Update(
-                            nodeItem.PositionX,
-                            nodeItem.PositionY,
+                            posX,
+                            posY,
                             nodeItem.ParentId,
                             size
                         );
@@ -250,8 +257,8 @@ public class SavePipelineGraphHandler(
                     pipeline.Id,
                     nodeItem.RefId,
                     nodeItem.Kind,
-                    nodeItem.PositionX,
-                    nodeItem.PositionY,
+                    posX,
+                    posY,
                     configDoc,
                     nodeItem.ParentId,
                     size,
@@ -390,6 +397,7 @@ public class SavePipelineGraphHandler(
 
             // 4. Build and return hydrated DTO via shared service (Single invocation)
             var graphDto = await graphDtoBuilder.BuildDtoAsync(pipeline, ct);
+            db.ChangeTracker.Clear();
             return Result.Ok(graphDto);
         }
         catch (Exception)

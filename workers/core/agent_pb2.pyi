@@ -7,15 +7,17 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class AgentMessage(_message.Message):
-    __slots__ = ("agent_id", "command_response")
+    __slots__ = ("agent_id", "app_version", "command_response")
     AGENT_ID_FIELD_NUMBER: _ClassVar[int]
+    APP_VERSION_FIELD_NUMBER: _ClassVar[int]
     COMMAND_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     agent_id: str
+    app_version: str
     command_response: CommandResponse
-    def __init__(self, agent_id: _Optional[str] = ..., command_response: _Optional[_Union[CommandResponse, _Mapping]] = ...) -> None: ...
+    def __init__(self, agent_id: _Optional[str] = ..., app_version: _Optional[str] = ..., command_response: _Optional[_Union[CommandResponse, _Mapping]] = ...) -> None: ...
 
 class CommandResponse(_message.Message):
-    __slots__ = ("command_id", "success", "error_message", "scan_result", "browse_result", "scan_executors_result", "scan_hardware_result", "upload_files_result")
+    __slots__ = ("command_id", "success", "error_message", "scan_result", "browse_result", "scan_executors_result", "scan_hardware_result", "upload_files_result", "update_runner_result")
     COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
     SUCCESS_FIELD_NUMBER: _ClassVar[int]
     ERROR_MESSAGE_FIELD_NUMBER: _ClassVar[int]
@@ -24,6 +26,7 @@ class CommandResponse(_message.Message):
     SCAN_EXECUTORS_RESULT_FIELD_NUMBER: _ClassVar[int]
     SCAN_HARDWARE_RESULT_FIELD_NUMBER: _ClassVar[int]
     UPLOAD_FILES_RESULT_FIELD_NUMBER: _ClassVar[int]
+    UPDATE_RUNNER_RESULT_FIELD_NUMBER: _ClassVar[int]
     command_id: str
     success: bool
     error_message: str
@@ -32,7 +35,18 @@ class CommandResponse(_message.Message):
     scan_executors_result: ScanExecutorsCommandResult
     scan_hardware_result: ScanHardwareCommandResult
     upload_files_result: UploadFilesCommandResult
-    def __init__(self, command_id: _Optional[str] = ..., success: _Optional[bool] = ..., error_message: _Optional[str] = ..., scan_result: _Optional[_Union[ScanCommandResult, _Mapping]] = ..., browse_result: _Optional[_Union[BrowseCommandResult, _Mapping]] = ..., scan_executors_result: _Optional[_Union[ScanExecutorsCommandResult, _Mapping]] = ..., scan_hardware_result: _Optional[_Union[ScanHardwareCommandResult, _Mapping]] = ..., upload_files_result: _Optional[_Union[UploadFilesCommandResult, _Mapping]] = ...) -> None: ...
+    update_runner_result: UpdateRunnerCommandResult
+    def __init__(self, command_id: _Optional[str] = ..., success: _Optional[bool] = ..., error_message: _Optional[str] = ..., scan_result: _Optional[_Union[ScanCommandResult, _Mapping]] = ..., browse_result: _Optional[_Union[BrowseCommandResult, _Mapping]] = ..., scan_executors_result: _Optional[_Union[ScanExecutorsCommandResult, _Mapping]] = ..., scan_hardware_result: _Optional[_Union[ScanHardwareCommandResult, _Mapping]] = ..., upload_files_result: _Optional[_Union[UploadFilesCommandResult, _Mapping]] = ..., update_runner_result: _Optional[_Union[UpdateRunnerCommandResult, _Mapping]] = ...) -> None: ...
+
+class UpdateRunnerCommandResult(_message.Message):
+    __slots__ = ("current_version", "updated_version", "restart_scheduled")
+    CURRENT_VERSION_FIELD_NUMBER: _ClassVar[int]
+    UPDATED_VERSION_FIELD_NUMBER: _ClassVar[int]
+    RESTART_SCHEDULED_FIELD_NUMBER: _ClassVar[int]
+    current_version: str
+    updated_version: str
+    restart_scheduled: bool
+    def __init__(self, current_version: _Optional[str] = ..., updated_version: _Optional[str] = ..., restart_scheduled: _Optional[bool] = ...) -> None: ...
 
 class UploadFilesCommandResult(_message.Message):
     __slots__ = ("items", "total_bytes_uploaded")
@@ -155,18 +169,32 @@ class BrowseItemMessage(_message.Message):
     def __init__(self, name: _Optional[str] = ..., path: _Optional[str] = ..., is_directory: _Optional[bool] = ..., size_bytes: _Optional[int] = ...) -> None: ...
 
 class ServerMessage(_message.Message):
-    __slots__ = ("scan_command", "browse_command", "scan_executors_command", "scan_hardware_command", "upload_files_command")
+    __slots__ = ("scan_command", "browse_command", "scan_executors_command", "scan_hardware_command", "upload_files_command", "update_runner_command")
     SCAN_COMMAND_FIELD_NUMBER: _ClassVar[int]
     BROWSE_COMMAND_FIELD_NUMBER: _ClassVar[int]
     SCAN_EXECUTORS_COMMAND_FIELD_NUMBER: _ClassVar[int]
     SCAN_HARDWARE_COMMAND_FIELD_NUMBER: _ClassVar[int]
     UPLOAD_FILES_COMMAND_FIELD_NUMBER: _ClassVar[int]
+    UPDATE_RUNNER_COMMAND_FIELD_NUMBER: _ClassVar[int]
     scan_command: ScanCommand
     browse_command: BrowseCommand
     scan_executors_command: ScanExecutorsCommand
     scan_hardware_command: ScanHardwareCommand
     upload_files_command: UploadFilesCommand
-    def __init__(self, scan_command: _Optional[_Union[ScanCommand, _Mapping]] = ..., browse_command: _Optional[_Union[BrowseCommand, _Mapping]] = ..., scan_executors_command: _Optional[_Union[ScanExecutorsCommand, _Mapping]] = ..., scan_hardware_command: _Optional[_Union[ScanHardwareCommand, _Mapping]] = ..., upload_files_command: _Optional[_Union[UploadFilesCommand, _Mapping]] = ...) -> None: ...
+    update_runner_command: UpdateRunnerCommand
+    def __init__(self, scan_command: _Optional[_Union[ScanCommand, _Mapping]] = ..., browse_command: _Optional[_Union[BrowseCommand, _Mapping]] = ..., scan_executors_command: _Optional[_Union[ScanExecutorsCommand, _Mapping]] = ..., scan_hardware_command: _Optional[_Union[ScanHardwareCommand, _Mapping]] = ..., upload_files_command: _Optional[_Union[UploadFilesCommand, _Mapping]] = ..., update_runner_command: _Optional[_Union[UpdateRunnerCommand, _Mapping]] = ...) -> None: ...
+
+class UpdateRunnerCommand(_message.Message):
+    __slots__ = ("command_id", "download_url", "target_version", "expected_sha256")
+    COMMAND_ID_FIELD_NUMBER: _ClassVar[int]
+    DOWNLOAD_URL_FIELD_NUMBER: _ClassVar[int]
+    TARGET_VERSION_FIELD_NUMBER: _ClassVar[int]
+    EXPECTED_SHA256_FIELD_NUMBER: _ClassVar[int]
+    command_id: str
+    download_url: str
+    target_version: str
+    expected_sha256: str
+    def __init__(self, command_id: _Optional[str] = ..., download_url: _Optional[str] = ..., target_version: _Optional[str] = ..., expected_sha256: _Optional[str] = ...) -> None: ...
 
 class ScanCommand(_message.Message):
     __slots__ = ("command_id", "directory_path", "extensions")

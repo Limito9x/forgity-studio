@@ -23,7 +23,7 @@ export function ActionToolNodeView({ id: _id, data, selected }: NodeProps) {
 
   const showExecIn = execInputs.length > 0;
 
-  const isUnresolvedScript = Boolean(nodeData.metadata?.["unresolvedScript"]);
+  const isUnresolvedScript = Boolean((nodeData.metadata as Record<string, unknown> | undefined)?.["unresolvedScript"]);
 
   // Determine badge label
   const badgeLabel = isUnresolvedScript

@@ -440,6 +440,76 @@ public class RunnerApiService(
         }
     }
 
+    public async Task<Result<RunnerUpdateResultDto>> SendUpdateRunnerCommandAsync(
+        Guid runnerId,
+        string downloadUrl,
+        string targetVersion,
+        string expectedSha256,
+        CancellationToken ct = default
+    )
+    {
+        if (!registry.TryGet(runnerId, out var connection) || connection is null)
+        {
+            return Result.Fail<RunnerUpdateResultDto>(
+                $"Runner với ID '{runnerId}' chưa kết nối gRPC ngầm."
+            );
+        }
+
+        var commandId = Guid.NewGuid().ToString();
+        var updateCommand = new UpdateRunnerCommand
+        {
+            CommandId = commandId,
+            DownloadUrl = downloadUrl,
+            TargetVersion = targetVersion,
+            ExpectedSha256 = expectedSha256,
+        };
+
+        var task = commandTracker.RegisterCommandAsync(commandId, ct);
+
+        try
+        {
+            await connection.ResponseStream.WriteAsync(
+                new ServerMessage { UpdateRunnerCommand = updateCommand },
+                ct
+            );
+
+            var response = await task;
+
+            if (!response.Success)
+            {
+                return Result.Fail<RunnerUpdateResultDto>(
+                    $"Lỗi từ Runner khi cập nhật: {response.ErrorMessage}"
+                );
+            }
+
+            var res = response.UpdateRunnerResult;
+            var currentVersion = res?.CurrentVersion ?? string.Empty;
+            var updatedVersion = res?.UpdatedVersion ?? targetVersion;
+            var restartScheduled = res?.RestartScheduled ?? false;
+
+            if (!string.IsNullOrWhiteSpace(updatedVersion))
+            {
+                var runner = await db.Runners.FirstOrDefaultAsync(x => x.Id == runnerId, ct);
+                if (runner != null)
+                {
+                    runner.AppVersion = updatedVersion;
+                    runner.LastSeenAt = DateTimeOffset.UtcNow;
+                    await db.SaveChangesAsync(ct);
+                }
+            }
+
+            return Result.Ok(new RunnerUpdateResultDto(currentVersion, updatedVersion, restartScheduled));
+        }
+        catch (OperationCanceledException)
+        {
+            return Result.Fail<RunnerUpdateResultDto>("Quá thời gian chờ phản hồi cập nhật từ Runner.");
+        }
+        catch (Exception ex)
+        {
+            return Result.Fail<RunnerUpdateResultDto>($"Lỗi khi gửi lệnh cập nhật: {ex.Message}");
+        }
+    }
+
 
     public async Task<Result<IReadOnlyList<RunnerExecutorConfigDto>>> GetExecutorConfigsAsync(
         Guid runnerId,

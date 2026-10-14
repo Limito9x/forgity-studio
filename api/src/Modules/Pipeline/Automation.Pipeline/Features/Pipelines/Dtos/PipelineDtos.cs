@@ -168,7 +168,8 @@ public record SavePipelineNodeItem(
     Guid? ParentId = null,
     float? Width = null,
     float? Height = null,
-    Dictionary<string, object?>? Metadata = null
+    Dictionary<string, object?>? Metadata = null,
+    NodePosition? Position = null
 );
 
 public record SavePipelineEdgeItem(

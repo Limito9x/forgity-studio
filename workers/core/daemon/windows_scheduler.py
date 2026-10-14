@@ -49,7 +49,7 @@ class WindowsSchedulerManager(BaseServiceManager):
         res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         return res.returncode, (res.stdout + res.stderr).strip()
 
-    REG_RUN_KEY_NAME = "AutomationRunnerDaemon"
+    REG_RUN_KEY_NAME = "ForgityRunnerDaemon"
 
     def _is_reg_installed(self) -> bool:
         try:

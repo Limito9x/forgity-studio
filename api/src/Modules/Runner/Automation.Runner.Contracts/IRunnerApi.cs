@@ -39,6 +39,14 @@ public interface IRunnerApi
         CancellationToken ct = default
     );
 
+    Task<Result<RunnerUpdateResultDto>> SendUpdateRunnerCommandAsync(
+        Guid runnerId,
+        string downloadUrl,
+        string targetVersion,
+        string expectedSha256,
+        CancellationToken ct = default
+    );
+
     Task<Result<RunnerUploadResultDto>> SendUploadCommandAsync(
         Guid runnerId,
         string filePath,

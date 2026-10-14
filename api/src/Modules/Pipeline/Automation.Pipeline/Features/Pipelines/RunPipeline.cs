@@ -66,7 +66,8 @@ public class RunPipelineHandler(PipelineDbContext db, IMessageBus bus, IAssetApi
     )
     {
         var pipeline = await db
-            .Pipelines.Include(x => x.Nodes)
+            .Pipelines
+            .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == command.PipelineId, ct);
 
         if (pipeline == null)

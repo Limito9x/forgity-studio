@@ -15,6 +15,7 @@ service AgentService {
 
 message AgentMessage {
     string agent_id = 1;
+    string app_version = 3;
     oneof payload {
         CommandResponse command_response = 2;
     }
@@ -31,7 +32,14 @@ message CommandResponse {
         ScanExecutorsCommandResult scan_executors_result = 6;
         ScanHardwareCommandResult scan_hardware_result = 7;
         UploadFilesCommandResult upload_files_result = 8;
+        UpdateRunnerCommandResult update_runner_result = 9;
     }
+}
+
+message UpdateRunnerCommandResult {
+    string current_version = 1;
+    string updated_version = 2;
+    bool restart_scheduled = 3;
 }
 
 message UploadFilesCommandResult {
@@ -116,7 +124,15 @@ message ServerMessage {
         ScanExecutorsCommand scan_executors_command = 3;
         ScanHardwareCommand scan_hardware_command = 4;
         UploadFilesCommand upload_files_command = 5;
+        UpdateRunnerCommand update_runner_command = 6;
     }
+}
+
+message UpdateRunnerCommand {
+    string command_id = 1;
+    string download_url = 2;
+    string target_version = 3;
+    string expected_sha256 = 4;
 }
 
 message ScanCommand {
