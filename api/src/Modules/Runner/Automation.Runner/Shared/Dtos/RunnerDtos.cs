@@ -15,7 +15,8 @@ public record RegisterRunnerResultDto(
     string Name,
     string MachineKey,
     string RegistrationToken,
-    RabbitMqConfigDto? RabbitMq = null
+    RabbitMqConfigDto? RabbitMq = null,
+    string? GrpcUrl = null
 );
 
 public record RunnerStudioDto(

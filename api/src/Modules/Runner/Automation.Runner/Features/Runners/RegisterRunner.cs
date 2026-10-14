@@ -3,6 +3,7 @@ using Automation.Runner.Infrastructure.Persistence;
 using Automation.Runner.Shared.Dtos;
 using Automation.SharedKernel.Infrastructure.RabbitMq;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
 
@@ -44,7 +45,8 @@ public class RegisterRunnerEndpoint(IMessageBus bus) : Endpoint<RegisterRunnerCo
 public class RegisterRunnerHandler(
     RunnerDbContext db,
     IRabbitMqProvisioningService? provisioningService = null,
-    ILogger<RegisterRunnerHandler>? logger = null
+    ILogger<RegisterRunnerHandler>? logger = null,
+    IConfiguration? configuration = null
 )
 {
     public async Task<Result<RegisterRunnerResultDto>> HandleAsync(RegisterRunnerCommand command, CancellationToken ct)
@@ -134,12 +136,17 @@ public class RegisterRunnerHandler(
             rmqConfig = new RabbitMqConfigDto(rmq.Host, rmq.Port, rmq.Username, rmq.Password, rmq.VirtualHost);
         }
 
+        var publicGrpcUrl = configuration?["RunnerBootstrap:PublicGrpcUrl"]
+            ?? configuration?["GRPC_URL"]
+            ?? Environment.GetEnvironmentVariable("RUNNER_BOOTSTRAP_PUBLIC_GRPC_URL");
+
         return Result.Ok(new RegisterRunnerResultDto(
             runnerId,
             runnerName,
             machineKey,
             registrationToken,
-            rmqConfig
+            rmqConfig,
+            publicGrpcUrl
         ));
     }
 

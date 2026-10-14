@@ -5,6 +5,7 @@ using Automation.Runner.Shared.Dtos;
 using Automation.SharedKernel.Abstractions.Caching;
 using Automation.SharedKernel.Infrastructure.RabbitMq;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
 
@@ -49,7 +50,8 @@ public class RegisterRunnerWithTokenHandler(
     RunnerDbContext db,
     ICacheService cache,
     IRabbitMqProvisioningService? provisioningService = null,
-    ILogger<RegisterRunnerWithTokenHandler>? logger = null
+    ILogger<RegisterRunnerWithTokenHandler>? logger = null,
+    IConfiguration? configuration = null
 )
 {
     public async Task<Result<RegisterRunnerResultDto>> HandleAsync(RegisterRunnerWithTokenCommand command, CancellationToken ct)
@@ -177,12 +179,17 @@ public class RegisterRunnerWithTokenHandler(
             rmqConfig = new RabbitMqConfigDto(rmq.Host, rmq.Port, rmq.Username, rmq.Password, rmq.VirtualHost);
         }
 
+        var publicGrpcUrl = configuration?["RunnerBootstrap:PublicGrpcUrl"]
+            ?? configuration?["GRPC_URL"]
+            ?? Environment.GetEnvironmentVariable("RUNNER_BOOTSTRAP_PUBLIC_GRPC_URL");
+
         return Result.Ok(new RegisterRunnerResultDto(
             runnerId,
             runnerName,
             machineKey,
             registrationToken,
-            rmqConfig
+            rmqConfig,
+            publicGrpcUrl
         ));
     }
 

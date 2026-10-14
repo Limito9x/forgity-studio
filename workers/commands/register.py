@@ -141,6 +141,11 @@ def run(api_url: str = None, setup_token: str = None, runner_name: str = None, n
     if rabbitmq_config:
         config["rabbitmq"] = rabbitmq_config
 
+    grpc_url = result.get("grpcUrl") or result.get("grpc_url")
+    if grpc_url:
+        config["grpcUrl"] = grpc_url
+        print(f" - Dedicated gRPC URL : {grpc_url}")
+
     save_config(config)
     print(f"\n[OK] Configuration securely saved to: {os.path.abspath(CONFIG_FILE)}")
 
