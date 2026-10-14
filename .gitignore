@@ -2,3 +2,8 @@ Automation-Studio.code-workspace
 kill-ports.ps1
 .env
 backup.sql
+
+# Scratch & Local Scripts
+scripts/scratch/
+scripts/*.local.*
+*.scratch.*

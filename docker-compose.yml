@@ -66,6 +66,15 @@ services:
       - RabbitMQ__VirtualHost=/
       - RabbitMQ__ManagementPort=15672
       - RabbitMQ__ManagementScheme=http
+      - Jwt__Secret=${JWT_SECRET}
+      - Security__EncryptionKey=${SECURITY_ENCRYPTION_KEY}
+      - CloudflareR2__AccessKey=${CLOUDFLARE_R2_ACCESS_KEY}
+      - CloudflareR2__SecretKey=${CLOUDFLARE_R2_SECRET_KEY}
+      - CloudflareR2__ServiceUrl=${CLOUDFLARE_R2_SERVICE_URL}
+      - CloudflareR2__BucketName=${CLOUDFLARE_R2_BUCKET_NAME}
+      - CloudflareR2__PublicBaseUrl=${CLOUDFLARE_R2_PUBLIC_BASE_URL}
+      - Smtp__Password=${SMTP_PASSWORD}
+      - TickerQ__BasicAuth__Password=${TICKERQ_PASSWORD}
 
   # 5. Forgity Web UI (React + Vite + Nginx SPA)
   web:

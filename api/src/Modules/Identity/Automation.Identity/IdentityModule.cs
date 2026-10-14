@@ -23,6 +23,8 @@ public sealed class IdentityModule : IModule, IPermissionModule
         services.AddIdentityAssetSlots();
         services.AddIdentitySystemSettings();
         services.AddHostedService<Infrastructure.IdentityInitializer>();
+        services.AddScoped<Jobs.IdentityJobs>();
+        services.AddTransient<Jobs.TickerQJobs>();
 
         var jwtSettings = config.GetSection("Jwt").Get<JwtSettings>() 
                           ?? new JwtSettings();

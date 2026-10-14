@@ -60,31 +60,22 @@ export function RunnerCard({
     <Card className="flex flex-col justify-between border border-border/80 bg-card hover:border-primary/40 hover:shadow-md transition-all duration-200">
       <div>
         {/* Header */}
-        <CardHeader className="pb-3.5">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <Server className="size-5" />
+        <CardHeader className="pb-3">
+          {/* Row 1: Icon + Title on left, Online Status Badge on right */}
+          <div className="flex items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Server className="size-4.5" />
               </div>
-              <div className="min-w-0">
-                <CardTitle className="text-base font-semibold truncate tracking-tight text-foreground" title={runner.name || runner.machineKey}>
-                  {runner.name || runner.machineKey}
-                </CardTitle>
-                <CardDescription className="text-xs truncate font-mono text-muted-foreground mt-0.5 flex items-center gap-1.5">
-                  <span>{runner.osPlatform || "Windows 11 AMD64"}</span>
-                  <span>•</span>
-                  <span>{runner.machineKey.slice(0, 16)}</span>
-                  <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-mono bg-muted/50 border-border/60">
-                    v{runner.appVersion || "1.0.0"}
-                  </Badge>
-                </CardDescription>
-              </div>
+              <CardTitle className="text-sm font-semibold truncate tracking-tight text-foreground" title={runner.name || runner.machineKey}>
+                {runner.name || runner.machineKey}
+              </CardTitle>
             </div>
 
-            {/* Online Status Badge */}
+            {/* Online Status Badge (always pinned top-right) */}
             <Badge
               variant={isOnline ? "default" : "secondary"}
-              className={`shrink-0 text-[11px] font-medium py-0.5 px-2 ${
+              className={`shrink-0 h-5.5 px-2.5 gap-1.5 text-[11px] font-medium whitespace-nowrap ${
                 isOnline
                   ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
                   : "bg-muted text-muted-foreground border-border"
@@ -92,18 +83,32 @@ export function RunnerCard({
             >
               {isOnline ? (
                 <>
-                  <span className="relative flex h-2 w-2 mr-1.5">
+                  <span className="relative flex size-2 shrink-0">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    <span className="relative inline-flex rounded-full size-2 bg-emerald-500"></span>
                   </span>
                   <span>Online</span>
                 </>
               ) : (
                 <>
-                  <XCircle className="size-3 mr-1" />
+                  <XCircle className="size-3 shrink-0" />
                   <span>Offline</span>
                 </>
               )}
+            </Badge>
+          </div>
+
+          {/* Row 2: Metadata (OS, Machine Key, Version) - wraps gracefully without overflowing */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 font-mono text-[11px] text-muted-foreground">
+            <span className="truncate max-w-[140px]" title={runner.osPlatform || "Windows 11 AMD64"}>
+              {runner.osPlatform || "Windows 11 AMD64"}
+            </span>
+            <span className="text-muted-foreground/40">•</span>
+            <span className="truncate max-w-[110px]" title={runner.machineKey}>
+              {runner.machineKey.slice(0, 14)}
+            </span>
+            <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-mono bg-muted/40 border-border/60 ml-auto shrink-0">
+              v{runner.appVersion || "1.0.0"}
             </Badge>
           </div>
         </CardHeader>

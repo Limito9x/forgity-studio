@@ -20,10 +20,11 @@ public class IdentityInitializer(
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
         var permissionRegistry = scope.ServiceProvider.GetRequiredService<GlobalPermissionRegistry>();
+        var config = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
 
         await SeedRolesAsync(roleManager);
         await SeedPermissionsForSuperAdminAsync(roleManager, permissionRegistry);
-        await SeedDefaultUserAsync(userManager);
+        await SeedDefaultUserAsync(userManager, config);
     }
 
     private async Task SeedRolesAsync(RoleManager<Role> roleManager)
@@ -64,42 +65,39 @@ public class IdentityInitializer(
         }
     }
 
-    private async Task SeedDefaultUserAsync(UserManager<User> userManager)
+    private async Task SeedDefaultUserAsync(UserManager<User> userManager, Microsoft.Extensions.Configuration.IConfiguration config)
     {
-        var defaultEmail = "admin@local.com";
-        var defaultPassword = "Admin@123!";
-
-        var user = await userManager.FindByEmailAsync(defaultEmail);
-        if (user is null)
+        // 1. Kiểm tra nếu hệ thống ĐÃ CÓ ít nhất 1 Super Admin -> KHÔNG BAO GIỜ tự sinh thêm tài khoản
+        var existingAdmins = await userManager.GetUsersInRoleAsync(IdentityRoles.SuperAdmin);
+        if (existingAdmins.Count > 0)
         {
-            logger.LogInformation("Creating default super admin user.");
-            user = new User
-            {
-                UserName = defaultEmail,
-                Email = defaultEmail,
-                FirstName = "Super",
-                LastName = "Admin",
-                DisplayName = "Super Admin",
-                EmailConfirmed = true
-            };
+            return;
+        }
 
-            var result = await userManager.CreateAsync(user, defaultPassword);
-            if (result.Succeeded)
-            {
-                await userManager.AddToRoleAsync(user, IdentityRoles.SuperAdmin);
-            }
-            else
-            {
-                logger.LogError("Failed to create default user: {Errors}", string.Join(", ", result.Errors.Select(e => e.Description)));
-            }
+        // 2. Chỉ sinh tài khoản Root duy nhất 1 lần khi Database MỚI TINH (Fresh Database)
+        var defaultEmail = config["InitialAdmin:Email"] ?? "forgity.studio@gmail.com";
+        var defaultPassword = config["InitialAdmin:Password"] ?? "Admin@123!";
+
+        logger.LogInformation("Phát hiện Database mới. Khởi tạo Super Admin đầu tiên: {Email}", defaultEmail);
+        var user = new User
+        {
+            UserName = defaultEmail,
+            Email = defaultEmail,
+            FirstName = "Super",
+            LastName = "Admin",
+            DisplayName = "Super Admin",
+            EmailConfirmed = true
+        };
+
+        var result = await userManager.CreateAsync(user, defaultPassword);
+        if (result.Succeeded)
+        {
+            await userManager.AddToRoleAsync(user, IdentityRoles.SuperAdmin);
+            logger.LogInformation("Khởi tạo Super Admin thành công.");
         }
         else
         {
-            // Ensure the user is in the SuperAdmin role
-            if (!await userManager.IsInRoleAsync(user, IdentityRoles.SuperAdmin))
-            {
-                await userManager.AddToRoleAsync(user, IdentityRoles.SuperAdmin);
-            }
+            logger.LogError("Không thể tạo Super Admin ban đầu: {Errors}", string.Join(", ", result.Errors.Select(e => e.Description)));
         }
     }
 

@@ -7,6 +7,5 @@ riderModule.iml
 logs/
 Generated/
 appsettings.*.json
-appsettings.json
 /tools/
 rename-template.ps1
