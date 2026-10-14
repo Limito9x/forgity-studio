@@ -2,7 +2,7 @@ name: Build and Push Docker Images
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "develop" ]
     tags: [ "v*.*.*" ]
   workflow_dispatch:
 
@@ -66,14 +66,14 @@ jobs:
           node-version: 22
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 10
 
       - name: Install Web Dependencies and Build SPA
         working-directory: ./web
         run: |
-          pnpm install --frozen-lockfile
+          pnpm install
           pnpm build
 
       - name: Extract Docker metadata for Web
