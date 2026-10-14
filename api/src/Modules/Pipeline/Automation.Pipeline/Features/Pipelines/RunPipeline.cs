@@ -66,7 +66,8 @@ public class RunPipelineHandler(PipelineDbContext db, IMessageBus bus, IAssetApi
     )
     {
         var pipeline = await db
-            .Pipelines.Include(x => x.Nodes)
+            .Pipelines
+            .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == command.PipelineId, ct);
 
         if (pipeline == null)
@@ -81,7 +82,7 @@ public class RunPipelineHandler(PipelineDbContext db, IMessageBus bus, IAssetApi
             );
         }
 
-        if (pipeline.TriggerType != PipelineTriggerType.Manual)
+        if (!command.IsEventTrigger && pipeline.TriggerType != PipelineTriggerType.Manual)
         {
             return Result.Fail<PipelineExecutionDto>(
                 $"Pipeline '{pipeline.Name}' is configured for trigger '{pipeline.TriggerType}' and cannot be executed manually."

@@ -10,8 +10,9 @@ import {
   Clock,
   Layers,
   XCircle,
+  ArrowUpCircle,
 } from "lucide-react";
-import type { RunnerDto } from "../types";
+import type { RunnerDto, RunnerDiskInfo } from "../types";
 import {
   formatBytes,
   formatCpuModel,
@@ -26,6 +27,8 @@ interface RunnerCardProps {
   isRescanning?: boolean;
   onScanSoftware?: (runnerId: string) => void;
   isScanningSoftware?: boolean;
+  onUpgradeRunner?: (runnerId: string) => void;
+  isUpgrading?: boolean;
 }
 
 export function RunnerCard({
@@ -34,6 +37,8 @@ export function RunnerCard({
   isRescanning = false,
   onScanSoftware,
   isScanningSoftware = false,
+  onUpgradeRunner,
+  isUpgrading = false,
 }: RunnerCardProps) {
   const isOnline = runner.isOnline ?? true;
 
@@ -49,7 +54,7 @@ export function RunnerCard({
 
   const ramText = runner.totalRamBytes ? formatBytes(runner.totalRamBytes) : null;
 
-  const disks = runner.hardwareDetails?.disks ?? [];
+  const disks = (runner.hardwareDetails?.disks ?? []) as RunnerDiskInfo[];
 
   return (
     <Card className="flex flex-col justify-between border border-border/80 bg-card hover:border-primary/40 hover:shadow-md transition-all duration-200">
@@ -65,8 +70,13 @@ export function RunnerCard({
                 <CardTitle className="text-base font-semibold truncate tracking-tight text-foreground" title={runner.name || runner.machineKey}>
                   {runner.name || runner.machineKey}
                 </CardTitle>
-                <CardDescription className="text-xs truncate font-mono text-muted-foreground mt-0.5">
-                  {runner.osPlatform || "Windows 11 AMD64"} • {runner.machineKey.slice(0, 16)}
+                <CardDescription className="text-xs truncate font-mono text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                  <span>{runner.osPlatform || "Windows 11 AMD64"}</span>
+                  <span>•</span>
+                  <span>{runner.machineKey.slice(0, 16)}</span>
+                  <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-mono bg-muted/50 border-border/60">
+                    v{runner.appVersion || "1.0.0"}
+                  </Badge>
                 </CardDescription>
               </div>
             </div>
@@ -219,6 +229,21 @@ export function RunnerCard({
               <Layers className={`size-3.5 ${isScanningSoftware ? "animate-spin" : ""}`} />
               <span>Software</span>
             </Button>
+          )}
+
+          {onUpgradeRunner && isOnline && (
+            <span title="Remote in-place upgrade runner daemon">
+              <Button
+                variant="ghost"
+                size="sm"
+                onPress={() => onUpgradeRunner(runner.id)}
+                isDisabled={isUpgrading}
+                className="h-7 px-2 text-[11px] gap-1 cursor-pointer text-primary hover:text-primary hover:bg-primary/10"
+              >
+                <ArrowUpCircle className={`size-3.5 ${isUpgrading ? "animate-spin" : ""}`} />
+                <span>Update</span>
+              </Button>
+            </span>
           )}
 
           {onRescanHardware && (

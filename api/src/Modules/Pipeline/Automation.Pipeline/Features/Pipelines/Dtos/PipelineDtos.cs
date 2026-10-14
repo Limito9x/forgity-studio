@@ -22,7 +22,8 @@ public record RunPipelineRequest(Dictionary<string, object?>? RuntimeInputs = nu
 
 public record RunPipelineCommand(
     Guid PipelineId,
-    Dictionary<string, object?>? RuntimeInputs = null
+    Dictionary<string, object?>? RuntimeInputs = null,
+    bool IsEventTrigger = false
 );
 
 public record TriggerPipelineExecutionMessage(
@@ -110,7 +111,8 @@ public record PipelineFileAssetDto(
     string? OriginalName,
     string? ContentType,
     long? SizeBytes,
-    string Status
+    string Status,
+    string? HashSha256 = null
 );
 
 public record PipelineEdgeGraphDto(
@@ -166,7 +168,8 @@ public record SavePipelineNodeItem(
     Guid? ParentId = null,
     float? Width = null,
     float? Height = null,
-    Dictionary<string, object?>? Metadata = null
+    Dictionary<string, object?>? Metadata = null,
+    NodePosition? Position = null
 );
 
 public record SavePipelineEdgeItem(

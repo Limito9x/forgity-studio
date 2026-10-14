@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import subprocess
+import sys
 import uuid
 from core.runtime_storage import settings
 from abc import ABC, abstractmethod
@@ -153,6 +154,8 @@ class BaseSubprocessExecutor(BaseExecutor):
         stdout_lines: List[str] = []
         step_results: List[StepResult] = []
 
+        creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
         try:
             proc = subprocess.Popen(
                 command,
@@ -160,6 +163,7 @@ class BaseSubprocessExecutor(BaseExecutor):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT if merge_stderr else subprocess.PIPE,
                 env=env,
+                creationflags=creationflags,
             )
 
             if stdin_payload is not None and proc.stdin:

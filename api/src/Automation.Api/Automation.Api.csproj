@@ -6,7 +6,20 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <InvariantGlobalization>true</InvariantGlobalization>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+        <!-- Enable Containerize -->
+        <EnableSdkContainerSupport>true</EnableSdkContainerSupport>
+        <!-- Image Name -->
+        <ContainerRepository>forgity-api</ContainerRepository>
+        <ContainerImageTags>latest;1.0.0</ContainerImageTags>
+        <!-- Base Image (Chiseled Ubuntu - no shell, super secure, ~50MB) -->
+        <ContainerBaseImage>mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled</ContainerBaseImage>
     </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Expose ports for HTTP and gRPC -->
+        <ContainerPort Include="5189" Type="tcp" />
+        <ContainerPort Include="50051" Type="tcp" />
+    </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="FastEndpoints.OpenApi" Version="8.2.0" />

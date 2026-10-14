@@ -1,9 +1,13 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\Automation.Files.Contracts\Automation.Files.Contracts.csproj" />
+    <ProjectReference Include="..\..\Studio\Automation.Studio.Contracts\Automation.Studio.Contracts.csproj" />
+    <ProjectReference Include="..\..\System\Automation.System.Contracts\Automation.System.Contracts.csproj" />
+    <ProjectReference Include="..\..\Notifications\Automation.Notifications.Contracts\Automation.Notifications.Contracts.csproj" />
     <ProjectReference Include="..\..\..\SharedKernel\Automation.SharedKernel\Automation.SharedKernel.csproj" />
   </ItemGroup>
+
 
   <ItemGroup>
     <PackageReference Include="AWSSDK.S3" Version="4.0.101.5" />

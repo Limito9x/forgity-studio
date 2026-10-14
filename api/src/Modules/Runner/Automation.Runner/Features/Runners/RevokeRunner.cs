@@ -1,4 +1,6 @@
 using Automation.Runner.Infrastructure.Persistence;
+using Automation.SharedKernel.Infrastructure.RabbitMq;
+using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
 
 namespace Automation.Runner.Features.Runners;
@@ -23,7 +25,11 @@ public class RevokeRunnerEndpoint(IMessageBus bus) : EndpointWithoutRequest
 }
 
 [Transactional(typeof(RunnerDbContext))]
-public class RevokeRunnerHandler(RunnerDbContext db)
+public class RevokeRunnerHandler(
+    RunnerDbContext db,
+    IRabbitMqProvisioningService? provisioningService = null,
+    ILogger<RevokeRunnerHandler>? logger = null
+)
 {
     public async Task<Result> HandleAsync(RevokeRunnerCommand command, CancellationToken ct)
     {
@@ -33,6 +39,21 @@ public class RevokeRunnerHandler(RunnerDbContext db)
 
         runner.IsActive = false;
         await db.SaveChangesAsync(ct);
+
+        if (provisioningService != null)
+        {
+            var dynamicUsername = $"rn_{runner.Id:N}";
+            var revokeResult = await provisioningService.RevokeRunnerUserAsync(dynamicUsername, ct);
+            if (revokeResult.IsFailed)
+            {
+                logger?.LogWarning(
+                    "Failed to revoke RabbitMQ user '{Username}' for revoked runner {RunnerId}: {Error}",
+                    dynamicUsername,
+                    runner.Id,
+                    string.Join("; ", revokeResult.Errors.Select(e => e.Message))
+                );
+            }
+        }
 
         return Result.Ok();
     }

@@ -19,6 +19,7 @@ import {
   Layers,
   ArrowUpCircle,
   Search,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -76,11 +77,16 @@ export function LocalChangesTable({
     });
   }, [items, filterStatus, searchTerm]);
 
+  const selectableItems = useMemo(
+    () => filteredItems.filter((i) => !i.isLockedByOther),
+    [filteredItems]
+  );
+
   const isAllSelected =
-    filteredItems.length > 0 &&
-    filteredItems.every((i) => selectedPaths.has(i.relativePath));
+    selectableItems.length > 0 &&
+    selectableItems.every((i) => selectedPaths.has(i.relativePath));
   const isSomeSelected =
-    filteredItems.some((i) => selectedPaths.has(i.relativePath)) &&
+    selectableItems.some((i) => selectedPaths.has(i.relativePath)) &&
     !isAllSelected;
 
   const filterTabs: Array<{ id: "all" | DiffStatus; label: string; count: number }> = [
@@ -166,15 +172,23 @@ export function LocalChangesTable({
             )}
           >
             {filteredItems.map((item) => {
-              const isSelected = selectedPaths.has(item.relativePath);
+              const isLocked = !!item.isLockedByOther;
+              const isSelected = !isLocked && selectedPaths.has(item.relativePath);
 
               return (
                 <TableRow
                   key={item.relativePath}
                   id={item.relativePath}
                   data-selected={isSelected}
-                  onClick={() => onToggleSelect(item.relativePath)}
-                  className="cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() => {
+                    if (!isLocked) onToggleSelect(item.relativePath);
+                  }}
+                  className={cn(
+                    "transition-colors",
+                    isLocked
+                      ? "opacity-60 bg-muted/20 cursor-not-allowed"
+                      : "cursor-pointer hover:bg-muted/30"
+                  )}
                 >
                   {/* Selection Checkbox */}
                   <TableCell
@@ -185,7 +199,10 @@ export function LocalChangesTable({
                     <Checkbox
                       slot="selection"
                       isSelected={isSelected}
-                      onChange={() => onToggleSelect(item.relativePath)}
+                      isDisabled={isLocked}
+                      onChange={() => {
+                        if (!isLocked) onToggleSelect(item.relativePath);
+                      }}
                       aria-label={`Select ${item.name}`}
                     />
                   </TableCell>
@@ -193,7 +210,10 @@ export function LocalChangesTable({
                   {/* File Path */}
                   <TableCell>
                     <div className="min-w-0 py-1">
-                      <div className="font-medium text-foreground truncate">{item.name}</div>
+                      <div className="flex items-center gap-1.5 font-medium text-foreground truncate">
+                        {isLocked && <Lock className="size-3 text-rose-500 shrink-0" />}
+                        <span className="truncate">{item.name}</span>
+                      </div>
                       <div
                         className="font-mono text-[11px] text-muted-foreground truncate"
                         title={item.relativePath}
@@ -205,30 +225,40 @@ export function LocalChangesTable({
 
                   {/* Status Badge */}
                   <TableCell>
-                    {item.status === "added" && (
-                      <Badge
-                        variant="outline"
-                        className="text-emerald-500 border-emerald-500/30 bg-emerald-500/10 text-[10px] gap-1 font-mono"
-                      >
-                        <FilePlus className="size-3" /> New
-                      </Badge>
-                    )}
-                    {item.status === "modified" && (
-                      <Badge
-                        variant="outline"
-                        className="text-amber-500 border-amber-500/30 bg-amber-500/10 text-[10px] gap-1 font-mono"
-                      >
-                        <FileEdit className="size-3" /> Modified
-                      </Badge>
-                    )}
-                    {(item.status === "missing" || item.status === "deleted") && (
-                      <Badge
-                        variant="outline"
-                        className="text-rose-500 border-rose-500/30 bg-rose-500/10 text-[10px] gap-1 font-mono"
-                      >
-                        <FileMinus className="size-3" /> Missing
-                      </Badge>
-                    )}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {item.status === "added" && (
+                        <Badge
+                          variant="outline"
+                          className="text-emerald-500 border-emerald-500/30 bg-emerald-500/10 text-[10px] gap-1 font-mono"
+                        >
+                          <FilePlus className="size-3" /> New
+                        </Badge>
+                      )}
+                      {item.status === "modified" && (
+                        <Badge
+                          variant="outline"
+                          className="text-amber-500 border-amber-500/30 bg-amber-500/10 text-[10px] gap-1 font-mono"
+                        >
+                          <FileEdit className="size-3" /> Modified
+                        </Badge>
+                      )}
+                      {(item.status === "missing" || item.status === "deleted") && (
+                        <Badge
+                          variant="outline"
+                          className="text-rose-500 border-rose-500/30 bg-rose-500/10 text-[10px] gap-1 font-mono"
+                        >
+                          <FileMinus className="size-3" /> Missing
+                        </Badge>
+                      )}
+                      {isLocked && (
+                        <Badge
+                          variant="outline"
+                          className="text-rose-500 border-rose-500/30 bg-rose-500/10 text-[10px] gap-1 font-mono"
+                        >
+                          <Lock className="size-2.5" /> Locked by {item.lockedByRunnerName || "Other Machine"}
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
 
                   {/* File Size */}
@@ -240,16 +270,23 @@ export function LocalChangesTable({
 
                   {/* Planned Action */}
                   <TableCell>
-                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                      <ArrowUpCircle className="size-3.5 text-primary/70 shrink-0" />
-                      <span className="truncate">
-                        {item.status === "added"
-                          ? "Add & create initial version"
-                          : item.status === "modified"
-                          ? "Upload new version revision"
-                          : "Mark deleted from local runner"}
-                      </span>
-                    </div>
+                    {isLocked ? (
+                      <div className="flex items-center gap-1.5 text-[11px] text-rose-500 font-medium">
+                        <Lock className="size-3.5 text-rose-500 shrink-0" />
+                        <span className="truncate">Locked by another runner (Cannot register)</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <ArrowUpCircle className="size-3.5 text-primary/70 shrink-0" />
+                        <span className="truncate">
+                          {item.status === "added"
+                            ? "Register as new Draft"
+                            : item.status === "modified"
+                            ? "Update Draft in-place"
+                            : "Mark deleted from local runner"}
+                        </span>
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               );

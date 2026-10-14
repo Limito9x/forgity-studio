@@ -3,7 +3,6 @@ import { createMutationHook } from "@/lib/query-utils";
 import * as RunnersApi from "@/gen/endpoints/runners/runners";
 import type {
   RunnerDto,
-  RunnerDto2,
   RunnerHardwareProfile,
   RunnerGpuInfo,
   RunnerDiskInfo,
@@ -16,7 +15,6 @@ import type { DiscoverRunnerFoldersParams } from "@/gen/model";
 
 export type {
   RunnerDto,
-  RunnerDto2,
   RunnerHardwareProfile,
   RunnerGpuInfo,
   RunnerDiskInfo,

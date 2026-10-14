@@ -12,6 +12,12 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
         Exception exception,
         CancellationToken cancellationToken)
     {
+        if (exception is OperationCanceledException)
+        {
+            logger.LogInformation("Request was cancelled by the client or timed out gracefully.");
+            return true;
+        }
+
         logger.LogError(exception, "Unhandled exception occurred: {Message}", exception.Message);
 
         var problemDetails = new ProblemDetails

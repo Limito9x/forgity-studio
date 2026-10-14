@@ -137,8 +137,8 @@ export function PipelineStartNodeInspector({
             </SelectTrigger>
             <SelectContent>
               <SelectItem id="0">Manual / API Trigger</SelectItem>
-              <SelectItem id="1">Repository: On Resource Created</SelectItem>
-              <SelectItem id="2">Repository: On Resource Version Updated</SelectItem>
+              <SelectItem id="1">Repository: On Resource / Draft Created</SelectItem>
+              {/* Tạm ẩn option 2 (On Resource Version Updated / Published) để nghiên cứu thêm */}
             </SelectContent>
           </Select>
         </div>

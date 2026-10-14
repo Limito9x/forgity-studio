@@ -74,6 +74,11 @@ public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi, IRun
             .Distinct()
             .ToList();
 
+        if (resource.LockedByRunnerId.HasValue && !allRunnerIds.Contains(resource.LockedByRunnerId.Value))
+        {
+            allRunnerIds.Add(resource.LockedByRunnerId.Value);
+        }
+
         IReadOnlyDictionary<Guid, RunnerDto> runnerMap = new Dictionary<Guid, RunnerDto>();
         if (allRunnerIds.Count > 0)
         {
@@ -133,12 +138,19 @@ public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi, IRun
                     v.FileHash,
                     v.Notes,
                     v.CreatedAt,
+                    v.Status,
                     v.Metadata,
                     tagsByPath,
                     locationDtos
                 );
             })
             .ToList();
+
+        string? lockedRunnerName = null;
+        if (resource.LockedByRunnerId.HasValue && runnerMap.TryGetValue(resource.LockedByRunnerId.Value, out var lockedRunner))
+        {
+            lockedRunnerName = lockedRunner.Name;
+        }
 
         var dto = new ResourceItemDto(
             resource.Id,
@@ -149,7 +161,11 @@ public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi, IRun
             resource.Extension,
             resource.ContentId,
             resource.CreatedAt,
-            versionDtos
+            versionDtos,
+            resource.IsLocked,
+            resource.LockedByRunnerId,
+            lockedRunnerName,
+            resource.LockedAt
         );
 
         return Result.Ok(dto);

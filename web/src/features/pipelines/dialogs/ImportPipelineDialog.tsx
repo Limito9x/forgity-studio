@@ -225,6 +225,20 @@ export function ImportPipelineDialog({
               </div>
             )}
 
+            {/* Validation Warnings Alert (if any) */}
+            {Boolean((validationResult as any).validationWarnings?.length) && (
+              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex flex-col gap-1">
+                <div className="font-semibold flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+                  <AlertTriangle className="w-4 h-4" /> Package Warnings
+                </div>
+                <ul className="list-disc list-inside space-y-0.5">
+                  {((validationResult as any).validationWarnings as string[]).map((warn, i) => (
+                    <li key={i}>{warn}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* Name Prefix Option */}
             <div className="flex items-center gap-3 bg-card p-3 rounded-lg border">
               <div className="text-xs font-medium min-w-[120px]">
@@ -318,6 +332,10 @@ export function ImportPipelineDialog({
                       {s.alreadyExists ? (
                         <Badge variant="secondary" className="text-[10px] h-4 py-0 text-emerald-600 bg-emerald-50 border-emerald-200">
                           <CheckCircle2 className="w-3 h-3 mr-1" /> Reused
+                        </Badge>
+                      ) : (s as any).hasScriptContent === false ? (
+                        <Badge variant="outline" className="text-[10px] h-4 py-0 text-amber-600 bg-amber-500/10 border-amber-500/30">
+                          <AlertTriangle className="w-3 h-3 mr-1" /> Missing Code
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="text-[10px] h-4 py-0 text-primary border-primary/30">

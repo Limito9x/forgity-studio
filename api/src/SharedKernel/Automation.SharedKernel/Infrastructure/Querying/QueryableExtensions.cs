@@ -119,10 +119,21 @@ public static class QueryableExtensions
 
         var totalCount = await filteredQuery.CountAsync(ct);
 
-        var items = await filteredQuery
-            .ApplyPaging(gq.Page, gq.PageSize)
-            .ProjectToType<TDestination>()
-            .ToListAsync(ct);
+        List<TDestination> items;
+        if (typeof(TEntity) == typeof(TDestination))
+        {
+            var entityItems = await filteredQuery
+                .ApplyPaging(gq.Page, gq.PageSize)
+                .ToListAsync(ct);
+            items = (List<TDestination>)(object)entityItems;
+        }
+        else
+        {
+            items = await filteredQuery
+                .ApplyPaging(gq.Page, gq.PageSize)
+                .ProjectToType<TDestination>()
+                .ToListAsync(ct);
+        }
 
         return Result.Ok(PagedResult<TDestination>.From(items, totalCount, actualPage, actualPageSize));
     }

@@ -2,6 +2,8 @@ namespace Automation.Files.Domain.Entities;
 
 public class Asset : AuditableEntity
 {
+    public Guid? StorageProfileId { get; set; }
+    public StorageProfile? StorageProfile { get; set; }
     public string StoragePath { get; set; } = string.Empty;
 
     public long SizeBytes { get; set; }
@@ -16,13 +18,14 @@ public class Asset : AuditableEntity
 
     public Asset() { }
 
-    public Asset(string storagePath, long sizeBytes, string contentType, string extension, string hashSha256)
+    public Asset(string storagePath, long sizeBytes, string contentType, string extension, string hashSha256, Guid? storageProfileId = null)
     {
         StoragePath = storagePath;
         SizeBytes = sizeBytes;
         ContentType = contentType;
         Extension = extension;
         HashSha256 = hashSha256;
+        StorageProfileId = storageProfileId;
         IsConfirmed = false;
     }
 

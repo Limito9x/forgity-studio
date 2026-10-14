@@ -1,3 +1,4 @@
+using Automation.Repository.Domain.Enums;
 using Automation.Runner.Contracts;
 
 namespace Automation.Repository.Shared.Dtos;
@@ -41,7 +42,11 @@ public record ResourceItemDto(
     string? Extension,
     Guid? ContentId,
     DateTimeOffset CreatedAt,
-    IReadOnlyList<ResourceVersionDto>? Versions = null
+    IReadOnlyList<ResourceVersionDto>? Versions = null,
+    bool IsLocked = false,
+    Guid? LockedByRunnerId = null,
+    string? LockedByRunnerName = null,
+    DateTimeOffset? LockedAt = null
 )
 {
     public Guid WorkspaceId => RepositoryId;
@@ -67,10 +72,7 @@ public record ResourceVersionLocationDto(
     string? MachineKey = null,
     string? RunnerName = null,
     string? RootPath = null
-)
-{
-    public Guid WorkspaceAgentId => RepositoryRunnerId;
-}
+);
 
 public record ScannedFileItemDto(string RelativePath, string Hash, long SizeBytes);
 
@@ -109,7 +111,12 @@ public record WorkspaceResourceDto(
     int VersionCount,
     DateTimeOffset CreatedAt,
     Guid? LatestVersionId = null,
-    int? LatestVersionNo = null
+    int? LatestVersionNo = null,
+    ResourceVersionStatus? LatestVersionStatus = null,
+    bool IsLocked = false,
+    Guid? LockedByRunnerId = null,
+    string? LockedByRunnerName = null,
+    DateTimeOffset? LockedAt = null
 );
 
 public record WorkspaceAgentResourceDto(
@@ -133,10 +140,14 @@ public record ResourceVersionDto(
     string FileHash,
     string? Notes,
     DateTimeOffset CreatedAt,
+    ResourceVersionStatus Status = ResourceVersionStatus.Draft,
     System.Text.Json.JsonDocument? Metadata = null,
     IReadOnlyDictionary<string, IReadOnlyList<Automation.Tag.Contracts.Dtos.TagLinkDetailDto>>? TagsByPath = null,
-    IReadOnlyList<ResourceVersionLocationDto>? Locations = null
+    IReadOnlyList<ResourceVersionLocationDto>? Locations = null,
+    Guid? AssetLinkId = null,
+    bool IsCloudSynced = false
 );
+
 
 public record ResourceDiffItem(
     string RelativePath,
@@ -144,7 +155,11 @@ public record ResourceDiffItem(
     string? LocalHash,
     long? LocalFileSize,
     string Extension,
-    ResourceVersionDto? RemoteVersion
+    ResourceVersionDto? RemoteVersion,
+    bool IsLockedByOther = false,
+    Guid? LockedByRunnerId = null,
+    string? LockedByRunnerName = null,
+    DateTimeOffset? LockedAt = null
 );
 
 public record DiffResult(

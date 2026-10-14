@@ -3,9 +3,17 @@ import time
 import logging
 from core.grpc_client import get_channel
 from core.config import get_config
+from core.version import get_worker_version
 from core import agent_pb2
 from core import agent_pb2_grpc
-from handlers import handle_browse, handle_scan_executors, handle_scan_sync, handle_scan_hardware
+from handlers import (
+    handle_browse,
+    handle_scan_executors,
+    handle_scan_sync,
+    handle_scan_hardware,
+    handle_upload,
+    handle_update,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -13,10 +21,11 @@ logger = logging.getLogger(__name__)
 def generate_messages(agent_id: str, msg_queue: queue.Queue):
     """
     Generator yielding outgoing messages to the backend gRPC stream.
-    The first message registers the agent_id with the backend ConnectionRegistry.
+    The first message registers the agent_id with the backend ConnectionRegistry and reports app_version.
     Subsequent messages are yielded from the response queue as commands complete.
     """
-    yield agent_pb2.AgentMessage(agent_id=agent_id)
+    version = get_worker_version()
+    yield agent_pb2.AgentMessage(agent_id=agent_id, app_version=version)
 
     while True:
         try:
@@ -41,9 +50,15 @@ def handle_server_message(agent_id: str, server_msg: agent_pb2.ServerMessage, ms
         response = handle_scan_sync(server_msg.scan_command)
     elif payload_case == "scan_hardware_command":
         response = handle_scan_hardware(server_msg.scan_hardware_command)
+    elif payload_case == "upload_files_command":
+        response = handle_upload(server_msg.upload_files_command)
+    elif payload_case == "update_runner_command":
+        response = handle_update(server_msg.update_runner_command)
     else:
+
         logger.warning(f"Received unknown server payload case: '{payload_case}'")
         return
+
 
 
     if response is not None:

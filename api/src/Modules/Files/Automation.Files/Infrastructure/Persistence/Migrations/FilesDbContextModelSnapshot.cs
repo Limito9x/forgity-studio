@@ -65,6 +65,9 @@ namespace Automation.Files.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<Guid?>("StorageProfileId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -73,11 +76,17 @@ namespace Automation.Files.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("HashSha256")
+                    b.HasIndex("StorageProfileId");
+
+                    b.HasIndex("HashSha256", "StorageProfileId")
                         .IsUnique();
 
-                    b.HasIndex("StoragePath")
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("HashSha256", "StorageProfileId"), false);
+
+                    b.HasIndex("StoragePath", "StorageProfileId")
                         .IsUnique();
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("StoragePath", "StorageProfileId"), false);
 
                     b.ToTable("Assets", "files");
                 });
@@ -133,6 +142,76 @@ namespace Automation.Files.Infrastructure.Persistence.Migrations
                     b.HasIndex("OwnerEntityType", "OwnerEntityId", "SlotKey");
 
                     b.ToTable("AssetLinks", "files");
+                });
+
+            modelBuilder.Entity("Automation.Files.Domain.Entities.StorageProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AccessKey")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("BucketName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("ProviderType")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PublicBaseUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Region")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("SecretKey")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ServiceUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<long?>("StorageQuotaBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("StudioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StudioId");
+
+                    b.HasIndex("StudioId", "IsDefault");
+
+                    b.ToTable("StorageProfiles", "files");
                 });
 
             modelBuilder.Entity("Wolverine.EntityFrameworkCore.Internals.IncomingMessage", b =>
@@ -225,6 +304,16 @@ namespace Automation.Files.Infrastructure.Persistence.Migrations
                         {
                             t.ExcludeFromMigrations();
                         });
+                });
+
+            modelBuilder.Entity("Automation.Files.Domain.Entities.Asset", b =>
+                {
+                    b.HasOne("Automation.Files.Domain.Entities.StorageProfile", "StorageProfile")
+                        .WithMany()
+                        .HasForeignKey("StorageProfileId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("StorageProfile");
                 });
 
             modelBuilder.Entity("Automation.Files.Domain.Entities.AssetLink", b =>

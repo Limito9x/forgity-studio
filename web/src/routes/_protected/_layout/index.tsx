@@ -13,9 +13,17 @@ export const Route = createFileRoute('/_protected/_layout/')({
           const target = studios[0];
           setCurrentStudio(target);
           slug = target.slug;
+        } else if (Array.isArray(studios) && studios.length === 0) {
+          throw redirect({ to: '/onboarding' });
         }
-      } catch {
-        throw redirect({ to: '/onboarding' });
+      } catch (err) {
+        // If it's a TanStack Router redirect, let it pass through
+        if (err && typeof err === 'object' && 'to' in err) {
+          throw err;
+        }
+        // If it's an API/network error, do not redirect to onboarding.
+        // Protected layout will render ServerTroubleScreen.
+        return;
       }
     }
 
@@ -25,8 +33,6 @@ export const Route = createFileRoute('/_protected/_layout/')({
         params: { studioSlug: slug },
       });
     }
-
-    throw redirect({ to: '/onboarding' });
   },
   component: () => null,
 })

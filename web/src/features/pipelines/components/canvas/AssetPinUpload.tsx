@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { Upload, FileCode, Loader2, X } from "lucide-react";
+import { Upload, FileCode, Loader2, X, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePipelineFileUpload } from "../../hooks/usePipelineFileUpload";
 import type { PipelineFileParameterValue, PipelineFileParameterDraft } from "../../types/file-parameter";
@@ -30,10 +30,26 @@ export function AssetPinUpload({
   const isUploading = upload.isPending;
   const uploadError = upload.error?.message;
   const isDraft = !!value && typeof value === "object" && "assetId" in value;
-  const fileName = !value ? undefined : isDraft ? (value as PipelineFileParameterDraft).originalName :
-    fileAsset?.originalName || (value === upload.data?.assetId ? upload.data?.originalName : undefined);
-  const isAvailable = !!value && typeof value === "object" && "assetLinkId" in value &&
-    fileAsset?.assetLinkId === value.assetLinkId && fileAsset.status === "Available";
+  const isUnbound =
+    fileAsset?.status === "Unbound" ||
+    (!!value && typeof value === "object" && "status" in value && (value as any).status === "unbound");
+  const unboundName =
+    value && typeof value === "object" && "originalFileName" in value
+      ? (value as any).originalFileName
+      : fileAsset?.originalName;
+  const fileName = !value
+    ? undefined
+    : isDraft
+    ? (value as PipelineFileParameterDraft).originalName
+    : isUnbound
+    ? unboundName
+    : fileAsset?.originalName || (value === upload.data?.assetId ? upload.data?.originalName : undefined);
+  const isAvailable =
+    !!value &&
+    typeof value === "object" &&
+    "assetLinkId" in value &&
+    fileAsset?.assetLinkId === value.assetLinkId &&
+    fileAsset.status === "Available";
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -55,15 +71,43 @@ export function AssetPinUpload({
       />
 
       {value || fileName ? (
-        <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-primary/30 bg-primary/5 text-xs">
+        <div
+          className={cn(
+            "flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-xs",
+            isUnbound
+              ? "border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200"
+              : "border border-primary/30 bg-primary/5"
+          )}
+        >
           <div className="flex items-center gap-2 min-w-0">
-            <FileCode className="h-4 w-4 text-primary shrink-0" />
+            {isUnbound ? (
+              <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+            ) : (
+              <FileCode className="h-4 w-4 text-primary shrink-0" />
+            )}
             <div className="min-w-0">
               <span className="block font-medium text-foreground truncate">
                 {fileName || "File needs to be relinked"}
               </span>
-              <span className="block text-[10px] text-emerald-600 dark:text-emerald-400 font-mono">
-                {isUploading ? "Uploading..." : isDraft ? "Uploaded · waiting to save" : !persistAsLink ? "Uploaded" : isAvailable ? "Saved" : "Upload the file again"}
+              <span
+                className={cn(
+                  "block text-[10px] font-mono",
+                  isUnbound
+                    ? "text-amber-600 dark:text-amber-400 font-medium"
+                    : "text-emerald-600 dark:text-emerald-400"
+                )}
+              >
+                {isUploading
+                  ? "Uploading..."
+                  : isDraft
+                  ? "Uploaded · waiting to save"
+                  : isUnbound
+                  ? "Missing file · Please re-upload"
+                  : !persistAsLink
+                  ? "Uploaded"
+                  : isAvailable
+                  ? "Saved"
+                  : "Upload the file again"}
               </span>
             </div>
           </div>

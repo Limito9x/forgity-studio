@@ -1,4 +1,4 @@
-import os
+﻿import os
 import shutil
 import hashlib
 import re
@@ -70,38 +70,49 @@ def resolve_script_path(
     if os.path.isabs(script_path):
         candidates = [script_path, script_path + ".py"]
     else:
-        scripts_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "worker", "scripts")
+        workers_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        pipelines_dir = os.path.join(workers_root, "pipelines")
+        legacy_scripts_dir = os.path.join(workers_root, "worker", "scripts")
         clean_name = script_path if not script_path.endswith(".py") else script_path[:-3]
         
         candidates = [
-            os.path.join(scripts_dir, script_path),
-            os.path.join(scripts_dir, f"{clean_name}.py"),
-            os.path.join(scripts_dir, "pipeline", script_path),
-            os.path.join(scripts_dir, "pipeline", f"{clean_name}.py"),
-            os.path.join(scripts_dir, "pipeline", "blender", script_path),
-            os.path.join(scripts_dir, "pipeline", "blender", f"{clean_name}.py"),
-            os.path.join(scripts_dir, "pipeline", "daz", script_path),
-            os.path.join(scripts_dir, "pipeline", "daz", f"{clean_name}.py"),
-            os.path.join(scripts_dir, "inspectors", script_path),
-            os.path.join(scripts_dir, "inspectors", f"{clean_name}.py"),
-            os.path.join(scripts_dir, "inspectors", "blender", script_path),
-            os.path.join(scripts_dir, "inspectors", "blender", f"{clean_name}.py"),
-            os.path.join(scripts_dir, "inspectors", "daz", script_path),
-            os.path.join(scripts_dir, "inspectors", "daz", f"{clean_name}.py"),
+            # 1. Flat pipelines directory (Blender, Unreal, Daz, Inspectors, AI)
+            os.path.join(pipelines_dir, script_path),
+            os.path.join(pipelines_dir, f"{clean_name}.py"),
+            os.path.join(pipelines_dir, "blender", script_path),
+            os.path.join(pipelines_dir, "blender", f"{clean_name}.py"),
+            os.path.join(pipelines_dir, "unreal", script_path),
+            os.path.join(pipelines_dir, "unreal", f"{clean_name}.py"),
+            os.path.join(pipelines_dir, "daz", script_path),
+            os.path.join(pipelines_dir, "daz", f"{clean_name}.py"),
+            os.path.join(pipelines_dir, "inspectors", script_path),
+            os.path.join(pipelines_dir, "inspectors", f"{clean_name}.py"),
+            os.path.join(pipelines_dir, "inspectors", "blender", script_path),
+            os.path.join(pipelines_dir, "inspectors", "blender", f"{clean_name}.py"),
+            os.path.join(pipelines_dir, "inspectors", "daz", script_path),
+            os.path.join(pipelines_dir, "inspectors", "daz", f"{clean_name}.py"),
+            os.path.join(pipelines_dir, "ai", script_path),
+            os.path.join(pipelines_dir, "ai", f"{clean_name}.py"),
+            # 2. Legacy / Guest runner directory fallback
+            os.path.join(legacy_scripts_dir, script_path),
+            os.path.join(legacy_scripts_dir, f"{clean_name}.py"),
         ]
 
     for cand in candidates:
         if os.path.exists(cand):
             return os.path.abspath(cand)
 
-    # Recursive fallback search by filename inside worker/scripts/
-    scripts_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "worker", "scripts")
+    # Recursive fallback search by filename inside pipelines/ and worker/scripts/
     target_filename = os.path.basename(script_path)
     if not target_filename.endswith(".py"):
         target_filename += ".py"
-    for root, _, files in os.walk(scripts_dir):
-        if target_filename in files:
-            return os.path.abspath(os.path.join(root, target_filename))
+
+    workers_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for search_dir in [os.path.join(workers_root, "pipelines"), os.path.join(workers_root, "worker", "scripts")]:
+        if os.path.isdir(search_dir):
+            for root, _, files in os.walk(search_dir):
+                if target_filename in files:
+                    return os.path.abspath(os.path.join(root, target_filename))
 
     return ""
 

@@ -14,6 +14,11 @@ export interface MultipleAssetUploadResult {
   asset: ConfirmAssetDto;
 }
 
+export interface AssetUploadOptions {
+  storageProfileId?: string | null;
+  projectId?: string | null;
+}
+
 /**
  * Calculates the SHA-256 hash of a File or Blob as a hex string.
  */
@@ -31,7 +36,10 @@ export async function calculateFileHash(file: File | Blob): Promise<string> {
  * Orchestrates the full presigned URL upload flow for a single file.
  * Returns the confirmed AssetId on success.
  */
-export async function uploadAssetFlow(file: File): Promise<string> {
+export async function uploadAssetFlow(
+  file: File,
+  options?: AssetUploadOptions | string
+): Promise<string> {
   // 1. Calculate file hash
   const hashSha256 = await calculateFileHash(file);
 
@@ -48,8 +56,13 @@ export async function uploadAssetFlow(file: File): Promise<string> {
       ? "application/json"
       : "application/octet-stream");
 
+  const resolvedStorageProfileId =
+    typeof options === "string" ? options : options?.storageProfileId;
+  const resolvedProjectId =
+    typeof options === "object" ? options?.projectId : undefined;
+
   // 3. Request upload
-  const requestPayload = {
+  const requestPayload: any = {
     items: [
       {
         hashSha256,
@@ -59,6 +72,13 @@ export async function uploadAssetFlow(file: File): Promise<string> {
       },
     ],
   };
+
+  if (resolvedStorageProfileId) {
+    requestPayload.storageProfileId = resolvedStorageProfileId;
+  }
+  if (resolvedProjectId) {
+    requestPayload.projectId = resolvedProjectId;
+  }
 
   const uploadRequests = await requestUpload(requestPayload);
   if (!uploadRequests || uploadRequests.length === 0) {
@@ -90,7 +110,8 @@ export async function uploadAssetFlow(file: File): Promise<string> {
  * - Returns array of items containing key, assetId, publicUrl, and asset details.
  */
 export async function uploadMultipleAssetsFlow(
-  items: MultipleAssetUploadPayload[]
+  items: MultipleAssetUploadPayload[],
+  options?: AssetUploadOptions | string
 ): Promise<MultipleAssetUploadResult[]> {
   if (!items || items.length === 0) return [];
 
@@ -133,10 +154,24 @@ export async function uploadMultipleAssetsFlow(
     })
   );
 
-  // 2. Request upload in 1 single HTTP request to backend
-  const uploadRequests = await requestUpload({
+  const resolvedStorageProfileId =
+    typeof options === "string" ? options : options?.storageProfileId;
+  const resolvedProjectId =
+    typeof options === "object" ? options?.projectId : undefined;
+
+  const requestPayload: any = {
     items: itemsPayload.map((p) => p.requestItem),
-  });
+  };
+
+  if (resolvedStorageProfileId) {
+    requestPayload.storageProfileId = resolvedStorageProfileId;
+  }
+  if (resolvedProjectId) {
+    requestPayload.projectId = resolvedProjectId;
+  }
+
+  // 2. Request upload in 1 single HTTP request to backend
+  const uploadRequests = await requestUpload(requestPayload);
 
   if (!uploadRequests || uploadRequests.length !== items.length) {
     throw new Error("Failed to get upload request details from server");

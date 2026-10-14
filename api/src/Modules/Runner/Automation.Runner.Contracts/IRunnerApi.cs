@@ -33,6 +33,34 @@ public interface IRunnerApi
         Guid runnerId,
         CancellationToken ct = default
     );
+    Task<Result<RunnerUploadResultDto>> SendUploadCommandAsync(
+        Guid runnerId,
+        IEnumerable<RunnerUploadItemDto> items,
+        CancellationToken ct = default
+    );
+
+    Task<Result<RunnerUpdateResultDto>> SendUpdateRunnerCommandAsync(
+        Guid runnerId,
+        string downloadUrl,
+        string targetVersion,
+        string expectedSha256,
+        CancellationToken ct = default
+    );
+
+    Task<Result<RunnerUploadResultDto>> SendUploadCommandAsync(
+        Guid runnerId,
+        string filePath,
+        string presignedUrl,
+        string contentType,
+        Guid assetId,
+        Guid resourceVersionId,
+        CancellationToken ct = default
+    ) => SendUploadCommandAsync(
+        runnerId,
+        [new RunnerUploadItemDto(filePath, presignedUrl, contentType, assetId, resourceVersionId)],
+        ct
+    );
+
 
     Task<Result<List<RunnerInfo>>> GetRunnerInfoByIds(
         IReadOnlyList<Guid> runnerIds,

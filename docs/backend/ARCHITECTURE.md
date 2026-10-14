@@ -85,3 +85,21 @@ Dự án áp dụng mô hình Persistence Model tinh gọn, loại bỏ các rà
   - `Id` được khởi tạo tự động bằng UUIDv7 thông qua Base Class, không gán thủ công `Id = ...` trong class con.
   - `CreatedAt` và `UpdatedAt` được tự động hóa thông qua `AuditingInterceptor`, không gán thủ công `DateTimeOffset.UtcNow`.
   - Chỉ viết constructor hoặc method riêng khi thực sự có logic tính toán/nghiệp vụ phức tạp (State Machine).
+
+---
+
+## 6. Bảo Mật Khóa Bí Mật Xuyên Suốt Hệ Thống (Centralized Secret Protection)
+
+Đối với các khóa kết nối bên thứ ba cần giải mã để gọi API (S3 Secret Access Key trong module `Files`, API Key của OpenAI/Anthropic/Gemini trong module `AI`, SMTP Password trong module `Notifications`...):
+
+- **Tầng Trừu Tượng Tập Trung (`Automation.SharedKernel.Abstractions.Security`):**
+  - Cung cấp `ISecretProtector` với hai phương thức thuần túy `Protect(plainText)` và `Unprotect(cipherText)`.
+- **Thuật Toán Mã Hóa AES-256-GCM (`AesGcmSecretProtector`):**
+  - Sử dụng Authenticated Encryption (AEAD) với Nonce ngẫu nhiên 12 bytes và Authentication Tag 16 bytes chống giả mạo dữ liệu.
+  - Định dạng chuỗi lưu trữ: `enc:v1:<Base64 Payload>`.
+  - Cơ chế **Graceful Fallback**: Tự động nhận diện chuỗi cũ chưa mã hóa để trả về nguyên trạng, đảm bảo không làm gián đoạn hệ thống.
+- **Tự Động Hóa Qua EF Core `EncryptedSecretConverter`:**
+  - Áp dụng ValueConverter tại `DbContext.OnModelCreating`.
+  - Mọi thao tác lưu xuống PostgreSQL đều tự động chuyển thành chuỗi ciphertext `enc:v1:...`.
+  - Mọi thao tác đọc lên Memory đều tự động giải mã về Plaintext gốc trong suốt 100%, giúp tầng Application/Domain giữ được sự tinh gọn tuyệt đối.
+

@@ -36,6 +36,11 @@ public static class ModuleBuilderExtensions
             JasperFx.RuntimeCompiler.AssemblyGenerator
         >();
 
+        builder.Services.AddHttpClient<
+            Automation.SharedKernel.Infrastructure.RabbitMq.IRabbitMqProvisioningService,
+            Automation.SharedKernel.Infrastructure.RabbitMq.RabbitMqManagementService
+        >();
+
         builder.Host.UseWolverine(options =>
         {
             options.Durability.Mode = DurabilityMode.Solo;

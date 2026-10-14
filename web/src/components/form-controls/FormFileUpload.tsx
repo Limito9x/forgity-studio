@@ -3,6 +3,7 @@ import type { Accept } from "react-dropzone";
 import { BaseFormField } from "./BaseFormField";
 import type { BaseFormControlProps, OmitFormProps } from "./type";
 import { useAssetField } from "@/hooks/useFileUpload";
+import { useOptionalProject } from "@/features/projects/context/ProjectContext";
 import { FileUploadField } from "../custom-ui/inputs/file-upload/FileUploadField";
 import { registerField, type ExtractConfig } from "@/lib/field-registry";
 import type { AssetDto } from "@/gen/model/assetDto";
@@ -16,6 +17,8 @@ export interface FormFileUploadProps<T extends FieldValues>
   maxSizeMB?: number;
   disabled?: boolean;
   initialAssets?: AssetDto[];
+  storageProfileId?: string;
+  projectId?: string;
 }
 
 export function FormFileUpload<T extends FieldValues>({
@@ -25,8 +28,14 @@ export function FormFileUpload<T extends FieldValues>({
   maxSizeMB = 10,
   disabled,
   initialAssets,
+  storageProfileId,
+  projectId,
   ...rest
 }: FormFileUploadProps<T>) {
+  const projectContext = useOptionalProject();
+  const effectiveProjectId = projectId ?? projectContext?.projectId ?? undefined;
+  const effectiveStorageProfileId = storageProfileId ?? projectContext?.project?.storageProfileId ?? undefined;
+
   return (
     <BaseFormField
       {...rest}
@@ -36,6 +45,8 @@ export function FormFileUpload<T extends FieldValues>({
             value: Array.isArray(field.value) ? field.value : [],
             onChange: field.onChange,
             initialAssets,
+            storageProfileId: effectiveStorageProfileId,
+            projectId: effectiveProjectId,
           });
 
         return (
@@ -65,7 +76,6 @@ declare module "@/lib/field-registry" {
 
 registerField({
   type: "file-upload",
-  isAvailable: false,
   component: FormFileUpload,
   resolvedDataProp: "initialAssets",
   builderFields: [
@@ -87,6 +97,7 @@ registerField({
     },
     {
       name: "maxSizeMB",
+      label: "Max Size MB",
       fieldType: "number",
       fieldConfig: {
         min: 0,

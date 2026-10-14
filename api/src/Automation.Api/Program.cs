@@ -14,6 +14,7 @@ using Automation.SharedKernel.Extensions.ExceptionHandling;
 using Automation.Runner.Extensions;
 using Automation.Pipeline.Extensions;
 
+using Automation.SharedKernel.Extensions.Security;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 var builder = WebApplication.CreateSlimBuilder(args);
@@ -43,6 +44,7 @@ builder.Services.AddFastEndpoints(ModuleRegistry.AllEndpoints)
     });
 
 builder.Services.AddCurrentUserProvider();
+builder.Services.AddSecretProtection();
 
 builder.AddModules(ModuleRegistry.All);
 
@@ -69,6 +71,7 @@ builder.Services.AddRateLimitingServices(builder.Configuration);
 
 builder.Services.AddGlobalExceptionHandling();
 
+builder.Services.AddCustomCors(builder.Configuration);
 builder.Services.AddAuthentication();
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
@@ -89,6 +92,8 @@ app.Lifetime.ApplicationStopping.Register(() =>
 app.UseGlobalExceptionHandling();
 
 app.UseCustomSerilogRequestLogging();
+
+app.UseCustomCors();
 
 app.UseRateLimiter();
 

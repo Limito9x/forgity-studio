@@ -15,10 +15,11 @@ public static class RepositoryAssetExtensions
             {
                 AllowMultiple = false,
                 MaxCount = 1,
-                MaxSizeBytes = 500L * 1024 * 1024, // 500MB
-                AllowedContentTypes = null // Allow any content type, extension is validated by Platform
+                MaxSizeBytes = 50L * 1024 * 1024 * 1024, // 50GB
+                AllowedContentTypes = null // Allow any content type, extension is validated by Repository
             }
         );
+
 
         return services;
     }

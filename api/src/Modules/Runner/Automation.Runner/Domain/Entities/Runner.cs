@@ -9,6 +9,7 @@ public class Runner : BaseEntity
     public string RegistrationToken { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
     public DateTimeOffset? LastSeenAt { get; set; }
+    public string? AppVersion { get; set; }
 
     // Hardware Specs (Indexable columns for Job Dispatching)
     public string OsPlatform { get; set; } = string.Empty;

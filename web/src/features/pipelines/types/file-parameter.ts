@@ -9,7 +9,17 @@ export interface PipelineFileParameterDraft {
   originalName: string;
 }
 
+/** Imported file pin from bundle where original link could not be cloned (cross-studio / different storage). */
+export interface PipelineFileParameterUnbound {
+  status: "unbound";
+  originalFileName?: string;
+  hashSha256?: string;
+  sizeBytes?: number;
+  contentType?: string;
+}
+
 export type PipelineFileParameterValue =
   | PipelineFileParameter
   | PipelineFileParameterDraft
+  | PipelineFileParameterUnbound
   | null;

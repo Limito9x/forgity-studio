@@ -58,6 +58,12 @@ public interface IAssetApi
     Task<Result<IReadOnlyList<AssetUploadDto>>> RequestUploadAsync(
         IEnumerable<UploadRequestItemDto> requests,
         CancellationToken ct = default
+    ) => RequestUploadAsync(requests, null, ct);
+
+    Task<Result<IReadOnlyList<AssetUploadDto>>> RequestUploadAsync(
+        IEnumerable<UploadRequestItemDto> requests,
+        Guid? storageProfileId,
+        CancellationToken ct = default
     );
 
     // Confirm Upload Multiple
@@ -168,6 +174,18 @@ public interface IAssetApi
         string ownerEntityId,
         string slotKey,
         IEnumerable<AssetUpsertDto> dtos,
+        CancellationToken ct = default
+    );
+
+    /// <summary>
+    /// Di chuyển hoặc sao chép hàng loạt (Batch) Asset vật lý giữa các Storage Profile.
+    /// Hỗ trợ CAS Deduplication SHA-256, Piped Stream không đệm đĩa, và báo cáo tiến độ qua IProgress.
+    /// </summary>
+    Task<Result<IReadOnlyList<MigrateAssetItemResult>>> MigrateAssetsStorageAsync(
+        IEnumerable<MigrateAssetItem> items,
+        Guid? targetStorageProfileId,
+        IProgress<StorageMigrationProgress>? progress = null,
+        Guid? trackingJobId = null,
         CancellationToken ct = default
     );
 }

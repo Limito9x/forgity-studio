@@ -58,6 +58,9 @@ namespace Automation.Studio.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
+                    b.Property<Guid?>("StorageProfileId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("StudioId")
                         .HasColumnType("uuid");
 
@@ -68,6 +71,8 @@ namespace Automation.Studio.Infrastructure.Persistence.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("StorageProfileId");
 
                     b.HasIndex("StudioId", "Slug")
                         .IsUnique();

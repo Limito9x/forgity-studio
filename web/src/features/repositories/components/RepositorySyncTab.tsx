@@ -11,13 +11,12 @@ import {
 } from "./LocalChangesTable";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import {
   RefreshCw,
-  UploadCloud,
+  FolderCheck,
   CheckCircle2,
   HardDrive,
   Cpu,
@@ -63,7 +62,6 @@ export function RepositorySyncTab({
   const [hasScanned, setHasScanned] = useState(false);
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [filterStatus, setFilterStatus] = useState<"all" | DiffStatus>("all");
-  const [notes, setNotes] = useState("");
 
   const handleScan = (runnerIdToScan?: string) => {
     const targetRunnerId = runnerIdToScan || selectedRunnerId;
@@ -137,7 +135,7 @@ export function RepositorySyncTab({
 
   const handleSync = () => {
     if (selectedPaths.size === 0) {
-      toast.error("Please select at least one file to synchronize");
+      toast.error("Please select at least one file to register");
       return;
     }
 
@@ -148,21 +146,20 @@ export function RepositorySyncTab({
           repositoryId,
           runnerId: selectedRunnerId,
           targetPaths: pathsToSync,
-          notes: notes.trim() || null,
+          notes: null,
         },
       },
       {
         onSuccess: (res) => {
           toast.success(
-            `Synced successfully! Added: ${res.addedCount ?? 0}, Modified: ${res.modifiedCount ?? 0}`
+            `Registered successfully as Draft! Added: ${res.addedCount ?? 0}, Updated: ${res.modifiedCount ?? 0}`
           );
-          setNotes("");
-          // Re-scan to update diff list after sync
+          // Re-scan to update diff list after register
           handleScan(selectedRunnerId);
           onSyncSuccess?.();
         },
         onError: (err: any) => {
-          toast.error(err?.response?.data?.message || err?.message || "Failed to sync changes");
+          toast.error(err?.response?.data?.message || err?.message || "Failed to register changes");
         },
       }
     );
@@ -393,33 +390,31 @@ export function RepositorySyncTab({
             />
           </Card>
 
-          {/* Bottom Commit & Sync Action Bar */}
+          {/* Bottom Register Action Bar */}
           <Card className="rounded-2xl border-border/60 bg-card p-4 shadow-sm">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="flex-1 w-full min-w-0">
-                <Input
-                  placeholder="Sync note / commit memo (e.g., Update character textures, rigging fix)..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="h-9 text-xs"
-                />
+              <div className="flex items-center gap-2.5 text-xs text-muted-foreground min-w-0">
+                <FolderCheck className="size-4 text-primary shrink-0" />
+                <span className="truncate">
+                  Registered files will be indexed into the catalog as <strong className="text-foreground">Draft (v1)</strong> for pipeline testing.
+                </span>
               </div>
 
               <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
                 <Button
                   onClick={handleSync}
                   isDisabled={syncMutation.isPending || selectedPaths.size === 0}
-                  className="gap-2 cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 px-4 w-full sm:w-auto"
+                  className="gap-2 cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground text-xs h-9 px-4 w-full sm:w-auto"
                 >
                   {syncMutation.isPending ? (
                     <>
                       <Loader2 className="size-3.5 animate-spin" />
-                      <span>Synchronizing...</span>
+                      <span>Registering Files...</span>
                     </>
                   ) : (
                     <>
-                      <UploadCloud className="size-3.5" />
-                      <span>Synchronize Selected ({selectedPaths.size}) to Repository</span>
+                      <FolderCheck className="size-3.5" />
+                      <span>Register Selected ({selectedPaths.size}) as Draft</span>
                     </>
                   )}
                 </Button>

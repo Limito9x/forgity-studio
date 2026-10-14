@@ -57,11 +57,23 @@ flowchart TD
 - **Nguyên tắc**: Tên và file path trong cùng một Repository là duy nhất. Khi file bị thay đổi trên đĩa, hệ thống KHÔNG tạo Resource mới mà tạo một `ResourceVersion` mới.
 
 ### 2.3. ResourceVersion (`ResourceVersion`) & Locations
-- **Vai trò**: Đại diện cho trạng thái bất biến (immutable snapshot) của file tại một thời điểm.
-- **Trường cốt lõi**: `Id`, `ResourceId`, `VersionNo` (tự tăng: 1, 2, 3...), `ChecksumSha256`, `SizeBytes`, `CreatedAt`.
-- **`ResourceVersionLocation`**: Bản đồ ghi nhận file phiên bản này đang hiện diện vật lý trên những Runner nào (`RunnerId`, `LocalAbsolutePath`, `LastSeenAt`).
+- **Vai trò**: Quản lý phiên bản dữ liệu nhị phân của tệp tài nguyên theo vòng đời **Draft (Bản nháp)** và **Published (Đã công bố)**.
+- **Trường cốt lõi**: `Id`, `ResourceId`, `VersionNo`, `Status` (`Draft = 0`, `Published = 1`, `Archived = 2`), `FileHash`, `SizeBytes`, `Notes`, `CreatedAt`.
+- **Cơ chế Vòng đời (Draft / In-place vs Published)**:
+  - **Local Register / In-Place Update (Draft)**: Khi quét và đăng ký thay đổi cục bộ, nếu phiên bản hiện tại đang là `Draft`, hệ thống **cập nhật đè in-place** `FileHash`, `SizeBytes`, `Locations` mà **KHÔNG tăng VersionNo**, triệt tiêu tình trạng bùng nổ version rác.
+  - **Publish Version**: Đóng băng phiên bản (`Status = Published`), chuyển trạng thái thành bất biến (Immutable), kích hoạt phát sự kiện `ResourceVersionPublishedEvent`. Mọi thay đổi tệp trên đĩa sau thời điểm này khi quét lại sẽ tự động sinh version mới `v(N+1)` ở trạng thái `Draft`.
+### 2.4. Smart Collaborative Lock (Khóa Cộng Tác Bảo Vệ Tệp 3D)
+- **Vấn đề giải quyết**: File 3D nhị phân (`.blend`, `.fbx`, `.uasset`) không thể giải quyết merge-conflict như Git text code. Nếu 2 máy cùng sửa 1 tệp, người nộp sau sẽ ghi đè mất toàn bộ công sức của người trước.
+- **Trường dữ liệu**: `LockedByRunnerId`, `LockedByUserId`, `LockedAt`, `IsLocked`.
+- **Cơ chế vận hành**:
+  1. **Implicit Lock (Tự động khóa)**: Khi Runner A quét & đăng ký tệp lần đầu hoặc sửa đổi nháp (`POST /api/repository-runners/sync-local`), hệ thống tự động gắn khóa cho Runner A (`item.Lock(cmd.RunnerId)`).
+  2. **Pessimistic Barrier (Rào cản phòng vệ)**: Khi Runner B quét thấy file bị thay đổi trên đĩa của mình, hệ thống kiểm tra `item.IsLockedByOther(cmd.RunnerId)`. Nếu file đang bị Runner A giữ khóa:
+     - Trên UI (`LocalChangesTable`): Checkbox bị vô hiệu hóa, hiển thị huy hiệu `Locked by [Runner A]` và cảnh báo không thể ghi đè.
+     - Trên API (`SyncLocalChanges`): Tự động bỏ qua (skip), chặn đứng mọi hành vi ghi đè dữ liệu của Runner A.
+  3. **Auto Unlock upon Publish**: Khi Runner A hoàn thành công việc và bấm **Publish Version**, phiên bản đóng băng (`Published`) và tệp tự động giải phóng khóa (`item.Unlock()`). Khi đó các máy khác có thể sửa tiếp và tiếp quản khóa mới cho Version tiếp theo.
+  4. **Force Unlock**: Admin hoặc Project Lead có thể giải phóng khóa thủ công qua endpoint `POST /api/resources/{id}/unlock` khi một máy gặp sự cố vật lý hoặc offline.
 
-### 2.4. Inspection Metadata (`ResourceMetadata` / JSON Report)
+### 2.5. Inspection Metadata (`ResourceMetadata` / JSON Report)
 - Được sinh ra tự động từ các bước Pipeline Inspector (như `daz_inspector`, `blender_inspector`).
 - Chứa cấu trúc chi tiết:
   ```json

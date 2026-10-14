@@ -8,4 +8,5 @@ public interface IStudioApi
 
 public interface IProjectsApi : IStudioApi
 {
+    Task<Guid?> GetProjectStorageProfileIdAsync(Guid projectId, CancellationToken ct = default);
 }

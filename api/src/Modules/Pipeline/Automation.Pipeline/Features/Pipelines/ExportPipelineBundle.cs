@@ -8,10 +8,14 @@ using Automation.Pipeline.Features.Pipelines.Dtos;
 using Automation.Pipeline.Features.Pipelines.Services;
 using Automation.Pipeline.Infrastructure.Persistence;
 using Automation.Files.Contracts;
+using Automation.Pipeline.Engine;
 
 namespace Automation.Pipeline.Features.Pipelines;
 
-public record ExportPipelinesQuery(List<Guid> PipelineIds);
+public record ExportPipelinesQuery(
+    List<Guid> PipelineIds,
+    ExportPipelineMode Mode = ExportPipelineMode.FullBackup
+);
 
 public class ExportPipelineEndpoint(IMessageBus bus) : EndpointWithoutRequest<PipelinePackageDto>
 {
@@ -28,7 +32,8 @@ public class ExportPipelineEndpoint(IMessageBus bus) : EndpointWithoutRequest<Pi
     public override async Task HandleAsync(CancellationToken ct)
     {
         var pipelineId = Route<Guid>("id");
-        var query = new ExportPipelinesQuery([pipelineId]);
+        var mode = Query<ExportPipelineMode>("mode", false);
+        var query = new ExportPipelinesQuery([pipelineId], mode);
         var result = await bus.InvokeAsync<Result<PipelinePackageDto>>(query, ct);
         await this.SendResultAsync(result, ct);
     }
@@ -54,7 +59,7 @@ public class ExportPipelineBatchEndpoint(IMessageBus bus) : Endpoint<ExportPipel
             return;
         }
 
-        var query = new ExportPipelinesQuery(req.PipelineIds);
+        var query = new ExportPipelinesQuery(req.PipelineIds, req.Mode);
         var result = await bus.InvokeAsync<Result<PipelinePackageDto>>(query, ct);
         await this.SendResultAsync(result, ct);
     }
@@ -245,7 +250,9 @@ public class ExportPipelinesHandler(
                 ct
             );
 
-            var scriptFiles = scriptFilesResult.IsSuccess ? scriptFilesResult.Value : [];
+            var scriptFiles = (scriptFilesResult != null && scriptFilesResult.IsSuccess && scriptFilesResult.Value != null)
+                ? scriptFilesResult.Value
+                : [];
 
             foreach (var def in nodeDefinitions)
             {
@@ -321,14 +328,86 @@ public class ExportPipelinesHandler(
                     ? ptId
                     : null;
 
-                // Clone config values, updating subpipeline reference if present
+                // Map config values based on query.Mode
                 Dictionary<string, object?>? cleanConfigValues = null;
-                if (n.ConfigValues != null)
+                Dictionary<string, PipelinePackageFilePinMetadataDto>? filePins = null;
+
+                if (query.Mode == ExportPipelineMode.CleanTemplate)
                 {
-                    cleanConfigValues = new Dictionary<string, object?>(n.ConfigValues);
+                    cleanConfigValues = new Dictionary<string, object?>();
+                    if (n.Inputs != null)
+                    {
+                        foreach (var pin in n.Inputs)
+                        {
+                            if (pin.DefaultValue != null)
+                            {
+                                cleanConfigValues[pin.Id] = pin.DefaultValue;
+                            }
+                        }
+                    }
                     if (refPipelineBundleId != null)
                     {
                         cleanConfigValues["pipelineBundleId"] = refPipelineBundleId;
+                    }
+                    if (cleanConfigValues.Count == 0) cleanConfigValues = null;
+                }
+                else
+                {
+                    if (n.ConfigValues != null)
+                    {
+                        cleanConfigValues = new Dictionary<string, object?>(n.ConfigValues);
+                        if (refPipelineBundleId != null)
+                        {
+                            cleanConfigValues["pipelineBundleId"] = refPipelineBundleId;
+                        }
+                    }
+
+                    // Package file pins metadata
+                    if (n.Inputs != null)
+                    {
+                        foreach (var pin in n.Inputs.Where(PipelineFileValue.IsFilePin))
+                        {
+                            if (n.FileAssets != null && n.FileAssets.TryGetValue(pin.Id, out var fileAsset) && fileAsset != null)
+                            {
+                                filePins ??= new Dictionary<string, PipelinePackageFilePinMetadataDto>(StringComparer.OrdinalIgnoreCase);
+                                filePins[pin.Id] = new PipelinePackageFilePinMetadataDto(
+                                    OriginalFileName: fileAsset.OriginalName,
+                                    SizeBytes: fileAsset.SizeBytes,
+                                    HashSha256: fileAsset.HashSha256,
+                                    ContentType: fileAsset.ContentType
+                                );
+                            }
+                            else if (n.ConfigValues != null && n.ConfigValues.TryGetValue(pin.Id, out var pinVal) &&
+                                     PipelineFileValue.TryGetUnbound(pinVal, out var unboundInfo) && unboundInfo != null)
+                            {
+                                filePins ??= new Dictionary<string, PipelinePackageFilePinMetadataDto>(StringComparer.OrdinalIgnoreCase);
+                                filePins[pin.Id] = new PipelinePackageFilePinMetadataDto(
+                                    OriginalFileName: unboundInfo.OriginalFileName,
+                                    SizeBytes: unboundInfo.SizeBytes,
+                                    HashSha256: unboundInfo.HashSha256,
+                                    ContentType: unboundInfo.ContentType
+                                );
+                            }
+                        }
+                    }
+
+                    // Fallback: Also scan ConfigValues directly for any Unbound pins (e.g. dynamic/unlisted pins)
+                    if (n.ConfigValues != null)
+                    {
+                        foreach (var (k, v) in n.ConfigValues)
+                        {
+                            if (filePins != null && filePins.ContainsKey(k)) continue;
+                            if (PipelineFileValue.TryGetUnbound(v, out var unboundInfo) && unboundInfo != null)
+                            {
+                                filePins ??= new Dictionary<string, PipelinePackageFilePinMetadataDto>(StringComparer.OrdinalIgnoreCase);
+                                filePins[k] = new PipelinePackageFilePinMetadataDto(
+                                    OriginalFileName: unboundInfo.OriginalFileName,
+                                    SizeBytes: unboundInfo.SizeBytes,
+                                    HashSha256: unboundInfo.HashSha256,
+                                    ContentType: unboundInfo.ContentType
+                                );
+                            }
+                        }
                     }
                 }
 
@@ -361,7 +440,8 @@ public class ExportPipelinesHandler(
                     ParentTempId: parentTempId,
                     Size: n.Size,
                     Metadata: n.Metadata,
-                    CustomScriptKey: customScriptKey
+                    CustomScriptKey: customScriptKey,
+                    FilePins: filePins
                 );
             }).ToList();
 

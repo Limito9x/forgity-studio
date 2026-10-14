@@ -23,7 +23,7 @@ def load_config():
     if not os.path.exists(CONFIG_FILE):
         return None
     try:
-        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+        with open(CONFIG_FILE, 'r', encoding='utf-8-sig') as f:
             config = json.load(f)
         if not isinstance(config, dict):
             raise ValueError("Worker configuration must be a JSON object.")
