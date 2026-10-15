@@ -30,6 +30,12 @@ EXCLUDED_NAMES = {
     "temp",
     "logs",
     "dist",
+    "pipelines",
+    "tests",
+    "tools",
+    "test_worker_runtime.py",
+    ".gitignore",
+    ".runner.lock",
 }
 
 EXCLUDED_EXTENSIONS = {

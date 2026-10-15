@@ -38,6 +38,8 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version_tag }}" ]; then
             VERSION="${{ github.event.inputs.version_tag }}"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION=$(cat workers/VERSION | tr -d '[:space:]')
           else
             VERSION="${GITHUB_REF#refs/tags/v}"
           fi
@@ -50,7 +52,7 @@ jobs:
       - name: Create GitHub Release and Upload Artifacts
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: "v${{ steps.get_version.outputs.VERSION }}"
           name: "Forgity Runner v${{ steps.get_version.outputs.VERSION }}"
           draft: false
           prerelease: false

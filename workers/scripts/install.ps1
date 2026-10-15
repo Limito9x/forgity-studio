@@ -79,6 +79,11 @@ if (-not (Test-Path "$InstallDir\cli.py")) {
             Invoke-WebRequest -Uri $pUrl -OutFile $zipPath -TimeoutSec 60
             Expand-Archive -Path $zipPath -DestinationPath $InstallDir -Force
             Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+            foreach ($legacy in @("pipelines", "tests", "tools")) {
+                if (Test-Path "$InstallDir\$legacy") {
+                    Remove-Item "$InstallDir\$legacy" -Recurse -Force -ErrorAction SilentlyContinue
+                }
+            }
             $downloadSuccess = $true
             Write-Host " - Runner package extracted successfully." -ForegroundColor Green
             break

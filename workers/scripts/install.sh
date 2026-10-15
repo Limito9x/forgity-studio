@@ -71,6 +71,7 @@ if [ ! -f "$INSTALL_DIR/cli.py" ]; then
         if curl -fsSL "$P_URL" -o "$TMP_ZIP"; then
             unzip -q -o "$TMP_ZIP" -d "$INSTALL_DIR"
             rm -f "$TMP_ZIP"
+            rm -rf "$INSTALL_DIR/pipelines" "$INSTALL_DIR/tests" "$INSTALL_DIR/tools"
             echo " - Runner package extracted successfully."
             DOWNLOAD_SUCCESS=true
             break
