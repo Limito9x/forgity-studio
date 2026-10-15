@@ -110,12 +110,14 @@ def run(api_url: str = None, setup_token: str = None, runner_name: str = None, n
     rabbitmq_payload = result.get("rabbitMq")
     rabbitmq_config = None
     if isinstance(rabbitmq_payload, dict):
+        rmq_port = rabbitmq_payload.get("port") or 5672
         rabbitmq_config = {
             "host": rabbitmq_payload.get("host") or "localhost",
-            "port": rabbitmq_payload.get("port") or 5672,
+            "port": rmq_port,
             "username": rabbitmq_payload.get("username") or "guest",
             "password": rabbitmq_payload.get("password") or "guest",
             "virtual_host": rabbitmq_payload.get("virtualHost") or "/",
+            "tls": rmq_port == 5671 or str(rabbitmq_payload.get("tls")).lower() in ("true", "1"),
         }
 
     config = {

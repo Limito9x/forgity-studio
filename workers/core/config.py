@@ -81,7 +81,8 @@ def get_rabbitmq_parameters(host=None, port=None, heartbeat=0):
     if environment not in ("development", "trial", "production"):
         raise ValueError("Worker environment must be development, trial or production.")
     trial = environment in ("trial", "production")
-    tls = str(os.getenv("RABBITMQ_TLS", _rmq_cfg.get("tls", False))).lower() in ("true", "1")
+    effective_port = port or RABBITMQ_PORT
+    tls = str(os.getenv("RABBITMQ_TLS", _rmq_cfg.get("tls", False))).lower() in ("true", "1") or effective_port == 5671
     if trial and (RABBITMQ_USER == "guest" or RABBITMQ_PASSWORD == "guest" or not RABBITMQ_PASSWORD or not tls):
         raise ValueError("Trial requires RabbitMQ TLS and dedicated credentials; set RABBITMQ_PASSWORD externally.")
     ssl_options = None
