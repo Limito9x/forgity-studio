@@ -167,8 +167,11 @@ class BaseSubprocessExecutor(BaseExecutor):
             )
 
             if stdin_payload is not None and proc.stdin:
-                proc.stdin.write(stdin_payload.encode("utf-8"))
-                proc.stdin.close()
+                try:
+                    proc.stdin.write(stdin_payload.encode("utf-8"))
+                    proc.stdin.close()
+                except (BrokenPipeError, OSError) as bpe:
+                    logger.warning(f"Subprocess stdin closed early (process likely exited or crashed on startup): {bpe}")
 
             # Stream stdout in real-time
             if proc.stdout:
