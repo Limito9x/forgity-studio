@@ -21,7 +21,7 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 
 1. **Toàn Cục (Toàn bộ workspace)**:
    👉 Đọc [rules/general.md](file:///d:/FullStack/Automation/.agents/rules/general.md)
-   - _CodeGraph MCP Bắt buộc kèm `projectPath` (Top Priority), Quản lý Terminal/Kill Background Process, Ngôn ngữ giao tiếp/Code._
+   - _CodeGraph MCP Bắt buộc kèm `projectPath` (Top Priority), Quản lý Terminal, Lập Implementation Plan chi tiết & Review Gate từng Phase._
 
 2. **Khi thao tác với Backend (`api/`)**:
    👉 Đọc [rules/backend.md](file:///d:/FullStack/Automation/.agents/rules/backend.md)

@@ -57,3 +57,30 @@ Khi thực hiện tác vụ, hãy xác định khu vực mã nguồn đang thao 
 - **Bắt Buộc Đọc Playbook Trước Khi Code:** Trước khi can thiệp vào bất kỳ module/feature cốt lõi nào (như Pipeline Engine, Canvas Graph Sync, Worker Storage), Agent BẮT BUỘC phải đọc Playbook tương ứng trong `.agents/playbooks/` để nắm vững Mental Model và luồng vận hành thực tế (Lifecycle) từ A đến Z, tránh suy diễn hoặc over-engineer.
 - **Bắt Buộc Cập Nhật Liên Tục (Continuous Sync):** Sau khi hoàn thành hoặc sửa đổi luồng thực thi / hợp đồng dữ liệu, Agent BẮT BUỘC phải quay lại cập nhật Playbook tương ứng và đồng bộ Chỉ mục (Index) trong [AGENTS.md](file:///d:/FullStack/Automation/.agents/AGENTS.md). Tuyệt đối không để tài liệu bị lỗi thời làm sai lệch các Agent về sau.
 
+---
+
+## 6. Quy Trình Thực Thi Theo Kế Hoạch Phân Phase & Cổng Duyệt (Phased Execution & Review Gate)
+
+Đối với các tác vụ tái cấu trúc quy trình, sửa đổi kiến trúc hoặc phát triển tính năng có độ phức tạp cao:
+
+1. **Tầng 1 - Kế Hoạch Tổng Quát (Master Roadmap):**
+   - Agent cùng User thống nhất một Master Plan tổng quát lưu tại `.agents/plans/<date>-<topic>.md`.
+   - Master Plan phải phân chia rõ ràng các Phase độc lập, có ranh giới và mục tiêu nghiệm thu cụ thể.
+
+2. **Tầng 2 - Lập Implementation Plan Chi Tiết Từng Phase (BẮT BUỘC):**
+   - **Trước khi can thiệp mã nguồn của bất kỳ Phase nào**, Agent **TUYỆT ĐỐI KHÔNG ĐƯỢC tự ý code ngay**.
+   - Agent BẮT BUỘC phải trình bày một **Implementation Plan chi tiết riêng cho Phase đó** gồm:
+     * Danh sách file sẽ tạo / sửa đổi kèm đường dẫn tuyệt đối dạng markdown link.
+     * Đặc tả hợp đồng dữ liệu / method / consumer / UI component (Before vs After).
+     * Ranh giới đỏ (Redlines), các giả định kiến trúc và xử lý edge cases.
+     * Tiêu chí nghiệm thu và các bước kiểm thử (Build / Unit test / Manual verification).
+
+3. **Tầng 3 - Cổng Duyệt Của User (User Review Gate):**
+   - Agent dừng lại chờ User xem xét, phản biện và uốn nắn kế hoạch chi tiết của Phase.
+   - **Chỉ khi User xác nhận đồng ý hoặc yêu cầu thực thi** (ví dụ: *"thực thi phase X"*), Agent mới được phép bắt đầu sửa code.
+
+4. **Tầng 4 - Hoàn Tất Phase & Chuyển Giao Tuần Tự (No Auto-Run Next Phase):**
+   - Sau khi thực thi xong Phase X và nghiệm thu đạt yêu cầu, Agent tóm tắt kết quả và dừng lại.
+   - **Nghiêm cấm tự động nhảy sang code Phase tiếp theo** khi chưa lập Implementation Plan chi tiết cho Phase mới và chưa được User duyệt.
+
+
