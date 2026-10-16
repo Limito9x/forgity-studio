@@ -326,6 +326,7 @@ public class RunnerSegmentDispatcher(
         {
             StageExecutionId = stageId,
             PipelineExecutionId = execution.Id.ToString(),
+            PipelineId = execution.PipelineId.ToString(),
             StageId = segment.StageId?.ToString() ?? stageId,
             Executor = segment.Executor,
             GrpcEndpoint = grpcEndpoint,
@@ -361,40 +362,11 @@ public class RunnerSegmentDispatcher(
             await endpoint.SendAsync(stageTask);
         }
 
-        // Broadcast node states: transition from pending -> running for UI live inspector
-        if (hubContext != null)
-        {
-            try
-            {
-                foreach (var s in steps)
-                {
-                    if (Guid.TryParse(s.StepExecutionId, out var nId))
-                    {
-                        await hubContext
-                            .Clients.Group($"pipeline_{execution.PipelineId}")
-                            .SendAsync(
-                                "PipelineNodeExecutionUpdated",
-                                new
-                                {
-                                    executionId = execution.Id,
-                                    pipelineId = execution.PipelineId,
-                                    nodeId = nId,
-                                    status = "running",
-                                    startedAt = DateTimeOffset.UtcNow,
-                                },
-                                ct
-                            );
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(
-                    ex,
-                    "Failed to broadcast PipelineNodeExecutionUpdated for dispatched runner steps"
-                );
-            }
-        }
+        // Schedule Stage Timeout Watchdog (30 minutes delay) to prevent zombie executions
+        await messageBus.PublishAsync(
+            new StageTimeoutCheckMessage(execution.Id, stageId),
+            new Wolverine.DeliveryOptions { ScheduleDelay = TimeSpan.FromMinutes(30) }
+        );
 
         return Result.Ok();
     }

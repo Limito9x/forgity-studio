@@ -21,7 +21,7 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 
 1. **Toàn Cục (Toàn bộ workspace)**:
    👉 Đọc [rules/general.md](file:///d:/FullStack/Automation/.agents/rules/general.md)
-   - _CodeGraph MCP Bắt buộc kèm `projectPath` (Top Priority), Quản lý Terminal/Kill Background Process, Ngôn ngữ giao tiếp/Code._
+   - _CodeGraph MCP Bắt buộc kèm `projectPath` (Top Priority), Quản lý Terminal, Lập Implementation Plan chi tiết & Review Gate từng Phase._
 
 2. **Khi thao tác với Backend (`api/`)**:
    👉 Đọc [rules/backend.md](file:///d:/FullStack/Automation/.agents/rules/backend.md)
@@ -121,4 +121,5 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 - [phase-3-3-publish-pipeline-e2e](file:///d:/FullStack/Automation/.agents/plans/2026-10-12-phase-3-3-publish-pipeline-e2e.md): Kế hoạch kỹ thuật chi tiết Phase 3.3 - Luồng Publish End-to-End từ Web <-> API <-> Runner Daemon, Streaming Upload S3/MinIO & Download Asset.
 - [deploy-hardening-runner-security-storage-bundle](file:///d:/FullStack/Automation/.agents/plans/2026-10-12-deploy-hardening-runner-security-storage-bundle.md): Kế hoạch Chuẩn bị Triển khai (Deploy Hardening) - Bảo mật Dynamic RabbitMQ Runner, Độc lập Storage Profile Import/Export Bundle & Chuẩn hóa Runner Packaging / Versioning.
 - [batch-cross-storage-asset-migration](file:///d:/FullStack/Automation/.agents/plans/2026-10-13-batch-cross-storage-asset-migration.md): Kế hoạch Kỹ thuật Di chuyển Dữ liệu Lưu trữ Hàng loạt (Batch Cross-Storage Asset Migration) - Piped Streaming Zero-Disk Buffer, Deduplication SHA-256 & Background Job Progress Pipeline.
+- [investigate-pipeline-realtime-tracking-desync](file:///d:/FullStack/Automation/.agents/plans/2026-10-16-investigate-pipeline-realtime-tracking-desync.md): Kế hoạch Khắc phục Triệt để Luồng Đồng bộ Tiến độ Pipeline Real-time (Web Canvas <-> SignalR <-> RabbitMQ <-> Runner).
 

@@ -98,13 +98,17 @@ class PipelineConsumer:
 
             executor = get_executor(task.executor)
 
-            def _on_step_progress(step_id: str, status: str):
+            def _on_step_progress(step_id: str, status: str, outputs: dict | None = None, error_message: str | None = None):
                 msg = StepProgressMessage(
+                    pipeline_execution_id=task.pipeline_execution_id,
+                    pipeline_id=task.pipeline_id,
                     stage_execution_id=task.stage_execution_id,
                     step_execution_id=step_id,
-                    status=status
+                    status=status,
+                    outputs=outputs,
+                    error_message=error_message,
                 )
-                print(f"[RabbitMQ]     [Progress] Step {step_id} -> {status}", flush=True)
+                print(f"[RabbitMQ]     [Progress] Step {step_id} -> {status} (outputs: {len(outputs) if outputs else 0}, err: {bool(error_message)})", flush=True)
                 self._send_progress(msg)
 
             print(f"[RabbitMQ]     Dispatching to executor '{task.executor}'...", flush=True)
@@ -126,6 +130,8 @@ class PipelineConsumer:
             result_ready = True
             self._send_result(StageResultMessage(
                 stage_execution_id=task.stage_execution_id,
+                pipeline_execution_id=task.pipeline_execution_id,
+                pipeline_id=task.pipeline_id,
                 succeeded=result.succeeded,
                 log=result.log,
                 error_message=result.error_message,
@@ -150,6 +156,8 @@ class PipelineConsumer:
                 try:
                     self._send_result(StageResultMessage(
                         stage_execution_id=task.stage_execution_id,
+                        pipeline_execution_id=task.pipeline_execution_id,
+                        pipeline_id=task.pipeline_id,
                         succeeded=False,
                         log=None,
                         error_message=str(e),

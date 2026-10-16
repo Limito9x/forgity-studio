@@ -194,12 +194,12 @@ class BaseSubprocessExecutor(BaseExecutor):
                                 if progress_callback:
                                     progress_callback(step_id, "Running")
 
-                            elif event_type == "step_completed":
+                            elif event_type in ("step_completed", "step_failed"):
                                 step_id = event["step_execution_id"]
-                                succeeded = event["succeeded"]
+                                succeeded = False if event_type == "step_failed" else event.get("succeeded", False)
                                 error_msg = event.get("error_message")
                                 outputs = event.get("outputs", {})
-                                logger.info(f"<== Step completed: {step_id} (succeeded={succeeded})")
+                                logger.info(f"<== Step finished: {step_id} (succeeded={succeeded})")
                                 step_results.append(StepResult(
                                     step_execution_id=step_id,
                                     succeeded=succeeded,
@@ -209,7 +209,15 @@ class BaseSubprocessExecutor(BaseExecutor):
                                 ))
                                 if progress_callback:
                                     status = "Succeeded" if succeeded else "Failed"
-                                    progress_callback(step_id, status)
+                                    progress_callback(step_id, status, outputs=outputs, error_message=error_msg)
+
+                                if not succeeded:
+                                    logger.warning(f"Step {step_id} failed: {error_msg}. Terminating process early (Fail-Fast).")
+                                    if proc and proc.poll() is None:
+                                        try:
+                                            proc.kill()
+                                        except Exception:
+                                            pass
                         except Exception as pe:
                             logger.warning(f"Failed to parse PIPELINE_EVENT line: {pe}")
 

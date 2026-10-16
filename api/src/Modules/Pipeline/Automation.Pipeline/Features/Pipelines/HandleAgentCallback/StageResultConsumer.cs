@@ -28,12 +28,23 @@ public class StageResultConsumer(
         logger.LogInformation("Received StageResultMessage for StageExecutionId: {StageExecutionId}, Succeeded: {Succeeded}",
             message.StageExecutionId, message.Succeeded);
 
-        var execution = await db.PipelineExecutions
-            .FirstOrDefaultAsync(x => x.CurrentBatchId == message.StageExecutionId, ct);
+        PipelineExecution? execution = null;
+        if (Guid.TryParse(message.PipelineExecutionId, out var parsedExecId))
+        {
+            execution = await db.PipelineExecutions
+                .FirstOrDefaultAsync(x => x.Id == parsedExecId, ct);
+        }
 
         if (execution == null)
         {
-            logger.LogWarning("No PipelineExecution found waiting for StageExecutionId: {StageExecutionId}", message.StageExecutionId);
+            execution = await db.PipelineExecutions
+                .FirstOrDefaultAsync(x => x.CurrentBatchId == message.StageExecutionId, ct);
+        }
+
+        if (execution == null)
+        {
+            logger.LogWarning("No PipelineExecution found for StageExecutionId: {StageExecutionId} (ExecId: {ExecId})",
+                message.StageExecutionId, message.PipelineExecutionId);
             return;
         }
 
@@ -49,6 +60,30 @@ public class StageResultConsumer(
             execution.MarkFailed(err);
             await db.SaveChangesAsync(ct);
             logger.LogError("PipelineExecution {ExecutionId} failed during Agent stage {StageId}: {Error}", execution.Id, message.StageExecutionId, err);
+
+            if (hubContext != null)
+            {
+                try
+                {
+                    await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
+                        "PipelineExecutionFinished",
+                        new
+                        {
+                            executionId = execution.Id,
+                            pipelineId = execution.PipelineId,
+                            status = "failed",
+                            errorMessage = err,
+                            finishedAt = DateTimeOffset.UtcNow
+                        },
+                        ct
+                    );
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to broadcast PipelineExecutionFinished via SignalR for execution {ExecutionId}", execution.Id);
+                }
+            }
+
             return;
         }
 

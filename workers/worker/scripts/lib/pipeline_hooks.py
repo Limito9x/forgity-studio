@@ -45,3 +45,14 @@ class PipelineHooks:
             "outputs": outputs if outputs is not None else PipelineHooks._current_step_outputs,
             "error_message": error
         })
+
+    @staticmethod
+    def report_step_failed(step_execution_id: str, error: str = None, traceback_str: str = None):
+        PipelineHooks._emit({
+            "event": "step_failed",
+            "step_execution_id": step_execution_id,
+            "succeeded": False,
+            "error_message": error,
+            "traceback": traceback_str
+        })
+

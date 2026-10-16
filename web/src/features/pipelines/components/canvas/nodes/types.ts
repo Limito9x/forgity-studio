@@ -18,6 +18,7 @@ export interface CustomPipelineNodeData extends Record<string, unknown> {
   fileAssets?: Record<string, PipelineFileAssetDto> | null;
   executionStatus?: "idle" | "running" | "succeeded" | "failed";
   executionError?: string | null;
+  executionOutputs?: Record<string, any> | null;
   pipelineId?: string;
 }
 
