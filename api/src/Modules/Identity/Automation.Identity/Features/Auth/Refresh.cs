@@ -52,7 +52,7 @@ public class RefreshEndpoint(IMessageBus bus) : EndpointWithoutRequest<RefreshTo
             {
                 HttpOnly = true,
                 Secure = true,
-                SameSite = SameSiteMode.Strict,
+                SameSite = SameSiteMode.None,
                 Expires = result.Value.RefreshTokenExpiry
             });
         }

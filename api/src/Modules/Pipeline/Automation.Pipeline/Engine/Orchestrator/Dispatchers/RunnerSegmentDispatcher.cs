@@ -315,8 +315,11 @@ public class RunnerSegmentDispatcher(
         }
 
         var grpcEndpoint =
-            configuration["AppConfig:GrpcEndpoint"]
+            configuration["RunnerBootstrap:PublicGrpcUrl"]
+            ?? configuration["AppConfig:GrpcEndpoint"]
             ?? configuration["GrpcEndpoint"]
+            ?? configuration["GRPC_URL"]
+            ?? Environment.GetEnvironmentVariable("RUNNER_BOOTSTRAP_PUBLIC_GRPC_URL")
             ?? "http://127.0.0.1:50051";
 
         var stageTask = new StageTaskMessage

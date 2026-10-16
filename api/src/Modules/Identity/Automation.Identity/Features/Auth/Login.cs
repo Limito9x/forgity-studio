@@ -47,7 +47,7 @@ public class LoginEndpoint(IMessageBus bus) : Endpoint<LoginCommand, LoginResult
             {
                 HttpOnly = true,
                 Secure = true,
-                SameSite = SameSiteMode.Strict,
+                SameSite = SameSiteMode.None,
                 Expires = result.Value.RefreshTokenExpiry
             };
             HttpContext.Response.Cookies.Append("refreshToken", result.Value.RefreshToken, cookieOptions);

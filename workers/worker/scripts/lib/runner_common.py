@@ -53,11 +53,11 @@ def apply_input_mappings(step: dict, step_inputs: dict, all_step_outputs: dict) 
     """
     Support intra-stage data flow from previous steps in this stage via InputMappings.
     """
-    mappings = step.get("input_mappings") or step.get("InputMappings") or []
+    mappings = step.get("input_mappings", [])
     for m in mappings:
-        target_pin = m.get("pin_key") or m.get("PinKey")
-        src_node = m.get("source_node_id") or m.get("SourceNodeId")
-        src_pin = m.get("source_pin_key") or m.get("SourcePinKey")
+        target_pin = m.get("pin_key")
+        src_node = m.get("source_node_id")
+        src_pin = m.get("source_pin_key")
         if target_pin and src_node and src_pin and src_node in all_step_outputs:
             src_outs = all_step_outputs[src_node]
             if src_pin in src_outs and src_outs[src_pin] is not None:

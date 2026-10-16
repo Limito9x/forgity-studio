@@ -13,8 +13,6 @@ logger = logging.getLogger(__name__)
 def _get(obj: Any, key: str, default: Any = None) -> Any:
     if isinstance(obj, dict):
         val = obj.get(key)
-        if val is None and hasattr(key, "lower"):
-            val = obj.get(key.lower())
         return val if val is not None else default
     return getattr(obj, key, default)
 
@@ -58,7 +56,7 @@ class ExecutionStateClient:
         pipeline_exec_id = _get(task, "pipeline_execution_id", "")
         stage_exec_id = _get(task, "stage_execution_id", "")
         access_token = _get(task, "access_token", "")
-        step_id = _get(step, "step_execution_id") or _get(step, "StepExecutionId", "")
+        step_id = _get(step, "step_execution_id", "")
         input_mappings_raw = _get(step, "input_mappings", [])
 
         # 2. Build gRPC request items

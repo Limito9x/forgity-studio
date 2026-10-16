@@ -67,9 +67,9 @@ def main():
         print(f"UNREAL STAGE RUNNER FATAL ERROR: {e}", flush=True)
         sys.exit(1)
 
-    steps = payload.get("steps") or payload.get("Steps", [])
-    resolved_data = payload.get("resolved_data") or payload.get("ResolvedData", {})
-    environment_config = payload.get("environment_config") or payload.get("EnvironmentConfig", {})
+    steps = payload.get("steps", [])
+    resolved_data = payload.get("resolved_data", {})
+    environment_config = payload.get("environment_config", {})
 
     print(f"UNREAL STAGE RUNNER PARSED {len(steps)} STEPS", flush=True)
 
@@ -85,13 +85,13 @@ def main():
     all_step_outputs: dict[str, dict] = {}
 
     for step in steps:
-        step_execution_id = step.get("step_execution_id") or step.get("StepExecutionId")
-        step_name = step.get("name") or step.get("Name") or step_execution_id
-        script_path = step.get("script_path") or step.get("ScriptPath") or ""
-        script_url = step.get("script_url") or step.get("ScriptUrl")
-        script_hash = step.get("script_hash") or step.get("ScriptHash")
-        entry_point = step.get("entry_point") or step.get("EntryPoint")
-        step_inputs_raw = step.get("inputs") or step.get("Inputs", {})
+        step_execution_id = step.get("step_execution_id", "")
+        step_name = step.get("name") or step_execution_id
+        script_path = step.get("script_path", "")
+        script_url = step.get("script_url")
+        script_hash = step.get("script_hash")
+        entry_point = step.get("entry_point")
+        step_inputs_raw = step.get("inputs", {})
 
         # Resolve script path
         try:

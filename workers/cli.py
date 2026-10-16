@@ -118,8 +118,8 @@ def main():
     elif args.command == "scan":
         scan.run(args.dir, recursive=args.recursive)
     elif args.command == "purge":
-        from tools import purge_queues
-        purge_queues.run()
+        from commands import purge
+        purge.run()
     elif args.command == "compile-protos":
         from tools import compile_protos
         compile_protos.run()

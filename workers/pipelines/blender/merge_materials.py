@@ -163,24 +163,28 @@ def main(
     print(f"[merge_materials] Processing {len(meshes)} mesh object(s)...", flush=True)
     total_slots_before = sum(len(obj.material_slots) for obj in meshes)
 
-    # 2. Optional: Run Diffeomorphic merge_materials operator if available and applicable
+    # 2. Optional: Run Diffeomorphic merge_materials operator if available, applicable, and NOT headless
     diffeomorphic_ran = False
-    if use_diffeomorphic and hasattr(bpy.ops, 'daz') and hasattr(bpy.ops.daz, 'merge_materials'):
+    is_headless = getattr(bpy.app, 'background', False)
+    if use_diffeomorphic and not is_headless and hasattr(bpy.ops, 'daz') and hasattr(bpy.ops.daz, 'merge_materials'):
         try:
             bpy.ops.object.select_all(action='DESELECT')
             for obj in meshes:
                 obj.select_set(True)
             bpy.context.view_layer.objects.active = meshes[0]
 
-            window = bpy.context.window_manager.windows[0]
-            override = {'window': window, 'screen': window.screen, 'active_object': meshes[0], 'selected_objects': meshes}
-            with bpy.context.temp_override(**override):
-                res = bpy.ops.daz.merge_materials('EXEC_DEFAULT')
-                if 'FINISHED' in res:
-                    print("[merge_materials] Diffeomorphic merge_materials executed successfully.", flush=True)
-                    diffeomorphic_ran = True
+            if bpy.context.window_manager and bpy.context.window_manager.windows:
+                window = bpy.context.window_manager.windows[0]
+                override = {'window': window, 'screen': window.screen, 'active_object': meshes[0], 'selected_objects': meshes}
+                with bpy.context.temp_override(**override):
+                    res = bpy.ops.daz.merge_materials('EXEC_DEFAULT')
+                    if 'FINISHED' in res:
+                        print("[merge_materials] Diffeomorphic merge_materials executed successfully.", flush=True)
+                        diffeomorphic_ran = True
         except Exception as ex:
             print(f"[merge_materials] Diffeomorphic merge operator skipped ({ex}), proceeding with native consolidation.", flush=True)
+    elif is_headless and use_diffeomorphic:
+        print("[merge_materials] Headless execution detected: skipping interactive Diffeomorphic operator, using native consolidation.", flush=True)
 
     # 3. Native Consolidation & Cleanup
     slots_removed_native = 0

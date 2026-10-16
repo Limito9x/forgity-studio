@@ -1,13 +1,17 @@
 from typing import Any, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class StepExecutionParam(BaseModel):
+class ContractModel(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+
+class StepExecutionParam(ContractModel):
     key: str
     value: str
 
 
-class StepInputMapping(BaseModel):
+class StepInputMapping(ContractModel):
     pin_key: str
     source_kind: str = ""  # "start_input" | "node_output" | "literal"
     source_node_id: str | None = None
@@ -15,7 +19,7 @@ class StepInputMapping(BaseModel):
     literal_value: Any | None = None
 
 
-class StepExecution(BaseModel):
+class StepExecution(ContractModel):
     step_execution_id: str
     step_type: str = ""
     name: str = ""
@@ -31,7 +35,7 @@ class StepExecution(BaseModel):
     outputs: list[str] = Field(default_factory=list)
 
 
-class StageTaskMessage(BaseModel):
+class StageTaskMessage(ContractModel):
     """Message received from 'stage_tasks.{agentId}' queue."""
     stage_execution_id: str
     pipeline_execution_id: str
@@ -44,14 +48,14 @@ class StageTaskMessage(BaseModel):
     environment_config: dict[str, Any] = Field(default_factory=dict)
 
 
-class StepProgressMessage(BaseModel):
+class StepProgressMessage(ContractModel):
     """Message sent to 'step_progress' queue to update step execution status."""
     stage_execution_id: str
     step_execution_id: str
     status: str  # "Running" | "Succeeded" | "Failed" | "Cancelled"
 
 
-class StepResult(BaseModel):
+class StepResult(ContractModel):
     step_execution_id: str
     succeeded: bool
     log: str | None = None
@@ -59,7 +63,7 @@ class StepResult(BaseModel):
     outputs: dict[str, Any] = Field(default_factory=dict)
 
 
-class StageResultMessage(BaseModel):
+class StageResultMessage(ContractModel):
     """Message sent to 'stage_results' queue upon stage completion."""
     stage_execution_id: str
     succeeded: bool

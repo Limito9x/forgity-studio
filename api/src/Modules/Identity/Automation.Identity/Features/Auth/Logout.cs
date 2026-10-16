@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Automation.Identity.Infrastructure.Persistence;
 
@@ -28,7 +29,12 @@ public class LogoutEndpoint(IMessageBus bus) : EndpointWithoutRequest<string>
 
         var result = await bus.InvokeAsync<Result<string>>(req, ct);
         
-        HttpContext.Response.Cookies.Delete("refreshToken");
+        HttpContext.Response.Cookies.Delete("refreshToken", new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.None
+        });
 
         await this.SendResultAsync(result, ct);
     }
