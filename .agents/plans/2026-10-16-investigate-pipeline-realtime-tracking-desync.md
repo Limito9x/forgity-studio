@@ -224,7 +224,7 @@ Nhằm đảm bảo **tiến trình đồ họa (Blender / Unreal) siêu nhẹ n
 
 ---
 
-### PHASE 4: XÂY DỰNG BỘ TEST TỰ ĐỘNG (Automated Unit & Integration Tests Suite)
+### PHASE 4: XÂY DỰNG BỘ TEST TỰ ĐỘNG (Automated Unit & Integration Tests Suite) - (ĐÃ HOÀN THÀNH 100%)
 
 Nhằm lấp đầy khoảng trống kiểm thử nguy hiểm (vốn là nguyên nhân để lọt lỗi Race Condition và nuốt SignalR) và bảo vệ hệ thống không bị hồi quy, phase này xây dựng các unit/integration test nhẹ (< 3–5 giây) chạy hoàn toàn trên RAM/Mock:
 

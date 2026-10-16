@@ -274,7 +274,7 @@ public sealed class PipelineFileParameterTests : IDisposable
         var id = Guid.NewGuid();
         var saved = await Save(Item(id, new { File = new { assetId = Guid.NewGuid(), originalName = "available.txt" } }));
         var fileId = saved.Nodes.Single().FileAssets!["File"].AssetLinkId;
-        var node = await _db.PipelineNodes.SingleAsync();
+        var node = _pipeline.Nodes.Single();
         node.UpdateConfig(JsonSerializer.SerializeToDocument(new
         {
             File = new { assetLinkId = fileId }, Other = new { assetLinkId = Guid.NewGuid() }
