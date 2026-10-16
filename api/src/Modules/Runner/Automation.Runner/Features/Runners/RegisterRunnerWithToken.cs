@@ -139,6 +139,16 @@ public class RegisterRunnerWithTokenHandler(
         await cache.SetAsync($"runner_token_status:{command.SetupToken}", statusDto, TimeSpan.FromMinutes(10), ct);
 
         var rmq = Automation.SharedKernel.Extensions.RabbitMq.SharedRabbitMqConfigHolder.Current;
+
+        var publicGrpcUrl = configuration?["RunnerBootstrap:PublicGrpcUrl"]
+            ?? configuration?["GRPC_URL"]
+            ?? Environment.GetEnvironmentVariable("RUNNER_BOOTSTRAP_PUBLIC_GRPC_URL");
+
+        var publicRmqHost = configuration?["RunnerBootstrap:PublicRabbitMqHost"]
+            ?? configuration?["RABBITMQ_PUBLIC_HOST"]
+            ?? (Uri.TryCreate(publicGrpcUrl, UriKind.Absolute, out var gUri) && !string.IsNullOrWhiteSpace(gUri.Host) ? gUri.Host : null)
+            ?? rmq.Host;
+
         RabbitMqConfigDto rmqConfig;
 
         if (provisioningService != null)
@@ -157,7 +167,7 @@ public class RegisterRunnerWithTokenHandler(
             if (provisionResult.IsSuccess)
             {
                 rmqConfig = new RabbitMqConfigDto(
-                    rmq.Host,
+                    publicRmqHost,
                     rmq.Port,
                     dynamicUsername,
                     dynamicPassword,
@@ -171,17 +181,13 @@ public class RegisterRunnerWithTokenHandler(
                     runnerId,
                     string.Join("; ", provisionResult.Errors.Select(e => e.Message))
                 );
-                rmqConfig = new RabbitMqConfigDto(rmq.Host, rmq.Port, rmq.Username, rmq.Password, rmq.VirtualHost);
+                rmqConfig = new RabbitMqConfigDto(publicRmqHost, rmq.Port, rmq.Username, rmq.Password, rmq.VirtualHost);
             }
         }
         else
         {
-            rmqConfig = new RabbitMqConfigDto(rmq.Host, rmq.Port, rmq.Username, rmq.Password, rmq.VirtualHost);
+            rmqConfig = new RabbitMqConfigDto(publicRmqHost, rmq.Port, rmq.Username, rmq.Password, rmq.VirtualHost);
         }
-
-        var publicGrpcUrl = configuration?["RunnerBootstrap:PublicGrpcUrl"]
-            ?? configuration?["GRPC_URL"]
-            ?? Environment.GetEnvironmentVariable("RUNNER_BOOTSTRAP_PUBLIC_GRPC_URL");
 
         return Result.Ok(new RegisterRunnerResultDto(
             runnerId,
