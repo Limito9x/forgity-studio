@@ -20,6 +20,7 @@ import { PipelineParametersPanel, type ParameterTab } from "./PipelineParameters
 import { VariableDropMenu } from "./VariableDropMenu";
 import { RunPipelineModal } from "../../dialogs/RunPipelineModal";
 import { LiveExecutionDrawer } from "./LiveExecutionDrawer";
+import { ExecutionStatusBanner } from "./ExecutionStatusBanner";
 import { PipelineFormScopeProvider } from "../../form-scope/PipelineFormScope";
 import { useValidatePipeline } from "../../hooks/usePipelineGraph";
 import { useNodePalette } from "../../hooks/usePipelines";
@@ -138,6 +139,9 @@ export function PipelineCanvas({ projectId, graph }: PipelineCanvasProps) {
     [graph.id, projectId, draft.parameters, draft.edges, draft.nodes]
   );
 
+  // Canvas Lock status: Locked when executing or inspecting an execution
+  const isLocked = Boolean(live.isExecutionRunning || live.activeExecutionId);
+
   return (
     <PipelineFormScopeProvider value={scopeValue}>
       <div className="relative flex h-full w-full flex-col overflow-hidden bg-background">
@@ -155,27 +159,47 @@ export function PipelineCanvas({ projectId, graph }: PipelineCanvasProps) {
           }}
           onValidate={handleValidate}
           isValidating={validateMutation.isPending}
+          isExecuting={live.isExecutionRunning}
         />
 
         {/* Main Canvas & Inspector Layout */}
         <div className="relative flex flex-1 overflow-hidden">
           <div className="relative flex-1 h-full">
+            {/* Floating Execution Status & Mode Banner */}
+            {live.activeExecutionId && (
+              <ExecutionStatusBanner
+                executionId={live.activeExecutionId}
+                isRunning={live.isExecutionRunning}
+                isFailed={Number(live.currentExecution?.status) === 5}
+                isSucceeded={Number(live.currentExecution?.status) === 4}
+                errorMessage={live.currentExecution?.errorMessage}
+                onOpenLogs={() => {
+                  live.setDrawerDefaultTab("logs");
+                  live.setIsDrawerOpen(true);
+                }}
+                onExitView={live.clearActiveExecution}
+              />
+            )}
+
             <ReactFlow
               nodes={draft.nodes}
               edges={draft.edges}
-              onNodesChange={draft.handleNodesChange}
-              onEdgesChange={draft.handleEdgesChange}
-              onNodeDrag={draft.onNodeDrag}
-              onNodeDragStop={draft.onNodeDragStop}
-              onNodesDelete={draft.onNodesDelete}
-              onEdgesDelete={conn.onEdgesDelete}
+              nodesDraggable={!isLocked}
+              nodesConnectable={!isLocked}
+              elementsSelectable={true}
+              onNodesChange={isLocked ? undefined : draft.handleNodesChange}
+              onEdgesChange={isLocked ? undefined : draft.handleEdgesChange}
+              onNodeDrag={isLocked ? undefined : draft.onNodeDrag}
+              onNodeDragStop={isLocked ? undefined : draft.onNodeDragStop}
+              onNodesDelete={isLocked ? undefined : draft.onNodesDelete}
+              onEdgesDelete={isLocked ? undefined : conn.onEdgesDelete}
               onEdgeContextMenu={conn.onEdgeContextMenu}
               onNodeContextMenu={ctxMenu.onNodeContextMenu}
-              onConnect={conn.onConnect}
+              onConnect={isLocked ? undefined : conn.onConnect}
               isValidConnection={conn.isValidConnection}
               nodeTypes={nodeTypes}
               defaultEdgeOptions={defaultEdgeOptions}
-              deleteKeyCode={["Backspace", "Delete"]}
+              deleteKeyCode={isLocked ? null : ["Backspace", "Delete"]}
               onNodeClick={(_, node) => {
                 if (node.type !== "scopeContainer") {
                   draft.setSelectedNodeId(node.id);
@@ -184,9 +208,9 @@ export function PipelineCanvas({ projectId, graph }: PipelineCanvasProps) {
                 }
               }}
               onPaneClick={() => draft.setSelectedNodeId(null)}
-              onPaneContextMenu={ctxMenu.onPaneContextMenu}
-              onDragOver={dnd.onDragOver}
-              onDrop={dnd.onDrop}
+              onPaneContextMenu={isLocked ? undefined : ctxMenu.onPaneContextMenu}
+              onDragOver={isLocked ? undefined : dnd.onDragOver}
+              onDrop={isLocked ? undefined : dnd.onDrop}
               fitView
               fitViewOptions={{ padding: 0.2 }}
               onlyRenderVisibleElements={true}
@@ -281,6 +305,7 @@ export function PipelineCanvas({ projectId, graph }: PipelineCanvasProps) {
               onClose={() => draft.setSelectedNodeId(null)}
               onUpdateConfig={draft.handleUpdateConfig}
               onDeleteNode={draft.handleDeleteNode}
+              isReadOnly={isLocked}
             />
           )}
         </div>

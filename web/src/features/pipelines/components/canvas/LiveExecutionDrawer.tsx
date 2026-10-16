@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { usePipelineExecution, usePipelineExecutions, useNodeExecutions } from "../../hooks/usePipelineGraph";
 import type { PipelineExecutionDto, NodeExecutionDto } from "../../hooks/usePipelineGraph";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +44,13 @@ export function LiveExecutionDrawer({
   const [isExpanded, setIsExpanded] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
+
+  // Synchronize activeTab when defaultTab prop updates (e.g. switching to logs on run)
+  useEffect(() => {
+    if (defaultTab) {
+      setActiveTab(defaultTab);
+    }
+  }, [defaultTab]);
 
   // Queries
   const { data: executions, isLoading: isHistoryLoading, refetch: refetchHistory } = usePipelineExecutions(pipelineId);

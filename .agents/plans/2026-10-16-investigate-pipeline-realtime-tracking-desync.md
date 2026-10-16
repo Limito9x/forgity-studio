@@ -95,9 +95,12 @@ Nhằm đảm bảo **tiến trình đồ họa (Blender / Unreal) siêu nhẹ n
 │   [x] 2.3 Tái cấu trúc base.py & pipeline_consumer.py: Hứng trọn outputs, Fail-Fast   │
 │   [x] 2.4 Đồng bộ contracts.py: Cập nhật StepProgressMessage tương ứng C#              │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
-│ [PHASE 3: ĐỒNG BỘ HÓA FRONTEND CANVAS (React/Web)]                                     │
-│   3.1 Cập nhật usePipelineLiveTracking.ts: Gỡ bỏ chặn (!currentExecution), live outputs │
-│   3.2 Tối ưu RunPipelineModal.tsx: Mở Drawer Live Logs tab ngay khi kích hoạt          │
+│ [PHASE 3: ĐỒNG BỘ HÓA FRONTEND CANVAS & CANVAS LOCK (React/Web)] - [COMPLETED]         │
+│   [x] 3.1 Cập nhật usePipelineSignalR.ts: Chuyển tiếp outputs, error_message, status   │
+│   [x] 3.2 Tái cấu trúc usePipelineLiveTracking.ts: Bỏ chặn !currentExecution, live out  │
+│   [x] 3.3 Thêm ExecutionStatusBanner.tsx: Nhận diện trực quan Live Tracking vs Draft  │
+│   [x] 3.4 Thiết lập Canvas Execution Lock: Khóa an toàn isLocked chống sửa khi đang chạy │
+│   [x] 3.5 Đồng bộ LiveExecutionDrawer.tsx: Tự động mở tab Logs khi bắt đầu chạy        │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
 │ [PHASE 4: XÂY DỰNG BỘ TEST TỰ ĐỘNG (Automated Unit & Integration Tests Suite)]         │
 │   4.1 Backend Unit Tests: StepProgressConsumerTests (Zero-DB), StageResult, Timeout    │

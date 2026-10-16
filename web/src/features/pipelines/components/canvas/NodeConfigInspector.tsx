@@ -21,6 +21,7 @@ import {
   Box,
   FileCode,
   PlayCircle,
+  CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FormRenderer } from "@/components/dynamic-form/FormRenderer";
@@ -37,6 +38,7 @@ interface NodeConfigInspectorProps {
   onClose: () => void;
   onUpdateConfig: (nodeId: string, pinId: string, value: any) => void;
   onDeleteNode: (nodeId: string) => void;
+  isReadOnly?: boolean;
 }
 
 export const NodeConfigInspector = memo(function NodeConfigInspector({
@@ -47,6 +49,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
   onClose,
   onUpdateConfig,
   onDeleteNode,
+  isReadOnly = false,
 }: NodeConfigInspectorProps) {
   const { edges = [], nodes = [], projectId = "" } = usePipelineFormScope();
   const { data: projectStructs = [] } = useGetProjectStructs(projectId);
@@ -195,8 +198,13 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
-          {!isPipelineInputNode && (
+        <div className="flex items-center gap-1.5">
+          {isReadOnly && (
+            <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-500 text-[10px] gap-1 px-1.5 py-0 font-medium">
+              Read-Only
+            </Badge>
+          )}
+          {!isPipelineInputNode && !isReadOnly && (
             <button
               type="button"
               onClick={() => onDeleteNode(node.id)}
@@ -228,6 +236,20 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
           />
         ) : (
           <div className="space-y-4">
+            {/* Live / Persisted Execution Outputs */}
+            {data.executionOutputs && Object.keys(data.executionOutputs).length > 0 && (
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-1.5 shadow-sm">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>Execution Outputs</span>
+                </div>
+                <div className="bg-background/80 rounded-lg p-2 font-mono text-[11px] max-h-48 overflow-auto border border-border/50">
+                  <pre className="whitespace-pre-wrap break-all text-muted-foreground">
+                    {JSON.stringify(data.executionOutputs, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            )}
             {/* BreakStruct / MakeStruct / CastToStruct Special Configuration */}
             {(refIdLower === "breakstruct" ||
               refIdLower === "makestruct" ||
@@ -349,6 +371,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
   if (prev.triggerType !== next.triggerType) return false;
   if (prev.triggerConfig !== next.triggerConfig) return false;
   if (prev.pipelineId !== next.pipelineId) return false;
+  if (prev.isReadOnly !== next.isReadOnly) return false;
   return true; // Ignore node.position changes!
 });
 

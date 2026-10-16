@@ -33,6 +33,7 @@ interface CanvasToolbarProps {
   onOpenHistory?: () => void;
   onValidate: () => void;
   isValidating?: boolean;
+  isExecuting?: boolean;
 }
 
 export function CanvasToolbar({
@@ -45,6 +46,7 @@ export function CanvasToolbar({
   onOpenHistory,
   onValidate,
   isValidating,
+  isExecuting = false,
 }: CanvasToolbarProps) {
   const { studioSlug } = useCurrentStudio();
   const { fitView, zoomIn, zoomOut } = useReactFlow();
@@ -233,7 +235,7 @@ export function CanvasToolbar({
           variant="outline"
           size="sm"
           onPress={onValidate}
-          isDisabled={isValidating}
+          isDisabled={isValidating || isExecuting}
           className="h-8 text-xs gap-1.5"
         >
           {isValidating ? (
@@ -246,9 +248,23 @@ export function CanvasToolbar({
 
         {/* Run Pipeline Button */}
         {isManual ? (
-          <Button size="sm" onPress={onOpenRunModal} className="h-8 text-xs gap-1.5 shadow-sm">
-            <Play className="h-3.5 w-3.5 fill-current" />
-            <span>Run Pipeline</span>
+          <Button
+            size="sm"
+            onPress={onOpenRunModal}
+            isDisabled={isExecuting}
+            className="h-8 text-xs gap-1.5 shadow-sm"
+          >
+            {isExecuting ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-500" />
+                <span className="text-amber-500 font-medium">Running...</span>
+              </>
+            ) : (
+              <>
+                <Play className="h-3.5 w-3.5 fill-current" />
+                <span>Run Pipeline</span>
+              </>
+            )}
           </Button>
         ) : (
           <div

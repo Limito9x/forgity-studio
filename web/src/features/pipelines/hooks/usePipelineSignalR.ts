@@ -73,8 +73,14 @@ export function usePipelineSignalR(
       executionId: string,
       nodeId: string,
       status?: string,
+      outputs?: Record<string, any>,
+      errorMessage?: string | null,
     ) => void;
-    onExecutionFinished?: (executionId: string) => void;
+    onExecutionFinished?: (
+      executionId: string,
+      status?: ExecutionStatus,
+      errorMessage?: string,
+    ) => void;
   },
 ) {
   const queryClient = useQueryClient();
@@ -243,6 +249,8 @@ export function usePipelineSignalR(
           data.executionId,
           data.nodeId,
           data.status,
+          data.outputs,
+          data.errorMessage,
         );
       },
     );
@@ -308,7 +316,11 @@ export function usePipelineSignalR(
           );
         }
 
-        callbacks?.onExecutionFinished?.(data.executionId);
+        callbacks?.onExecutionFinished?.(
+          data.executionId,
+          finalStatus,
+          data.errorMessage,
+        );
       },
     );
 
