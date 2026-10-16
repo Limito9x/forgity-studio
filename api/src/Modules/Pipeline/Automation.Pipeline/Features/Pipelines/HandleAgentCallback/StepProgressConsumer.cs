@@ -1,8 +1,8 @@
+using Automation.Pipeline.Engine;
+using Automation.Pipeline.Engine.DataResolver;
 using Automation.Pipeline.Engine.Messages;
 using Automation.Pipeline.Hubs;
-using Automation.Pipeline.Infrastructure.Persistence;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
 
@@ -10,8 +10,8 @@ namespace Automation.Pipeline.Features.Pipelines.HandleAgentCallback;
 
 [NonTransactional]
 public class StepProgressConsumer(
-    PipelineDbContext db,
-    Engine.IExecutionStateStore stateStore,
+    IExecutionMemoryStore memoryStore,
+    IExecutionStateStore stateStore,
     ILogger<StepProgressConsumer> logger,
     IHubContext<PipelineExecutionHub>? hubContext = null
 )
@@ -19,61 +19,74 @@ public class StepProgressConsumer(
     public async Task HandleAsync(StepProgressMessage message, CancellationToken ct)
     {
         logger.LogInformation(
-            "Received StepProgressMessage for StageExecutionId: {StageExecutionId}, StepExecutionId: {StepId}, Status: {Status}",
-            message.StageExecutionId, message.StepExecutionId, message.Status
+            "Received StepProgressMessage for Execution: {ExecId}, Pipeline: {PipeId}, Step: {StepId}, Status: {Status}",
+            message.PipelineExecutionId, message.PipelineId, message.StepExecutionId, message.Status
         );
 
-        var execution = await db.PipelineExecutions
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.CurrentBatchId == message.StageExecutionId, ct);
-
-        if (execution == null)
+        if (!Guid.TryParse(message.PipelineExecutionId, out var executionId) ||
+            !Guid.TryParse(message.PipelineId, out var pipelineId) ||
+            !Guid.TryParse(message.StepExecutionId, out var nodeId))
         {
             logger.LogWarning(
-                "No PipelineExecution found waiting for StageExecutionId: {StageExecutionId}",
-                message.StageExecutionId
+                "Invalid identifiers in StepProgressMessage: ExecutionId={ExecId}, PipelineId={PipeId}, StepId={StepId}",
+                message.PipelineExecutionId, message.PipelineId, message.StepExecutionId
             );
             return;
         }
 
-        if (Guid.TryParse(message.StepExecutionId, out var nodeId))
+        // 1. Hot State: Lưu outputs vào Redis MemoryStore nếu có (Zero-DB)
+        if (message.Outputs != null && message.Outputs.Count > 0)
         {
             try
             {
-                await stateStore.SetNodeStatusAsync(execution.Id, nodeId, message.Status, ct);
+                await memoryStore.SetNodeAllOutputsAsync(executionId, nodeId, message.Outputs, scope: null, ct: ct);
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to update node status in state store for node {NodeId}", nodeId);
+                logger.LogWarning(ex, "Failed to persist step outputs to MemoryStore for node {NodeId}", nodeId);
             }
+        }
 
-            if (hubContext != null)
+        // 2. Hot State: Cập nhật trạng thái node vào Redis StateStore
+        try
+        {
+            await stateStore.SetNodeStatusAsync(executionId, nodeId, message.Status, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to update node status in StateStore for node {NodeId}", nodeId);
+        }
+
+        // 3. Realtime SignalR: Phát sóng ngay cho Web Canvas (< 1ms, Zero-DB)
+        if (hubContext != null)
+        {
+            try
             {
-                try
-                {
-                    var isRunning = message.Status.Equals("running", StringComparison.OrdinalIgnoreCase);
-                    var isFinished = message.Status.Equals("succeeded", StringComparison.OrdinalIgnoreCase) ||
-                                     message.Status.Equals("failed", StringComparison.OrdinalIgnoreCase);
+                var isRunning = message.Status.Equals("running", StringComparison.OrdinalIgnoreCase);
+                var isFinished = message.Status.Equals("succeeded", StringComparison.OrdinalIgnoreCase) ||
+                                 message.Status.Equals("failed", StringComparison.OrdinalIgnoreCase);
 
-                    await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
-                        "PipelineNodeExecutionUpdated",
-                        new
-                        {
-                            executionId = execution.Id,
-                            pipelineId = execution.PipelineId,
-                            nodeId,
-                            status = message.Status,
-                            startedAt = isRunning ? DateTimeOffset.UtcNow : (DateTimeOffset?)null,
-                            finishedAt = isFinished ? DateTimeOffset.UtcNow : (DateTimeOffset?)null
-                        },
-                        ct
-                    );
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "Failed to broadcast PipelineNodeExecutionUpdated via SignalR for node {NodeId}", nodeId);
-                }
+                await hubContext.Clients.Group($"pipeline_{pipelineId}").SendAsync(
+                    "PipelineNodeExecutionUpdated",
+                    new
+                    {
+                        executionId,
+                        pipelineId,
+                        nodeId,
+                        status = message.Status,
+                        outputs = message.Outputs,
+                        errorMessage = message.ErrorMessage,
+                        startedAt = isRunning ? DateTimeOffset.UtcNow : (DateTimeOffset?)null,
+                        finishedAt = isFinished ? DateTimeOffset.UtcNow : (DateTimeOffset?)null
+                    },
+                    ct
+                );
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to broadcast PipelineNodeExecutionUpdated via SignalR for node {NodeId}", nodeId);
             }
         }
     }
 }
+

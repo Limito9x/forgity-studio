@@ -39,7 +39,6 @@ public class PipelineOrchestrator(
     )
     {
         var execution = await db.PipelineExecutions
-            .AsNoTracking()
             .AsSplitQuery()
             .Include(x => x.Pipeline)
                 .ThenInclude(p => p.Nodes)

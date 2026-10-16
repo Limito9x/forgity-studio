@@ -49,6 +49,30 @@ public class StageResultConsumer(
             execution.MarkFailed(err);
             await db.SaveChangesAsync(ct);
             logger.LogError("PipelineExecution {ExecutionId} failed during Agent stage {StageId}: {Error}", execution.Id, message.StageExecutionId, err);
+
+            if (hubContext != null)
+            {
+                try
+                {
+                    await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
+                        "PipelineExecutionFinished",
+                        new
+                        {
+                            executionId = execution.Id,
+                            pipelineId = execution.PipelineId,
+                            status = "failed",
+                            errorMessage = err,
+                            finishedAt = DateTimeOffset.UtcNow
+                        },
+                        ct
+                    );
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to broadcast PipelineExecutionFinished via SignalR for execution {ExecutionId}", execution.Id);
+                }
+            }
+
             return;
         }
 

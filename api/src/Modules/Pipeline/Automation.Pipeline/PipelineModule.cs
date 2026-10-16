@@ -64,6 +64,13 @@ public sealed class PipelineModule : IModule, IPermissionModule
         options.LocalQueue("pipeline-executions")
                .MaximumParallelMessages(4)
                .UseDurableInbox();
+
+        // 5. Route stage timeout watchdog checks to dedicated local queue
+        options.PublishMessage<StageTimeoutCheckMessage>()
+               .ToLocalQueue("pipeline-timeouts");
+
+        options.LocalQueue("pipeline-timeouts")
+               .UseDurableInbox();
     }
 
     public Dictionary<string, IReadOnlyList<string>> GetPermissions() 

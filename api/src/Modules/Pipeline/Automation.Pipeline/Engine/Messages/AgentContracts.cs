@@ -79,6 +79,9 @@ public class StageTaskMessage
     [JsonPropertyName("pipeline_execution_id")]
     public string PipelineExecutionId { get; set; } = string.Empty;
 
+    [JsonPropertyName("pipeline_id")]
+    public string PipelineId { get; set; } = string.Empty;
+
     [JsonPropertyName("stage_id")]
     public string StageId { get; set; } = string.Empty;
 
@@ -103,6 +106,12 @@ public class StageTaskMessage
 
 public class StepProgressMessage
 {
+    [JsonPropertyName("pipeline_execution_id")]
+    public string PipelineExecutionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("pipeline_id")]
+    public string PipelineId { get; set; } = string.Empty;
+
     [JsonPropertyName("stage_execution_id")]
     public string StageExecutionId { get; set; } = string.Empty;
 
@@ -111,7 +120,15 @@ public class StepProgressMessage
 
     [JsonPropertyName("status")]
     public string Status { get; set; } = string.Empty;
+
+    [JsonPropertyName("outputs")]
+    public Dictionary<string, object?>? Outputs { get; set; }
+
+    [JsonPropertyName("error_message")]
+    public string? ErrorMessage { get; set; }
 }
+
+public record StageTimeoutCheckMessage(Guid ExecutionId, string StageExecutionId);
 
 public class StepResult
 {
