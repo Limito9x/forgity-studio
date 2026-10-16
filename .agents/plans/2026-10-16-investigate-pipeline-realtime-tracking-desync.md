@@ -82,18 +82,18 @@ Nhằm đảm bảo **tiến trình đồ họa (Blender / Unreal) siêu nhẹ n
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ [PHASE 1: TÁI CẤU TRÚC CORE PIPELINE SERVER (Backend C#)]                              │
-│   1.1 Chuẩn hóa AgentContracts.cs: StepProgressMessage tự thân đầy đủ trường           │
-│   1.2 Tái cấu trúc StepProgressConsumer.cs: ZERO DB QUERY, lưu Redis + SignalR         │
-│   1.3 Sửa StageResultConsumer.cs: Luôn bắn SignalR PipelineExecutionFinished khi lỗi   │
-│   1.4 Tái cấu trúc RunnerSegmentDispatcher.cs: Bỏ fake running, kích hoạt Timeout Watchdog│
-│   1.5 Xây dựng StageTimeoutHandler.cs: Tự động ngắt pipeline ma quá 30 phút            │
+│ [PHASE 1: TÁI CẤU TRÚC CORE PIPELINE SERVER (Backend C#)] - [COMPLETED]                │
+│   [x] 1.1 Chuẩn hóa AgentContracts.cs: StepProgressMessage tự thân đầy đủ trường       │
+│   [x] 1.2 Tái cấu trúc StepProgressConsumer.cs: ZERO DB QUERY, lưu Redis + SignalR     │
+│   [x] 1.3 Sửa StageResultConsumer.cs: Luôn bắn SignalR PipelineExecutionFinished khi lỗi│
+│   [x] 1.4 Tái cấu trúc RunnerSegmentDispatcher.cs: Bỏ fake running, kích hoạt Watchdog │
+│   [x] 1.5 Xây dựng StageTimeoutHandler.cs: Tự động ngắt pipeline ma quá 30 phút        │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
-│ [PHASE 2: REFACTOR RUNNER DAEMON & EXECUTOR (Python Worker)]                           │
-│   2.1 Gỡ bỏ hoàn toàn gRPC ExecutionStateClient trong stage_runner.py (Blender offline)│
-│   2.2 Chuẩn hóa interface pipeline_hooks.py: step_started, step_completed, step_failed │
-│   2.3 Tái cấu trúc base.py & pipeline_consumer.py: Hứng trọn vẹn outputs, Fail-Fast   │
-│   2.4 Đồng bộ contracts.py: Cập nhật StepProgressMessage tương ứng C#                  │
+│ [PHASE 2: REFACTOR RUNNER DAEMON & EXECUTOR (Python Worker)] - [COMPLETED]             │
+│   [x] 2.1 Gỡ bỏ hoàn toàn gRPC ExecutionStateClient trong stage_runner.py (Offline)    │
+│   [x] 2.2 Chuẩn hóa interface pipeline_hooks.py: step_started, step_completed, failed  │
+│   [x] 2.3 Tái cấu trúc base.py & pipeline_consumer.py: Hứng trọn outputs, Fail-Fast   │
+│   [x] 2.4 Đồng bộ contracts.py: Cập nhật StepProgressMessage tương ứng C#              │
 ├────────────────────────────────────────────────────────────────────────────────────────┤
 │ [PHASE 3: ĐỒNG BỘ HÓA FRONTEND CANVAS (React/Web)]                                     │
 │   3.1 Cập nhật usePipelineLiveTracking.ts: Gỡ bỏ chặn (!currentExecution), live outputs │

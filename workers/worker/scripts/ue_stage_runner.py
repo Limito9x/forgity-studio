@@ -13,11 +13,11 @@ except ImportError:
     unreal = None
     HAS_UNREAL = False
 
-# Ensure Automation-Agent root, scripts, and pipeline dirs are in sys.path
+# Ensure Automation root and scripts dir are in sys.path
 _scripts_dir = os.path.dirname(os.path.abspath(__file__))
 _agent_root = os.path.dirname(os.path.dirname(_scripts_dir))
-for _p in [_agent_root, _scripts_dir, os.path.join(_scripts_dir, "pipeline")]:
-    if _p not in sys.path:
+for _p in [_agent_root, _scripts_dir]:
+    if os.path.exists(_p) and _p not in sys.path:
         sys.path.insert(0, _p)
 
 
@@ -73,13 +73,6 @@ def main():
 
     print(f"UNREAL STAGE RUNNER PARSED {len(steps)} STEPS", flush=True)
 
-    scripts_dir = os.path.dirname(os.path.abspath(__file__))
-    if scripts_dir not in sys.path:
-        sys.path.insert(0, scripts_dir)
-    pipeline_dir = os.path.join(scripts_dir, "pipeline")
-    if pipeline_dir not in sys.path:
-        sys.path.insert(0, pipeline_dir)
-
     from lib.pipeline_hooks import PipelineHooks
 
     all_step_outputs: dict[str, dict] = {}
@@ -104,7 +97,7 @@ def main():
         if not resolved_script_path:
             err = f"Script '{script_path}' could not be resolved! (Hash: {script_hash}, Url: {script_url})"
             print(f"UE STAGE RUNNER ERROR: {err}", flush=True)
-            PipelineHooks.report_step_result(step_execution_id, False, error=err)
+            PipelineHooks.report_step_failed(step_execution_id, error=err)
             break
 
         step_inputs = resolve_step_inputs(step_inputs_raw, all_step_outputs, resolved_data)
@@ -112,28 +105,6 @@ def main():
         # Support intra-stage data flow from previous steps in this stage via InputMappings
         step_inputs = apply_input_mappings(step, step_inputs, all_step_outputs)
 
-        # Auto-propagate mesh_paths from prior steps in this stage if not explicitly wired
-        if not step_inputs.get("mesh_paths") and not step_inputs.get("mesh_uasset_path"):
-            for prev_id, prev_out in reversed(list(all_step_outputs.items())):
-                if isinstance(prev_out, dict):
-                    if prev_out.get("mesh_paths"):
-                        step_inputs["mesh_paths"] = prev_out["mesh_paths"]
-                        print(f"  🔗 [ue_stage_runner] Auto-linked 'mesh_paths' from prior step '{prev_id}'", flush=True)
-                    if prev_out.get("mesh_uasset_path"):
-                        step_inputs["mesh_uasset_path"] = prev_out["mesh_uasset_path"]
-
-        # Auto-propagate objects_map from prior steps in this stage if not explicitly wired
-        if not step_inputs.get("objects_map") and not step_inputs.get("batch_items"):
-            for prev_id, prev_out in reversed(list(all_step_outputs.items())):
-                if isinstance(prev_out, dict):
-                    if prev_out.get("objects_map"):
-                        step_inputs["objects_map"] = prev_out["objects_map"]
-                        print(f"  🔗 [ue_stage_runner] Auto-linked 'objects_map' from prior step '{prev_id}'", flush=True)
-                        break
-                    elif prev_out.get("batch_results"):
-                        step_inputs["objects_map"] = prev_out["batch_results"]
-                        print(f"  🔗 [ue_stage_runner] Auto-linked 'batch_results' as objects_map from prior step '{prev_id}'", flush=True)
-                        break
 
         # TRACE LOG: PRINT INPUTS
         print(f"\n=======================================================", flush=True)
@@ -173,7 +144,7 @@ def main():
         except Exception as e:
             err_msg = "".join(traceback.format_exception(type(e), e, e.__traceback__))
             print(f"UE STAGE RUNNER ERROR in step {step_execution_id}: {err_msg}", flush=True)
-            PipelineHooks.report_step_result(step_execution_id, False, error=err_msg)
+            PipelineHooks.report_step_failed(step_execution_id, error=err_msg, traceback_str=err_msg)
             break
 
         finally:

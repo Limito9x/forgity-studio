@@ -28,12 +28,23 @@ public class StageResultConsumer(
         logger.LogInformation("Received StageResultMessage for StageExecutionId: {StageExecutionId}, Succeeded: {Succeeded}",
             message.StageExecutionId, message.Succeeded);
 
-        var execution = await db.PipelineExecutions
-            .FirstOrDefaultAsync(x => x.CurrentBatchId == message.StageExecutionId, ct);
+        PipelineExecution? execution = null;
+        if (Guid.TryParse(message.PipelineExecutionId, out var parsedExecId))
+        {
+            execution = await db.PipelineExecutions
+                .FirstOrDefaultAsync(x => x.Id == parsedExecId, ct);
+        }
 
         if (execution == null)
         {
-            logger.LogWarning("No PipelineExecution found waiting for StageExecutionId: {StageExecutionId}", message.StageExecutionId);
+            execution = await db.PipelineExecutions
+                .FirstOrDefaultAsync(x => x.CurrentBatchId == message.StageExecutionId, ct);
+        }
+
+        if (execution == null)
+        {
+            logger.LogWarning("No PipelineExecution found for StageExecutionId: {StageExecutionId} (ExecId: {ExecId})",
+                message.StageExecutionId, message.PipelineExecutionId);
             return;
         }
 

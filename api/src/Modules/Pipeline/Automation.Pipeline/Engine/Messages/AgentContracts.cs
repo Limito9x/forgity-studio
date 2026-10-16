@@ -150,6 +150,12 @@ public class StepResult
 
 public class StageResultMessage
 {
+    [JsonPropertyName("pipeline_execution_id")]
+    public string PipelineExecutionId { get; set; } = string.Empty;
+
+    [JsonPropertyName("pipeline_id")]
+    public string PipelineId { get; set; } = string.Empty;
+
     [JsonPropertyName("stage_execution_id")]
     public string StageExecutionId { get; set; } = string.Empty;
 

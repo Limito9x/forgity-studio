@@ -22,22 +22,11 @@ except ImportError:
     HAS_BPY = False
 import traceback
 
-# Ensure Automation-Agent root, scripts, pipeline dirs, inspectors dirs, and worker venv site-packages are in sys.path
+# Ensure Automation root, scripts dir, and worker venv site-packages are in sys.path
 _scripts_dir = os.path.dirname(os.path.abspath(__file__))
 _agent_root = os.path.dirname(os.path.dirname(_scripts_dir))
 _venv_site = os.path.join(_agent_root, "worker", "venv", "Lib", "site-packages")
-_sub_paths = [
-    _venv_site,
-    _agent_root,
-    _scripts_dir,
-    os.path.join(_scripts_dir, "pipeline"),
-    os.path.join(_scripts_dir, "pipeline", "blender"),
-    os.path.join(_scripts_dir, "pipeline", "daz"),
-    os.path.join(_scripts_dir, "inspectors"),
-    os.path.join(_scripts_dir, "inspectors", "blender"),
-    os.path.join(_scripts_dir, "inspectors", "daz"),
-]
-for _p in _sub_paths:
+for _p in [_venv_site, _agent_root, _scripts_dir]:
     if os.path.exists(_p) and _p not in sys.path:
         sys.path.insert(0, _p)
 
@@ -75,12 +64,6 @@ def main():
     resolved_data = payload.get("resolved_data", {})
     print(f"STAGE RUNNER PARSED PAYLOAD WITH {len(steps)} STEPS", flush=True)
 
-    scripts_dir = os.path.dirname(os.path.abspath(__file__))
-    for _sub in ["pipeline", os.path.join("pipeline", "blender"), os.path.join("pipeline", "daz"), "inspectors", os.path.join("inspectors", "blender"), os.path.join("inspectors", "daz")]:
-        _sub_p = os.path.join(scripts_dir, _sub)
-        if os.path.exists(_sub_p) and _sub_p not in sys.path:
-            sys.path.insert(0, _sub_p)
-
     from lib.pipeline_hooks import PipelineHooks
 
     # Giữ outputs của từng step trong RAM — Step sau dùng $ref trỏ vào đây.
@@ -108,18 +91,9 @@ def main():
         if not resolved_script_path:
             err = f"Script '{script_path}' could not be resolved! (Hash: {script_hash}, Url: {script_url})"
             print(f"STAGE RUNNER ERROR: {err}", flush=True)
-            PipelineHooks.report_step_result(step_execution_id, False, error=err)
+            PipelineHooks.report_step_failed(step_execution_id, error=err)
             has_failed_step = True
             break
-
-        # JIT Pull: Resolve fresh step inputs via gRPC on-demand
-        try:
-            from core.execution_state_client import ExecutionStateClient
-            grpc_inputs = ExecutionStateClient.resolve_step_inputs(payload, step)
-            if grpc_inputs:
-                step_inputs_raw.update(grpc_inputs)
-        except Exception as pull_err:
-            print(f"[STAGE RUNNER] gRPC JIT pull fallback: {pull_err}", flush=True)
 
         # Resolve explicit $ref / $data inputs (local RAM cache or intra-segment links)
         step_inputs = resolve_step_inputs(step_inputs_raw, all_step_outputs, resolved_data)
@@ -160,13 +134,6 @@ def main():
             step_outputs = PipelineHooks.get_outputs()
             all_step_outputs[step_execution_id] = step_outputs
 
-            # Report step outputs to Backend MemoryStore in real-time via gRPC
-            try:
-                from core.execution_state_client import ExecutionStateClient
-                ExecutionStateClient.report_step_output(payload, step_execution_id, step_outputs)
-            except Exception:
-                pass
-
             # TRACE LOG: PRINT OUTPUTS
             print(f"\n-------------------------------------------------------", flush=True)
             print(f"+ [STEP FINISH] #{step.get('order', '?')} {step_name}", flush=True)
@@ -178,7 +145,7 @@ def main():
         except Exception as e:
             err_msg = "".join(traceback.format_exception(type(e), e, e.__traceback__))
             print(f"STAGE RUNNER ERROR in step {step_execution_id}: {err_msg}", flush=True)
-            PipelineHooks.report_step_result(step_execution_id, False, error=err_msg)
+            PipelineHooks.report_step_failed(step_execution_id, error=err_msg, traceback_str=err_msg)
             # Một step fail → dừng toàn bộ batch (fail-fast).
             has_failed_step = True
             break

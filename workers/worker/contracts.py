@@ -39,6 +39,7 @@ class StageTaskMessage(ContractModel):
     """Message received from 'stage_tasks.{agentId}' queue."""
     stage_execution_id: str
     pipeline_execution_id: str
+    pipeline_id: str = ""
     stage_id: str = ""
     executor: str  # "blender" | "python"
     access_token: str = ""
@@ -50,9 +51,13 @@ class StageTaskMessage(ContractModel):
 
 class StepProgressMessage(ContractModel):
     """Message sent to 'step_progress' queue to update step execution status."""
+    pipeline_execution_id: str = ""
+    pipeline_id: str = ""
     stage_execution_id: str
     step_execution_id: str
     status: str  # "Running" | "Succeeded" | "Failed" | "Cancelled"
+    outputs: dict[str, Any] | None = None
+    error_message: str | None = None
 
 
 class StepResult(ContractModel):
@@ -66,6 +71,8 @@ class StepResult(ContractModel):
 class StageResultMessage(ContractModel):
     """Message sent to 'stage_results' queue upon stage completion."""
     stage_execution_id: str
+    pipeline_execution_id: str = ""
+    pipeline_id: str = ""
     succeeded: bool
     log: str | None = None
     error_message: str | None = None
