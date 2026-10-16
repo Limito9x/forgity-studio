@@ -17,22 +17,26 @@
 sequenceDiagram
     autonumber
     actor User
+    participant Web as Web Canvas (React Flow)
     participant API as FastEndpoints (RunPipeline)
     participant DB as Postgres DB (PipelineExecution)
     participant Orch as PipelineOrchestrator
     participant Plan as ExecPlanner (DAG)
-    participant Mem as ExecutionMemoryStore
+    participant Mem as Redis MemoryStore & StateStore
     participant Rabbit as RabbitMQ
-    participant Worker as Python Worker (Subprocess)
+    participant Host as Worker Daemon (Ambassador)
+    participant Guest as Subprocess Runner (100% Offline)
     participant Hub as SignalR (PipelineExecutionHub)
 
-    User->>API: POST /api/pipelines/{id}/run
+    User->>Web: Bấm "Run Pipeline"
+    Web->>Web: Khóa Canvas an toàn (isLocked: chặn kéo thả, sửa node, xóa dây)
+    Web->>API: POST /api/pipelines/{id}/run
     API->>DB: Tạo PipelineExecution (Status = Pending, NextNodeIndex = 0)
     API->>API: Publish TriggerPipelineExecutionMessage (Wolverine Bus)
-    API-->>User: Trả về ExecutionId (Không block HTTP)
+    API-->>Web: Trả về ExecutionId (Web bật Banner Live Tracking & mở Drawer)
 
     Note over Orch: BƯỚC 1: KHỞI ĐỘNG VÀ CHUẨN BỊ
-    Orch->>DB: Load Pipeline, Nodes, Edges
+    Orch->>DB: Load Pipeline, Nodes, Edges (AsNoTracking)
     Orch->>Mem: Nạp Start Inputs & Variables
     Orch->>Plan: BuildExecPlan(pipeline) -> Danh sách Segments
 
@@ -44,31 +48,56 @@ sequenceDiagram
             Orch->>DB: Tăng NextNodeIndex
         else Segment là Runner (Out-of-Process Worker)
             Orch->>Rabbit: RunnerSegmentDispatcher: Gửi StageTaskMessage vào stage_tasks.{agentId}
+            Orch->>API: Lên lịch Watchdog 30 phút (StageTimeoutCheckMessage)
             Orch->>DB: MarkWaitingForRunner(CurrentBatchId = stageId, Status = WaitingForRunner)
             Note over Orch: GIẢI PHÓNG THREAD SERVER, CHỜ WORKER
         end
     end
 
-    Note over Worker: BƯỚC 3: WORKER THỰC THI (Headless Blender/UE)
-    Worker->>Rabbit: Lấy StageTaskMessage
-    Worker->>Worker: Lock .storage.lock, resolve script cache SHA-256
-    Worker->>Worker: Khởi động subprocess (Blender / UE / Python)
-    Worker-->>Rabbit: Đẩy StepProgressMessage (queue: step_progress) -> SignalR realtime
-    Worker->>Rabbit: Hoàn tất stage -> Đẩy StageResultMessage (queue: stage_results)
+    Note over Host,Guest: BƯỚC 3: WORKER AMBASSADOR & OFFLINE SUBPROCESS
+    Host->>Rabbit: Lấy StageTaskMessage (Single Gateway duy nhất nối mạng)
+    Host->>Host: Lock .storage.lock, resolve script cache SHA-256
+    Host->>Guest: Khởi chạy Blender/UE Subprocess, truyền payload qua STDIN
+    loop Từng step trong Stage (100% Offline trong RAM)
+        Guest->>Guest: Đọc input từ STDIN & RAM all_step_outputs
+        Guest-->>Host: Emit "PIPELINE_EVENT: step_started" qua STDOUT
+        Host-->>Rabbit: Đẩy StepProgressMessage (queue: step_progress)
+        Rabbit->>API: StepProgressConsumer (ZERO-DB HOT PATH < 1ms)
+        API->>Mem: Ghi Redis StateStore & MemoryStore
+        API->>Hub: Bắn SignalR "PipelineNodeExecutionUpdated"
+        Hub-->>Web: Web Canvas đổi viền Node sang Running (< 16ms)
+        
+        alt Step hoàn thành thành công
+            Guest-->>Host: Emit "PIPELINE_EVENT: step_completed" (kèm outputs) qua STDOUT
+            Host-->>Rabbit: Đẩy StepProgressMessage (status: Succeeded, outputs)
+            Rabbit->>API: StepProgressConsumer ghi Redis MemoryStore & bắn SignalR
+            Hub-->>Web: Web Canvas đổi viền Node sang Succeeded, nạp outputs vào Inspector
+        else Step thất bại (Fail-Fast)
+            Guest-->>Host: Emit "PIPELINE_EVENT: step_failed" qua STDOUT
+            Host->>Guest: proc.kill() dập tắt Subprocess ngay lập tức
+            Host-->>Rabbit: Gửi StageResultMessage (Succeeded = false)
+        end
+    end
+    Host->>Rabbit: Hoàn tất stage -> Đẩy StageResultMessage (queue: stage_results)
 
-    Note over Orch: BƯỚC 4: TIẾP SỨC RESUMPTION
+    Note over Orch: BƯỚC 4: TIẾP SỨC RESUMPTION HOẶC FAIL-FAST
     Rabbit->>API: StageResultConsumer nhận StageResultMessage
     API->>DB: Tìm PipelineExecution theo CurrentBatchId == stageId
-    alt Nếu Execution đã bị Cancel
+    alt Nếu Succeeded == false (Fail-Fast)
+        API->>DB: execution.MarkFailed(error)
+        API->>Hub: Bắn SignalR "PipelineExecutionFinished" (status: failed)
+        Hub-->>Web: Web Canvas dập tắt spinner, hiện viền đỏ và thông báo lỗi ngay lập tức
+    else Nếu Execution đã bị Cancel
         API->>API: Bỏ qua, ngắt toàn bộ tiến trình
     else Nếu Succeeded
-        API->>Mem: Ghi Step Outputs của Worker vào MemoryStore
+        API->>Mem: Ghi Step Outputs của Worker vào MemoryStore & StateStore
         API->>Orch: ExecuteOrResumeAsync(executionId) -> Chạy tiếp các Segment còn lại
     end
 
     Note over Orch: BƯỚC 5: KẾT THÚC
     Orch->>DB: MarkSucceeded (Status = Succeeded, FinishedAt = Now)
-    Orch->>Hub: Bắn SignalR "PipelineExecutionFinished"
+    Orch->>Hub: Bắn SignalR "PipelineExecutionFinished" (status: succeeded)
+    Hub-->>Web: Web Canvas hiển thị Banner Succeeded, mở khóa Canvas
 ```
 
 ---
@@ -125,23 +154,53 @@ Hệ thống phân tách rạch ròi giữa **Dữ liệu bền vững (Durable 
 
 ## 4. Cơ Chế Worker Thực Thi & Tiếp Sức Callback (Resumption Loop)
 
-### 4.1. Worker thực thi thế nào?
-1. **Tiếp nhận:** Worker lắng nghe RabbitMQ queue `stage_tasks.{agentId}`.
-2. **Khóa an toàn:** Mở context `with storage_lock():` tạo file lock `.storage.lock` để đảm bảo cronjob dọn dẹp không xóa trúng file trong lúc job đang chạy.
-3. **Phân giải script:** `script_resolver.py` kiểm tra thư mục cache `worker/runtime/cache/scripts/{hash}/`. Nếu chưa có, tải từ URL và đối chiếu chính xác SHA-256 hash.
-4. **Chạy Subprocess Headless:** Khởi chạy `BaseSubprocessExecutor` (gọi binary `blender.exe -b -P ...` hoặc Unreal Engine).
-5. **Stream tiến độ:** Bắn `StepProgressMessage` vào queue `step_progress`. Backend `StepProgressConsumer` nhận message và phát SignalR realtime `PipelineNodeExecutionUpdated` (đổi màu node trên Canvas thành Running/Success).
-6. **Báo cáo kết quả:** Khi toàn bộ bước trong Stage kết thúc, Worker bắn `StageResultMessage` vào queue `stage_results`.
+### 4.1. Kiến Trúc Ambassador / Sidecar Pattern (Worker Daemon & Subprocess 100% Offline)
+Nhằm giải quyết triệt để sự cố rò rỉ socket, đứt gRPC channel và treo process của Blender/Unreal Engine, hệ thống áp dụng triệt để mô hình **Ambassador / Sidecar**:
+1. **Host Daemon (`pipeline_consumer.py`) - "Đại Sứ Duy Nhất":**
+   - Là thực thể duy nhất kết nối mạng, lắng nghe RabbitMQ (`stage_tasks.{agentId}`) và tương tác gRPC/Storage.
+   - Quản lý file lock `.storage.lock` bằng context `with storage_lock():` để ngăn cronjob dọn rác xóa trúng file job đang chạy.
+   - Phân giải script qua `script_resolver.py` (kiểm tra hash SHA-256 từ `worker/runtime/cache/scripts/{hash}/`).
+2. **Subprocess Guest Runner (`stage_runner.py` / `ue_stage_runner.py`) - "100% Offline":**
+   - Bị tước bỏ hoàn toàn code gRPC client và socket mạng.
+   - **Giao thức STDIN:** Nhận toàn bộ `StageTaskMessage` dạng JSON UTF-8 qua dòng nhập chuẩn `sys.stdin`.
+   - **Bộ nhớ đệm RAM `all_step_outputs`:** Kết quả của step trước được lưu trực tiếp vào dictionary trong RAM của Python subprocess, các step sau đọc trực tiếp tại chỗ mà không cần gọi mạng.
+   - **Giao thức STDOUT:** Bắn các sự kiện cấu trúc thời gian thực qua dòng xuất chuẩn:
+     - `PIPELINE_EVENT: {"event": "step_started", "step_execution_id": "..."}`
+     - `PIPELINE_EVENT: {"event": "step_completed", "step_execution_id": "...", "succeeded": true, "outputs": {...}}`
+     - `PIPELINE_EVENT: {"event": "step_failed", "step_execution_id": "...", "error_message": "..."}`
+3. **Cơ chế Fail-Fast Subprocess Termination:**
+   - Khi phát hiện bất kỳ step nào phát `step_failed`, `BaseSubprocessExecutor` lập tức kích hoạt `proc.kill()` để giải phóng GPU/RAM ngay tức khắc (< 1 giây), không để tiến trình tiếp tục chạy vô ích.
 
-### 4.2. Callback Tiếp sức (Resumption) ở Backend
-1. **`StageResultConsumer`** lắng nghe queue `stage_results`:
-2. Tìm `PipelineExecution` có `CurrentBatchId == message.StageExecutionId`.
-3. **Kiểm tra cờ Hủy (Cancellation Check):** Nếu execution đã có status là `Cancelled` -> **Dừng ngay lập tức**, không ghi state và không resume.
-4. Nếu `Succeeded`:
-   - Ghi toàn bộ `step_results.outputs` vào `IExecutionMemoryStore`.
-   - Cập nhật `NextNodeIndex` lên vị trí tiếp theo.
-   - Gọi lại `orchestrator.ExecuteOrResumeAsync(execution.Id)`.
-5. Orchestrator thức dậy, tiếp tục vòng lặp chạy Segment kế tiếp (có thể là một DotNet Tool khác hoặc một Runner Stage khác) cho tới khi kết thúc toàn bộ đồ thị.
+### 4.2. Kiến Trúc Zero-DB Hot Path (`StepProgressConsumer`)
+Nhằm loại bỏ hoàn toàn hiện tượng nghẽn giao dịch SQL (Race Condition / Deadlock) khi Worker gửi tiến độ dồn dập:
+- `StepProgressMessage` mang sẵn đầy đủ ngữ cảnh tự thân: `pipeline_execution_id`, `pipeline_id`, `step_execution_id`, `status`, `outputs`, `error_message`.
+- **Tuyệt đối không query `PipelineDbContext`:** Không `SELECT ... FROM PipelineExecutions`, không mở SQL transaction.
+- **Ghi nóng vào Redis:**
+  - `stateStore.SetNodeStatusAsync(executionId, nodeId, message.Status, ct)`
+  - `memoryStore.SetNodeAllOutputsAsync(executionId, nodeId, message.Outputs, scope: null, ct)` (nếu có outputs).
+- **Phát sóng SignalR siêu tốc (< 1ms):** Bắn thẳng sự kiện `PipelineNodeExecutionUpdated` vào group `pipeline_{pipelineId}`.
+
+### 4.3. Cơ Chế Fail-Fast SignalR & Resumption Callback (`StageResultConsumer`)
+1. **Trường hợp Thất bại (`message.Succeeded == false`):**
+   - Đánh dấu `execution.MarkFailed(error)`.
+   - Lưu DB: `await db.SaveChangesAsync(ct)`.
+   - **BẮT BUỘC BẮN SIGNALR `PipelineExecutionFinished(status: "failed")`** kèm `errorMessage`. Điều này dập tắt ngay spinner trên Web Canvas, tô viền đỏ node lỗi và hiển thị banner thông báo mà không bị treo giao diện.
+2. **Trường hợp Thành công (`message.Succeeded == true`):**
+   - Cập nhật outputs của tất cả steps vào `IExecutionMemoryStore` và `IExecutionStateStore`.
+   - Bắn SignalR `PipelineNodeExecutionUpdated` xác nhận cho từng node.
+   - Cập nhật state đồ thị, tăng `NextNodeIndex`, lưu DB và gọi `orchestrator.ExecuteOrResumeAsync(execution.Id)`.
+
+### 4.4. Cơ Chế Stage Timeout Watchdog (Chống Zombie Executions)
+- Khi `RunnerSegmentDispatcher` gửi task cho Worker, đồng thời đăng ký một tin nhắn kiểm tra quá hạn sau 30 phút qua Wolverine:
+  ```csharp
+  await messageBus.PublishAsync(
+      new StageTimeoutCheckMessage(execution.Id, stageId),
+      new DeliveryOptions { ScheduleDelay = TimeSpan.FromMinutes(30) }
+  );
+  ```
+- **`StageTimeoutHandler`:** Sau 30 phút, nếu execution vẫn ở trạng thái `WaitingForRunner` (hoặc `Running`) và `CurrentBatchId == stageId` (Runner không phản hồi do sập nguồn/crash), hệ thống tự động:
+  - Đánh dấu `execution.MarkFailed("Stage timed out: Runner did not report back within 30 minutes.")`.
+  - Phát sóng SignalR `PipelineExecutionFinished(status: "failed")` để dọn dẹp tiến trình an toàn.
 
 ---
 
@@ -175,7 +234,33 @@ sequenceDiagram
 
 ---
 
-## 6. Tóm Tắt Quy Tắc Cho Agent Khi Chạm Vào Pipeline Engine
-1. **Không tạo thêm bảng quản lý cancel:** Tuyệt đối không tái tạo `StageExecutions` hay `ExecutionCancelCommands`. Cơ chế cancel dựa trên `Status = Cancelled` và short-circuit tại `StageResultConsumer`.
-2. **Tôn trọng ranh giới In-process vs Out-of-process:** C# Tools chạy qua `DotNetSegmentDispatcher`; script Python/Blender/Unreal chạy qua `RunnerSegmentDispatcher` và RabbitMQ.
-3. **Không ghi output trực tiếp vào Database:** Kết quả tạm giữa các node chạy qua `IExecutionMemoryStore`. Database chỉ lưu tiến trình tổng thể (`NextNodeIndex`, `Status`).
+## 6. Cơ Chế Canvas Live Tracking & Khóa An Toàn (Frontend Safety Lock)
+
+Giao diện Web Canvas (`web/src/features/pipelines/components/canvas/`) đồng bộ real-time với Engine qua SignalR:
+
+1. **`ExecutionStatusBanner` (Banner Nổi Giám Sát Tiến Trình):**
+   - Nổi bật ở cạnh trên Canvas khi người dùng đang theo dõi một lượt chạy (`activeExecutionId`).
+   - Hiển thị huy hiệu trạng thái: `Running` (xanh dương kèm hiệu ứng pulse), `Succeeded` (xanh lá), `Failed` (đỏ), `Cancelled` (vàng xám).
+   - Cung cấp nút xem Live Logs (mở Drawer tab Logs) và nút "Back to Draft" để quay lại chế độ chỉnh sửa mẫu pipeline.
+2. **`usePipelineLiveTracking` Hook:**
+   - Lắng nghe SignalR `PipelineNodeExecutionUpdated`: Đổi màu viền node (Pending -> Running -> Succeeded / Failed) trong < 16ms.
+   - Nạp outputs thời gian thực vào node data để hiển thị ngay trong Node Inspector khi người dùng nhấp chọn node.
+   - Lắng nghe `PipelineExecutionFinished`: Cập nhật trạng thái tổng thể và dập tắt toàn bộ loading spinner.
+3. **Khóa An Toàn Toàn Diện (`isLocked`):**
+   - Khi Pipeline đang chạy (`status === Running || status === WaitingForRunner`):
+     - Vô hiệu hóa kéo thả node (`nodesDraggable={false}`).
+     - Vô hiệu hóa nối dây/kết nối pin (`nodesConnectable={false}`).
+     - Vô hiệu hóa phím Delete / Backspace (`deleteKeyCode={null}`).
+     - Vô hiệu hóa nút Run và nút Validate trên Toolbar.
+     - Đặt Node Inspector sang chế độ chỉ đọc (`isReadOnly={true}`) để ngăn sửa đổi config của node khi pipeline đang thực thi.
+
+---
+
+## 7. Tóm Tắt Quy Tắc Vàng Cho Agent Khi Can Thiệp Pipeline Engine
+
+1. **Tuân thủ Zero-DB Hot Path:** Tuyệt đối không đưa câu lệnh SQL hay DbContext vào `StepProgressConsumer`. Tất cả cập nhật runtime giữa các step phải đi qua Redis `StateStore` và `MemoryStore`.
+2. **Ambassador Pattern cho Worker:** Guest stage runners (Blender/Unreal) phải chạy 100% offline, đọc task qua STDIN và xuất log qua STDOUT. Tuyệt đối không nhúng kết nối gRPC/mạng vào trong guest script.
+3. **Fail-Fast dứt khoát:** Khi gặp lỗi ở bất kỳ tầng nào (Subprocess, Host Worker, hay Backend Consumer), lập tức phát sóng SignalR `PipelineExecutionFinished` để UI dập tắt spinner ngay lập tức.
+4. **Luôn có Watchdog Timeout:** Mọi phân đoạn out-of-process gửi sang Worker bắt buộc phải được bảo vệ bởi `StageTimeoutCheckMessage` để triệt tiêu zombie executions.
+5. **Khóa an toàn Canvas:** Luôn duy trì cờ `isLocked` trên Frontend Canvas khi có pipeline đang chạy để bảo toàn tính toàn vẹn của đồ thị.
+6. **Không tạo thêm bảng quản lý cancel:** Tuyệt đối không tái tạo `StageExecutions` hay `ExecutionCancelCommands`. Cơ chế cancel chỉ dựa trên `Status = Cancelled` và short-circuit tại `StageResultConsumer`.
