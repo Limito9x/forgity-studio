@@ -26,10 +26,26 @@ public static class CorsServiceCollectionExtensions
         {
             options.AddPolicy(PolicyName, policy =>
             {
-                policy.WithOrigins(allowedOrigins)
-                      .AllowAnyHeader()
-                      .AllowAnyMethod()
-                      .AllowCredentials();
+                policy.SetIsOriginAllowed(origin =>
+                {
+                    if (string.IsNullOrWhiteSpace(origin)) return false;
+                    if (allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase)) return true;
+                    if (Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                    {
+                        var host = uri.Host;
+                        if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                            host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+                            host.EndsWith(".pages.dev", StringComparison.OrdinalIgnoreCase) ||
+                            host.Equals("pages.dev", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return true;
+                        }
+                    }
+                    return false;
+                })
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials();
             });
         });
 
