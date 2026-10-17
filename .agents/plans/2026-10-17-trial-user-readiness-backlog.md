@@ -24,35 +24,35 @@ Backlog được chia thành 4 nhóm công việc logic theo thứ tự ưu tiê
 ### Nhóm 1: Nhận Diện Thương Hiệu & Bố Cục Toàn Cục (Branding & Global Layout)
 
 #### Task 1.1: Đồng bộ thương hiệu Forgity Studio trong Runner Scripts
-- [ ] Rà soát và thay thế toàn bộ chuỗi hardcoded `"Automation Studio"` trong runner scripts thành `Forgity Studio` (hoặc cấu hình động `appName`).
+- [x] Rà soát và thay thế toàn bộ chuỗi hardcoded `"Automation Studio"` trong runner scripts thành `Forgity Studio` (hoặc cấu hình động `appName`).
   - `workers/commands/register.py`
   - `workers/cli.py`
   - `workers/scripts/install.ps1` và `workers/scripts/install.sh`
   - `workers/tools/package_release.py`
 
 #### Task 1.2: Gom gọn Studio Switcher & User Nav trên Sidebar
-- [ ] Tách bạch rõ ràng vai trò giữa Header Sidebar và User Nav:
+- [x] Tách bạch rõ ràng vai trò giữa Header Sidebar và User Nav:
   - **Header Sidebar (`StudioSwitcher.tsx`):** Nơi DUY NHẤT để chọn/chuyển Studio và tạo Studio mới (`Create Studio`).
   - **User Nav (`NavUser.tsx`):** Loại bỏ hoàn toàn danh sách Studios và `Create Studio...`. Chỉ giữ lại các menu cá nhân của User: Profile, Cài đặt tài khoản, Giao diện (Theme), Đăng xuất (Sign out).
 
 #### Task 1.3: Chuẩn hóa Layout Thẻ Studio Storage Profile
-- [ ] Tối ưu layout trang `StorageProfilesView.tsx`:
+- [x] Tối ưu layout trang `StorageProfilesView.tsx`:
   - Đặt giới hạn `max-w-5xl` hoặc cấu hình Grid 2 cột cân xứng.
   - Khi mới chỉ có 1 Storage Profile: Hiển thị thêm 1 ô thẻ gợi ý "Connect Additional S3 Storage" (dạng dashed border outline) ở cột bên cạnh để layout không bị trống trải.
 
 #### Task 1.4: Tinh chỉnh Trang Đăng Nhập (Login Page) Thân Thiện Trial User
-- [ ] Cập nhật `LoginForm.tsx` & `LoginPage.tsx`:
+- [x] Cập nhật `LoginForm.tsx` & `LoginPage.tsx`:
   - Thay thế thương hiệu `Acme Inc.` bằng `Forgity Studio`.
   - Ẩn các nút Social OAuth (Google, GitHub, Microsoft) và nút "Sign up" công khai.
   - Thay thế ảnh poster bằng hình đồ họa 3D Forgity Studio.
   - Bổ sung liên kết dẫn tới form khảo sát: *"Don't have an account? Request Trial Access"*.
 
 #### Task 1.5: Thêm nút "Support Me / Coffee" tại Header & Tích hợp Creem.io
-- [ ] Bổ sung nút icon nhỏ (Cốc cà phê / Trái tim) tại `AppHeader.tsx`.
-- [ ] Khi nhấp: Mở modal popup hiển thị lời cảm ơn chân thành từ Founder và các phương thức ủng hộ:
+- [x] Bổ sung nút icon nhỏ (Cốc cà phê / Trái tim) tại `AppHeader.tsx`.
+- [x] Khi nhấp: Mở modal popup hiển thị lời cảm ơn chân thành từ Founder và các phương thức ủng hộ:
   - **Quốc tế:** Liên kết trang ủng hộ qua **Creem.io** (hỗ trợ tùy chọn mức đóng góp linh hoạt).
   - **Nội địa:** Mã QR MoMo / VietQR.
-- [ ] **Khả năng mở rộng:** Creem.io đóng vai trò Merchant of Record (xử lý thuế và thanh toán quốc tế), sẵn sàng kiến trúc Webhook để tích hợp các gói tài khoản trong tương lai khi cần.
+- [x] **Khả năng mở rộng:** Creem.io đóng vai trò Merchant of Record (xử lý thuế và thanh toán quốc tế), sẵn sàng kiến trúc Webhook để tích hợp các gói tài khoản trong tương lai khi cần.
 
 #### Task 1.6: Chuẩn Hóa Email Hệ Thống & Bộ Công Cụ Mời Beta Tester Hàng Loạt (Bulk Onboarding)
 - [ ] **Xóa bỏ tên cũ trong Email Sender:**
@@ -150,7 +150,6 @@ Backlog được chia thành 4 nhóm công việc logic theo thứ tự ưu tiê
 
 | Hạng mục Placeholder | Vị trí File Code / Biến Cấu Hình | Trạng thái Tạm thời (Fallback) | Cách người dùng thay thế khi sẵn sàng |
 | :--- | :--- | :--- | :--- |
-| **Ảnh Mã QR Donate (VietQR / MoMo)** | `web/src/assets/support/qr-donate.png` | Hiển thị khung QR đồ họa Mock đẹp mắt kèm nút copy số tài khoản | Chép đè ảnh mã QR thật vào thư mục `web/src/assets/support/` |
 | **Link Thanh Toán Creem.io** | Biến `VITE_CREEM_CHECKOUT_URL` trong `web/.env` | Mở link mẫu: `https://creem.io` | Điền link trang Checkout/Tip của bạn sau khi đăng ký Creem.io |
 | **Link Google Form Tuyển Tester** | Biến `VITE_TRIAL_REQUEST_FORM_URL` trong `web/.env` | Mở link form Google mẫu | Điền URL link Google Form tuyển chọn Cohort 1 của bạn |
 | **Link Kênh Hỗ Trợ Kín (Discord/Telegram)** | Biến `VITE_DISCORD_COMMUNITY_URL` trong `web/.env` | Trỏ `#` hoặc trang liên hệ | Điền link Invite vào Discord / Group trao đổi với tester |

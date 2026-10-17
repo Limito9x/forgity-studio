@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Automation Studio Runner - 1-Click Bootstrap Script for Linux & macOS
+# Forgity Studio Runner - 1-Click Bootstrap Script for Linux & macOS
 set -e
 
 URL="http://localhost:5189/api"
 TOKEN=""
 NAME=""
-APP_NAME="Automation Studio"
+APP_NAME="Forgity Studio"
 INSTALL_DIR=""
 
 while [[ "$#" -gt 0 ]]; do

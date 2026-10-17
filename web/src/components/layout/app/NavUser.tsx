@@ -2,8 +2,7 @@ import {
   ChevronsUpDown,
   LogOut,
   Settings,
-  Plus,
-  Check,
+  User,
 } from "lucide-react";
 
 import {
@@ -28,8 +27,7 @@ import {
 import { useNavigate } from "@tanstack/react-router";
 import { useAuthStore } from "@/stores/authStore";
 import { useLogout } from "@/gen/endpoints/auth/auth";
-import { useCurrentStudio, setCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
-import { useDialogStore } from "@/stores/dialogStore";
+import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 
 export function NavUser() {
   const { isMobile } = useSidebar();
@@ -38,8 +36,7 @@ export function NavUser() {
   const { clearToken, clearProfile } = useAuthStore();
   const logout = useLogout();
 
-  const { studio: currentStudio, studios } = useCurrentStudio();
-  const openDialog = useDialogStore((s) => s.openDialog);
+  const { studio: currentStudio } = useCurrentStudio();
 
   const handleLogout = async () => {
     try {
@@ -80,7 +77,7 @@ export function NavUser() {
           </SidebarMenuButton>
 
           <DropdownMenu
-            className="w-(--trigger-width) min-w-64 max-h-[85vh] rounded-xl p-1.5 shadow-xl"
+            className="w-(--trigger-width) min-w-56 rounded-xl p-1.5 shadow-xl"
             placement={isMobile ? "bottom" : "top"}
             offset={6}
           >
@@ -97,57 +94,6 @@ export function NavUser() {
                 </div>
               </div>
             </DropdownMenuLabel>
-
-            <DropdownMenuSeparator className="my-1" />
-
-            {/* Studios Section */}
-            <DropdownMenuGroup>
-              <DropdownMenuLabel className="px-2 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Studios
-              </DropdownMenuLabel>
-              {studios.map((studio) => {
-                const isSelected = studio.id === currentStudio?.id;
-                return (
-                  <DropdownMenuItem
-                    key={studio.id}
-                    id={studio.id}
-                    textValue={studio.name}
-                    onAction={() => {
-                      setCurrentStudio(studio);
-                      if (studio.slug) {
-                        navigate({ to: `/s/${studio.slug}/projects` as any });
-                      }
-                    }}
-                    className="flex items-center gap-2.5 cursor-pointer py-1.5 px-2 rounded-lg"
-                  >
-                    <div className="flex aspect-square size-6 items-center justify-center rounded-md bg-primary/10 text-primary text-xs font-bold shrink-0">
-                      {studio.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex flex-col flex-1 min-w-0">
-                      <span className="truncate text-sm font-medium">{studio.name}</span>
-                      {studio.slug && (
-                        <span className="truncate text-[11px] text-muted-foreground">
-                          @{studio.slug}
-                        </span>
-                      )}
-                    </div>
-                    {isSelected && <Check className="ml-auto size-4 text-primary shrink-0" />}
-                  </DropdownMenuItem>
-                );
-              })}
-
-              <DropdownMenuItem
-                id="create-studio-action"
-                textValue="Create Studio"
-                onAction={() => openDialog("create-studio")}
-                className="flex items-center gap-2.5 cursor-pointer py-1.5 px-2 rounded-lg text-muted-foreground hover:text-foreground"
-              >
-                <div className="flex aspect-square size-6 items-center justify-center rounded-md border border-dashed border-border bg-background shrink-0">
-                  <Plus className="size-3.5" />
-                </div>
-                <span className="text-sm font-medium">Create Studio...</span>
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
 
             <DropdownMenuSeparator className="my-1" />
 

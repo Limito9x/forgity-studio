@@ -115,7 +115,7 @@ def build_package(version_override: str = None, output_dir: str = None) -> tuple
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Package Automation Studio Runner for clean release")
+    parser = argparse.ArgumentParser(description="Package Forgity Studio Runner for clean release")
     parser.add_argument("--version", type=str, default=None, help="Override version string (defaults to VERSION file)")
     parser.add_argument("--output-dir", type=str, default=None, help="Directory to output release artifacts")
     args = parser.parse_args()
