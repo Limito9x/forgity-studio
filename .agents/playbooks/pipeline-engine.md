@@ -256,7 +256,38 @@ Giao diện Web Canvas (`web/src/features/pipelines/components/canvas/`) đồng
 
 ---
 
-## 7. Tóm Tắt Quy Tắc Vàng Cho Agent Khi Can Thiệp Pipeline Engine
+## 7. Ma Trận Phân Quyền RabbitMQ Least Privilege (Dynamic Permissions)
+
+Để đảm bảo an toàn tuyệt đối khi Worker kết nối từ môi trường trôi nổi, Backend (`RabbitMqManagementService`) cấp quyền động tối thiểu (Least Privilege) cho tài khoản Runner (`rn_{runnerId}`):
+
+| Tài nguyên / Hàng đợi | Quyền Backend (Wolverine/API) | Quyền Runner (Worker Daemon) | Cơ chế & Mục đích vận hành |
+| :--- | :--- | :--- | :--- |
+| **`stage_tasks.{runnerId}`** | `configure`, `write` | `configure`, `read` | Hàng đợi nhận task chuyên biệt của Runner. Runner là Consumer duy nhất. |
+| **`stage_results`** | `configure`, `read` | **`write` (Publish Only)** | Hàng đợi báo cáo kết quả hoàn thành cả Stage. Backend Wolverine sở hữu. |
+| **`step_progress`** | `configure`, `read` | **`write` (Publish Only)** | Hàng đợi báo cáo tiến độ từng Step (Zero-DB hot path). Backend Wolverine sở hữu. |
+| **`amq.default` (Exchange)**| `read`, `write` | **`write`** | Default Direct Exchange dùng để định tuyến tin nhắn tới queue đích. |
+
+> [!CAUTION]
+> **QUY TẮC SỐNG CÒN CHO RUNNER:**
+> Runner **TUYỆT ĐỐI KHÔNG ĐƯỢC GỌI** `queue_declare` trên `stage_results` hay `step_progress`. Vì Runner không có quyền `configure` trên 2 hàng đợi này, RabbitMQ sẽ **lập tức ngắt kết nối Channel với lỗi 403 `ACCESS_REFUSED`**, làm đứt toàn bộ chu trình xử lý! Runner chỉ được `queue_declare` hàng đợi của chính mình (`stage_tasks.{runnerId}`).
+
+---
+
+## 8. Ma Trận Chuyển Đổi Trạng Thái & Tín Hiệu (State Machine & Telemetry Matrix)
+
+| Trạng thái | Nơi thiết lập | Điều kiện kích hoạt | SignalR Event | Phản hồi giao diện Canvas (Web UI) |
+| :--- | :--- | :--- | :--- | :--- |
+| **`Pending`** | FastEndpoints `RunPipeline` | Vừa nhận lệnh POST run | HTTP Response `{ executionId }` | Banner nổi hiện `#<id>`, `isLocked=true`, mở Drawer. |
+| **`WaitingForRunner`** | `RunnerSegmentDispatcher` | Đã gửi StageTask vào RabbitMQ | `PipelineExecutionUpdated` | Badge trạng thái `WaitingForRunner`, Server giải phóng thread. |
+| **`Running` (Step)** | `StepProgressConsumer` | Subprocess emit `step_started` | `PipelineNodeExecutionUpdated` | Viền Node viền vàng/cam phát sáng pulse, spinner xoay (< 16ms). |
+| **`Succeeded` (Step)** | `StepProgressConsumer` | Subprocess emit `step_completed` | `PipelineNodeExecutionUpdated` | Viền Node chuyển sang xanh lá, nạp Outputs vào Node Inspector. |
+| **`Succeeded` (Pipeline)** | `PipelineOrchestrator` | Toàn bộ segments hoàn tất | `PipelineExecutionFinished` (succeeded: true) | Banner xanh `Succeeded`, dập tắt spinner, mở khóa Canvas. |
+| **`Failed`** | Subprocess Fail-Fast / Timeout | Step lỗi hoặc quá hạn 30 phút | `PipelineExecutionFinished` (succeeded: false) | Viền Node đỏ, Banner đỏ báo lỗi, mở khóa Canvas. |
+| **`Cancelled`** | Endpoint `CancelExecution` | Người dùng bấm nút Stop/Cancel | `PipelineExecutionFinished` (status: Cancelled) | Banner chuyển màu xám, ngắt tiếp sức các segment còn lại. |
+
+---
+
+## 9. Tóm Tắt Quy Tắc Vàng Cho Agent Khi Can Thiệp Pipeline Engine
 
 1. **Tuân thủ Zero-DB Hot Path:** Tuyệt đối không đưa câu lệnh SQL hay DbContext vào `StepProgressConsumer`. Tất cả cập nhật runtime giữa các step phải đi qua Redis `StateStore` và `MemoryStore`.
 2. **Ambassador Pattern cho Worker:** Guest stage runners (Blender/Unreal) phải chạy 100% offline, đọc task qua STDIN và xuất log qua STDOUT. Tuyệt đối không nhúng kết nối gRPC/mạng vào trong guest script.
@@ -264,3 +295,4 @@ Giao diện Web Canvas (`web/src/features/pipelines/components/canvas/`) đồng
 4. **Luôn có Watchdog Timeout:** Mọi phân đoạn out-of-process gửi sang Worker bắt buộc phải được bảo vệ bởi `StageTimeoutCheckMessage` để triệt tiêu zombie executions.
 5. **Khóa an toàn Canvas:** Luôn duy trì cờ `isLocked` trên Frontend Canvas khi có pipeline đang chạy để bảo toàn tính toàn vẹn của đồ thị.
 6. **Không tạo thêm bảng quản lý cancel:** Tuyệt đối không tái tạo `StageExecutions` hay `ExecutionCancelCommands`. Cơ chế cancel chỉ dựa trên `Status = Cancelled` và short-circuit tại `StageResultConsumer`.
+7. **Tôn trọng Least Privilege của RabbitMQ:** Runner chỉ declare queue của mình (`stage_tasks.{runnerId}`), không bao giờ declare queue kết quả của server.
