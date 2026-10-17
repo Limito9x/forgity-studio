@@ -101,8 +101,27 @@ class BaseSubprocessExecutor(BaseExecutor):
         return task.model_dump_json(by_alias=True)
 
     def get_log_files(self, task: "StageTaskMessage") -> List[str]:
-        """Hook returning file paths where live stdout output should also be mirrored."""
-        return []
+        """
+        Hook returning file paths where live stdout output should also be mirrored.
+        Default implementation creates an executor-scoped latest log and a timestamped stage log.
+        These are automatically subject to TTL retention cleanup in runtime_storage.
+        """
+        try:
+            import datetime
+            root, _ = settings()
+            log_dir = root / "logs"
+            log_dir.mkdir(parents=True, exist_ok=True)
+
+            executor_name = getattr(task, "executor", None) or self.__class__.__name__.replace("Executor", "").lower()
+            ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            stage_id = str(getattr(task, "stage_execution_id", "unknown"))[:8]
+
+            latest_log = str(log_dir / f"{executor_name}_latest.log")
+            stage_log = str(log_dir / f"{executor_name}_{ts}_{stage_id}.log")
+            return [latest_log, stage_log]
+        except Exception as e:
+            logger.warning(f"Failed to generate default stage log files: {e}")
+            return []
 
     def merge_stderr_to_stdout(self, task: "StageTaskMessage") -> bool:
         """Whether to merge stderr into stdout (recommended for UE headless to avoid pipe deadlocks)."""
@@ -177,7 +196,12 @@ class BaseSubprocessExecutor(BaseExecutor):
             if proc.stdout:
                 for raw_line in proc.stdout:
                     line = raw_line.decode("utf-8", errors="replace")
-                    print(line, end="", flush=True)
+                    if sys.stdout and not getattr(sys.stdout, "closed", False):
+                        try:
+                            sys.stdout.write(line)
+                            sys.stdout.flush()
+                        except Exception:
+                            pass
                     stdout_lines.append(line)
                     write_mirrored_log(line)
 
@@ -226,7 +250,12 @@ class BaseSubprocessExecutor(BaseExecutor):
             if not merge_stderr and proc.stderr:
                 stderr = proc.stderr.read().decode("utf-8", errors="replace")
                 if stderr:
-                    print(stderr, end="", flush=True)
+                    if sys.stderr and not getattr(sys.stderr, "closed", False):
+                        try:
+                            sys.stderr.write(stderr)
+                            sys.stderr.flush()
+                        except Exception:
+                            pass
                     write_mirrored_log(stderr)
 
             succeeded = proc.returncode == 0 and not any(not sr.succeeded for sr in step_results)

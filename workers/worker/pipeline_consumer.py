@@ -36,17 +36,18 @@ class PipelineConsumer:
         )
         self._channel = self._connection.channel()
         queue_args = {"x-dead-letter-exchange": "wolverine-dead-letter-queue"}
-        
-        for q in [self.queue_tasks, QUEUE_RESULTS, QUEUE_PROGRESS]:
-            try:
-                self._channel.queue_declare(queue=q, durable=True, arguments=queue_args)
-            except Exception:
-                self._channel = self._connection.channel()
-                try:
-                    self._channel.queue_declare(queue=q, passive=True)
-                except Exception:
-                    self._channel = self._connection.channel()
-                    self._channel.queue_declare(queue=q, durable=True)
+
+        # Declare only our own consumer task queue.
+        # QUEUE_RESULTS and QUEUE_PROGRESS are provisioned and owned by backend Wolverine.
+        # Dynamic runner credentials have write-only permission for those queues (no configure permission).
+        try:
+            self._channel.queue_declare(queue=self.queue_tasks, durable=True, arguments=queue_args)
+        except Exception as e:
+            logger.warning(
+                f"Could not declare queue '{self.queue_tasks}' with DLX arguments: {e}. Falling back to standard declare."
+            )
+            self._channel = self._connection.channel()
+            self._channel.queue_declare(queue=self.queue_tasks, durable=True)
 
         self._channel.basic_qos(prefetch_count=1)
         self._channel.confirm_delivery()
@@ -54,12 +55,15 @@ class PipelineConsumer:
 
     def start(self):
         """Start consuming. Blocking call."""
-        print(f"\n[RabbitMQ] ===================================================", flush=True)
-        print(f"[RabbitMQ] [*] Pipeline Consumer started successfully!", flush=True)
-        print(f"[RabbitMQ] [*] Broker: {self.host}:{self.port} (vhost: '{RABBITMQ_VHOST}')", flush=True)
-        print(f"[RabbitMQ] [*] Listening on queue: '{self.queue_tasks}'", flush=True)
-        print(f"[RabbitMQ] [*] Results queue: '{QUEUE_RESULTS}', Progress queue: '{QUEUE_PROGRESS}'", flush=True)
-        print(f"[RabbitMQ] ===================================================\n", flush=True)
+        banner = (
+            f"\n[RabbitMQ] ===================================================\n"
+            f"[RabbitMQ] [*] Pipeline Consumer started successfully!\n"
+            f"[RabbitMQ] [*] Broker: {self.host}:{self.port} (vhost: '{RABBITMQ_VHOST}')\n"
+            f"[RabbitMQ] [*] Listening on queue: '{self.queue_tasks}'\n"
+            f"[RabbitMQ] [*] Results queue: '{QUEUE_RESULTS}', Progress queue: '{QUEUE_PROGRESS}'\n"
+            f"[RabbitMQ] ==================================================="
+        )
+        logger.info(banner)
         logger.info(f"[*] Listening on queue '{self.queue_tasks}' for agent '{self.agent_id}'. Press Ctrl+C to stop.")
 
         self._channel.basic_consume(
@@ -85,15 +89,12 @@ class PipelineConsumer:
         """Callback when receiving a message from RabbitMQ."""
         task = None
         result_ready = False
-        print(f"\n[RabbitMQ] >>> [MESSAGE RECEIVED] StageTaskMessage arrived (tag={method.delivery_tag}, {len(body)} bytes)!", flush=True)
+        logger.info(f"[RabbitMQ] >>> [MESSAGE RECEIVED] StageTaskMessage arrived (tag={method.delivery_tag}, {len(body)} bytes)!")
         try:
             task = StageTaskMessage.model_validate_json(body)
-            print(f"[RabbitMQ]     Stage Execution ID: {task.stage_execution_id}", flush=True)
-            print(f"[RabbitMQ]     Pipeline Execution ID: {task.pipeline_execution_id}", flush=True)
-            print(f"[RabbitMQ]     Executor: {task.executor} | Steps: {len(task.steps)}", flush=True)
             logger.info(
-                f"--- Received task: {task.stage_execution_id} | "
-                f"executor={task.executor} | steps={len(task.steps)} ---"
+                f"[RabbitMQ] Stage: {task.stage_execution_id} | Pipeline: {task.pipeline_execution_id} | "
+                f"Executor: {task.executor} | Steps: {len(task.steps)}"
             )
 
             executor = get_executor(task.executor)
@@ -108,10 +109,10 @@ class PipelineConsumer:
                     outputs=outputs,
                     error_message=error_message,
                 )
-                print(f"[RabbitMQ]     [Progress] Step {step_id} -> {status} (outputs: {len(outputs) if outputs else 0}, err: {bool(error_message)})", flush=True)
+                logger.info(f"[RabbitMQ] [Progress] Step {step_id} -> {status} (outputs: {len(outputs) if outputs else 0}, err: {bool(error_message)})")
                 self._send_progress(msg)
 
-            print(f"[RabbitMQ]     Dispatching to executor '{task.executor}'...", flush=True)
+            logger.info(f"[RabbitMQ] Dispatching to executor '{task.executor}'...")
             result = executor.execute(task=task, progress_callback=_on_step_progress)
 
             # Build per-step result DTOs
@@ -126,7 +127,7 @@ class PipelineConsumer:
                 for sr in result.step_results
             ] if result.step_results else []
 
-            print(f"[RabbitMQ]     Stage execution finished (succeeded={result.succeeded}). Sending result to '{QUEUE_RESULTS}'...", flush=True)
+            logger.info(f"[RabbitMQ] Stage execution finished (succeeded={result.succeeded}). Sending result to '{QUEUE_RESULTS}'...")
             result_ready = True
             self._send_result(StageResultMessage(
                 stage_execution_id=task.stage_execution_id,
@@ -139,7 +140,7 @@ class PipelineConsumer:
             ))
 
             ch.basic_ack(delivery_tag=method.delivery_tag)
-            print(f"[RabbitMQ] <<< [ACKED] Delivery tag {method.delivery_tag} acknowledged successfully.\n", flush=True)
+            logger.info(f"[RabbitMQ] <<< [ACKED] Delivery tag {method.delivery_tag} acknowledged successfully.\n")
             logger.info(f"--- Completed: {task.stage_execution_id} | succeeded={result.succeeded} ---")
 
         except Exception as e:
@@ -148,8 +149,7 @@ class PipelineConsumer:
                 # Closing the connection leaves the unacked delivery available for retry.
                 raise
             stage_id = task.stage_execution_id if task else "unknown"
-            print(f"[RabbitMQ] [ERROR] Failed to process task {stage_id}: {e}", flush=True)
-            logger.exception(f"Failed to process task {stage_id}: {e}")
+            logger.error(f"[RabbitMQ] [ERROR] Failed to process task {stage_id}: {e}", exc_info=True)
 
             reported = False
             if task:
@@ -164,9 +164,9 @@ class PipelineConsumer:
                         step_results=[]
                     ))
                     reported = True
-                    print(f"[RabbitMQ] [ERROR] Reported failure result back to '{QUEUE_RESULTS}' for stage {stage_id}.", flush=True)
+                    logger.error(f"[RabbitMQ] Reported failure result back to '{QUEUE_RESULTS}' for stage {stage_id}.")
                 except Exception as send_err:
-                    print(f"[RabbitMQ] [CRITICAL] Could not send error result: {send_err}", flush=True)
+                    logger.critical(f"[RabbitMQ] Could not send error result: {send_err}", exc_info=True)
                     raise
 
             try:

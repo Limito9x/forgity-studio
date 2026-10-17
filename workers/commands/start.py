@@ -24,10 +24,14 @@ root_logger.setLevel(logging.INFO)
 
 formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s", datefmt="%H:%M:%S")
 
-# Console handler
-console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setFormatter(formatter)
-root_logger.addHandler(console_handler)
+# Console handler (only attach if stdout is a valid interactive stream)
+if sys.stdout and not getattr(sys.stdout, "closed", False):
+    try:
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(formatter)
+        root_logger.addHandler(console_handler)
+    except Exception:
+        pass
 
 # Rotating file handler (20MB x 5 backups)
 file_handler = RotatingFileHandler(str(log_file), maxBytes=20 * 1024 * 1024, backupCount=5, encoding="utf-8")
@@ -91,15 +95,17 @@ def check_and_sync_hardware_diff():
 
 def run_pipeline_worker():
     if PipelineConsumer is None:
+        logger.error(f"Cannot start Pipeline Task Worker thread: import failure: {_pipeline_import_error}")
         return
     while True:
         try:
+            logger.info("Initializing Pipeline Task Worker (RabbitMQ consumer)...")
             consumer = PipelineConsumer()
             consumer.start()
         except KeyboardInterrupt:
             break
         except Exception as e:
-            print(f"[WARNING] [RabbitMQ] Pipeline Worker disconnected: {e}. Reconnecting in 3s...")
+            logger.warning(f"[RabbitMQ] Pipeline Worker disconnected: {e}. Reconnecting in 3s...", exc_info=True)
             time.sleep(3)
 
 
