@@ -13,4 +13,5 @@ export interface PipelineScriptDependencyPreviewDto {
   contentHash: string;
   fileName: string;
   alreadyExists: boolean;
+  hasScriptContent?: boolean;
 }

@@ -18,4 +18,6 @@ export interface ValidatePipelinePackageResponseDto {
   pipelines: IReadOnlyListOfPipelinePackageItemPreviewDto;
   scripts: IReadOnlyListOfPipelineScriptDependencyPreviewDto;
   contentTypes: IReadOnlyListOfPipelineContentTypeDependencyPreviewDto;
+  /** @nullable */
+  validationWarnings?: unknown[] | null;
 }

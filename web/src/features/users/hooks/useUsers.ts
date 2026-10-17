@@ -26,3 +26,4 @@ export const useCreateUser = createMutationHook(UsersApi.useCreateUser, [UsersAp
 export const useUpdateUser = createMutationHook(UsersApi.useUpdateUser, [UsersApi.getGetUsersQueryKey()]);
 export const useDeleteUser = createMutationHook(UsersApi.useDeleteUser, [UsersApi.getGetUsersQueryKey()]);
 export const useAssignUserRoles = createMutationHook(UsersApi.useAssignUserRoles, [UsersApi.getGetUsersQueryKey()]);
+export const useBulkInviteUsers = createMutationHook(UsersApi.useBulkInviteUsers, [UsersApi.getGetUsersQueryKey()]);

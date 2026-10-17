@@ -55,12 +55,12 @@ Backlog được chia thành 4 nhóm công việc logic theo thứ tự ưu tiê
 - [x] **Khả năng mở rộng:** Creem.io đóng vai trò Merchant of Record (xử lý thuế và thanh toán quốc tế), sẵn sàng kiến trúc Webhook để tích hợp các gói tài khoản trong tương lai khi cần.
 
 #### Task 1.6: Chuẩn Hóa Email Hệ Thống & Bộ Công Cụ Mời Beta Tester Hàng Loạt (Bulk Onboarding)
-- [ ] **Xóa bỏ tên cũ trong Email Sender:**
+- [x] **Xóa bỏ tên cũ trong Email Sender:**
   - Sửa `MailKitEmailSender.cs:L30`: Thay thế chuỗi hardcoded `"ModularTemplateSystem"` thành `"Forgity Studio"` (hoặc `_config["Smtp:FromName"] ?? "Forgity Studio"`).
-- [ ] **Xây dựng Responsive HTML Email Template:**
+- [x] **Xây dựng Responsive HTML Email Template:**
   - Thiết kế template email HTML giao diện Forgity Studio sang trọng (Dark-mode responsive, logo header, nút CTA kích hoạt tài khoản `[ Set Password & Activate ]`).
   - Hỗ trợ biến động: Tên người nhận, Lời nhắn tùy biến của Founder, Link kích hoạt token, Link tài liệu Runner và Link nhóm hỗ trợ kín (Discord/Telegram).
-- [ ] **Giao diện Admin: "Invite Beta Testers" Dialog:**
+- [x] **Giao diện Admin: "Invite Beta Testers" Dialog:**
   - Thiết kế Dialog trong trang Users/Admin:
     - **Ô nhập danh sách email (Textarea):** Cho phép paste hàng loạt email từ Google Sheet ứng viên (hỗ trợ phân tách bằng dấu phẩy, khoảng trắng hoặc xuống dòng).
     - **Ô lời nhắn cá nhân (Personalized Note):** Cho phép Founder gõ lời dặn dò, hướng dẫn test và đính kèm link Discord.

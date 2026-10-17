@@ -14,4 +14,6 @@ export interface RegisterRunnerResultDto {
   registrationToken: string;
   /** @nullable */
   rabbitMq?: RabbitMqConfigDto | null;
+  /** @nullable */
+  grpcUrl?: string | null;
 }

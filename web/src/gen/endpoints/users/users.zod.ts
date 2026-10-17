@@ -54,6 +54,31 @@ export const GetUsersResponse = /*#__PURE__*/ zod.object({
 
 
 
+export const BulkInviteUsersBody = /*#__PURE__*/ zod.object({
+  "emails": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()).check(/*#__PURE__*/ zod.minLength(1)),
+  "roleId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "personalNote": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "discordUrl": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+})
+
+export const bulkInviteUsersResponseDetailsItemIsExistingUserDefault = false;
+
+export const BulkInviteUsersResponse = /*#__PURE__*/ zod.object({
+  "totalProcessed": /*#__PURE__*/ zod.int(),
+  "succeededCount": /*#__PURE__*/ zod.int(),
+  "skippedExistingCount": /*#__PURE__*/ zod.int(),
+  "failedCount": /*#__PURE__*/ zod.int(),
+  "details": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "email": /*#__PURE__*/ zod.string(),
+  "success": /*#__PURE__*/ zod.boolean(),
+  "reason": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "isExistingUser": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), bulkInviteUsersResponseDetailsItemIsExistingUserDefault)
+}))
+})
+
+
+
+
 export const BulkUpdateUserStatusBody = /*#__PURE__*/ zod.object({
   "userIds": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.uuid()).check(/*#__PURE__*/ zod.minLength(1)),
   "targetStatus": /*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2),/*#__PURE__*/ zod.literal(3)])
