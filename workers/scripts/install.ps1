@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Automation Studio Runner - 1-Click Bootstrap Script for Windows PowerShell
+    Forgity Studio Runner - 1-Click Bootstrap Script for Windows PowerShell
 .DESCRIPTION
     Checks Python prerequisites, provisions virtual environment, registers runner
     non-interactively with setup token, and installs the background daemon into

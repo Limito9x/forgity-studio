@@ -152,7 +152,7 @@ def run(api_url: str = None, setup_token: str = None, runner_name: str = None, n
     print(f"\n[OK] Configuration securely saved to: {os.path.abspath(CONFIG_FILE)}")
 
     # Sync hardware specs to Backend API
-    print("[INFO] Uploading initial hardware profile to Automation Studio...")
+    print("[INFO] Uploading initial hardware profile to Forgity Studio...")
     sync_hardware_to_backend(api_url, runner_id, hw_snapshot)
 
     print("\nRunner is ready! Run 'runner.bat start' to launch background workers and gRPC stream.")
