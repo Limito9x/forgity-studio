@@ -23,11 +23,55 @@ export const ConfirmUploadResponseItem = /*#__PURE__*/ zod.object({
 })
 export const ConfirmUploadResponse = /*#__PURE__*/ zod.array(ConfirmUploadResponseItem)
 
+export const migrateStorageBodyItemsItemDeleteSourceDefault = false;
+
+
+export const MigrateStorageBody = /*#__PURE__*/ zod.object({
+  "items": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "assetId": /*#__PURE__*/ zod.uuid(),
+  "deleteSource": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), migrateStorageBodyItemsItemDeleteSourceDefault)
+})).check(/*#__PURE__*/ zod.minLength(1)),
+  "targetStorageProfileId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid())
+})
+
+export const MigrateStorageResponse = /*#__PURE__*/ zod.object({
+  "jobId": /*#__PURE__*/ zod.uuid(),
+  "message": /*#__PURE__*/ zod.string()
+})
+
+export const GetMigrationJobStatusParams = /*#__PURE__*/ zod.object({
+  "jobId": /*#__PURE__*/ zod.uuid()
+})
+
+export const GetMigrationJobStatusResponse = /*#__PURE__*/ zod.object({
+  "jobId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid()),
+  "status": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2),/*#__PURE__*/ zod.literal(3)])),
+  "targetStorageProfileId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "totalItems": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "processedItems": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "totalBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "transferredBytes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "currentFileName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "percentage": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.number()),
+  "results": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "sourceAssetId": /*#__PURE__*/ zod.uuid(),
+  "migratedAssetId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "storagePath": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isSuccess": /*#__PURE__*/ zod.boolean(),
+  "wasDeduplicated": /*#__PURE__*/ zod.boolean(),
+  "errorMessage": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+}))),
+  "errorMessage": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "createdAt": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
+  "completedAt": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.iso.datetime({"offset":true}))
+})
+
 export const requestUploadBodyItemsItemHashSha256Min = 64;
 export const requestUploadBodyItemsItemHashSha256Max = 64;
 
 
 export const requestUploadBodyItemsItemSizeBytesExclusiveMin = 0;
+export const requestUploadBodyItemsItemSizeBytesMax = 5368709120;
 
 
 
@@ -37,7 +81,7 @@ export const RequestUploadBody = /*#__PURE__*/ zod.object({
   "items": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "hashSha256": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(requestUploadBodyItemsItemHashSha256Min)).check(/*#__PURE__*/ zod.maxLength(requestUploadBodyItemsItemHashSha256Max)),
   "extension": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(1)),
-  "sizeBytes": /*#__PURE__*/ zod.int().check(/*#__PURE__*/ zod.gt(requestUploadBodyItemsItemSizeBytesExclusiveMin)),
+  "sizeBytes": /*#__PURE__*/ zod.int().check(/*#__PURE__*/ zod.gt(requestUploadBodyItemsItemSizeBytesExclusiveMin)).check(/*#__PURE__*/ zod.lte(requestUploadBodyItemsItemSizeBytesMax)),
   "contentType": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(1))
 })).check(/*#__PURE__*/ zod.minLength(1)),
   "storageProfileId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),

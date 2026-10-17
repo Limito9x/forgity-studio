@@ -6,6 +6,7 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { DictionaryOfStringAndObject } from "./dictionaryOfStringAndObject";
+import type { DictionaryOfStringAndPipelinePackageFilePinMetadataDto } from "./dictionaryOfStringAndPipelinePackageFilePinMetadataDto";
 import type { IReadOnlyListOfPinDefinition } from "./iReadOnlyListOfPinDefinition";
 import type { NodePosition } from "./nodePosition";
 import type { NodeSize } from "./nodeSize";
@@ -35,4 +36,6 @@ export interface PipelinePackageNodeDto {
   metadata?: DictionaryOfStringAndObject | null;
   /** @nullable */
   customScriptKey?: string | null;
+  /** @nullable */
+  filePins?: DictionaryOfStringAndPipelinePackageFilePinMetadataDto | null;
 }

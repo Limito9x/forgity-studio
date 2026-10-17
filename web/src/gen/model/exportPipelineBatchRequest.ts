@@ -5,8 +5,10 @@
  * Digital Content Creation Automation Studio Engine & API
  * OpenAPI spec version: 1.0.0
  */
+import type { ExportPipelineMode } from "./exportPipelineMode";
 import type { ListOfGuid } from "./listOfGuid";
 
 export interface ExportPipelineBatchRequest {
   pipelineIds: ListOfGuid;
+  mode?: ExportPipelineMode;
 }

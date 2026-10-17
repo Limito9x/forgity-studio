@@ -67,7 +67,7 @@ export const createStorageProfile = (
 };
 
 export const getCreateStorageProfileMutationOptions = <
-  TError = ErrorResponse,
+  TError = ErrorResponse | void,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -107,10 +107,10 @@ export type CreateStorageProfileMutationResult = NonNullable<
   Awaited<ReturnType<typeof createStorageProfile>>
 >;
 export type CreateStorageProfileMutationBody = CreateStorageProfileCommand;
-export type CreateStorageProfileMutationError = ErrorResponse;
+export type CreateStorageProfileMutationError = ErrorResponse | void;
 
 export const useCreateStorageProfile = <
-  TError = ErrorResponse,
+  TError = ErrorResponse | void,
   TContext = unknown,
 >(
   options?: {
@@ -153,7 +153,7 @@ export const getGetStorageProfilesQueryKey = (
 
 export const getGetStorageProfilesQueryOptions = <
   TData = Awaited<ReturnType<typeof getStorageProfiles>>,
-  TError = unknown,
+  TError = void,
 >(
   params: GetStorageProfilesParams,
   options?: {
@@ -185,11 +185,11 @@ export const getGetStorageProfilesQueryOptions = <
 export type GetStorageProfilesQueryResult = NonNullable<
   Awaited<ReturnType<typeof getStorageProfiles>>
 >;
-export type GetStorageProfilesQueryError = unknown;
+export type GetStorageProfilesQueryError = void;
 
 export function useGetStorageProfiles<
   TData = Awaited<ReturnType<typeof getStorageProfiles>>,
-  TError = unknown,
+  TError = void,
 >(
   params: GetStorageProfilesParams,
   options: {
@@ -215,7 +215,7 @@ export function useGetStorageProfiles<
 };
 export function useGetStorageProfiles<
   TData = Awaited<ReturnType<typeof getStorageProfiles>>,
-  TError = unknown,
+  TError = void,
 >(
   params: GetStorageProfilesParams,
   options?: {
@@ -241,7 +241,7 @@ export function useGetStorageProfiles<
 };
 export function useGetStorageProfiles<
   TData = Awaited<ReturnType<typeof getStorageProfiles>>,
-  TError = unknown,
+  TError = void,
 >(
   params: GetStorageProfilesParams,
   options?: {
@@ -260,7 +260,7 @@ export function useGetStorageProfiles<
 
 export function useGetStorageProfiles<
   TData = Awaited<ReturnType<typeof getStorageProfiles>>,
-  TError = unknown,
+  TError = void,
 >(
   params: GetStorageProfilesParams,
   options?: {
@@ -300,7 +300,7 @@ export const testStorageConnection = (
 };
 
 export const getTestStorageConnectionMutationOptions = <
-  TError = ErrorResponse,
+  TError = ErrorResponse | void,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -340,10 +340,10 @@ export type TestStorageConnectionMutationResult = NonNullable<
   Awaited<ReturnType<typeof testStorageConnection>>
 >;
 export type TestStorageConnectionMutationBody = TestStorageConnectionCommand;
-export type TestStorageConnectionMutationError = ErrorResponse;
+export type TestStorageConnectionMutationError = ErrorResponse | void;
 
 export const useTestStorageConnection = <
-  TError = ErrorResponse,
+  TError = ErrorResponse | void,
   TContext = unknown,
 >(
   options?: {
@@ -375,7 +375,7 @@ export const deleteStorageProfile = (id: string, signal?: AbortSignal) => {
 };
 
 export const getDeleteStorageProfileMutationOptions = <
-  TError = unknown,
+  TError = void,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -415,9 +415,9 @@ export type DeleteStorageProfileMutationResult = NonNullable<
   Awaited<ReturnType<typeof deleteStorageProfile>>
 >;
 
-export type DeleteStorageProfileMutationError = unknown;
+export type DeleteStorageProfileMutationError = void;
 
-export const useDeleteStorageProfile = <TError = unknown, TContext = unknown>(
+export const useDeleteStorageProfile = <TError = void, TContext = unknown>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof deleteStorageProfile>>,
@@ -452,7 +452,7 @@ export const getGetStorageProfileByIdQueryKey = (id: string) => {
 
 export const getGetStorageProfileByIdQueryOptions = <
   TData = Awaited<ReturnType<typeof getStorageProfileById>>,
-  TError = unknown,
+  TError = void,
 >(
   id: string,
   options?: {
@@ -489,11 +489,11 @@ export const getGetStorageProfileByIdQueryOptions = <
 export type GetStorageProfileByIdQueryResult = NonNullable<
   Awaited<ReturnType<typeof getStorageProfileById>>
 >;
-export type GetStorageProfileByIdQueryError = unknown;
+export type GetStorageProfileByIdQueryError = void;
 
 export function useGetStorageProfileById<
   TData = Awaited<ReturnType<typeof getStorageProfileById>>,
-  TError = unknown,
+  TError = void,
 >(
   id: string,
   options: {
@@ -519,7 +519,7 @@ export function useGetStorageProfileById<
 };
 export function useGetStorageProfileById<
   TData = Awaited<ReturnType<typeof getStorageProfileById>>,
-  TError = unknown,
+  TError = void,
 >(
   id: string,
   options?: {
@@ -545,7 +545,7 @@ export function useGetStorageProfileById<
 };
 export function useGetStorageProfileById<
   TData = Awaited<ReturnType<typeof getStorageProfileById>>,
-  TError = unknown,
+  TError = void,
 >(
   id: string,
   options?: {
@@ -564,7 +564,7 @@ export function useGetStorageProfileById<
 
 export function useGetStorageProfileById<
   TData = Awaited<ReturnType<typeof getStorageProfileById>>,
-  TError = unknown,
+  TError = void,
 >(
   id: string,
   options?: {
@@ -605,7 +605,7 @@ export const updateStorageProfile = (
 };
 
 export const getUpdateStorageProfileMutationOptions = <
-  TError = ErrorResponse,
+  TError = ErrorResponse | void,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -645,10 +645,10 @@ export type UpdateStorageProfileMutationResult = NonNullable<
   Awaited<ReturnType<typeof updateStorageProfile>>
 >;
 export type UpdateStorageProfileMutationBody = UpdateStorageProfileCommand;
-export type UpdateStorageProfileMutationError = ErrorResponse;
+export type UpdateStorageProfileMutationError = ErrorResponse | void;
 
 export const useUpdateStorageProfile = <
-  TError = ErrorResponse,
+  TError = ErrorResponse | void,
   TContext = unknown,
 >(
   options?: {

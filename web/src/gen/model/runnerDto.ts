@@ -32,4 +32,6 @@ export interface RunnerDto {
   hardwareDetails?: RunnerHardwareProfile | null;
   /** @nullable */
   executorConfigs?: unknown[] | null;
+  /** @nullable */
+  appVersion?: string | null;
 }

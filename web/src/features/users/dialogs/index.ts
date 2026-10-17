@@ -5,6 +5,7 @@ declare module "@/lib/dialog-registry" {
     interface GlobalDialogRegistry {
         "delete-user": { id: string };
         "assign-user-roles": { id: string };
+        "bulk-invite-users": { onSuccess?: () => void };
     }
 }
 
@@ -20,6 +21,12 @@ const AssignUserRolesDialog = lazy(() =>
     }))
 );
 
+const BulkInviteUsersDialog = lazy(() =>
+    import("./BulkInviteUsersDialog").then((m) => ({
+        default: m.BulkInviteUsersDialog
+    }))
+);
+
 registerDialog({
     id: "delete-user",
     component: DeleteUserDialog
@@ -28,4 +35,9 @@ registerDialog({
 registerDialog({
     id: "assign-user-roles",
     component: AssignUserRolesDialog
+});
+
+registerDialog({
+    id: "bulk-invite-users",
+    component: BulkInviteUsersDialog
 });
