@@ -1,3 +1,4 @@
+pub mod clean;
 pub mod doctor;
 pub mod register;
 pub mod start;
@@ -40,5 +41,13 @@ pub enum Commands {
     },
 
     /// Clean local asset cache and temporary pipeline artifacts
-    Clean,
+    Clean {
+        /// Purge all cached assets and scripts in addition to temp files
+        #[arg(short, long)]
+        all: bool,
+
+        /// Delete log files older than this number of days
+        #[arg(short, long, default_value = "7")]
+        days: u64,
+    },
 }

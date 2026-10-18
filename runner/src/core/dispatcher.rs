@@ -8,24 +8,35 @@ use tracing::{debug, error, info, warn};
 
 use super::contracts::{StageResultMessage, StageTaskMessage, StepProgressMessage, StepResult};
 use crate::ipc::pipe_server::PipeServer;
-use crate::ipc::protocol::GuestToHostMessage;
+use crate::ipc::protocol::{GuestToHostMessage, HostToGuestMessage};
 use crate::process::job_object::JobObject;
 use crate::process::subprocess::SubprocessRunner;
 use crate::queue::rabbitmq::RabbitMqClient;
+use crate::storage::cache::StorageManager;
+use crate::storage::downloader::StreamDownloader;
+use crate::storage::lock::StorageLockGuard;
 use crate::system::dcc::resolve_executor_executable;
 
 pub struct StageDispatcher {
     rabbitmq: RabbitMqClient,
+    storage: StorageManager,
+    downloader: StreamDownloader,
 }
 
 impl StageDispatcher {
     pub fn new(rabbitmq: RabbitMqClient) -> Self {
-        Self { rabbitmq }
+        let storage = StorageManager::new(None);
+        let downloader = StreamDownloader::new(StorageManager::new(None));
+        Self {
+            rabbitmq,
+            storage,
+            downloader,
+        }
     }
 
-    /// Dispatches a single StageTaskMessage: creates Job Object, opens IPC pipe,
-    /// spawns DCC subprocess, streams progress, collects results and reports back.
-    pub async fn dispatch_stage(&self, task: StageTaskMessage) -> Result<StageResultMessage> {
+    /// Dispatches a single StageTaskMessage: acquires storage lock, resolves script caches,
+    /// creates Job Object, opens IPC pipe, spawns DCC subprocess, streams progress and handles on-demand asset fetching.
+    pub async fn dispatch_stage(&self, mut task: StageTaskMessage) -> Result<StageResultMessage> {
         let stage_id = task.stage_execution_id.clone();
         info!(
             "════════════════════════════════════════════════════════════════\n\
@@ -35,12 +46,47 @@ impl StageDispatcher {
             stage_id, task.pipeline_execution_id, task.executor, task.steps.len()
         );
 
-        // 1. Resolve executable for this executor (e.g. blender.exe)
+        // 1. Acquire Storage Lock
+        let _storage_lock = StorageLockGuard::acquire(None).await.ok();
+
+        // 2. Resolve & pre-cache Script Nodes
+        for step in &mut task.steps {
+            if let Some(script_url) = &step.script_url {
+                if !script_url.is_empty() {
+                    let expected_hash = step.script_hash.as_deref();
+                    info!(
+                        "[Storage] Resolving script for step '{}' from URL (hash: {:?})...",
+                        step.step_execution_id, expected_hash
+                    );
+                    match self
+                        .downloader
+                        .download_asset(script_url, expected_hash, Some("py"))
+                        .await
+                    {
+                        Ok((script_path, computed_hash)) => {
+                            info!(
+                                "[Storage] Script cached at {:?} (hash: {})",
+                                script_path, computed_hash
+                            );
+                            step.script_path = script_path.to_string_lossy().to_string();
+                        }
+                        Err(e) => {
+                            warn!(
+                                "[Storage] Could not pre-download script for step '{}': {}",
+                                step.step_execution_id, e
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Resolve executable for this executor (e.g. blender.exe)
         let exe_path = resolve_executor_executable(&task.executor)
             .with_context(|| format!("Could not resolve executable for executor '{}'", task.executor))?;
         info!("[Dispatcher] Resolved executor binary: {:?}", exe_path);
 
-        // 2. Prepare temp working directory and task.json
+        // 4. Prepare temp working directory and task.json
         let temp_dir = PathBuf::from("temp").join(&stage_id);
         create_dir_all(&temp_dir).await.ok();
         let task_json_path = temp_dir.join("task.json");
@@ -49,18 +95,18 @@ impl StageDispatcher {
         file.write_all(&task_bytes).await?;
         file.flush().await?;
 
-        // 3. Create Windows Job Object for lifecycle containment
+        // 5. Create Windows Job Object for lifecycle containment
         let job_object = JobObject::create()
             .context("Failed to initialize Windows Job Object")?;
 
-        // 4. Create Named Pipe IPC Server
+        // 6. Create Named Pipe IPC Server
         let pipe_server = Arc::new(PipeServer::new(&stage_id));
         let pipe_path = pipe_server.pipe_path().to_string();
 
         // Channel for events from guest subprocess
         let (event_tx, mut event_rx) = mpsc::channel::<GuestToHostMessage>(100);
 
-        // 5. Build arguments for DCC Guest
+        // 7. Build arguments for DCC Guest
         let guest_script = PathBuf::from("scripts").join("stage_runner_guest.py");
         let abs_guest_script = std::fs::canonicalize(&guest_script)
             .unwrap_or(guest_script);
@@ -103,7 +149,7 @@ impl StageDispatcher {
             ("PYTHONUNBUFFERED", "1"),
         ];
 
-        // 6. Spawn IPC listener in background
+        // 8. Spawn IPC listener in background
         let pipe_server_clone = Arc::clone(&pipe_server);
         let pipe_handle = tokio::spawn(async move {
             if let Err(e) = pipe_server_clone.listen_and_serve(event_tx).await {
@@ -111,7 +157,7 @@ impl StageDispatcher {
             }
         });
 
-        // 7. Spawn DCC Subprocess
+        // 9. Spawn DCC Subprocess
         let proc_handle = SubprocessRunner::spawn_with_job_object(
             &exe_path,
             &args,
@@ -121,7 +167,7 @@ impl StageDispatcher {
             &job_object,
         );
 
-        // 8. Event loop processing IPC messages while waiting for process completion
+        // 10. Event loop processing IPC messages while waiting for process completion
         let mut step_results: Vec<StepResult> = Vec::new();
         let mut stage_succeeded = false;
         let mut stage_error: Option<String> = None;
@@ -182,8 +228,56 @@ impl StageDispatcher {
                             stage_error = error_message;
                         }
                         GuestToHostMessage::FetchAssetRequest { request_id, asset_id, pin_key: _ } => {
-                            debug!("[IPC] FetchAssetRequest: {} for asset {}", request_id, asset_id);
-                            // Future phase: on-demand S3 download
+                            info!("[IPC] On-Demand Asset Fetch requested: id={} (req={})", asset_id, request_id);
+
+                            // Check local cache first
+                            match self.storage.find_cached_asset(&asset_id).await {
+                                Ok(Some(cached_path)) => {
+                                    info!("[IPC] Asset found in cache: {:?}", cached_path);
+                                    let _ = pipe_server.send_to_guest(HostToGuestMessage::FetchAssetResponse {
+                                        request_id,
+                                        success: true,
+                                        local_path: Some(cached_path.to_string_lossy().to_string()),
+                                        error: None,
+                                    }).await;
+                                }
+                                _ => {
+                                    // Check if resolved_data contains a download URL for this asset
+                                    let maybe_url = task.resolved_data.get(&asset_id)
+                                        .and_then(|v| v.as_str());
+
+                                    if let Some(url) = maybe_url {
+                                        info!("[IPC] Downloading on-demand asset from resolved URL: {}", url);
+                                        match self.downloader.download_asset(url, Some(&asset_id), None).await {
+                                            Ok((path, _)) => {
+                                                let _ = pipe_server.send_to_guest(HostToGuestMessage::FetchAssetResponse {
+                                                    request_id,
+                                                    success: true,
+                                                    local_path: Some(path.to_string_lossy().to_string()),
+                                                    error: None,
+                                                }).await;
+                                            }
+                                            Err(e) => {
+                                                error!("[IPC] Failed to download on-demand asset: {}", e);
+                                                let _ = pipe_server.send_to_guest(HostToGuestMessage::FetchAssetResponse {
+                                                    request_id,
+                                                    success: false,
+                                                    local_path: None,
+                                                    error: Some(e.to_string()),
+                                                }).await;
+                                            }
+                                        }
+                                    } else {
+                                        warn!("[IPC] Asset {} not cached and no download URL found in task metadata", asset_id);
+                                        let _ = pipe_server.send_to_guest(HostToGuestMessage::FetchAssetResponse {
+                                            request_id,
+                                            success: false,
+                                            local_path: None,
+                                            error: Some(format!("Asset '{}' not found in cache or task metadata", asset_id)),
+                                        }).await;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -214,7 +308,7 @@ impl StageDispatcher {
         // Wait brief moment for any remaining pipe cleanup
         pipe_handle.abort();
 
-        // 9. Clean up temp task file
+        // 11. Clean up temp task file
         let _ = remove_file(&task_json_path).await;
 
         let result = StageResultMessage {

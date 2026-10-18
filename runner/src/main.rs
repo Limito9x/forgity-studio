@@ -5,6 +5,7 @@ pub mod grpc;
 pub mod ipc;
 pub mod process;
 pub mod queue;
+pub mod storage;
 pub mod system;
 
 use clap::Parser;
@@ -33,8 +34,8 @@ async fn main() -> anyhow::Result<()> {
         Commands::Start { log_level: _ } => {
             cli::start::run_start().await?;
         }
-        Commands::Clean => {
-            println!("Cleaning cache and temp directories... [Phase 4 Ready]");
+        Commands::Clean { all, days } => {
+            cli::clean::run_clean(all, days).await?;
         }
     }
 
