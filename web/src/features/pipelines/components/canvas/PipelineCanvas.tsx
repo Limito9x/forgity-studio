@@ -23,6 +23,7 @@ import { LiveExecutionDrawer } from "./LiveExecutionDrawer";
 import { ExecutionStatusBanner } from "./ExecutionStatusBanner";
 import { PipelineFormScopeProvider } from "../../form-scope/PipelineFormScope";
 import { useValidatePipeline } from "../../hooks/usePipelineGraph";
+import { useCancelPipelineExecution } from "@/gen/endpoints/pipelines/pipelines";
 import { useNodePalette } from "../../hooks/usePipelines";
 import type { ExtendedPipelineGraphDto } from "../../hooks/usePipelineGraph";
 import {
@@ -127,6 +128,17 @@ export function PipelineCanvas({ projectId, graph }: PipelineCanvasProps) {
     }
   };
 
+  const cancelMutation = useCancelPipelineExecution();
+  const handleCancelExecution = async () => {
+    if (!live.activeExecutionId) return;
+    try {
+      await cancelMutation.mutateAsync({ id: live.activeExecutionId });
+      toast.success("Pipeline cancellation requested.");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to cancel execution.");
+    }
+  };
+
   const scopeValue = useMemo(
     () => ({
       pipelineId: graph.id,
@@ -178,6 +190,8 @@ export function PipelineCanvas({ projectId, graph }: PipelineCanvasProps) {
                   live.setIsDrawerOpen(true);
                 }}
                 onExitView={live.clearActiveExecution}
+                onCancel={handleCancelExecution}
+                isCancelling={cancelMutation.isPending}
               />
             )}
 

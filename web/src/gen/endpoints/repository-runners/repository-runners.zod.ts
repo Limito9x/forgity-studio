@@ -308,3 +308,14 @@ export const SyncLocalChangesResponse = /*#__PURE__*/ zod.object({
   "agentId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid())
 })
 
+export const DetachRunnerFromRepositoryParams = /*#__PURE__*/ zod.object({
+  "repositoryId": /*#__PURE__*/ zod.uuid(),
+  "runnerId": /*#__PURE__*/ zod.uuid()
+})
+
+export const DetachRunnerFromRepositoryQueryParams = /*#__PURE__*/ zod.object({
+  "force": /*#__PURE__*/ zod.boolean()
+})
+
+export const DetachRunnerFromRepositoryResponse = /*#__PURE__*/ zod.unknown()
+

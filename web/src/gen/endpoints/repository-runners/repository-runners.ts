@@ -16,6 +16,7 @@ import type {
 import type {
   AttachRunnerToRepositoryCommand,
   CompareRepositoryResourcesCommand,
+  DetachRunnerFromRepositoryParams,
   DiffResult,
   ErrorResponse,
   RepositoryRunnerDto,
@@ -263,4 +264,105 @@ export const useSyncLocalChanges = <
   TContext
 > => {
   return useMutation(getSyncLocalChangesMutationOptions(options), queryClient);
+};
+export const detachRunnerFromRepository = (
+  repositoryId: string,
+  runnerId: string,
+  params: DetachRunnerFromRepositoryParams,
+  signal?: AbortSignal,
+) => {
+  return customInstance<void>({
+    url: `/api/repository-runners/${repositoryId}/${runnerId}`,
+    method: "DELETE",
+    params,
+    signal,
+  });
+};
+
+export const getDetachRunnerFromRepositoryMutationOptions = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof detachRunnerFromRepository>>,
+    TError,
+    {
+      repositoryId: string;
+      runnerId: string;
+      params: DetachRunnerFromRepositoryParams;
+    },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof detachRunnerFromRepository>>,
+  TError,
+  {
+    repositoryId: string;
+    runnerId: string;
+    params: DetachRunnerFromRepositoryParams;
+  },
+  TContext
+> => {
+  const mutationKey = ["detachRunnerFromRepository"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof detachRunnerFromRepository>>,
+    {
+      repositoryId: string;
+      runnerId: string;
+      params: DetachRunnerFromRepositoryParams;
+    }
+  > = (props) => {
+    const { repositoryId, runnerId, params } = props ?? {};
+
+    return detachRunnerFromRepository(repositoryId, runnerId, params);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DetachRunnerFromRepositoryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof detachRunnerFromRepository>>
+>;
+
+export type DetachRunnerFromRepositoryMutationError = ErrorResponse | void;
+
+export const useDetachRunnerFromRepository = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof detachRunnerFromRepository>>,
+      TError,
+      {
+        repositoryId: string;
+        runnerId: string;
+        params: DetachRunnerFromRepositoryParams;
+      },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof detachRunnerFromRepository>>,
+  TError,
+  {
+    repositoryId: string;
+    runnerId: string;
+    params: DetachRunnerFromRepositoryParams;
+  },
+  TContext
+> => {
+  return useMutation(
+    getDetachRunnerFromRepositoryMutationOptions(options),
+    queryClient,
+  );
 };

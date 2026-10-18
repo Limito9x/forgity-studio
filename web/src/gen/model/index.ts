@@ -67,6 +67,7 @@ export * from "./deleteContentItemCommand";
 export * from "./deleteCustomNodesBulkCommand";
 export * from "./deleteCustomNodesBulkResult";
 export * from "./deleteTagCommand";
+export * from "./detachRunnerFromRepositoryParams";
 export * from "./dictionaryOfGuidAndSchemaVersionDto";
 export * from "./dictionaryOfStringAndDictionaryOfStringAndIReadOnlyListOfString";
 export * from "./dictionaryOfStringAndGuid";

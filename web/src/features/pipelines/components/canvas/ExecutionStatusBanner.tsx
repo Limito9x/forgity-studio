@@ -1,4 +1,4 @@
-import { CheckCircle2, AlertCircle, Loader2, FileText, ArrowLeft, Copy, Eye } from "lucide-react";
+import { CheckCircle2, AlertCircle, Loader2, FileText, ArrowLeft, Copy, Eye, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -12,6 +12,8 @@ interface ExecutionStatusBannerProps {
   errorMessage?: string | null;
   onOpenLogs: () => void;
   onExitView: () => void;
+  onCancel?: () => void;
+  isCancelling?: boolean;
 }
 
 export function ExecutionStatusBanner({
@@ -22,6 +24,8 @@ export function ExecutionStatusBanner({
   errorMessage,
   onOpenLogs,
   onExitView,
+  onCancel,
+  isCancelling,
 }: ExecutionStatusBannerProps) {
   const shortId = executionId.slice(0, 8);
 
@@ -86,6 +90,24 @@ export function ExecutionStatusBanner({
       )}
 
       <div className="h-3.5 w-px bg-border/80 mx-0.5" />
+
+      {isRunning && onCancel && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onPress={onCancel}
+          isDisabled={isCancelling}
+          className="h-6 px-2 text-xs gap-1 font-medium text-destructive hover:text-destructive hover:bg-destructive/10 border border-destructive/30"
+          title="Cancel active pipeline execution"
+        >
+          {isCancelling ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Square className="h-2.5 w-2.5 fill-current" />
+          )}
+          <span>{isCancelling ? "Cancelling..." : "Cancel"}</span>
+        </Button>
+      )}
 
       <Button
         variant="ghost"
