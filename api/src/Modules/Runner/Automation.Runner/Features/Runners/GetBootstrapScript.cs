@@ -96,9 +96,9 @@ if ($Token) {
 }
 
 Write-Host ""`n=================================================="" -ForegroundColor Green
-Write-Host "" [SUCCESS] FORGITY RUNNER READY & CONFIGURED!"" -ForegroundColor Green
+Write-Host "" [SUCCESS] FORGITY RUNNER DAEMON READY & RUNNING!"" -ForegroundColor Green
 Write-Host ""=================================================="" -ForegroundColor Green
-Start-Process -FilePath $exePath -ArgumentList ""start"" -WindowStyle Minimized";
+& $exePath daemon install";
             }
             else
             {

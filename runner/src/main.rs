@@ -34,6 +34,9 @@ async fn main() -> anyhow::Result<()> {
         Commands::Start { log_level: _ } => {
             cli::start::run_start().await?;
         }
+        Commands::Daemon { action } => {
+            cli::daemon::run_daemon(action).await?;
+        }
         Commands::Clean { all, days } => {
             cli::clean::run_clean(all, days).await?;
         }

@@ -4,7 +4,6 @@ import { registerDialog } from "@/lib/dialog-registry";
 declare module "@/lib/dialog-registry" {
   interface GlobalDialogRegistry {
     "connect-runner": undefined;
-    "runner-software": { runnerId: string; runnerName?: string };
   }
 }
 
@@ -14,18 +13,8 @@ const ConnectRunnerDialog = lazy(() =>
   }))
 );
 
-const RunnerSoftwareDialog = lazy(() =>
-  import("./RunnerSoftwareDialog").then((m) => ({
-    default: m.RunnerSoftwareDialog,
-  }))
-);
-
 registerDialog({
   id: "connect-runner",
   component: ConnectRunnerDialog,
 });
 
-registerDialog({
-  id: "runner-software",
-  component: RunnerSoftwareDialog,
-});
