@@ -167,10 +167,11 @@ runner/
   - Stream tiến độ real-time `step_progress` và trả về kết quả `stage_results` qua RabbitMQ với graceful shutdown Ctrl+C.
 
 ### Phase 4: Runtime Storage, SHA-256 Checksum & S3 Piped Streaming
-- [ ] Quản lý bộ nhớ đệm: `cache/assets`, `cache/scripts`, `temp/`, `logs/`.
-- [ ] Tích hợp crate `sha2` kiểm tra tính toàn vẹn của scripts và model 3D.
-- [ ] Xây dựng cơ chế tải S3 zero-copy streaming: Tải trực tiếp vào đĩa đệm không qua RAM trung gian.
-- [ ] Hỗ trợ cơ chế On-Demand Fetching: Subprocess có thể yêu cầu tải bổ sung file qua Named Pipe.
+- [x] Quản lý bộ nhớ đệm: `cache/assets`, `cache/scripts`, `temp/`, `logs/` và khóa an toàn `.storage.lock`.
+- [x] Tích hợp crate `sha2` & `hex` kiểm tra tính toàn vẹn (CAS Deduplication) theo stream chunk 64KB, chống tràn RAM.
+- [x] Xây dựng cơ chế tải S3 zero-RAM streaming qua `StreamDownloader`: Tải chunked trực tiếp vào file `.part` và commit vào CAS cache.
+- [x] Hỗ trợ cơ chế On-Demand Fetching: Subprocess có thể yêu cầu tải bổ sung file qua Named Pipe (`FetchAssetRequest` -> `FetchAssetResponse`).
+- [x] Hoàn thiện lệnh `forgity-runner clean`: Dọn dẹp `temp/`, lọc xoá log cũ theo số ngày (`--days`), và hỗ trợ xoá sạch toàn bộ cache (`--all`).
 
 ### Phase 5: Đóng Gói Binary Độc Lập & Kiểm Thử Song Song
 - [ ] Tối ưu cờ build Cargo release: LTO (Link-Time Optimization), `strip = true`, `opt-level = "z"` (nén kích thước binary xuống mức nhỏ nhất).
