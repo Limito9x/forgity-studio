@@ -33,8 +33,8 @@ export function NodeCard({
     >
       {children}
 
-      {/* Node Error Banner at the bottom */}
-      {(status === "failed" || executionError) && (
+      {/* Node Error Banner at the bottom (only when node actually failed) */}
+      {status === "failed" && (
         <div className="rounded-b-xl border-t border-destructive/40 bg-destructive/10 px-3 py-2 text-[11px] text-destructive flex items-start gap-1.5 animate-in fade-in">
           <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
           <span className="leading-tight break-words flex-1 font-medium">

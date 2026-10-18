@@ -85,7 +85,13 @@ export function usePipelineLiveTracking({
             [nodeId]: outputs,
           }));
         }
-        if (errorMessage) {
+        if (mappedStatus === "succeeded") {
+          setLiveNodeErrors((prev) => {
+            const next = { ...prev };
+            delete next[nodeId];
+            return next;
+          });
+        } else if (errorMessage) {
           setLiveNodeErrors((prev) => ({
             ...prev,
             [nodeId]: errorMessage,
@@ -118,7 +124,7 @@ export function usePipelineLiveTracking({
           setLiveNodeErrors((prev) => {
             const next = { ...prev };
             for (const k of Object.keys(next)) {
-              if (next[k] === null || next[k] === undefined) {
+              if (liveNodeStatuses[k] === "failed" && !next[k]) {
                 next[k] = errorMessage;
               }
             }

@@ -58,39 +58,18 @@ impl RabbitMqClient {
     pub async fn create_task_consumer(&self, runner_id: &str) -> Result<(String, Consumer)> {
         let queue_name = format!("stage_tasks.{}", runner_id);
 
-        let mut queue_args = FieldTable::default();
-        queue_args.insert(
-            "x-dead-letter-exchange".into(),
-            lapin::types::AMQPValue::LongString("wolverine-dead-letter-queue".into()),
-        );
-
-        // Try declaring with dead-letter-exchange, fallback to normal if needed
-        let declare_res = self
-            .channel
+        // Declare dedicated task queue for this runner
+        self.channel
             .queue_declare(
                 &queue_name,
                 QueueDeclareOptions {
                     durable: true,
                     ..Default::default()
                 },
-                queue_args,
+                FieldTable::default(),
             )
-            .await;
-
-        if let Err(e) = declare_res {
-            debug!("Declaring queue with DLX failed: {}. Retrying standard declare...", e);
-            self.channel
-                .queue_declare(
-                    &queue_name,
-                    QueueDeclareOptions {
-                        durable: true,
-                        ..Default::default()
-                    },
-                    FieldTable::default(),
-                )
-                .await
-                .with_context(|| format!("Failed to declare task queue '{}'", queue_name))?;
-        }
+            .await
+            .with_context(|| format!("Failed to declare task queue '{}'", queue_name))?;
 
         info!("Subscribing to tasks queue: '{}'", queue_name);
 
