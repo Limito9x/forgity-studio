@@ -5,26 +5,52 @@
  * Digital Content Creation Automation Studio Engine & API
  * OpenAPI spec version: 1.0.0
  */
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  DataTag,
+  DefinedInitialDataOptions,
+  DefinedUseQueryResult,
   MutationFunction,
   QueryClient,
+  QueryFunction,
+  QueryKey,
+  UndefinedInitialDataOptions,
   UseMutationOptions,
   UseMutationResult,
+  UseQueryOptions,
+  UseQueryResult,
 } from "@tanstack/react-query";
 
 import type {
   AttachRunnerToRepositoryCommand,
   CompareRepositoryResourcesCommand,
-  DetachRunnerFromRepositoryParams,
   DiffResult,
   ErrorResponse,
+  IReadOnlyListOfAttachedRepositoryDto,
   RepositoryRunnerDto,
   SyncLocalChangesCommand,
   SyncLocalChangesResultDto,
 } from "../../model";
 
 import { customInstance } from "../../../lib/api-client";
+
+const withQueryKey = <T extends object, K>(
+  query: T,
+  queryKey: K,
+): T & { queryKey: K } => {
+  const result = { queryKey } as T & { queryKey: K };
+  for (const key of Object.keys(query)) {
+    // The explicit queryKey always wins, matching the previous
+    // `{ ...query, queryKey }` spread where it was set last.
+    if (key === "queryKey") continue;
+    Object.defineProperty(result, key, {
+      enumerable: true,
+      configurable: true,
+      get: () => (query as Record<string, unknown>)[key],
+    });
+  }
+  return result;
+};
 
 export const attachRunnerToRepository = (
   attachRunnerToRepositoryCommand: AttachRunnerToRepositoryCommand,
@@ -107,6 +133,167 @@ export const useAttachRunnerToRepository = <
     queryClient,
   );
 };
+export const getAttachedRepositoriesByRunner = (
+  runnerId: string,
+  signal?: AbortSignal,
+) => {
+  return customInstance<IReadOnlyListOfAttachedRepositoryDto>({
+    url: `/api/repository-runners/by-runner/${runnerId}`,
+    method: "GET",
+    signal,
+  });
+};
+
+export const getGetAttachedRepositoriesByRunnerQueryKey = (
+  runnerId: string,
+) => {
+  return [`/api/repository-runners/by-runner/${runnerId}`] as const;
+};
+
+export const getGetAttachedRepositoriesByRunnerQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAttachedRepositoriesByRunner>>,
+  TError = ErrorResponse | void,
+>(
+  runnerId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getAttachedRepositoriesByRunner>>,
+        TError,
+        TData
+      >
+    >;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetAttachedRepositoriesByRunnerQueryKey(runnerId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAttachedRepositoriesByRunner>>
+  > = ({ signal }) => getAttachedRepositoriesByRunner(runnerId, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: runnerId !== null && runnerId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAttachedRepositoriesByRunner>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetAttachedRepositoriesByRunnerQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAttachedRepositoriesByRunner>>
+>;
+export type GetAttachedRepositoriesByRunnerQueryError = ErrorResponse | void;
+
+export function useGetAttachedRepositoriesByRunner<
+  TData = Awaited<ReturnType<typeof getAttachedRepositoriesByRunner>>,
+  TError = ErrorResponse | void,
+>(
+  runnerId: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getAttachedRepositoriesByRunner>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAttachedRepositoriesByRunner>>,
+          TError,
+          Awaited<ReturnType<typeof getAttachedRepositoriesByRunner>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetAttachedRepositoriesByRunner<
+  TData = Awaited<ReturnType<typeof getAttachedRepositoriesByRunner>>,
+  TError = ErrorResponse | void,
+>(
+  runnerId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getAttachedRepositoriesByRunner>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAttachedRepositoriesByRunner>>,
+          TError,
+          Awaited<ReturnType<typeof getAttachedRepositoriesByRunner>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetAttachedRepositoriesByRunner<
+  TData = Awaited<ReturnType<typeof getAttachedRepositoriesByRunner>>,
+  TError = ErrorResponse | void,
+>(
+  runnerId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getAttachedRepositoriesByRunner>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useGetAttachedRepositoriesByRunner<
+  TData = Awaited<ReturnType<typeof getAttachedRepositoriesByRunner>>,
+  TError = ErrorResponse | void,
+>(
+  runnerId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getAttachedRepositoriesByRunner>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetAttachedRepositoriesByRunnerQueryOptions(
+    runnerId,
+    options,
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 export const compareRepositoryResources = (
   compareRepositoryResourcesCommand: CompareRepositoryResourcesCommand,
   signal?: AbortSignal,
@@ -268,13 +455,11 @@ export const useSyncLocalChanges = <
 export const detachRunnerFromRepository = (
   repositoryId: string,
   runnerId: string,
-  params: DetachRunnerFromRepositoryParams,
   signal?: AbortSignal,
 ) => {
   return customInstance<void>({
     url: `/api/repository-runners/${repositoryId}/${runnerId}`,
     method: "DELETE",
-    params,
     signal,
   });
 };
@@ -286,21 +471,13 @@ export const getDetachRunnerFromRepositoryMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof detachRunnerFromRepository>>,
     TError,
-    {
-      repositoryId: string;
-      runnerId: string;
-      params: DetachRunnerFromRepositoryParams;
-    },
+    { repositoryId: string; runnerId: string },
     TContext
   >;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof detachRunnerFromRepository>>,
   TError,
-  {
-    repositoryId: string;
-    runnerId: string;
-    params: DetachRunnerFromRepositoryParams;
-  },
+  { repositoryId: string; runnerId: string },
   TContext
 > => {
   const mutationKey = ["detachRunnerFromRepository"];
@@ -314,15 +491,11 @@ export const getDetachRunnerFromRepositoryMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof detachRunnerFromRepository>>,
-    {
-      repositoryId: string;
-      runnerId: string;
-      params: DetachRunnerFromRepositoryParams;
-    }
+    { repositoryId: string; runnerId: string }
   > = (props) => {
-    const { repositoryId, runnerId, params } = props ?? {};
+    const { repositoryId, runnerId } = props ?? {};
 
-    return detachRunnerFromRepository(repositoryId, runnerId, params);
+    return detachRunnerFromRepository(repositoryId, runnerId);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -342,11 +515,7 @@ export const useDetachRunnerFromRepository = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof detachRunnerFromRepository>>,
       TError,
-      {
-        repositoryId: string;
-        runnerId: string;
-        params: DetachRunnerFromRepositoryParams;
-      },
+      { repositoryId: string; runnerId: string },
       TContext
     >;
   },
@@ -354,11 +523,7 @@ export const useDetachRunnerFromRepository = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof detachRunnerFromRepository>>,
   TError,
-  {
-    repositoryId: string;
-    runnerId: string;
-    params: DetachRunnerFromRepositoryParams;
-  },
+  { repositoryId: string; runnerId: string },
   TContext
 > => {
   return useMutation(

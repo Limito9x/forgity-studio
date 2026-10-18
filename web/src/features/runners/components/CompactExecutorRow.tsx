@@ -197,7 +197,7 @@ export function CompactExecutorRow({
               >
                 {availableCandidates.map((cand, idx) => (
                   <option key={idx} value={cand.executablePath} className="bg-popover text-popover-foreground">
-                    {cand.version ? `${cand.name || meta.name} (${cand.version})` : cand.name || cand.executablePath}
+                    {cand.version ? `${meta.name} (${cand.version})` : cand.executablePath}
                   </option>
                 ))}
               </select>
@@ -247,7 +247,7 @@ export function CompactExecutorRow({
             size="sm"
             onPress={handleCopyPath}
             className="h-6 w-6 p-0 shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
-            title="Copy path"
+            aria-label="Copy executable path"
           >
             {copied ? (
               <Check className="size-3 text-emerald-500" />

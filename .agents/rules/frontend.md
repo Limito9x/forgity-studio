@@ -50,7 +50,10 @@ Quy tắc áp dụng bắt buộc khi xây dựng hoặc sửa đổi mã nguồ
 
 ## 5. React Aria Components & Thư Viện UI
 - **Custom Shadcn Stack:** Dự án sử dụng bộ Shadcn đặc biệt xây dựng trên nền **React Aria Components**, **KHÔNG PHẢI Radix UI**.
-- **Component Props Constraints:** Các thuộc tính quen thuộc của Radix như `asChild` thường **KHÔNG TỒN TẠI** hoặc hành vi khác biệt. Trước khi sử dụng props, BẮT BUỘC đọc file type definition trong `src/components/ui/`.
+- **Interactive Props Constraints (CỰC KỲ QUAN TRỌNG - BẮT BUỘC TUÂN THỦ):**
+  - **`onPress` thay cho `onClick`**: Trên toàn bộ components tương tác (`Button`, `LinkButton`, `ToggleButton`, `MenuItem`, v.v.), luôn dùng `onPress`. Không dùng `onClick` vì React Aria chuẩn hóa đa nền tảng (chuột, phím Space/Enter, và cảm ứng không bị delay) thông qua `onPress`.
+  - **`isDisabled` thay cho `disabled`**: Bắt buộc dùng `isDisabled` thay vì `disabled`. React Aria quản lý State Machine qua `isDisabled` để kích hoạt `data-disabled="true"`, `aria-disabled="true"` và các lớp CSS `opacity-50 pointer-events-none`.
+- **Component Props Constraints:** Các thuộc tính quen thuộc của Radix như `asChild` **KHÔNG TỒN TẠI**. Trước khi sử dụng props, BẮT BUỘC đọc file type definition trong `src/components/ui/`.
 - **Tái Sử Dụng Base Components:** Ưu tiên tái sử dụng các component có sẵn trong `src/components/custom-ui/` và `src/components/layout/` (`BaseDialog`, `BaseFormDialog`, `ResourcePageShell`, `FormSubmitButton`). Không tự chế lại dialog hay page shell từ đầu.
 
 ---
@@ -104,4 +107,10 @@ Quy tắc áp dụng bắt buộc khi xây dựng hoặc sửa đổi mã nguồ
   - Luôn sử dụng icon bọc trong vòng tròn: `<div className="p-3 rounded-full bg-primary/10 text-primary mb-3"><Icon className="size-8" /></div>`.
   - Khung bao: `py-16 px-4 rounded-xl border border-dashed text-center bg-card`.
 
+---
+
+## 10. Kỷ Luật UI & Chống Vẽ Vời (No Mock Clutter & No Fake Roadmaps)
+- **Cấm Tuyệt Đối Mock Roadmap:** Tuyệt đối KHÔNG tự ý chèn các mục "Roadmap", "Upcoming Supported DCC Engines", "Supported Soon (Q1 2027...)", hoặc các thẻ phần mềm giả định vào giao diện.
+- **Data-Driven 100%:** Chỉ hiển thị những gì API/DTO/Contracts thực tế cung cấp. Nếu dữ liệu rỗng, hiển thị Empty State chuẩn mực, không bịa mockup dữ liệu làm màu.
+- **Giữ Gìn UI Primitives Sạch Sẽ:** Không bao giờ monkey-patch hay nới lỏng type của `components/ui/*`. Mọi tinh chỉnh phải tuân thủ đúng chuẩn của `react-aria-components` tại call-site (ví dụ: dùng `aria-label` thay vì `title`).
 
