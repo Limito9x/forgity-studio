@@ -66,7 +66,7 @@ jobs:
           $zipVersioned = "$distDir/forgity-runner-$version-windows-x64.zip"
           $zipLatest = "$distDir/forgity-runner.zip"
           
-          Compress-Archive -Path $exe -DestinationPath $zipVersioned -Force
+          Compress-Archive -Path $exe, "runner/scripts" -DestinationPath $zipVersioned -Force
           Copy-Item $zipVersioned $zipLatest -Force
           
           (Get-FileHash -Algorithm SHA256 $zipVersioned).Hash.ToLower() | Out-File "$zipVersioned.sha256" -NoNewline
