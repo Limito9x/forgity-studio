@@ -20,7 +20,6 @@ public class GetRunnerPackageEndpoint : EndpointWithoutRequest
 
     public override async Task HandleAsync(CancellationToken ct)
     {
-        // Check if pre-packaged zip exists in Docker image or assets
         var prebuiltZipCandidates = new[]
         {
             Path.Combine(AppContext.BaseDirectory, "assets", "forgity-runner.zip"),
@@ -33,6 +32,24 @@ public class GetRunnerPackageEndpoint : EndpointWithoutRequest
             HttpContext.Response.Headers.Append("Content-Disposition", "attachment; filename=\"forgity-runner.zip\"");
             await using var fileStream = File.OpenRead(prebuiltZip);
             await fileStream.CopyToAsync(HttpContext.Response.Body, ct);
+            return;
+        }
+
+        // Check for compiled native Rust runner executable
+        var runnerExe = ResolveRunnerExecutable();
+        if (runnerExe is not null)
+        {
+            var ms = new MemoryStream();
+            using (var archive = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+            {
+                archive.CreateEntryFromFile(runnerExe, Path.GetFileName(runnerExe), CompressionLevel.Optimal);
+            }
+            ms.Position = 0;
+            HttpContext.Response.StatusCode = StatusCodes.Status200OK;
+            HttpContext.Response.ContentType = "application/zip";
+            HttpContext.Response.Headers.Append("Content-Disposition", "attachment; filename=\"forgity-runner.zip\"");
+            HttpContext.Response.ContentLength = ms.Length;
+            await ms.CopyToAsync(HttpContext.Response.Body, ct);
             return;
         }
 
@@ -77,6 +94,29 @@ public class GetRunnerPackageEndpoint : EndpointWithoutRequest
         HttpContext.Response.Headers.Append("Content-Disposition", "attachment; filename=\"automation-runner.zip\"");
         HttpContext.Response.ContentLength = memoryStream.Length;
         await memoryStream.CopyToAsync(HttpContext.Response.Body, ct);
+    }
+
+    private static string? ResolveRunnerExecutable()
+    {
+        var candidates = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "runner", "target", "release", "forgity-runner.exe"),
+            Path.Combine(Directory.GetCurrentDirectory(), "runner", "target", "release", "forgity-runner.exe"),
+            Path.Combine(AppContext.BaseDirectory, "assets", "forgity-runner.exe"),
+            Path.Combine(Directory.GetCurrentDirectory(), "assets", "forgity-runner.exe")
+        };
+        var found = candidates.FirstOrDefault(File.Exists);
+        if (found != null) return found;
+
+        var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
+        while (dir != null)
+        {
+            var target = Path.Combine(dir.FullName, "runner", "target", "release", "forgity-runner.exe");
+            if (File.Exists(target)) return target;
+            dir = dir.Parent;
+        }
+
+        return null;
     }
 
     private static string? ResolveWorkersDirectory()
