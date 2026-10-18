@@ -7,3 +7,13 @@ backup.sql
 scripts/scratch/
 scripts/*.local.*
 *.scratch.*
+runner/dist/
+runner/target/
+
+# Python & Test Caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/

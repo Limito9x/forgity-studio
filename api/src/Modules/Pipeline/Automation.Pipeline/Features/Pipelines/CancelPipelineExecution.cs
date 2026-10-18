@@ -2,16 +2,15 @@ using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Features.Pipelines.Dtos;
 using Automation.Pipeline.Hubs;
 using Automation.Pipeline.Infrastructure.Persistence;
+using Automation.Runner.Contracts;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
 
 namespace Automation.Pipeline.Features.Pipelines;
 
-public record CancelPipelineExecutionRequest(Guid Id);
-
 public class CancelPipelineExecutionEndpoint(IMessageBus bus)
-    : Endpoint<CancelPipelineExecutionRequest, PipelineExecutionDto>
+    : EndpointWithoutRequest<PipelineExecutionDto>
 {
     public override void Configure()
     {
@@ -20,14 +19,16 @@ public class CancelPipelineExecutionEndpoint(IMessageBus bus)
         Permissions(P.Pipeline.Update);
 
         Description(d => d
+            .WithName("CancelPipelineExecution")
             .Produces<PipelineExecutionDto>(200)
             .Produces(404));
     }
 
-    public override async Task HandleAsync(CancelPipelineExecutionRequest req, CancellationToken ct)
+    public override async Task HandleAsync(CancellationToken ct)
     {
+        var id = Route<Guid>("id");
         var result = await bus.InvokeAsync<Result<PipelineExecutionDto>>(
-            new CancelPipelineExecutionCommand(req.Id),
+            new CancelPipelineExecutionCommand(id),
             ct
         );
         await this.SendResultAsync(result, ct);
@@ -39,6 +40,7 @@ public record CancelPipelineExecutionCommand(Guid ExecutionId);
 [Transactional(typeof(PipelineDbContext))]
 public class CancelPipelineExecutionHandler(
     PipelineDbContext db,
+    IRunnerApi runnerApi,
     IHubContext<PipelineExecutionHub>? hubContext = null
 )
 {
@@ -63,6 +65,20 @@ public class CancelPipelineExecutionHandler(
 
         exec.Cancel();
         await db.SaveChangesAsync(ct);
+
+        // Terminate any active DCC subprocess tree (Blender / Unreal / Python) on connected Runners
+        try
+        {
+            await runnerApi.BroadcastCancelExecutionCommandAsync(
+                exec.Id.ToString(),
+                exec.CurrentBatchId ?? string.Empty,
+                ct
+            );
+        }
+        catch
+        {
+            // Non-fatal if runner is unreachable
+        }
 
         if (hubContext != null)
         {

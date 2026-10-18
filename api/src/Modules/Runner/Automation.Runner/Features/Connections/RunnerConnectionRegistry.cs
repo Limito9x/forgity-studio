@@ -31,4 +31,9 @@ public sealed class RunnerConnectionRegistry : IRunnerConnectionRegistry, IAgent
     {
         return _connections.ContainsKey(runnerId);
     }
+
+    public IReadOnlyList<RunnerConnection> GetAll()
+    {
+        return _connections.Values.ToList();
+    }
 }

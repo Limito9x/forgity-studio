@@ -291,6 +291,15 @@ export function RepositoryDetailPage(props: RepositoryDetailPageProps = {}) {
             })
           }
           onScanSyncRunner={() => setActiveTab("sync")}
+          onDetachRunner={(runnerId, runnerName, rootPath) =>
+            openDialog("detach-runner-from-repository", {
+              repositoryId: repository.id,
+              repositoryName: repository.name,
+              runnerId,
+              runnerName,
+              rootPath,
+            })
+          }
         />
       )}
 

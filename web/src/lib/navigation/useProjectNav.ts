@@ -59,6 +59,8 @@ export function useProjectNav(options?: ProjectNavOptions) {
     // Studio level
     allProjects: () => `${studioBase}/projects`,
     runners: () => `${studioBase}/runners`,
+    runnerDetail: (runnerId: string) =>
+      studioBase ? `${studioBase}/runners/${runnerId}` : `/runners/${runnerId}`,
     dashboard: () => `${studioBase}`,
 
     // Pipelines
@@ -71,7 +73,13 @@ export function useProjectNav(options?: ProjectNavOptions) {
 
     // Repositories
     repositories: () => `${projectBase}/repositories`,
-    repositoryDetail: (repositoryId: string) => `${projectBase}/repositories/${repositoryId}`,
+    repositoryDetail: (repositoryId: string, customProjectId?: string) => {
+      const pId = customProjectId || urlProjectKey;
+      const base = studioSlug
+        ? `/s/${studioSlug}/projects/${pId}`
+        : `/projects/${pId}`;
+      return `${base}/repositories/${repositoryId}`;
+    },
     resourceDetail: (resourceId: string, workspaceId?: string) =>
       `${projectBase}/resources/${resourceId}${workspaceId ? `?workspaceId=${workspaceId}` : ""}`,
 
@@ -106,6 +114,7 @@ export function useProjectNav(options?: ProjectNavOptions) {
     // Navigation Methods
     toAllProjects: () => navTo(urls.allProjects()),
     toRunners: () => navTo(urls.runners()),
+    toRunnerDetail: (runnerId: string) => navTo(urls.runnerDetail(runnerId)),
     toDashboard: () => navTo(urls.dashboard()),
 
     // Pipelines
@@ -117,7 +126,8 @@ export function useProjectNav(options?: ProjectNavOptions) {
 
     // Repositories
     toRepositories: () => navTo(urls.repositories()),
-    toRepositoryDetail: (repositoryId: string) => navTo(urls.repositoryDetail(repositoryId)),
+    toRepositoryDetail: (repositoryId: string, customProjectId?: string) =>
+      navTo(urls.repositoryDetail(repositoryId, customProjectId)),
     toResourceDetail: (resourceId: string, workspaceId?: string) =>
       navTo(urls.resourceDetail(resourceId, workspaceId)),
 

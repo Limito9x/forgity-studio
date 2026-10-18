@@ -4,12 +4,14 @@ import type { CreateRepositoryDialogData } from "./CreateRepositoryDialog";
 import type { UpdateRepositoryDialogData } from "./UpdateRepositoryDialog";
 import type { DeleteRepositoryDialogData } from "./DeleteRepositoryDialog";
 import type { AttachRunnerToRepositoryDialogData } from "./AttachRunnerDialog";
+import type { DetachRunnerFromRepositoryDialogData } from "./DetachRunnerDialog";
 declare module "@/lib/dialog-registry" {
   interface GlobalDialogRegistry {
     "create-repository": CreateRepositoryDialogData;
     "update-repository": UpdateRepositoryDialogData;
     "delete-repository": DeleteRepositoryDialogData;
     "attach-runner-to-repository": AttachRunnerToRepositoryDialogData;
+    "detach-runner-from-repository": DetachRunnerFromRepositoryDialogData;
   }
 }
 
@@ -32,6 +34,7 @@ const DeleteRepositoryDialog = lazy(() =>
 );
 
 import { AttachRunnerDialog } from "./AttachRunnerDialog";
+import { DetachRunnerDialog } from "./DetachRunnerDialog";
 
 registerDialog({
   id: "create-repository",
@@ -51,6 +54,11 @@ registerDialog({
 registerDialog({
   id: "attach-runner-to-repository",
   component: AttachRunnerDialog,
+});
+
+registerDialog({
+  id: "detach-runner-from-repository",
+  component: DetachRunnerDialog,
 });
 
 export { PublishVersionDialog } from "./PublishVersionDialog";

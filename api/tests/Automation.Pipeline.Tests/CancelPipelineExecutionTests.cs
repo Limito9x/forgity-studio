@@ -4,6 +4,7 @@ using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Features.Pipelines;
 using Automation.Pipeline.Hubs;
 using Automation.Pipeline.Infrastructure.Persistence;
+using Automation.Runner.Contracts;
 using FluentAssertions;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Data.Sqlite;
@@ -17,6 +18,7 @@ public class CancelPipelineExecutionTests : IDisposable
 {
     private readonly SqliteConnection _connection;
     private readonly PipelineDbContext _db;
+    private readonly IRunnerApi _runnerApi = Substitute.For<IRunnerApi>();
     private readonly IHubContext<PipelineExecutionHub> _hubContext = Substitute.For<IHubContext<PipelineExecutionHub>>();
     private readonly IHubClients _hubClients = Substitute.For<IHubClients>();
     private readonly IClientProxy _clientProxy = Substitute.For<IClientProxy>();
@@ -52,7 +54,7 @@ public class CancelPipelineExecutionTests : IDisposable
         _db.PipelineExecutions.Add(execution);
         await _db.SaveChangesAsync();
 
-        var handler = new CancelPipelineExecutionHandler(_db, _hubContext);
+        var handler = new CancelPipelineExecutionHandler(_db, _runnerApi, _hubContext);
 
         // Act
         var result = await handler.HandleAsync(new CancelPipelineExecutionCommand(execution.Id), CancellationToken.None);
@@ -65,6 +67,13 @@ public class CancelPipelineExecutionTests : IDisposable
         var updated = await _db.PipelineExecutions.FirstAsync(x => x.Id == execution.Id);
         updated.Status.Should().Be(ExecutionStatus.Cancelled);
         updated.FinishedAt.Should().NotBeNull();
+
+        // Verify broadcast to runners
+        await _runnerApi.Received(1).BroadcastCancelExecutionCommandAsync(
+            execution.Id.ToString(),
+            Arg.Any<string>(),
+            Arg.Any<CancellationToken>()
+        );
 
         // Verify SignalR broadcast
         await _clientProxy.Received(1).SendCoreAsync(
@@ -91,7 +100,7 @@ public class CancelPipelineExecutionTests : IDisposable
         _db.PipelineExecutions.Add(execution);
         await _db.SaveChangesAsync();
 
-        var handler = new CancelPipelineExecutionHandler(_db, _hubContext);
+        var handler = new CancelPipelineExecutionHandler(_db, _runnerApi, _hubContext);
 
         // Act
         var result = await handler.HandleAsync(new CancelPipelineExecutionCommand(execution.Id), CancellationToken.None);
@@ -113,7 +122,7 @@ public class CancelPipelineExecutionTests : IDisposable
     public async Task Cancel_NonExistentExecution_ReturnsFailure()
     {
         // Arrange
-        var handler = new CancelPipelineExecutionHandler(_db, _hubContext);
+        var handler = new CancelPipelineExecutionHandler(_db, _runnerApi, _hubContext);
 
         // Act
         var result = await handler.HandleAsync(new CancelPipelineExecutionCommand(Guid.NewGuid()), CancellationToken.None);
