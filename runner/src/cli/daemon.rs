@@ -96,16 +96,16 @@ pub fn is_autostart_installed() -> bool {
     false
 }
 
-pub async fn run_daemon(action: DaemonAction) -> Result<()> {
+pub async fn run_daemon(action: DaemonAction, config_override: Option<&std::path::Path>) -> Result<()> {
     match action {
         DaemonAction::Install => install_daemon().await,
         DaemonAction::Uninstall => uninstall_daemon().await,
-        DaemonAction::Start => start_daemon().await,
+        DaemonAction::Start => start_daemon(config_override).await,
         DaemonAction::Stop => stop_daemon().await,
         DaemonAction::Restart => {
             let _ = stop_daemon().await;
             tokio::time::sleep(std::time::Duration::from_millis(800)).await;
-            start_daemon().await
+            start_daemon(config_override).await
         }
         DaemonAction::Status => show_daemon_status().await,
     }
@@ -160,7 +160,7 @@ async fn install_daemon() -> Result<()> {
     }
 
     println!("\nStarting background daemon now...");
-    start_daemon().await?;
+    start_daemon(None).await?;
 
     Ok(())
 }
@@ -199,7 +199,7 @@ async fn uninstall_daemon() -> Result<()> {
     Ok(())
 }
 
-async fn start_daemon() -> Result<()> {
+async fn start_daemon(config_override: Option<&std::path::Path>) -> Result<()> {
     let current_exe = std::env::current_exe()
         .context("Could not determine current executable path")?;
 
@@ -238,7 +238,11 @@ async fn start_daemon() -> Result<()> {
             .open(&err_log)
             .context("Failed to open daemon stderr log file")?;
 
-        let child = std::process::Command::new(&current_exe)
+        let mut cmd = std::process::Command::new(&current_exe);
+        if let Some(cfg) = config_override {
+            cmd.arg("--config").arg(cfg);
+        }
+        let child = cmd
             .arg("start")
             .current_dir(&data_dir)
             .stdout(stdout_file)
