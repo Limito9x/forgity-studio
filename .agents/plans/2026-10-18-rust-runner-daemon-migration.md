@@ -150,19 +150,21 @@ runner/
   - `forgity-runner doctor`: Quét ổ đĩa Windows tự động phát hiện chính xác các bản Blender và Unreal Engine thực tế trên máy.
 
 ### Phase 2: Đăng Ký Runner & Cấu Hình Cục Bộ (`register`)
-- [ ] Xây dựng module `grpc::client` kết nối tới Backend Core (`api/`).
-- [ ] Thực hiện bắt tay (handshake): Gửi thông tin phần cứng (GPU name, VRAM, CPU cores, RAM, OS version, các engine tìm thấy).
-- [ ] Lưu trữ an toàn `RunnerId`, `StudioId` và `AuthToken` vào tệp cấu hình TOML.
+- [x] Xây dựng module `cli::register` kết nối tới Backend Core (`api/runners/register-token`).
+- [x] Thực hiện bắt tay (handshake): Gửi thông tin phần cứng (GPU name, VRAM, CPU cores, RAM, OS version) lên backend qua `/api/runners/{id}/hardware-profile`.
+- [x] Lưu trữ an toàn `RunnerId`, `MachineKey`, `RabbitMQ` và `RegistrationToken` vào tệp cấu hình `runner.toml` (hỗ trợ đọc/ghi tự động).
 
 ### Phase 3: RabbitMQ Consumer, Windows Job Objects & Named Pipe IPC
-- [ ] Tích hợp `lapin` kết nối RabbitMQ, lắng nghe hàng đợi `runner.{runnerId}`.
-- [ ] Xây dựng module `ipc::pipe_server`:
-  - Khởi tạo Named Pipe cục bộ `\\.\pipe\forgity-ipc-{jobId}`.
-  - Viết module Python client cực nhẹ (~40 dòng code) trong script Blender/Unreal kết nối vào Pipe qua thư viện chuẩn `socket` của Python.
-- [ ] Xây dựng module `process::job_object`:
-  - Đăng ký tiến trình Blender/Unreal vào Windows Job Object (`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`).
-  - Giới hạn quota bộ nhớ RAM bảo vệ máy.
-- [ ] Hoàn thiện luồng streaming: Thu nhận log stdout/stderr đẩy vào file và stream tiến độ về gRPC Backend.
+- [x] Tích hợp `lapin` kết nối RabbitMQ, lắng nghe hàng đợi `stage_tasks.{runner_id}`, hỗ trợ `basic_qos(1)` và DLX.
+- [x] Xây dựng module `ipc::pipe_server` & `ipc::protocol`:
+  - Khởi tạo Named Pipe cục bộ `\\.\pipe\forgity-ipc-{stage_execution_id}` với Tokio NamedPipeServer.
+  - Viết module Python guest runner `runner/scripts/stage_runner_guest.py` cực nhẹ chuẩn stdlib kết nối 2 chiều qua Pipe (NDJSON).
+- [x] Xây dựng module `process::job_object`:
+  - Đăng ký tiến trình Blender/Unreal vào Windows Kernel Job Object (`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`).
+  - Đảm bảo khi runner dừng hoặc crash, mọi tiến trình 3D con đều bị Windows kernel giải phóng 100%, không bao giờ để lại zombie process ăn VRAM.
+- [x] Hoàn thiện Dispatcher và lệnh `forgity-runner start`:
+  - Thu nhận log stdout/stderr đẩy vào file `logs/{stage_id}.log`.
+  - Stream tiến độ real-time `step_progress` và trả về kết quả `stage_results` qua RabbitMQ với graceful shutdown Ctrl+C.
 
 ### Phase 4: Runtime Storage, SHA-256 Checksum & S3 Piped Streaming
 - [ ] Quản lý bộ nhớ đệm: `cache/assets`, `cache/scripts`, `temp/`, `logs/`.

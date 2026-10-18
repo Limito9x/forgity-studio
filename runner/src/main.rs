@@ -1,9 +1,14 @@
 pub mod cli;
+pub mod config;
+pub mod core;
 pub mod grpc;
+pub mod ipc;
+pub mod process;
+pub mod queue;
+pub mod system;
 
 use clap::Parser;
 use cli::{Cli, Commands};
-use colored::Colorize;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -23,25 +28,13 @@ async fn main() -> anyhow::Result<()> {
             cli::doctor::run_doctor();
         }
         Commands::Register { token, api_url } => {
-            println!("{}", "════════════════════════════════════════════════════════".cyan().bold());
-            println!("   {} Registering Runner with Forgity Studio Backend...", "➤".green().bold());
-            println!("   API URL: {}", api_url.white().bold());
-            if let Some(t) = token {
-                println!("   Token  : {}", format!("{}...", &t[..t.len().min(8)]).dimmed());
-            } else {
-                println!("   Token  : {}", "None provided (use --token <TOKEN>)".yellow());
-            }
-            println!("{}", "════════════════════════════════════════════════════════".cyan().bold());
-            println!("{}", "\n[Phase 2 Ready] Runner handshake logic will connect to AgentService gRPC.".dimmed());
+            cli::register::run_register(api_url, token).await?;
         }
-        Commands::Start { log_level } => {
-            println!("{}", "════════════════════════════════════════════════════════".cyan().bold());
-            println!("   {} Starting Forgity Studio Runner Daemon (Level: {})...", "➤".green().bold(), log_level);
-            println!("{}", "════════════════════════════════════════════════════════".cyan().bold());
-            println!("{}", "\n[Phase 3 Ready] Daemon loop will connect to RabbitMQ and listen for stage jobs.".dimmed());
+        Commands::Start { log_level: _ } => {
+            cli::start::run_start().await?;
         }
         Commands::Clean => {
-            println!("{}", "Cleaning cache and temp directories... [Phase 4 Ready]".yellow());
+            println!("Cleaning cache and temp directories... [Phase 4 Ready]");
         }
     }
 

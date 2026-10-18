@@ -1,4 +1,6 @@
 pub mod doctor;
+pub mod register;
+pub mod start;
 
 use clap::{Parser, Subcommand};
 
