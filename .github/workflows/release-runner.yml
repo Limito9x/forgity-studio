@@ -51,6 +51,8 @@ jobs:
 
       - name: Build Forgity Runner (Release)
         shell: pwsh
+        env:
+          FORGITY_RUNNER_VERSION: ${{ steps.get_version.outputs.VERSION }}
         run: |
           cd runner
           cargo build --release

@@ -59,6 +59,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let agent_proto = proto_dir.join("agent.proto");
     let execution_state_proto = proto_dir.join("execution_state.proto");
 
+    println!("cargo:rerun-if-env-changed=FORGITY_RUNNER_VERSION");
+    let version = std::env::var("FORGITY_RUNNER_VERSION")
+        .unwrap_or_else(|_| std::env::var("CARGO_PKG_VERSION").unwrap_or_else(|_| "1.0.0".to_string()));
+    println!("cargo:rustc-env=FORGITY_RUNNER_VERSION={}", version);
+
     println!("cargo:rerun-if-changed={}", agent_proto.display());
     println!("cargo:rerun-if-changed={}", execution_state_proto.display());
 
