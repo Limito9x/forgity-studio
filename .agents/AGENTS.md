@@ -69,6 +69,7 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 | **Frontend**  | [docs/frontend/patterns/pipelines_canvas.md](file:///d:/FullStack/Automation/docs/frontend/patterns/pipelines_canvas.md)       | Mẫu thiết kế Canvas đồ thị, Scoped Registry, Node Inspector.          |
 | **Pipeline**  | [docs/pipelines/SCRIPT_NODE_GUIDELINES.md](file:///d:/FullStack/Automation/docs/pipelines/SCRIPT_NODE_GUIDELINES.md)           | Quy chuẩn viết Script Node Python, AST Schema Ingestion & DCC Templates. |
 | **Worker**    | [docs/workers/WORKER_ARCHITECTURE.md](file:///d:/FullStack/Automation/docs/workers/WORKER_ARCHITECTURE.md)                     | Kiến trúc Worker: Host Subprocess vs Guest Stage Runners.             |
+| **Vận hành**  | [docs/ops/database_backup_restore.md](file:///d:/FullStack/Automation/docs/ops/database_backup_restore.md)                     | Hướng dẫn Vận hành: Sao lưu (Backup) & Phục hồi (Restore) PostgreSQL Docker. |
 
 ---
 

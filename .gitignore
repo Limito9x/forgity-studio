@@ -21,4 +21,8 @@ htmlcov/
 # Logs & Temporary debug dumps
 *.log
 *.log.*
-*.tmp
+*.tmp
+
+# Database Backups
+backups/
+*.dump
