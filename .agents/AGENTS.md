@@ -125,4 +125,5 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 - [trial-user-readiness-backlog](file:///d:/FullStack/Automation/.agents/plans/2026-10-17-trial-user-readiness-backlog.md): Kế hoạch Chuẩn Bị Toàn Diện Cho Trial User (Branding, Bulk Beta Onboarding, Node Tools Tinh Gọn, Landing Page & Growth Strategy).
 - [rust-runner-daemon-migration](file:///d:/FullStack/Automation/.agents/plans/2026-10-18-rust-runner-daemon-migration.md): Kế hoạch Kỹ Thuật Xây Dựng Rust Runner Daemon Siêu Nhẹ (Forgity Runner Native, Single Binary, <15MB RAM, Windows Job Object Process Isolation).
 - [runner-detach-and-cancel-execution](file:///d:/FullStack/Automation/.agents/plans/2026-10-18-runner-detach-and-cancel-execution.md): Kế hoạch Kỹ Thuật Bổ sung Cancel Pipeline Execution trên Canvas và Triển khai Cơ chế Detach Runner 2 Cấp độ (Repository & Studio).
+- [refactor-runner-software-settings-dialog](file:///d:/FullStack/Automation/.agents/plans/2026-10-18-refactor-runner-software-settings-dialog.md): Kế hoạch Tinh Giản & Tối Ưu Triệt Để Giao Diện Cấu Hình Runner Software (Compact Rows, Auto-Save on Select, Xóa Bỏ Headless Flags Ảo).
 
