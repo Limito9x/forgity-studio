@@ -9,6 +9,7 @@ use tracing::{debug, error, info, warn};
 use super::contracts::{StageResultMessage, StageTaskMessage, StepProgressMessage, StepResult};
 use crate::ipc::pipe_server::PipeServer;
 use crate::ipc::protocol::{GuestToHostMessage, HostToGuestMessage};
+use crate::process::active_stage::ActiveStageManager;
 use crate::process::job_object::JobObject;
 use crate::process::subprocess::SubprocessRunner;
 use crate::queue::rabbitmq::RabbitMqClient;
@@ -21,16 +22,18 @@ pub struct StageDispatcher {
     rabbitmq: RabbitMqClient,
     storage: StorageManager,
     downloader: StreamDownloader,
+    active_stages: Arc<ActiveStageManager>,
 }
 
 impl StageDispatcher {
-    pub fn new(rabbitmq: RabbitMqClient) -> Self {
+    pub fn new(rabbitmq: RabbitMqClient, active_stages: Arc<ActiveStageManager>) -> Self {
         let storage = StorageManager::new(None);
         let downloader = StreamDownloader::new(StorageManager::new(None));
         Self {
             rabbitmq,
             storage,
             downloader,
+            active_stages,
         }
     }
 
@@ -141,8 +144,16 @@ impl StageDispatcher {
         file.flush().await?;
 
         // 5. Create Windows Job Object for lifecycle containment
-        let job_object = JobObject::create()
-            .context("Failed to initialize Windows Job Object")?;
+        let job_object = Arc::new(JobObject::create()
+            .context("Failed to initialize Windows Job Object")?);
+
+        let (cancel_tx, mut cancel_rx) = tokio::sync::broadcast::channel::<()>(1);
+        self.active_stages.register(
+            stage_id.clone(),
+            task.pipeline_execution_id.clone(),
+            cancel_tx,
+            Arc::clone(&job_object),
+        ).await;
 
         // 6. Create Named Pipe IPC Server
         let pipe_server = Arc::new(PipeServer::new(&stage_id));
@@ -221,6 +232,15 @@ impl StageDispatcher {
 
         loop {
             tokio::select! {
+                // Cancellation signal received from gRPC remote command
+                _ = cancel_rx.recv() => {
+                    warn!("[Dispatcher] Cancellation signal received for Stage {}. Terminating active DCC subprocess...", stage_id);
+                    let _ = job_object.terminate(1);
+                    stage_error = Some("Execution was cancelled by user.".to_string());
+                    stage_succeeded = false;
+                    break;
+                }
+
                 // IPC event received from guest subprocess
                 Some(event) = event_rx.recv() => {
                     match event {
@@ -349,6 +369,8 @@ impl StageDispatcher {
                 }
             }
         }
+
+        self.active_stages.unregister(&stage_id).await;
 
         // Wait brief moment for any remaining pipe cleanup
         pipe_handle.abort();

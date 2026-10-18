@@ -77,6 +77,17 @@ impl JobObject {
         unsafe { CloseHandle(proc_handle) };
         assign_res.with_context(|| format!("Failed to assign PID {} to Job Object", pid))
     }
+
+    /// Immediately terminates all processes assigned to this Job Object.
+    pub fn terminate(&self, exit_code: u32) -> Result<()> {
+        use windows_sys::Win32::System::JobObjects::TerminateJobObject;
+        let res = unsafe { TerminateJobObject(self.handle, exit_code) };
+        if res == 0 {
+            return Err(anyhow::anyhow!("Failed to terminate Job Object processes"));
+        }
+        info!("Terminated Windows Job Object (all child processes stopped)");
+        Ok(())
+    }
 }
 
 impl Drop for JobObject {

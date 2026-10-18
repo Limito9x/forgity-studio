@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Automation.Repository.Domain.Entities;
-using Automation.Repository.Domain.Enums;
 using Automation.Repository.Features.RepositoryRunners;
 using Automation.Repository.Infrastructure.Persistence;
 using FluentAssertions;
@@ -80,80 +79,6 @@ public class DetachRunnerFromRepositoryTests : IDisposable
         // Verify RepositoryRunner is still in DB
         var exists = await _db.RepositoryRunners.AnyAsync(r => r.Id == repoRunner.Id);
         exists.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task DetachRunner_WhenUniqueOriginNotSyncedToCloudAndNotForced_ReturnsFailure()
-    {
-        // Arrange
-        var repo = new Repository.Domain.Entities.Repository(Guid.NewGuid(), "Test Repo");
-        _db.Repositories.Add(repo);
-
-        var runnerId = Guid.NewGuid();
-        var repoRunner = new RepositoryRunner(repo.Id, runnerId, @"D:\Projects\Repo");
-        _db.RepositoryRunners.Add(repoRunner);
-
-        var resource = new ResourceItem(repo.Id, "Draft.blend", "blend", "Assets/Draft.blend");
-        _db.ResourceItems.Add(resource);
-
-        var version = new ResourceVersion(resource.Id, 1, 1024, "hash_draft_1", status: ResourceVersionStatus.Draft)
-        {
-            AssetLinkId = null // Not synced to cloud storage
-        };
-        _db.ResourceVersions.Add(version);
-
-        var location = new ResourceVersionLocation(version.Id, repoRunner.Id, isOrigin: true);
-        _db.ResourceVersionLocations.Add(location);
-
-        await _db.SaveChangesAsync();
-
-        // Act
-        var result = await _handler.HandleAsync(
-            new DetachRunnerFromRepositoryCommand(repo.Id, runnerId, Force: false),
-            CancellationToken.None
-        );
-
-        // Assert
-        result.IsFailed.Should().BeTrue();
-        result.Errors.Should().ContainSingle(e => e.Message.Contains("only exist locally on this runner"));
-    }
-
-    [Fact]
-    public async Task DetachRunner_WhenUniqueOriginNotSyncedToCloud_WithForceTrue_Succeeds()
-    {
-        // Arrange
-        var repo = new Repository.Domain.Entities.Repository(Guid.NewGuid(), "Test Repo");
-        _db.Repositories.Add(repo);
-
-        var runnerId = Guid.NewGuid();
-        var repoRunner = new RepositoryRunner(repo.Id, runnerId, @"D:\Projects\Repo");
-        _db.RepositoryRunners.Add(repoRunner);
-
-        var resource = new ResourceItem(repo.Id, "Draft.blend", "blend", "Assets/Draft.blend");
-        _db.ResourceItems.Add(resource);
-
-        var version = new ResourceVersion(resource.Id, 1, 1024, "hash_draft_1", status: ResourceVersionStatus.Draft)
-        {
-            AssetLinkId = null
-        };
-        _db.ResourceVersions.Add(version);
-
-        var location = new ResourceVersionLocation(version.Id, repoRunner.Id, isOrigin: true);
-        _db.ResourceVersionLocations.Add(location);
-
-        await _db.SaveChangesAsync();
-
-        // Act
-        var result = await _handler.HandleAsync(
-            new DetachRunnerFromRepositoryCommand(repo.Id, runnerId, Force: true),
-            CancellationToken.None
-        );
-
-        // Assert
-        result.IsSuccess.Should().BeTrue();
-
-        var exists = await _db.RepositoryRunners.AnyAsync(r => r.Id == repoRunner.Id);
-        exists.Should().BeFalse();
     }
 
     [Fact]

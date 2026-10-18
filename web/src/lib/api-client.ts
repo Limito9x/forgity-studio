@@ -200,8 +200,12 @@ AXIOS_INSTANCE.interceptors.response.use(
 // Orval Mutator
 // -----------------------------------------------------------------------------
 export const customInstance = <T>(config: AxiosRequestConfig): Promise<T> => {
+  const method = config.method?.toUpperCase();
+  const hasPayloadMethod = method === 'POST' || method === 'PUT' || method === 'PATCH';
+  const data = hasPayloadMethod && config.data === undefined ? {} : config.data;
+
   const source = axios.CancelToken.source();
-  const promise = AXIOS_INSTANCE({ ...config, cancelToken: source.token }).then(
+  const promise = AXIOS_INSTANCE({ ...config, data, cancelToken: source.token }).then(
     (response) => response.data
   );
   // @ts-expect-error - attach cancel for React Query

@@ -8,14 +8,11 @@ public record DetachRunnerFromRepositoryRequest
 {
     public Guid RepositoryId { get; init; }
     public Guid RunnerId { get; init; }
-    [QueryParam]
-    public bool Force { get; init; } = false;
 }
 
 public record DetachRunnerFromRepositoryCommand(
     Guid RepositoryId,
-    Guid RunnerId,
-    bool Force = false
+    Guid RunnerId
 );
 
 public class DetachRunnerFromRepositoryValidator : AbstractValidator<DetachRunnerFromRepositoryRequest>
@@ -45,7 +42,7 @@ public class DetachRunnerFromRepositoryEndpoint(IMessageBus bus)
     public override async Task HandleAsync(DetachRunnerFromRepositoryRequest req, CancellationToken ct)
     {
         var result = await bus.InvokeAsync<Result>(
-            new DetachRunnerFromRepositoryCommand(req.RepositoryId, req.RunnerId, req.Force),
+            new DetachRunnerFromRepositoryCommand(req.RepositoryId, req.RunnerId),
             ct
         );
         await this.SendResultAsync(result, ct);
@@ -58,14 +55,11 @@ public class DetachRunnerFromRepositoryEndpoint(IMessageBus bus)
 /// [Thứ tự xử lý]:
 /// 1. Kiểm tra tồn tại quan hệ RepositoryRunner (Existence Check).
 /// 2. Guard 1: Kiểm tra runner có đang giữ active file lock trong repo không (Lock Check).
-/// 3. Guard 2: Kiểm tra các resource draft origin duy nhất chưa sync cloud (Cloud Sync Protection, bypass với force: true).
-/// 4. Xóa RepositoryRunner và commit (Cascade delete tự động unbind ResourceVersionLocations).
+/// 3. Xóa RepositoryRunner và commit (Cascade delete tự động unbind ResourceVersionLocations, file cục bộ giữ nguyên vẹn).
 /// 
 /// [Test Cases dựng kèm]:
 /// - DetachRunner_WhenRunnerNotAttached_ReturnsFailure
 /// - DetachRunner_WhenRunnerHoldsActiveLock_ReturnsFailureAndBlocks
-/// - DetachRunner_WhenUniqueOriginNotSyncedToCloudAndNotForced_ReturnsFailure
-/// - DetachRunner_WhenUniqueOriginNotSyncedToCloud_WithForceTrue_Succeeds
 /// - DetachRunner_WhenCleanAndIdle_SucceedsAndRemovesRepositoryRunner
 /// </summary>
 [Transactional(typeof(RepositoryDbContext))]
@@ -88,17 +82,7 @@ public class DetachRunnerFromRepositoryHandler(RepositoryDbContext db)
             return Result.Fail("Cannot detach runner because it is currently holding active file locks in this repository. Please release or check in locked files first.");
         }
 
-        // 2. Guard check: Check if there are draft resource versions whose only location is this runner and haven't synced to cloud
-        var hasUnsyncedUniqueOrigin = await db.ResourceVersionLocations
-            .Where(l => l.RepositoryRunnerId == repoRunner.Id && l.IsOrigin)
-            .AnyAsync(l => l.ResourceVersion.AssetLinkId == null && !l.ResourceVersion.Locations.Any(other => other.RepositoryRunnerId != repoRunner.Id), ct);
-
-        if (hasUnsyncedUniqueOrigin && !command.Force)
-        {
-            return Result.Fail("Cannot detach runner because some draft resource versions only exist locally on this runner and have not been published to cloud storage. Set force=true if you want to proceed anyway.");
-        }
-
-        // 3. Remove RepositoryRunner (cascade delete cleans up ResourceVersionLocations)
+        // 2. Remove RepositoryRunner (cascade delete cleans up ResourceVersionLocations while local files remain intact)
         db.RepositoryRunners.Remove(repoRunner);
         await db.SaveChangesAsync(ct);
 

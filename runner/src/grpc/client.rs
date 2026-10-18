@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use anyhow::{Context, Result};
 use std::time::Duration;
 use tokio::sync::mpsc;
@@ -11,21 +12,27 @@ use super::agent::{
     agent_message, command_response, server_message, AgentMessage, CommandResponse,
     ExecutorCandidateMessage, ScanCommandResult, ScanExecutorsCommandResult,
     ScanHardwareCommandResult, UploadFileItemResult, UploadFilesCommandResult,
+    CancelExecutionCommandResult,
 };
+use crate::process::active_stage::ActiveStageManager;
 
 pub struct GrpcRunnerClient;
 
 impl GrpcRunnerClient {
     /// Maintains a persistent bidirectional gRPC streaming connection with the Backend.
     /// Sends the initial handshake message to mark this runner as ONLINE in the Backend ConnectionRegistry,
-    /// and listens for remote server commands (Browse, Scan, ScanHardware, ScanExecutors, UploadFiles).
-    pub async fn run_loop(grpc_url: String, runner_id: String) {
+    /// and listens for remote server commands (Browse, Scan, ScanHardware, ScanExecutors, UploadFiles, CancelExecution).
+    pub async fn run_loop(
+        grpc_url: String,
+        runner_id: String,
+        active_stages: Arc<ActiveStageManager>,
+    ) {
         let app_version = env!("CARGO_PKG_VERSION").to_string();
 
         loop {
             info!("Attempting gRPC connection to Backend at {}...", grpc_url);
 
-            match Self::connect_and_stream(&grpc_url, &runner_id, &app_version).await {
+            match Self::connect_and_stream(&grpc_url, &runner_id, &app_version, active_stages.clone()).await {
                 Ok(_) => {
                     warn!("gRPC stream closed by server. Reconnecting in 5s...");
                 }
@@ -42,6 +49,7 @@ impl GrpcRunnerClient {
         grpc_url: &str,
         runner_id: &str,
         app_version: &str,
+        active_stages: Arc<ActiveStageManager>,
     ) -> Result<()> {
         let endpoint = Channel::from_shared(grpc_url.to_string())
             .with_context(|| format!("Invalid gRPC URL: {}", grpc_url))?
@@ -330,6 +338,40 @@ impl GrpcRunnerClient {
                         error!("[gRPC] Failed to send UploadFilesCommand response: {}", e);
                     } else {
                         info!("[gRPC] UploadFilesCommand response sent successfully!");
+                    }
+                }
+
+                Some(server_message::Payload::CancelExecutionCommand(cmd)) => {
+                    info!(
+                        "[gRPC] Handling remote CancelExecutionCommand (cmd_id: {}, pipeline_id: {}, stage_id: {})...",
+                        cmd.command_id, cmd.pipeline_execution_id, cmd.stage_execution_id
+                    );
+
+                    let (killed, msg) = active_stages.cancel_active_stage(
+                        &cmd.pipeline_execution_id,
+                        &cmd.stage_execution_id,
+                    ).await;
+
+                    let resp = CommandResponse {
+                        command_id: cmd.command_id,
+                        success: true,
+                        error_message: String::new(),
+                        result: Some(command_response::Result::CancelExecutionResult(CancelExecutionCommandResult {
+                            killed,
+                            message: msg,
+                        })),
+                    };
+
+                    let reply = AgentMessage {
+                        agent_id: runner_id.to_string(),
+                        app_version: app_version.to_string(),
+                        payload: Some(agent_message::Payload::CommandResponse(resp)),
+                    };
+
+                    if let Err(e) = tx.send(reply).await {
+                        error!("[gRPC] Failed to send CancelExecutionCommand response: {}", e);
+                    } else {
+                        info!("[gRPC] CancelExecutionCommand response sent successfully (killed={})!", killed);
                     }
                 }
 

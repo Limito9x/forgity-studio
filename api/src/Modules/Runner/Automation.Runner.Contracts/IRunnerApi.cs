@@ -47,6 +47,19 @@ public interface IRunnerApi
         CancellationToken ct = default
     );
 
+    Task<Result<bool>> SendCancelExecutionCommandAsync(
+        Guid runnerId,
+        string pipelineExecutionId,
+        string stageExecutionId,
+        CancellationToken ct = default
+    );
+
+    Task<Result<bool>> BroadcastCancelExecutionCommandAsync(
+        string pipelineExecutionId,
+        string stageExecutionId,
+        CancellationToken ct = default
+    );
+
     Task<Result<RunnerUploadResultDto>> SendUploadCommandAsync(
         Guid runnerId,
         string filePath,

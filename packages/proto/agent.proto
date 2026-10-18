@@ -33,7 +33,13 @@ message CommandResponse {
         ScanHardwareCommandResult scan_hardware_result = 7;
         UploadFilesCommandResult upload_files_result = 8;
         UpdateRunnerCommandResult update_runner_result = 9;
+        CancelExecutionCommandResult cancel_execution_result = 10;
     }
+}
+
+message CancelExecutionCommandResult {
+    bool killed = 1;
+    string message = 2;
 }
 
 message UpdateRunnerCommandResult {
@@ -125,7 +131,14 @@ message ServerMessage {
         ScanHardwareCommand scan_hardware_command = 4;
         UploadFilesCommand upload_files_command = 5;
         UpdateRunnerCommand update_runner_command = 6;
+        CancelExecutionCommand cancel_execution_command = 7;
     }
+}
+
+message CancelExecutionCommand {
+    string command_id = 1;
+    string pipeline_execution_id = 2;
+    string stage_execution_id = 3;
 }
 
 message UpdateRunnerCommand {

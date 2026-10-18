@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { Node } from "@xyflow/react";
 import {
@@ -18,9 +18,13 @@ export function usePipelineLiveTracking({
   pipelineId,
   setNodes,
 }: UsePipelineLiveTrackingArgs) {
-  const [activeExecutionId, setActiveExecutionId] = useState<string | null>(null);
+  const [activeExecutionId, setActiveExecutionId] = useState<string | null>(
+    null,
+  );
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [drawerDefaultTab, setDrawerDefaultTab] = useState<"history" | "inspect" | "logs">("logs");
+  const [drawerDefaultTab, setDrawerDefaultTab] = useState<
+    "history" | "inspect" | "logs"
+  >("logs");
   const [isExecutionRunning, setIsExecutionRunning] = useState<boolean>(false);
 
   const [liveNodeStatuses, setLiveNodeStatuses] = useState<
@@ -35,7 +39,9 @@ export function usePipelineLiveTracking({
 
   const { data: executions } = usePipelineExecutions(pipelineId);
   const currentExecId = activeExecutionId || executions?.[0]?.id;
-  const { data: currentExecution } = usePipelineExecution(currentExecId || undefined);
+  const { data: currentExecution } = usePipelineExecution(
+    currentExecId || undefined,
+  );
 
   // Sync isExecutionRunning based on currentExecution status if not already running via SignalR
   useEffect(() => {
@@ -57,8 +63,11 @@ export function usePipelineLiveTracking({
     setIsExecutionRunning(false);
   }, []);
 
+  const isCancelledRef = useRef(false);
+
   usePipelineSignalR(pipelineId, {
     onExecutionStarted: (execId: string) => {
+      isCancelledRef.current = false;
       setActiveExecutionId(execId);
       setLiveNodeStatuses({});
       setLiveNodeOutputs({});
@@ -72,9 +81,11 @@ export function usePipelineLiveTracking({
       outputs?: Record<string, any>,
       errorMessage?: string | null,
     ) => {
+      if (isCancelledRef.current) return;
       if (status) {
         const s = status.toLowerCase();
-        const mappedStatus = s === "running" ? "running" : s === "failed" ? "failed" : "succeeded";
+        const mappedStatus =
+          s === "running" ? "running" : s === "failed" ? "failed" : "succeeded";
         setLiveNodeStatuses((prev) => ({
           ...prev,
           [nodeId]: mappedStatus,
@@ -109,8 +120,23 @@ export function usePipelineLiveTracking({
         status === ExecutionStatus.Failed ||
         String(status).toLowerCase() === "failed" ||
         Number(status) === 5;
+      const isCancelled =
+        status === ExecutionStatus.Cancelled ||
+        String(status).toLowerCase() === "cancelled" ||
+        Number(status) === 6;
 
-      if (isFail) {
+      if (isCancelled) {
+        isCancelledRef.current = true;
+        setLiveNodeStatuses((prev) => {
+          const next = { ...prev };
+          for (const k of Object.keys(next)) {
+            if (next[k] === "running") {
+              delete next[k];
+            }
+          }
+          return next;
+        });
+      } else if (isFail) {
         setLiveNodeStatuses((prev) => {
           const next = { ...prev };
           for (const k of Object.keys(next)) {
@@ -192,7 +218,9 @@ export function usePipelineLiveTracking({
           newStatus = liveNodeStatuses[node.id];
           newError =
             liveNodeErrors[node.id] ||
-            (newStatus === "failed" ? currentExecution?.errorMessage ?? null : null);
+            (newStatus === "failed"
+              ? (currentExecution?.errorMessage ?? null)
+              : null);
         } else if (nodeOutputs[node.id]) {
           newStatus = "succeeded";
         } else if (
@@ -207,7 +235,8 @@ export function usePipelineLiveTracking({
         if (
           prevData?.executionStatus === newStatus &&
           prevData?.executionError === newError &&
-          JSON.stringify(prevData?.executionOutputs) === JSON.stringify(newOutputs)
+          JSON.stringify(prevData?.executionOutputs) ===
+            JSON.stringify(newOutputs)
         ) {
           return node;
         }
