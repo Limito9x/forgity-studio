@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use colored::Colorize;
 use futures_lite::StreamExt;
 use tracing::{error, info, warn};
@@ -76,26 +76,9 @@ pub async fn run_start() -> Result<()> {
     );
     println!();
 
-    // 2. Connect to RabbitMQ
-    let rabbitmq = RabbitMqClient::connect(&rabbitmq_config)
-        .await
-        .context("Failed to connect to RabbitMQ broker")?;
-
-    let (queue_name, mut consumer) = rabbitmq
-        .create_task_consumer(&runner_id)
-        .await
-        .context("Failed to subscribe to runner task queue")?;
-
-    println!(
-        "{} Listening on queue '{}'...",
-        "[*]".green().bold(),
-        queue_name.yellow().bold()
-    );
-    println!("{} Press Ctrl+C to stop.\n", "Tip:".dimmed());
-
     let active_stages = Arc::new(crate::process::active_stage::ActiveStageManager::new());
 
-    // 3. Connect gRPC stream in background to report Online status to Backend
+    // 2. Connect gRPC stream in background to report Online status to Backend
     if let Some(grpc_url) = config.grpc_url.clone() {
         if !grpc_url.is_empty() {
             let runner_id_clone = runner_id.clone();
@@ -106,72 +89,114 @@ pub async fn run_start() -> Result<()> {
         }
     }
 
-    let dispatcher = StageDispatcher::new(rabbitmq.clone(), active_stages);
-
     // Record current PID for daemon tracking
     let _ = crate::cli::daemon::write_pid(std::process::id());
 
-    // 4. Main consumption loop with graceful shutdown
-    loop {
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {
-                println!("\n{}", "[!] Shutdown signal received. Exiting gracefully...".yellow().bold());
-                crate::cli::daemon::remove_pid();
-                break;
-            }
+    // 3. Resilient RabbitMQ Connection & Task Consumption Loop with Auto-Reconnect
+    'outer: loop {
+        info!("Connecting to RabbitMQ broker at {}:{} (vhost: '{}')...", rabbitmq_config.host, rabbitmq_config.port, rabbitmq_config.virtual_host);
 
-            Some(delivery_res) = consumer.next() => {
-                match delivery_res {
-                    Ok(delivery) => {
-                        let delivery_tag = delivery.delivery_tag;
-                        info!("[RabbitMQ] Received task delivery tag: {}", delivery_tag);
-
-                        let task_res = serde_json::from_slice::<StageTaskMessage>(&delivery.data);
-                        match task_res {
-                            Ok(task) => {
-                                let stage_id = task.stage_execution_id.clone();
-                                let pipeline_id = task.pipeline_execution_id.clone();
-                                info!(
-                                    "[Runner] Processing Stage {} for Pipeline {}",
-                                    stage_id, pipeline_id
-                                );
-
-                                match dispatcher.dispatch_stage(task).await {
-                                    Ok(_) => {
-                                        info!("[Runner] Stage {} executed successfully. Acknowledging task...", stage_id);
-                                        if let Err(e) = rabbitmq.ack(delivery_tag).await {
-                                            error!("Failed to ACK delivery tag {}: {}", delivery_tag, e);
-                                        }
-                                    }
-                                    Err(e) => {
-                                        error!("[Runner] Execution error on Stage {}: {}", stage_id, e);
-                                        // Report error result back
-                                        let error_result = StageResultMessage {
-                                            stage_execution_id: stage_id.clone(),
-                                            pipeline_execution_id: pipeline_id,
-                                            pipeline_id: String::new(),
-                                            succeeded: false,
-                                            log: None,
-                                            error_message: Some(e.to_string()),
-                                            step_results: vec![],
-                                        };
-                                        let _ = rabbitmq.send_result(&error_result).await;
-                                        let _ = rabbitmq.ack(delivery_tag).await;
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                error!("[RabbitMQ] Failed to deserialize StageTaskMessage: {}. Rejecting message...", e);
-                                let _ = rabbitmq.nack(delivery_tag, false).await;
-                            }
-                        }
+        let (rabbitmq, queue_name, mut consumer) = loop {
+            match RabbitMqClient::connect(&rabbitmq_config).await {
+                Ok(rmq) => match rmq.create_task_consumer(&runner_id).await {
+                    Ok((q, c)) => {
+                        println!(
+                            "{} Subscribed & Listening on queue '{}'...",
+                            "[*]".green().bold(),
+                            q.yellow().bold()
+                        );
+                        println!("{} Press Ctrl+C to stop.\n", "Tip:".dimmed());
+                        break (rmq, q, c);
                     }
                     Err(e) => {
-                        warn!("[RabbitMQ] Consumer stream error: {}", e);
+                        error!("[RabbitMQ] Failed to subscribe to task queue: {}. Retrying in 3s...", e);
+                    }
+                },
+                Err(e) => {
+                    error!("[RabbitMQ] Connection failed: {}. Retrying in 3s...", e);
+                }
+            }
+
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {
+                    println!("\n{}", "[!] Shutdown signal received. Exiting gracefully...".yellow().bold());
+                    crate::cli::daemon::remove_pid();
+                    break 'outer;
+                }
+                _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {}
+            }
+        };
+
+        let dispatcher = StageDispatcher::new(rabbitmq.clone(), active_stages.clone());
+
+        let mut should_reconnect = false;
+        while !should_reconnect {
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {
+                    println!("\n{}", "[!] Shutdown signal received. Exiting gracefully...".yellow().bold());
+                    crate::cli::daemon::remove_pid();
+                    break 'outer;
+                }
+
+                delivery_res = consumer.next() => {
+                    match delivery_res {
+                        Some(Ok(delivery)) => {
+                            let delivery_tag = delivery.delivery_tag;
+                            info!("[RabbitMQ] Received task delivery tag: {}", delivery_tag);
+
+                            let task_res = serde_json::from_slice::<StageTaskMessage>(&delivery.data);
+                            match task_res {
+                                Ok(task) => {
+                                    let stage_id = task.stage_execution_id.clone();
+                                    let pipeline_id = task.pipeline_execution_id.clone();
+                                    info!(
+                                        "[Runner] Processing Stage {} for Pipeline {}",
+                                        stage_id, pipeline_id
+                                    );
+
+                                    match dispatcher.dispatch_stage(task).await {
+                                        Ok(_) => {
+                                            info!("[Runner] Stage {} executed successfully. Acknowledging task...", stage_id);
+                                            if let Err(e) = rabbitmq.ack(delivery_tag).await {
+                                                error!("Failed to ACK delivery tag {}: {}", delivery_tag, e);
+                                            }
+                                        }
+                                        Err(e) => {
+                                            error!("[Runner] Execution error on Stage {}: {}", stage_id, e);
+                                            let error_result = StageResultMessage {
+                                                stage_execution_id: stage_id.clone(),
+                                                pipeline_execution_id: pipeline_id,
+                                                pipeline_id: String::new(),
+                                                succeeded: false,
+                                                log: None,
+                                                error_message: Some(e.to_string()),
+                                                step_results: vec![],
+                                            };
+                                            let _ = rabbitmq.send_result(&error_result).await;
+                                            let _ = rabbitmq.ack(delivery_tag).await;
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("[RabbitMQ] Failed to deserialize StageTaskMessage: {}. Rejecting message...", e);
+                                    let _ = rabbitmq.nack(delivery_tag, false).await;
+                                }
+                            }
+                        }
+                        Some(Err(e)) => {
+                            warn!("[RabbitMQ] Consumer stream error: {}. Initiating reconnect...", e);
+                            should_reconnect = true;
+                        }
+                        None => {
+                            warn!("[RabbitMQ] Consumer stream closed by broker. Initiating reconnect...");
+                            should_reconnect = true;
+                        }
                     }
                 }
             }
         }
+
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
     }
 
     crate::cli::daemon::remove_pid();
