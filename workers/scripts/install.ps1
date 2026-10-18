@@ -86,16 +86,20 @@ if (-not $Token) {
     & $exePath $regArgs
 }
 
-# Launch daemon in background
+# 4. Install & Launch Native Runner Daemon
+Write-Host "`n[4/4] Setting up background daemon..." -ForegroundColor Yellow
+& $exePath daemon install
+
 Write-Host "`n==================================================" -ForegroundColor Green
-Write-Host " [SUCCESS] FORGITY RUNNER READY & CONFIGURED!" -ForegroundColor Green
+Write-Host " [SUCCESS] FORGITY RUNNER DAEMON READY & RUNNING!" -ForegroundColor Green
 Write-Host "==================================================" -ForegroundColor Green
-
-Write-Host "Starting runner daemon..." -ForegroundColor Cyan
-Start-Process -FilePath $exePath -ArgumentList "start" -WindowStyle Minimized
-
+Write-Host "Workstation daemon is now active and connected to Forgity Studio." -ForegroundColor Green
 Write-Host "Quick management commands (from $InstallDir):" -ForegroundColor Cyan
-Write-Host "  .\\forgity-runner.exe start    - Run daemon in current terminal" -ForegroundColor White
-Write-Host "  .\\forgity-runner.exe doctor   - Check Blender & Unreal DCC installations" -ForegroundColor White
-Write-Host "  .\\forgity-runner.exe clean    - Clean cached artifacts & old logs" -ForegroundColor White
+Write-Host "  .\\forgity-runner.exe daemon status  - Check daemon PID & health" -ForegroundColor White
+Write-Host "  .\\forgity-runner.exe daemon stop    - Stop background daemon" -ForegroundColor White
+Write-Host "  .\\forgity-runner.exe daemon start   - Start background daemon" -ForegroundColor White
+Write-Host "  .\\forgity-runner.exe doctor         - Check Blender & Unreal DCC installations" -ForegroundColor White
+Write-Host "  .\\forgity-runner.exe clean          - Clean cached artifacts & old logs" -ForegroundColor White
 Write-Host "==================================================" -ForegroundColor Green
+
+

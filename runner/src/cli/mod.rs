@@ -1,4 +1,5 @@
 pub mod clean;
+pub mod daemon;
 pub mod doctor;
 pub mod register;
 pub mod start;
@@ -38,6 +39,12 @@ pub enum Commands {
         /// Override log level (trace, debug, info, warn, error)
         #[arg(long, default_value = "info", env = "FORGITY_LOG_LEVEL")]
         log_level: String,
+    },
+
+    /// Manage the background runner daemon (install, uninstall, start, stop, restart, status)
+    Daemon {
+        #[command(subcommand)]
+        action: daemon::DaemonAction,
     },
 
     /// Clean local asset cache and temporary pipeline artifacts
