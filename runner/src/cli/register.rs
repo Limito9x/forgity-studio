@@ -45,7 +45,12 @@ struct HardwareProfilePayload<'a> {
     hardware_details: &'a str,
 }
 
-pub async fn run_register(api_url: String, token: Option<String>) -> Result<()> {
+pub async fn run_register(
+    api_url: String,
+    token: Option<String>,
+    config_override: Option<&std::path::Path>,
+    local: bool,
+) -> Result<()> {
     println!("{}", "\n════════════════════════════════════════════════════════".cyan().bold());
     println!("{}", "   FORGITY STUDIO RUNNER — WORKSTATION REGISTRATION".white().bold());
     println!("{}", "════════════════════════════════════════════════════════\n".cyan().bold());
@@ -170,8 +175,7 @@ pub async fn run_register(api_url: String, token: Option<String>) -> Result<()> 
     }
     println!();
 
-    // 4. Save Config TOML
-    println!("{}", " [4] Saving Runner Configuration...".yellow().bold());
+    // 4. Verify RabbitMQ Broker Connection
     let rabbitmq_config = reg_result.rabbit_mq.map(|rmq| RabbitMqConfig {
         host: rmq.host.unwrap_or_else(|| "localhost".to_string()),
         port: rmq.port.unwrap_or(5672),
@@ -181,6 +185,35 @@ pub async fn run_register(api_url: String, token: Option<String>) -> Result<()> 
         tls: false,
     });
 
+    if let Some(rmq) = &rabbitmq_config {
+        println!("{}", " [4] Verifying RabbitMQ Broker Connection...".yellow().bold());
+        println!("   Host        : {}:{}", rmq.host.cyan(), rmq.port);
+        println!("   User        : {}", rmq.username.cyan());
+        println!("   VirtualHost : {}", rmq.virtual_host.cyan());
+
+        match crate::queue::rabbitmq::RabbitMqClient::connect(rmq).await {
+            Ok(client) => {
+                println!("   {} Connected to RabbitMQ broker successfully!", "✓".green().bold());
+                match client.create_task_consumer(&reg_result.id).await {
+                    Ok((queue_name, _)) => {
+                        println!("   {} Target task queue declared & ready: {}", "✓".green().bold(), queue_name.cyan());
+                    }
+                    Err(e) => {
+                        println!("   {} Warning: Connected to broker, but failed to assert queue: {}", "!".yellow().bold(), e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("   {} FAILED to connect to RabbitMQ broker with received credentials!", "✗".red().bold());
+                println!("      Error: {}", e.to_string().red());
+                println!("      Please verify RabbitMQ ports (5672) and firewall rules on server.");
+            }
+        }
+        println!();
+    }
+
+    // 5. Save Config TOML
+    println!("{}", " [5] Saving Runner Configuration...".yellow().bold());
     let now_iso = chrono_iso_now();
     let runner_config = RunnerConfig {
         api_url: normalized_api.to_string(),
@@ -201,10 +234,11 @@ pub async fn run_register(api_url: String, token: Option<String>) -> Result<()> 
         }),
     };
 
-    let config_path = save_config(&runner_config)
+    let config_path = save_config(&runner_config, config_override, local)
         .context("Failed to save runner configuration file")?;
 
-    println!("   {} Configuration securely saved to: {}", "✓".green().bold(), config_path.display().to_string().cyan());
+    let target_scope = if local { "Local Directory (./runner.toml)" } else { "System Global (%LOCALAPPDATA%)" };
+    println!("   {} Configuration saved to: {} [{}]", "✓".green().bold(), config_path.display().to_string().cyan(), target_scope.yellow());
     println!();
 
     println!("{}", "════════════════════════════════════════════════════════".green().bold());

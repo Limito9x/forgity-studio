@@ -9,18 +9,19 @@ use crate::core::contracts::{StageResultMessage, StageTaskMessage};
 use crate::core::dispatcher::StageDispatcher;
 use crate::queue::rabbitmq::RabbitMqClient;
 
-pub async fn run_start() -> Result<()> {
+pub async fn run_start(config_override: Option<&std::path::Path>, force_local: bool) -> Result<()> {
     println!("{}", "\n════════════════════════════════════════════════════════".cyan().bold());
     println!("{}", "   FORGITY STUDIO — NATIVE RUNNER DAEMON".white().bold());
     println!("{}", "════════════════════════════════════════════════════════\n".cyan().bold());
 
-    // 1. Load local configuration
-    let config = match load_config() {
-        Ok(Some(cfg)) => cfg,
-        Ok(None) => {
+    // 1. Load configuration (prioritizes ./runner.toml in CWD if present, else %LOCALAPPDATA%)
+    let (config, source) = match load_config(config_override, force_local) {
+        Ok((Some(cfg), src)) => (cfg, src),
+        Ok((None, src)) => {
             println!(
-                "{} No runner configuration found (runner.toml is missing).",
-                "ERROR:".red().bold()
+                "{} No runner configuration found at: {}",
+                "ERROR:".red().bold(),
+                src.path().display().to_string().yellow()
             );
             println!(
                 "{} Run '{}' first to register this workstation.",
@@ -63,6 +64,7 @@ pub async fn run_start() -> Result<()> {
 
     println!("   Runner ID   : {}", runner_id.green().bold());
     println!("   Runner Name : {}", runner_name.white().bold());
+    println!("   Config File : {} [{}]", source.path().display().to_string().cyan(), source.label().yellow());
     println!("   API URL     : {}", config.api_url.cyan());
     println!(
         "   gRPC URL    : {}",
@@ -96,7 +98,7 @@ pub async fn run_start() -> Result<()> {
     'outer: loop {
         info!("Connecting to RabbitMQ broker at {}:{} (vhost: '{}')...", rabbitmq_config.host, rabbitmq_config.port, rabbitmq_config.virtual_host);
 
-        let (rabbitmq, queue_name, mut consumer) = loop {
+        let (rabbitmq, _queue_name, mut consumer) = loop {
             match RabbitMqClient::connect(&rabbitmq_config).await {
                 Ok(rmq) => match rmq.create_task_consumer(&runner_id).await {
                     Ok((q, c)) => {
