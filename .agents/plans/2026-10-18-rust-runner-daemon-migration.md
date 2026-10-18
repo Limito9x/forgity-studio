@@ -143,11 +143,11 @@ runner/
 ## 4. Lộ Trình Triển Khai Chi Tiết (Phased Roadmap)
 
 ### Phase 1: Nền Móng Cargo, Proto Compilation & CLI Doctor
-- [ ] Khởi tạo thư mục `runner/` và cấu hình `Cargo.toml` với các dependencies tối ưu.
-- [ ] Viết `build.rs` tích hợp `tonic-build` biên dịch `packages/proto/agent.proto` và `execution_state.proto`.
-- [ ] Viết CLI cơ bản bằng `clap`:
+- [x] Khởi tạo thư mục `runner/` và cấu hình `Cargo.toml` với các dependencies tối ưu.
+- [x] Viết `build.rs` tích hợp `tonic-build` biên dịch `packages/proto/agent.proto` và `execution_state.proto` (tự động phát hiện protoc từ NuGet cache của máy).
+- [x] Viết CLI cơ bản bằng `clap`:
   - `forgity-runner --version`
-  - `forgity-runner doctor`: Quét Registry và ổ đĩa Windows tự động phát hiện các bản Blender (`C:\Program Files\Blender Foundation\...`) và Unreal Engine (`C:\Program Files\Epic Games\...`).
+  - `forgity-runner doctor`: Quét ổ đĩa Windows tự động phát hiện chính xác các bản Blender và Unreal Engine thực tế trên máy.
 
 ### Phase 2: Đăng Ký Runner & Cấu Hình Cục Bộ (`register`)
 - [ ] Xây dựng module `grpc::client` kết nối tới Backend Core (`api/`).
