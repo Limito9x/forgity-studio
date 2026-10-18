@@ -27,8 +27,6 @@ interface RunnerCardProps {
   runner: RunnerDto;
   onRescanHardware?: (runnerId: string) => void;
   isRescanning?: boolean;
-  onScanSoftware?: (runnerId: string) => void;
-  isScanningSoftware?: boolean;
   onUpgradeRunner?: (runnerId: string) => void;
   isUpgrading?: boolean;
 }
@@ -37,8 +35,6 @@ export function RunnerCard({
   runner,
   onRescanHardware,
   isRescanning = false,
-  onScanSoftware,
-  isScanningSoftware = false,
   onUpgradeRunner,
   isUpgrading = false,
 }: RunnerCardProps) {
@@ -231,18 +227,6 @@ export function RunnerCard({
         </div>
 
         <div className="flex items-center gap-1.5">
-          {onScanSoftware && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => onScanSoftware(runner.id)}
-              isDisabled={isScanningSoftware}
-              className="h-7 px-2 text-[11px] gap-1 cursor-pointer hover:text-foreground"
-            >
-              <Layers className={`size-3.5 ${isScanningSoftware ? "animate-spin" : ""}`} />
-              <span>Software</span>
-            </Button>
-          )}
 
           {onUpgradeRunner && isOnline && (
             <span title="Remote in-place upgrade runner daemon">

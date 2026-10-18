@@ -108,11 +108,15 @@ pub async fn run_start() -> Result<()> {
 
     let dispatcher = StageDispatcher::new(rabbitmq.clone(), active_stages);
 
+    // Record current PID for daemon tracking
+    let _ = crate::cli::daemon::write_pid(std::process::id());
+
     // 4. Main consumption loop with graceful shutdown
     loop {
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {
                 println!("\n{}", "[!] Shutdown signal received. Exiting gracefully...".yellow().bold());
+                crate::cli::daemon::remove_pid();
                 break;
             }
 
@@ -170,5 +174,6 @@ pub async fn run_start() -> Result<()> {
         }
     }
 
+    crate::cli::daemon::remove_pid();
     Ok(())
 }

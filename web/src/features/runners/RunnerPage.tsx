@@ -30,13 +30,6 @@ export function RunnerPage() {
     );
   };
 
-  const handleOpenSoftware = (runner: any) => {
-    openDialog("runner-software", {
-      runnerId: runner.id,
-      runnerName: runner.name || runner.machineKey,
-    });
-  };
-
   return (
     <div className="page-container space-y-6">
       {/* Header */}
@@ -116,7 +109,6 @@ export function RunnerPage() {
               runner={runner}
               onRescanHardware={handleRescanHardware}
               isRescanning={scanningHardwareRunnerId === runner.id}
-              onScanSoftware={() => handleOpenSoftware(runner)}
             />
           ))}
         </div>
