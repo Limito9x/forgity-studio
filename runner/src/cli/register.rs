@@ -71,7 +71,7 @@ pub async fn run_register(api_url: String, token: Option<String>) -> Result<()> 
         .or_else(|_| std::env::var("HOSTNAME"))
         .unwrap_or_else(|_| "Forgity-Workstation".to_string());
 
-    let machine_key = format!("{}-{}", hostname, &uuid::Uuid::new_v4().to_string()[..8]);
+    let machine_key = crate::system::hardware::get_permanent_machine_key();
 
     println!("{}", " [1] Workstation Identity".yellow().bold());
     println!("   Hostname   : {}", hostname.green());
@@ -188,7 +188,7 @@ pub async fn run_register(api_url: String, token: Option<String>) -> Result<()> 
         name: reg_result.name,
         machine_key: reg_result.machine_key.unwrap_or(machine_key),
         registration_token: reg_result.registration_token,
-        grpc_url: reg_result.grpc_url,
+        grpc_url: reg_result.grpc_url.or_else(|| Some(normalized_api.to_string())),
         rabbitmq: rabbitmq_config,
         hardware_profile: Some(HardwareProfileConfig {
             os_platform: hw.os_platform,

@@ -1,11 +1,12 @@
 use colored::Colorize;
-use crate::system::dcc::{scan_blender, scan_unreal, DccApp};
+use crate::system::dcc::{scan_blender, scan_python, scan_unreal, DccApp};
 
 pub struct DoctorReport {
     pub os_name: String,
     pub cpu_cores: usize,
     pub blenders: Vec<DccApp>,
     pub unreals: Vec<DccApp>,
+    pub pythons: Vec<DccApp>,
 }
 
 pub fn run_doctor() {
@@ -21,8 +22,25 @@ pub fn run_doctor() {
     println!("   Logical CPU Cores: {}", report.cpu_cores.to_string().green());
     println!();
 
-    // 2. Blender Scan
-    println!("{}", " [2] Blender 3D DCC Scanner".yellow().bold());
+    // 2. Python Runtime Scan
+    println!("{}", " [2] Python Runtime Scanner".yellow().bold());
+    if report.pythons.is_empty() {
+        println!("   {} No Python installations automatically detected on PATH or standard directories.", "WARNING:".yellow().bold());
+    } else {
+        for app in &report.pythons {
+            println!(
+                "   {} {} ({})\n      Path: {}",
+                "✓".green().bold(),
+                app.name.white().bold(),
+                app.version.cyan(),
+                app.path.display().to_string().dimmed()
+            );
+        }
+    }
+    println!();
+
+    // 3. Blender Scan
+    println!("{}", " [3] Blender 3D DCC Scanner".yellow().bold());
     if report.blenders.is_empty() {
         println!("   {} No Blender installations automatically detected.", "WARNING:".yellow().bold());
         println!("   {} Expected locations: 'C:\\Program Files\\Blender Foundation\\Blender X.X\\blender.exe'", "Tip:".dimmed());
@@ -39,8 +57,8 @@ pub fn run_doctor() {
     }
     println!();
 
-    // 3. Unreal Engine Scan
-    println!("{}", " [3] Unreal Engine DCC Scanner".yellow().bold());
+    // 4. Unreal Engine Scan
+    println!("{}", " [4] Unreal Engine DCC Scanner".yellow().bold());
     if report.unreals.is_empty() {
         println!("   {} No Unreal Engine installations automatically detected.", "WARNING:".yellow().bold());
         println!("   {} Expected locations: 'C:\\Program Files\\Epic Games\\UE_5.X\\Engine\\Binaries\\Win64\\UnrealEditor-Cmd.exe'", "Tip:".dimmed());
@@ -58,15 +76,15 @@ pub fn run_doctor() {
     println!();
 
     // Summary Verdict
-    let is_ready = !report.blenders.is_empty() || !report.unreals.is_empty();
+    let is_ready = !report.pythons.is_empty() || !report.blenders.is_empty() || !report.unreals.is_empty();
     if is_ready {
         println!(
-            "{} Runner environment is healthy and ready for headless 3D pipelines.\n",
+            "{} Runner environment is healthy and ready for headless pipelines.\n",
             "SUCCESS:".green().bold()
         );
     } else {
         println!(
-            "{} Neither Blender nor Unreal Engine was detected. Please install at least one DCC to execute 3D pipelines.\n",
+            "{} No pipeline executor (Python, Blender, or Unreal Engine) was detected.\n",
             "ACTION REQUIRED:".red().bold()
         );
     }
@@ -78,6 +96,7 @@ pub fn collect_doctor_report() -> DoctorReport {
         .map(|n| n.get())
         .unwrap_or(1);
 
+    let pythons = scan_python();
     let blenders = scan_blender();
     let unreals = scan_unreal();
 
@@ -86,5 +105,6 @@ pub fn collect_doctor_report() -> DoctorReport {
         cpu_cores,
         blenders,
         unreals,
+        pythons,
     }
 }

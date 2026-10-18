@@ -92,9 +92,19 @@ pub async fn run_start() -> Result<()> {
     );
     println!("{} Press Ctrl+C to stop.\n", "Tip:".dimmed());
 
+    // 3. Connect gRPC stream in background to report Online status to Backend
+    if let Some(grpc_url) = config.grpc_url.clone() {
+        if !grpc_url.is_empty() {
+            let runner_id_clone = runner_id.clone();
+            tokio::spawn(async move {
+                crate::grpc::client::GrpcRunnerClient::run_loop(grpc_url, runner_id_clone).await;
+            });
+        }
+    }
+
     let dispatcher = StageDispatcher::new(rabbitmq.clone());
 
-    // 3. Main consumption loop with graceful shutdown
+    // 4. Main consumption loop with graceful shutdown
     loop {
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {

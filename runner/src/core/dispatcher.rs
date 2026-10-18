@@ -79,6 +79,51 @@ impl StageDispatcher {
                     }
                 }
             }
+
+            // 2b. Pre-resolve & pre-download any File Pins ($file or object with url) in step inputs
+            for (key, val) in &mut step.inputs {
+                let file_info = if let Some(obj) = val.as_object() {
+                    if let Some(inner) = obj.get("$file").and_then(|v| v.as_object()) {
+                        Some((
+                            inner.get("url").and_then(|v| v.as_str()),
+                            inner.get("hash").and_then(|v| v.as_str()),
+                            inner.get("filename").or_else(|| inner.get("name")).and_then(|v| v.as_str()),
+                        ))
+                    } else if obj.contains_key("url") {
+                        Some((
+                            obj.get("url").and_then(|v| v.as_str()),
+                            obj.get("hash").and_then(|v| v.as_str()),
+                            obj.get("filename").or_else(|| obj.get("name")).and_then(|v| v.as_str()),
+                        ))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
+                if let Some((Some(url), hash, filename)) = file_info {
+                    let ext = filename
+                        .and_then(|f| f.rsplit('.').next())
+                        .or_else(|| url.split('?').next().and_then(|u| u.rsplit('.').next()));
+
+                    info!(
+                        "[Storage] Resolving input file asset for pin '{}' (filename: {:?}, hash: {:?})...",
+                        key, filename, hash
+                    );
+
+                    match self.downloader.download_asset(url, hash, ext).await {
+                        Ok((local_path, _)) => {
+                            let abs_path = std::fs::canonicalize(&local_path).unwrap_or(local_path);
+                            info!("[Storage] Pin '{}' resolved to local file: {:?}", key, abs_path);
+                            *val = serde_json::Value::String(abs_path.to_string_lossy().to_string());
+                        }
+                        Err(e) => {
+                            warn!("[Storage] Could not pre-download asset for pin '{}': {}", key, e);
+                        }
+                    }
+                }
+            }
         }
 
         // 3. Resolve executable for this executor (e.g. blender.exe)
@@ -185,7 +230,7 @@ impl StageDispatcher {
                         GuestToHostMessage::StepStarted { step_execution_id, step_index } => {
                             info!("[IPC] Step Started: {} (index {})", step_execution_id, step_index);
                         }
-                        GuestToHostMessage::StepProgress { step_execution_id, status, progress, message, outputs } => {
+                        GuestToHostMessage::StepProgress { step_execution_id, status, progress, message: _, outputs } => {
                             info!("[IPC] Step Progress: {} -> {} ({:.0}%)", step_execution_id, status, progress * 100.0);
                             let progress_msg = StepProgressMessage {
                                 pipeline_execution_id: task.pipeline_execution_id.clone(),
@@ -194,7 +239,7 @@ impl StageDispatcher {
                                 step_execution_id,
                                 status,
                                 outputs,
-                                error_message: message,
+                                error_message: None,
                             };
                             if let Err(e) = self.rabbitmq.send_progress(&progress_msg).await {
                                 warn!("[Dispatcher] Failed to publish StepProgressMessage: {}", e);
@@ -218,7 +263,7 @@ impl StageDispatcher {
                                 step_execution_id,
                                 status: status.to_string(),
                                 outputs: Some(outputs),
-                                error_message,
+                                error_message: if succeeded { None } else { error_message },
                             };
                             let _ = self.rabbitmq.send_progress(&progress_msg).await;
                         }
