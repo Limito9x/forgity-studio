@@ -7,15 +7,13 @@ import { Input } from "@/components/ui/input";
 import { useBulkInviteUsers } from "../hooks/useUsers";
 import { useRoleOptions } from "@/features/roles/hooks/useRoles";
 import { toast } from "sonner";
-import { 
-  Mail, 
-  CheckCircle2, 
-  AlertCircle, 
-  AlertTriangle, 
-  Send, 
-  RotateCcw, 
-  Users, 
-  ExternalLink 
+import {
+  Mail,
+  CheckCircle2,
+  AlertCircle,
+  AlertTriangle,
+  Send,
+  RotateCcw,
 } from "lucide-react";
 import type { DialogProps } from "@/lib/dialog-registry";
 import type { BulkInviteUsersResponse } from "@/gen/model";
@@ -98,8 +96,8 @@ export function BulkInviteUsersDialog({
     } catch (err: any) {
       toast.error(
         err?.response?.data?.message ||
-          err?.message ||
-          "Failed to send invitations."
+        err?.message ||
+        "Failed to send invitations."
       );
     }
   };
@@ -296,15 +294,15 @@ export function BulkInviteUsersDialog({
                         item.success
                           ? "default"
                           : item.isExistingUser
-                          ? "secondary"
-                          : "destructive"
+                            ? "secondary"
+                            : "destructive"
                       }
                     >
                       {item.success
                         ? "Sent"
                         : item.isExistingUser
-                        ? "Already Registered"
-                        : "Error"}
+                          ? "Already Registered"
+                          : "Error"}
                     </Badge>
                   </div>
                 </div>

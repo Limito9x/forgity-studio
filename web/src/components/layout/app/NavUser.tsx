@@ -2,7 +2,6 @@ import {
   ChevronsUpDown,
   LogOut,
   Settings,
-  User,
 } from "lucide-react";
 
 import {
