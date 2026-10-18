@@ -27,7 +27,7 @@ impl GrpcRunnerClient {
         runner_id: String,
         active_stages: Arc<ActiveStageManager>,
     ) {
-        let app_version = env!("CARGO_PKG_VERSION").to_string();
+        let app_version = env!("FORGITY_RUNNER_VERSION").to_string();
 
         loop {
             info!("Attempting gRPC connection to Backend at {}...", grpc_url);

@@ -10,7 +10,7 @@ use std::path::PathBuf;
 #[derive(Parser, Debug)]
 #[command(
     name = "forgity-runner",
-    version,
+    version = env!("FORGITY_RUNNER_VERSION"),
     about = "Forgity Studio Native Runner Daemon — High Performance 3D Automation Engine",
     long_about = "Forgity Studio Native Runner Daemon executes headless 3D pipelines directly on your workstation GPU with Blender and Unreal Engine."
 )]
