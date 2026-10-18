@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { usePipelineExecution, usePipelineExecutions, useNodeExecutions } from "../../hooks/usePipelineGraph";
 import type { PipelineExecutionDto, NodeExecutionDto } from "../../hooks/usePipelineGraph";
-import { useCancelPipelineExecution } from "@/gen/endpoints/pipelines/pipelines";
+import { useCancelPipelineExecution } from "../../hooks/usePipelines";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -69,7 +69,7 @@ export function LiveExecutionDrawer({
     return executions?.[0] || execution;
   }, [execution, executionId, executions]);
 
-  const cancelMutation = useCancelPipelineExecution();
+  const cancelMutation = useCancelPipelineExecution(pipelineId);
 
   const isExecutionRunning = useMemo(() => {
     if (!activeExecution) return false;

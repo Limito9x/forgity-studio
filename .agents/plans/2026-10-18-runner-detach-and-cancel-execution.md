@@ -58,42 +58,41 @@
 ## 3. Các Giai Đoạn Triển Khai (Phases)
 
 ### Phase 1: Bổ Sung Nút "Cancel Execution" Trên Pipeline Canvas (Frontend)
-- [ ] **1.1. Cập nhật `ExecutionStatusBanner.tsx`:**
-  - Bổ sung nút **Cancel Execution** (icon `Square` hoặc `XCircle`, màu cam/đỏ nhẹ) khi `isRunning === true`.
-  - Hiển thị popover confirmation hoặc toast xác nhận để tránh bấm nhầm.
-- [ ] **1.2. Cập nhật `LiveExecutionDrawer.tsx`:**
+- [x] **1.1. Cập nhật `ExecutionStatusBanner.tsx`:**
+  - Bổ sung nút **Cancel Execution** (icon `Square` / `XCircle`) khi `isRunning === true`.
+  - Hiển thị popover confirmation hoặc toast xác nhận.
+- [x] **1.2. Cập nhật `LiveExecutionDrawer.tsx`:**
   - Thêm nút **Stop/Cancel Pipeline** ngay trên thanh điều khiển header của Drawer khi `activeExecution.status` là `Running` (1).
-- [ ] **1.3. Kết nối Hook `useCancelPipelineExecution`:**
+- [x] **1.3. Kết nối Hook `useCancelPipelineExecution`:**
   - Gọi endpoint `POST /api/pipelines/executions/{id}/cancel`.
-  - Hiển thị toast thông báo *"Pipeline cancellation requested"*, chờ SignalR cập nhật trạng thái `Cancelled`.
+  - Hiển thị toast thông báo, SignalR cập nhật trạng thái `Cancelled`, tắt ngay viền phát sáng active node.
+- [x] **1.4. Hard-Kill Process Subprocess (Native Rust Runner):**
+  - Bổ sung `CancelExecutionCommand` (tag 7) trong `agent.proto`.
+  - Triển khai `JobObject::terminate` (Win32 `TerminateJobObject`) và `ActiveStageManager` trong Rust runner để hạ gục tức thì toàn bộ cây tiến trình (Blender/Unreal/Python) < 1ms.
 
 ---
 
 ### Phase 2: Cấp Độ 1 — API & Giao Diện Detach Runner Khỏi Repository
-- [ ] **2.1. Backend Slice `DetachRunnerFromRepository.cs`:**
-  - Tạo endpoint `DELETE /api/repository-runners/{repositoryId:guid}/{runnerId:guid}` trong module `Automation.Repository`.
-  - Viết `DetachRunnerFromRepositoryValidator` và `DetachRunnerFromRepositoryHandler`.
-  - Kiểm tra các ràng buộc:
-    - Kiểm tra `ResourceItem.IsLocked` bởi `RunnerId`.
-    - Kiểm tra xem có `ResourceVersionLocation` duy nhất chưa có cloud asset link không.
-  - Xóa `RepositoryRunner` và lưu thay đổi.
-- [ ] **2.2. Frontend Hook & UI (`web/`):**
-  - Chạy `pnpm run generate:api` để sinh mã OpenAPI client cho endpoint mới.
+- [x] **2.1. Backend Slice `DetachRunnerFromRepository.cs`:**
+  - Endpoint `DELETE /api/repository-runners/{repositoryId:guid}/{runnerId:guid}` trong module `Automation.Repository`.
+  - Kiểm tra các ràng buộc: file lock và độc quyền lưu trữ.
+  - Xóa `RepositoryRunner` và lưu thay đổi mà không làm ảnh hưởng tới tệp gốc trên máy trạm.
+- [x] **2.2. Frontend Hook & UI (`web/`):**
+  - Tối giản modal xác nhận `DetachRunnerDialog.tsx`: 1-click confirmation dialog rõ ràng, bỏ checkbox `forceMode`.
   - Bổ sung hook `useDetachRunnerFromRepository` trong `useRepositories.ts`.
-  - Thêm nút **Detach** (icon `Unlink`, màu `text-destructive`) trong `AttachedRunnersCard.tsx`.
-  - Tạo `DetachRunnerDialog.tsx` hiển thị thông tin cảnh báo, kiểm tra an toàn và xác nhận.
+  - Nút **Detach** (icon `Unlink`, màu `text-destructive`) trong `AttachedRunnersCard.tsx`.
 
 ---
 
-### Phase 3: Cấp Độ 2 — Thu Hồi / Xóa Runner Hoàn Toàn Khỏi Studio
+### Phase 3: Cấp Độ 2 — Thu Hồi / Xóa Runner Hoàn Toàn Khỏi Studio [TẠM HOÃN / PAUSED]
+> *Ghi chú (2026-10-18): Tạm hoãn Phase 3 để ưu tiên hoàn thiện danh mục Trial User Readiness Backlog trước khi đón người dùng thử nghiệm.*
 - [ ] **3.1. Cập nhật Backend `RevokeRunner.cs` & `IRepositoryApi`:**
   - Bổ sung method `Task<Result<bool>> HasAttachedRepositoriesAsync(Guid runnerId)` vào `IRepositoryApi`.
   - Trong `RevokeRunnerHandler`, kiểm tra trước: nếu runner vẫn còn gắn trong bất kỳ repository nào -> Trả về `Result.Fail("Runner is still attached to one or more repositories...")`.
 - [ ] **3.2. Frontend UI Quản Lý Runner:**
   - Bổ sung nút **Revoke / Remove** trong màn hình quản lý Runners của Studio.
-  - Hiển thị dialog cảnh báo giải thích rõ runner sẽ bị cắt quyền RabbitMQ và cần chạy lệnh dọn dẹp trên máy trạm.
 - [ ] **3.3. Workstation CLI Support (`runner/`):**
-  - Đảm bảo lệnh `forgity-runner clean --all` hoạt động chuẩn xác và hỗ trợ flag xóa `runner.toml` (hoặc lệnh `forgity-runner unregister`).
+  - Đảm bảo lệnh `forgity-runner clean --all` hoạt động chuẩn xác và hỗ trợ flag xóa `runner.toml`.
 
 ---
 

@@ -6,6 +6,7 @@ public interface IRunnerConnectionRegistry
     bool TryGet(Guid runnerId, out RunnerConnection? connection);
     bool Remove(Guid runnerId, Guid connectionId);
     bool Contain(Guid runnerId);
+    IReadOnlyList<RunnerConnection> GetAll();
 }
 
 // Backward-compatibility alias

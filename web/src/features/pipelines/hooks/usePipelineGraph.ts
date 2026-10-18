@@ -174,4 +174,13 @@ export const useUpdatePipelineTrigger = (pipelineId?: string) => {
   };
 };
 
+export const useCancelPipelineExecution = (pipelineId?: string) => {
+  const queryKeys = [
+    ["pipelines", "executions"],
+    ...(pipelineId ? [PipelinesApi.getGetPipelineExecutionsQueryKey(pipelineId)] : []),
+  ];
+  return createMutationHook(PipelinesApi.useCancelPipelineExecution, queryKeys)();
+};
+
+
 

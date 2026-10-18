@@ -628,6 +628,89 @@ public class RunnerApiService(
 
         return Result.Ok<RunnerExecutorConfigDto?>(config);
     }
+
+    public async Task<Result<bool>> SendCancelExecutionCommandAsync(
+        Guid runnerId,
+        string pipelineExecutionId,
+        string stageExecutionId,
+        CancellationToken ct = default
+    )
+    {
+        if (!registry.TryGet(runnerId, out var connection) || connection is null)
+        {
+            return Result.Fail<bool>(
+                $"Runner with ID '{runnerId}' is not connected via gRPC stream."
+            );
+        }
+
+        var commandId = Guid.NewGuid().ToString();
+        var cancelCommand = new CancelExecutionCommand
+        {
+            CommandId = commandId,
+            PipelineExecutionId = pipelineExecutionId,
+            StageExecutionId = stageExecutionId,
+        };
+
+        var task = commandTracker.RegisterCommandAsync(commandId, ct);
+
+        try
+        {
+            await connection.ResponseStream.WriteAsync(
+                new ServerMessage { CancelExecutionCommand = cancelCommand },
+                ct
+            );
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+            var response = await task.WaitAsync(cts.Token);
+            return Result.Ok(response.Success);
+        }
+        catch (Exception ex)
+        {
+            return Result.Fail<bool>($"Failed to send cancel command to runner: {ex.Message}");
+        }
+    }
+
+    public async Task<Result<bool>> BroadcastCancelExecutionCommandAsync(
+        string pipelineExecutionId,
+        string stageExecutionId,
+        CancellationToken ct = default
+    )
+    {
+        var connections = registry.GetAll();
+        if (connections.Count == 0)
+        {
+            return Result.Ok(false);
+        }
+
+        var anySent = false;
+        foreach (var conn in connections)
+        {
+            try
+            {
+                var commandId = Guid.NewGuid().ToString();
+                var cancelCommand = new CancelExecutionCommand
+                {
+                    CommandId = commandId,
+                    PipelineExecutionId = pipelineExecutionId,
+                    StageExecutionId = stageExecutionId,
+                };
+
+                await conn.ResponseStream.WriteAsync(
+                    new ServerMessage { CancelExecutionCommand = cancelCommand },
+                    ct
+                );
+                anySent = true;
+            }
+            catch
+            {
+                // Non-fatal broadcast failure
+            }
+        }
+
+        return Result.Ok(anySent);
+    }
 }
 
 // Backward-compatibility alias
