@@ -28,6 +28,7 @@ import { Route as ProtectedLayoutSettingsRouteRouteImport } from './routes/_prot
 import { Route as ProtectedLayoutStorageRouteImport } from './routes/_protected/_layout/storage'
 import { Route as ProtectedLayoutUsersRouteRouteImport } from './routes/_protected/_layout/users/route'
 import { Route as ProtectedLayoutRolesIndexRouteImport } from './routes/_protected/_layout/roles/index'
+import { Route as ProtectedLayoutRunnersRunnerIdRouteImport } from './routes/_protected/_layout/runners_.$runnerId'
 import { Route as ProtectedLayoutSettingsIndexRouteImport } from './routes/_protected/_layout/settings/index'
 import { Route as ProtectedLayoutSettingsNotificationsRouteImport } from './routes/_protected/_layout/settings/notifications'
 import { Route as ProtectedLayoutSettingsProfileRouteImport } from './routes/_protected/_layout/settings/profile'
@@ -44,6 +45,7 @@ import { Route as ProtectedLayoutSystemAuditLogsIdRouteImport } from './routes/_
 import { Route as ProtectedLayoutUsersIdIndexRouteImport } from './routes/_protected/_layout/users/$id/index'
 import { Route as ProtectedLayoutUsersIdEditRouteImport } from './routes/_protected/_layout/users/$id/edit'
 import { Route as ProtectedLayoutSStudioSlugProjectsIndexRouteImport } from './routes/_protected/_layout/s/$studioSlug/projects/index'
+import { Route as ProtectedLayoutSStudioSlugRunnersRunnerIdRouteImport } from './routes/_protected/_layout/s/$studioSlug/runners_.$runnerId'
 import { Route as ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/route'
 import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/content-types'
 import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/contents'
@@ -165,6 +167,12 @@ const ProtectedLayoutRolesIndexRoute =
     path: '/',
     getParentRoute: () => ProtectedLayoutRolesRouteRoute,
   } as any)
+const ProtectedLayoutRunnersRunnerIdRoute =
+  ProtectedLayoutRunnersRunnerIdRouteImport.update({
+    id: '/runners_/$runnerId',
+    path: '/runners/$runnerId',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
 const ProtectedLayoutSettingsIndexRoute =
   ProtectedLayoutSettingsIndexRouteImport.update({
     id: '/',
@@ -258,6 +266,12 @@ const ProtectedLayoutSStudioSlugProjectsIndexRoute =
   ProtectedLayoutSStudioSlugProjectsIndexRouteImport.update({
     id: '/s/$studioSlug/projects/',
     path: '/s/$studioSlug/projects/',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutSStudioSlugRunnersRunnerIdRoute =
+  ProtectedLayoutSStudioSlugRunnersRunnerIdRouteImport.update({
+    id: '/s/$studioSlug/runners_/$runnerId',
+    path: '/s/$studioSlug/runners/$runnerId',
     getParentRoute: () => ProtectedLayoutRoute,
   } as any)
 const ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute =
@@ -474,6 +488,7 @@ export interface FileRoutesByFullPath {
   '/dev': typeof ProtectedLayoutDevRoute
   '/runners': typeof ProtectedLayoutRunnersRoute
   '/storage': typeof ProtectedLayoutStorageRoute
+  '/runners/$runnerId': typeof ProtectedLayoutRunnersRunnerIdRoute
   '/settings/notifications': typeof ProtectedLayoutSettingsNotificationsRoute
   '/settings/profile': typeof ProtectedLayoutSettingsProfileRoute
   '/settings/security': typeof ProtectedLayoutSettingsSecurityRoute
@@ -491,6 +506,7 @@ export interface FileRoutesByFullPath {
   '/system/audit-logs/': typeof ProtectedLayoutSystemAuditLogsIndexRoute
   '/users/$id/': typeof ProtectedLayoutUsersIdIndexRoute
   '/s/$studioSlug/projects/$projectId': typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteWithChildren
+  '/s/$studioSlug/runners/$runnerId': typeof ProtectedLayoutSStudioSlugRunnersRunnerIdRoute
   '/s/$studioSlug/projects/': typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
   '/s/$studioSlug/projects/$projectId/content-types': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteWithChildren
   '/s/$studioSlug/projects/$projectId/contents': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteWithChildren
@@ -529,6 +545,7 @@ export interface FileRoutesByTo {
   '/dev': typeof ProtectedLayoutDevRoute
   '/runners': typeof ProtectedLayoutRunnersRoute
   '/storage': typeof ProtectedLayoutStorageRoute
+  '/runners/$runnerId': typeof ProtectedLayoutRunnersRunnerIdRoute
   '/settings/notifications': typeof ProtectedLayoutSettingsNotificationsRoute
   '/settings/profile': typeof ProtectedLayoutSettingsProfileRoute
   '/settings/security': typeof ProtectedLayoutSettingsSecurityRoute
@@ -545,6 +562,7 @@ export interface FileRoutesByTo {
   '/system/audit-logs': typeof ProtectedLayoutSystemAuditLogsIndexRoute
   '/users/$id': typeof ProtectedLayoutUsersIdIndexRoute
   '/s/$studioSlug/projects/$projectId': typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteWithChildren
+  '/s/$studioSlug/runners/$runnerId': typeof ProtectedLayoutSStudioSlugRunnersRunnerIdRoute
   '/s/$studioSlug/projects': typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
   '/s/$studioSlug/projects/$projectId/overview': typeof ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute
   '/s/$studioSlug/projects/$projectId/pipeline/$pipelineId': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRoute
@@ -585,6 +603,7 @@ export interface FileRoutesById {
   '/_protected/_layout/runners': typeof ProtectedLayoutRunnersRoute
   '/_protected/_layout/storage': typeof ProtectedLayoutStorageRoute
   '/_protected/_layout/': typeof ProtectedLayoutIndexRoute
+  '/_protected/_layout/runners_/$runnerId': typeof ProtectedLayoutRunnersRunnerIdRoute
   '/_protected/_layout/settings/notifications': typeof ProtectedLayoutSettingsNotificationsRoute
   '/_protected/_layout/settings/profile': typeof ProtectedLayoutSettingsProfileRoute
   '/_protected/_layout/settings/security': typeof ProtectedLayoutSettingsSecurityRoute
@@ -602,6 +621,7 @@ export interface FileRoutesById {
   '/_protected/_layout/system/audit-logs/': typeof ProtectedLayoutSystemAuditLogsIndexRoute
   '/_protected/_layout/users/$id/': typeof ProtectedLayoutUsersIdIndexRoute
   '/_protected/_project/s/$studioSlug/projects/$projectId': typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteWithChildren
+  '/_protected/_layout/s/$studioSlug/runners_/$runnerId': typeof ProtectedLayoutSStudioSlugRunnersRunnerIdRoute
   '/_protected/_layout/s/$studioSlug/projects/': typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
   '/_protected/_project/s/$studioSlug/projects/$projectId/content-types': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteWithChildren
   '/_protected/_project/s/$studioSlug/projects/$projectId/contents': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteWithChildren
@@ -645,6 +665,7 @@ export interface FileRouteTypes {
     | '/dev'
     | '/runners'
     | '/storage'
+    | '/runners/$runnerId'
     | '/settings/notifications'
     | '/settings/profile'
     | '/settings/security'
@@ -662,6 +683,7 @@ export interface FileRouteTypes {
     | '/system/audit-logs/'
     | '/users/$id/'
     | '/s/$studioSlug/projects/$projectId'
+    | '/s/$studioSlug/runners/$runnerId'
     | '/s/$studioSlug/projects/'
     | '/s/$studioSlug/projects/$projectId/content-types'
     | '/s/$studioSlug/projects/$projectId/contents'
@@ -700,6 +722,7 @@ export interface FileRouteTypes {
     | '/dev'
     | '/runners'
     | '/storage'
+    | '/runners/$runnerId'
     | '/settings/notifications'
     | '/settings/profile'
     | '/settings/security'
@@ -716,6 +739,7 @@ export interface FileRouteTypes {
     | '/system/audit-logs'
     | '/users/$id'
     | '/s/$studioSlug/projects/$projectId'
+    | '/s/$studioSlug/runners/$runnerId'
     | '/s/$studioSlug/projects'
     | '/s/$studioSlug/projects/$projectId/overview'
     | '/s/$studioSlug/projects/$projectId/pipeline/$pipelineId'
@@ -755,6 +779,7 @@ export interface FileRouteTypes {
     | '/_protected/_layout/runners'
     | '/_protected/_layout/storage'
     | '/_protected/_layout/'
+    | '/_protected/_layout/runners_/$runnerId'
     | '/_protected/_layout/settings/notifications'
     | '/_protected/_layout/settings/profile'
     | '/_protected/_layout/settings/security'
@@ -772,6 +797,7 @@ export interface FileRouteTypes {
     | '/_protected/_layout/system/audit-logs/'
     | '/_protected/_layout/users/$id/'
     | '/_protected/_project/s/$studioSlug/projects/$projectId'
+    | '/_protected/_layout/s/$studioSlug/runners_/$runnerId'
     | '/_protected/_layout/s/$studioSlug/projects/'
     | '/_protected/_project/s/$studioSlug/projects/$projectId/content-types'
     | '/_protected/_project/s/$studioSlug/projects/$projectId/contents'
@@ -938,6 +964,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedLayoutRolesIndexRouteImport
       parentRoute: typeof ProtectedLayoutRolesRouteRoute
     }
+    '/_protected/_layout/runners_/$runnerId': {
+      id: '/_protected/_layout/runners_/$runnerId'
+      path: '/runners/$runnerId'
+      fullPath: '/runners/$runnerId'
+      preLoaderRoute: typeof ProtectedLayoutRunnersRunnerIdRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
+    }
     '/_protected/_layout/settings/': {
       id: '/_protected/_layout/settings/'
       path: '/'
@@ -1048,6 +1081,13 @@ declare module '@tanstack/react-router' {
       path: '/s/$studioSlug/projects'
       fullPath: '/s/$studioSlug/projects/'
       preLoaderRoute: typeof ProtectedLayoutSStudioSlugProjectsIndexRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
+    }
+    '/_protected/_layout/s/$studioSlug/runners_/$runnerId': {
+      id: '/_protected/_layout/s/$studioSlug/runners_/$runnerId'
+      path: '/s/$studioSlug/runners/$runnerId'
+      fullPath: '/s/$studioSlug/runners/$runnerId'
+      preLoaderRoute: typeof ProtectedLayoutSStudioSlugRunnersRunnerIdRouteImport
       parentRoute: typeof ProtectedLayoutRoute
     }
     '/_protected/_project/s/$studioSlug/projects/$projectId': {
@@ -1303,11 +1343,13 @@ interface ProtectedLayoutRouteChildren {
   ProtectedLayoutRunnersRoute: typeof ProtectedLayoutRunnersRoute
   ProtectedLayoutStorageRoute: typeof ProtectedLayoutStorageRoute
   ProtectedLayoutIndexRoute: typeof ProtectedLayoutIndexRoute
+  ProtectedLayoutRunnersRunnerIdRoute: typeof ProtectedLayoutRunnersRunnerIdRoute
   ProtectedLayoutSystemAuditLogsRoute: typeof ProtectedLayoutSystemAuditLogsRouteWithChildren
   ProtectedLayoutSystemSettingsRoute: typeof ProtectedLayoutSystemSettingsRoute
   ProtectedLayoutSStudioSlugRunnersRoute: typeof ProtectedLayoutSStudioSlugRunnersRoute
   ProtectedLayoutSStudioSlugStorageRoute: typeof ProtectedLayoutSStudioSlugStorageRoute
   ProtectedLayoutSStudioSlugIndexRoute: typeof ProtectedLayoutSStudioSlugIndexRoute
+  ProtectedLayoutSStudioSlugRunnersRunnerIdRoute: typeof ProtectedLayoutSStudioSlugRunnersRunnerIdRoute
   ProtectedLayoutSStudioSlugProjectsIndexRoute: typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
 }
 
@@ -1321,6 +1363,7 @@ const ProtectedLayoutRouteChildren: ProtectedLayoutRouteChildren = {
   ProtectedLayoutRunnersRoute: ProtectedLayoutRunnersRoute,
   ProtectedLayoutStorageRoute: ProtectedLayoutStorageRoute,
   ProtectedLayoutIndexRoute: ProtectedLayoutIndexRoute,
+  ProtectedLayoutRunnersRunnerIdRoute: ProtectedLayoutRunnersRunnerIdRoute,
   ProtectedLayoutSystemAuditLogsRoute:
     ProtectedLayoutSystemAuditLogsRouteWithChildren,
   ProtectedLayoutSystemSettingsRoute: ProtectedLayoutSystemSettingsRoute,
@@ -1329,6 +1372,8 @@ const ProtectedLayoutRouteChildren: ProtectedLayoutRouteChildren = {
   ProtectedLayoutSStudioSlugStorageRoute:
     ProtectedLayoutSStudioSlugStorageRoute,
   ProtectedLayoutSStudioSlugIndexRoute: ProtectedLayoutSStudioSlugIndexRoute,
+  ProtectedLayoutSStudioSlugRunnersRunnerIdRoute:
+    ProtectedLayoutSStudioSlugRunnersRunnerIdRoute,
   ProtectedLayoutSStudioSlugProjectsIndexRoute:
     ProtectedLayoutSStudioSlugProjectsIndexRoute,
 }

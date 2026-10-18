@@ -74,7 +74,7 @@ export function LiveExecutionDrawer({
   const isExecutionRunning = useMemo(() => {
     if (!activeExecution) return false;
     const s = Number(activeExecution.status) || activeExecution.status;
-    return s === 2 || s === 3 || s === "Running" || s === "WaitingForAgent";
+    return s === 2 || s === 3 || s === "Running" || (s as unknown as string) === "WaitingForAgent" || s === "WaitingForRunner";
   }, [activeExecution]);
 
   const handleCancel = async () => {
@@ -244,7 +244,7 @@ export function LiveExecutionDrawer({
               className="h-6 px-2 text-[11px] gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
               onPress={handleCancel}
               isDisabled={cancelMutation.isPending}
-              title="Cancel this active execution"
+              aria-label="Cancel this active execution"
             >
               {cancelMutation.isPending ? (
                 <Loader2 className="h-3 w-3 animate-spin" />

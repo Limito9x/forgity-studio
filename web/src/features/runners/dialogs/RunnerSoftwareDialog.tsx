@@ -10,7 +10,7 @@ import {
 import type { ExecutorCandidateDto } from "../types";
 import { CompactExecutorRow } from "../components/CompactExecutorRow";
 import { RemoteFileBrowserDialog } from "@/components/custom-ui/file-tree";
-import { getSoftwareMetadata, SUPPORTED_EXECUTOR_KEYS } from "../constants/dccEngines";
+import { getSoftwareMetadata } from "../constants/dccEngines";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {

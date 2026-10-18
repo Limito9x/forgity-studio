@@ -205,6 +205,44 @@ pub fn scan_python() -> Vec<DccApp> {
                 }
             }
         }
+
+        // Common root drives C:\Python*
+        for drive in &["C:\\", "D:\\"] {
+            if let Ok(entries) = std::fs::read_dir(drive) {
+                for entry in entries.filter_map(Result::ok) {
+                    let folder_name = entry.file_name().to_string_lossy().to_string();
+                    if folder_name.to_lowercase().starts_with("python") {
+                        let exe = entry.path().join("python.exe");
+                        add_candidate(exe, format!("Python ({folder_name})"));
+                    }
+                }
+            }
+        }
+
+        // Conda / Miniconda / Pyenv user paths
+        if let Some(user_dir) = dirs::home_dir() {
+            for conda_folder in &["anaconda3", "miniconda3", "mambaforge", "miniforge3"] {
+                let exe = user_dir.join(conda_folder).join("python.exe");
+                add_candidate(exe, format!("Python (Conda: {conda_folder})"));
+            }
+
+            let pyenv_versions = user_dir.join(".pyenv").join("pyenv-win").join("versions");
+            if pyenv_versions.is_dir() {
+                if let Ok(entries) = std::fs::read_dir(pyenv_versions) {
+                    for entry in entries.filter_map(Result::ok) {
+                        let exe = entry.path().join("python.exe");
+                        let folder_name = entry.file_name().to_string_lossy().to_string();
+                        add_candidate(exe, format!("Python (pyenv: {folder_name})"));
+                    }
+                }
+            }
+        }
+
+        // System-level Conda / ProgramData
+        for pdata in &["C:\\ProgramData\\anaconda3", "C:\\ProgramData\\miniconda3"] {
+            let exe = PathBuf::from(pdata).join("python.exe");
+            add_candidate(exe, "Python (Conda: ProgramData)".to_string());
+        }
     }
 
     found
@@ -271,5 +309,52 @@ pub fn resolve_executor_executable(executor: &str) -> anyhow::Result<PathBuf> {
             }
         }
         other => Err(anyhow::anyhow!("Unsupported executor type: {}", other)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_scan_python_finds_valid_installations() {
+        let pythons = scan_python();
+        println!("Detected Python installations: {:#?}", pythons);
+
+        for py in &pythons {
+            assert!(py.path.is_file(), "Path must be a valid file: {:?}", py.path);
+            assert!(
+                !py.path.to_string_lossy().contains("WindowsApps"),
+                "Must not contain WindowsApps: {:?}",
+                py.path
+            );
+            assert!(
+                py.version.starts_with("Python "),
+                "Version should start with 'Python ': {}",
+                py.version
+            );
+        }
+    }
+
+    #[test]
+    fn test_probe_python_version() {
+        let pythons = scan_python();
+        if let Some(first) = pythons.first() {
+            let version = probe_python_version(&first.path);
+            assert!(
+                version.starts_with("Python "),
+                "probe_python_version returned invalid string: {}",
+                version
+            );
+            assert_eq!(version, first.version);
+        }
+    }
+
+    #[test]
+    fn test_resolve_python_executable() {
+        let res = resolve_executor_executable("python");
+        assert!(res.is_ok(), "resolve_executor_executable('python') failed: {:?}", res);
+        let path = res.unwrap();
+        println!("Resolved python executable: {:?}", path);
     }
 }

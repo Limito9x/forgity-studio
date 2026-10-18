@@ -98,7 +98,7 @@ export function ExecutionStatusBanner({
           onPress={onCancel}
           isDisabled={isCancelling}
           className="h-6 px-2 text-xs gap-1 font-medium text-destructive hover:text-destructive hover:bg-destructive/10 border border-destructive/30"
-          title="Cancel active pipeline execution"
+          aria-label="Cancel active pipeline execution"
         >
           {isCancelling ? (
             <Loader2 className="h-3 w-3 animate-spin" />

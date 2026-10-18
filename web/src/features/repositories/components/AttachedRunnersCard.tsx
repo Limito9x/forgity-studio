@@ -154,7 +154,7 @@ export function AttachedRunnersCard({
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() =>
+                          onPress={() =>
                             onDetachRunner(
                               item.runnerId,
                               item.runner?.name || item.runner?.machineKey,
@@ -163,7 +163,6 @@ export function AttachedRunnersCard({
                           }
                           className="gap-1 cursor-pointer text-xs h-7 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
                           aria-label="Detach runner from repository"
-                          title="Detach runner from this repository"
                         >
                           <Unlink className="size-3" /> Detach
                         </Button>

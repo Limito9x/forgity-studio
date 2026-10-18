@@ -83,4 +83,12 @@ Khi thực hiện tác vụ, hãy xác định khu vực mã nguồn đang thao 
    - Sau khi thực thi xong Phase X và nghiệm thu đạt yêu cầu, Agent tóm tắt kết quả và dừng lại.
    - **Nghiêm cấm tự động nhảy sang code Phase tiếp theo** khi chưa lập Implementation Plan chi tiết cho Phase mới và chưa được User duyệt.
 
+---
+
+## 7. Kỷ Luật Thực Dụng & Nghiêm Cấm Vẽ Vời (Strict Pragmatism & Zero Hallucinated Features)
+
+- **Cấm Tự Ý Bịa Roadmap & Coming Soon:** Tuyệt đối KHÔNG tự ý chèn các mục "Roadmap", "Coming Soon", "Planned (Q1/Q2/Q3...)", hoặc các khối quảng bá tính năng tương lai vào giao diện trừ khi User đích thân yêu cầu rõ ràng.
+- **100% Data-Driven & Single Source of Truth:** Mọi thẻ (Card), bảng (Table), dòng dữ liệu, hoặc thông số trên UI PHẢI gắn liền trực tiếp với API DTO, gRPC message, hoặc database entity có thật trong hệ thống. Tuyệt đối không hardcode mock data, số liệu giả để "làm màu" cho giao diện.
+- **Triệt Để Tuân Thủ YAGNI (You Aren't Gonna Need It):** Chỉ cài đặt đúng và đủ các tính năng nằm trong phạm vi của Phase hiện tại. Không suy diễn, không tự ý mở rộng phạm vi ("tiện tay làm thêm"), không nhét các tính năng mà hệ sinh thái chưa sẵn sàng hỗ trợ.
+- **Không Monkey-Patch UI Primitives:** Khi gặp lỗi type hoặc thuộc tính (ví dụ: `title` vs `aria-label`), KHÔNG ĐƯỢC hack, monkey-patch, thêm `any` hoặc nới lỏng props của các component UI dùng chung trong `components/ui/`. Phải giải quyết đúng chuẩn mực ở tầng gọi component (call-site).
 

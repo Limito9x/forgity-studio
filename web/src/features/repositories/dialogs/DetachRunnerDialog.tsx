@@ -25,7 +25,6 @@ export function DetachRunnerDialog({
       {
         repositoryId: data.repositoryId,
         runnerId: data.runnerId,
-        params: { force: false },
       },
       {
         onSuccess: () => {
