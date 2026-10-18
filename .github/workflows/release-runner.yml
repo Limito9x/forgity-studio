@@ -1,4 +1,4 @@
-name: Release Runner Package
+name: Release Native Runner Package
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version_tag:
-        description: 'Release version (e.g. 1.0.1)'
+        description: 'Release version (e.g. 1.0.0)'
         required: false
         default: ''
 
@@ -15,39 +15,62 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    name: Build & Publish Clean Runner Package
-    runs-on: ubuntu-latest
+  release-windows:
+    name: Build & Publish Native Rust Runner (Windows x64)
+    runs-on: windows-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install Build Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install grpcio-tools protobuf
-
       - name: Extract Tag or Input Version
         id: get_version
+        shell: pwsh
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version_tag }}" ]; then
-            VERSION="${{ github.event.inputs.version_tag }}"
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION=$(cat workers/VERSION | tr -d '[:space:]')
-          else
-            VERSION="${GITHUB_REF#refs/tags/v}"
-          fi
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch' -and '${{ github.event.inputs.version_tag }}' -ne '') {
+            $ver = '${{ github.event.inputs.version_tag }}'
+          } else {
+            $ver = '${{ github.ref_name }}'.TrimStart('v')
+            if (-not $ver) { $ver = '1.0.0' }
+          }
+          Write-Host "Releasing version: $ver"
+          "VERSION=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      - name: Build and Package Runner
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo Dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: runner -> runner/target
+
+      - name: Build Forgity Runner (Release)
+        shell: pwsh
         run: |
-          python workers/tools/package_release.py --version "${{ steps.get_version.outputs.VERSION }}"
+          cd runner
+          cargo build --release
+
+      - name: Package Runner Archive
+        shell: pwsh
+        run: |
+          $version = "${{ steps.get_version.outputs.VERSION }}"
+          $distDir = "runner/dist"
+          New-Item -ItemType Directory -Path $distDir -Force | Out-Null
+          
+          $exe = "runner/target/release/forgity-runner.exe"
+          $zipVersioned = "$distDir/forgity-runner-$version-windows-x64.zip"
+          $zipLatest = "$distDir/forgity-runner.zip"
+          
+          Compress-Archive -Path $exe -DestinationPath $zipVersioned -Force
+          Copy-Item $zipVersioned $zipLatest -Force
+          
+          (Get-FileHash -Algorithm SHA256 $zipVersioned).Hash.ToLower() | Out-File "$zipVersioned.sha256" -NoNewline
+          (Get-FileHash -Algorithm SHA256 $zipLatest).Hash.ToLower() | Out-File "$zipLatest.sha256" -NoNewline
 
       - name: Create GitHub Release and Upload Artifacts
         uses: softprops/action-gh-release@v2
@@ -57,24 +80,24 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            workers/dist/forgity-runner-*.zip
-            workers/dist/forgity-runner-*.zip.sha256
-            workers/dist/forgity-runner.zip
-            workers/dist/forgity-runner.zip.sha256
+            runner/dist/forgity-runner-*.zip
+            runner/dist/forgity-runner-*.zip.sha256
+            runner/dist/forgity-runner.zip
+            runner/dist/forgity-runner.zip.sha256
           body: |
-            ## Forgity Runner Daemon Release
+            ## Forgity Studio Native Runner Release (v${{ steps.get_version.outputs.VERSION }})
             
-            ### Included in this package:
-            - Pre-compiled Protobuf stubs (`agent_pb2.py`, `execution_state.py`)
-            - Headless Subprocess Runners (Blender, Unreal Engine)
-            - Daemon Service Supervisor (`runner service install / start`)
-            - Bidirectional gRPC & Isolated RabbitMQ Execution
-            - In-place remote auto-update support
+            High-performance, single-binary automation daemon built with Rust for 3D workstation pipelines.
             
-            ### Verification
-            Download the archive and verify the checksum using:
-            ```bash
-            sha256sum -c forgity-runner-v${{ steps.get_version.outputs.VERSION }}.zip.sha256
+            ### Highlights:
+            - **Single Native Binary**: Standalone executable (`forgity-runner.exe`), zero Python dependency required.
+            - **Windows Kernel Job Object**: Hard-kill subprocess isolation for headless Blender & Unreal Engine.
+            - **Ultralight Resource Footprint**: < 15MB RAM baseline, instant gRPC streaming.
+            - **1-Click 3-Second Bootstrap**: Pair workstations in 3 seconds directly from the Forgity Studio Web Dashboard.
+            
+            ### Verification (Windows PowerShell):
+            ```powershell
+            (Get-FileHash forgity-runner-${{ steps.get_version.outputs.VERSION }}-windows-x64.zip -Algorithm SHA256).Hash.ToLower()
             ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

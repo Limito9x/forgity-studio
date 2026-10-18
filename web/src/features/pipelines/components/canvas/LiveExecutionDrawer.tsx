@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect } from "react";
 import { usePipelineExecution, usePipelineExecutions, useNodeExecutions } from "../../hooks/usePipelineGraph";
 import type { PipelineExecutionDto, NodeExecutionDto } from "../../hooks/usePipelineGraph";
+import { useCancelPipelineExecution } from "../../hooks/usePipelines";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import {
   Terminal,
   X,
@@ -22,6 +24,7 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
+  Square,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -65,6 +68,24 @@ export function LiveExecutionDrawer({
     }
     return executions?.[0] || execution;
   }, [execution, executionId, executions]);
+
+  const cancelMutation = useCancelPipelineExecution(pipelineId);
+
+  const isExecutionRunning = useMemo(() => {
+    if (!activeExecution) return false;
+    const s = Number(activeExecution.status) || activeExecution.status;
+    return s === 2 || s === 3 || s === "Running" || (s as unknown as string) === "WaitingForAgent" || s === "WaitingForRunner";
+  }, [activeExecution]);
+
+  const handleCancel = async () => {
+    if (!activeExecution?.id) return;
+    try {
+      await cancelMutation.mutateAsync({ id: activeExecution.id });
+      toast.success("Pipeline cancellation requested.");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to cancel execution.");
+    }
+  };
 
   const getStatusBadge = (status: any) => {
     const s = Number(status) || status;
@@ -213,6 +234,24 @@ export function LiveExecutionDrawer({
             >
               {isCopied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
               <span>{isCopied ? "Copied State" : "Copy JSON"}</span>
+            </Button>
+          )}
+
+          {isExecutionRunning && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 text-[11px] gap-1 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+              onPress={handleCancel}
+              isDisabled={cancelMutation.isPending}
+              aria-label="Cancel this active execution"
+            >
+              {cancelMutation.isPending ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Square className="h-2.5 w-2.5 fill-current" />
+              )}
+              <span>{cancelMutation.isPending ? "Cancelling..." : "Cancel Run"}</span>
             </Button>
           )}
 

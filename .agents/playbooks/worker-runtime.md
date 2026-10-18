@@ -145,6 +145,29 @@ runner service logs [-n 50] [-f]          # Xem log tập trung và live follow
 
 ---
 
+## 8. Môi Trường Thực Thi: Local Dev (`workers/`) vs Production Package (`AppData\Local\Forgity\runner`)
+
+Trên một máy tính trạm của Developer, có thể tồn tại **2 bản Runner song song** với mục đích khác nhau:
+
+| Tiêu chí so sánh | Bản Local Dev trong Repo (`workers/`) | Bản Installed Package (`%LOCALAPPDATA%\Forgity\runner\`) |
+| :--- | :--- | :--- |
+| **Nguồn gốc** | Mã nguồn trực tiếp trong Git workspace (`d:\FullStack\Automation\workers`). | Tải về từ GitHub Release zip qua lệnh 1-Click One-Liner từ Web UI Connect Runner. |
+| **Cách khởi chạy** | Chạy thủ công: `.\runner.bat start` (hoặc `python cli.py start`). | Chạy ngầm tự động: Windows Task Scheduler hoặc Registry HKCU Run (`pythonw.exe`). |
+| **Cửa sổ hiển thị** | **Có cửa sổ Console:** In trực tiếp toàn bộ log stdout/stderr của Blender/Unreal, RabbitMQ và gRPC. | **Không có cửa sổ (Windowless - `pythonw`):** Chạy âm thầm dưới nền, toàn bộ log ghi vào file. |
+| **Phân tầng Log** | Ghi log console + mirror stage log ra `worker/runtime/logs/`. | - `runner.log`: Ghi sự kiện hệ thống (kết nối RabbitMQ, heartbeat).<br>- `logs/<executor>_<ts>_<stage>.log`: Ghi chi tiết từng stage DCC. |
+| **Mục đích sử dụng** | Dùng khi phát triển tính năng mới, viết và debug script Blender / Unreal. | Dùng để kiểm thử luồng Onboarding của Trial User hoặc chạy production render node. |
+
+> [!WARNING]
+> **CẢNH BÁO XUNG ĐỘT SINGLE-INSTANCE & TRANH CHẤP QUEUE:**
+> Cả 2 bản Runner nếu dùng chung cấu hình sẽ lắng nghe chung **1 hàng đợi RabbitMQ** (`stage_tasks.{agentId}`).
+> **QUY TẮC BẮT BUỘC KHI DEV:** Trước khi chạy `.\runner.bat start` trong repo, **BẮT BUỘC PHẢI TẮT** bản Daemon ngầm bằng lệnh:
+> ```powershell
+> .\runner.bat service stop
+> # hoặc kiểm tra và dừng tiến trình ngầm:
+> taskkill /F /IM pythonw.exe
+> ```
+> Nếu không tắt bản Daemon ngầm, RabbitMQ sẽ chia tải (Round-Robin) hoặc Daemon ngầm (chạy bản zip cũ) sẽ chớp lấy task trước, dẫn đến việc mất tín hiệu realtime hoặc chạy bằng code cũ!
+
 ---
 
 ## 9. Chuẩn Hóa Packaging Release, Version Handshake & Remote In-Place Auto-Update
@@ -182,3 +205,5 @@ runner service logs [-n 50] [-f]          # Xem log tập trung và live follow
 3. **Script từ xa bắt buộc có URL & SHA-256:** Không bao giờ cho phép thực thi script từ xa trôi nổi mà không kiểm tra mã băm bảo mật.
 4. **Không đưa GUI dependencies (như pystray) vào Daemon:** Runner Daemon bắt buộc phải duy trì tính chất headless 100%.
 5. **Bảo tồn tệp bí mật và môi trường:** Tuyệt đối không xóa hay ghi đè `config.json` và `.venv/` khi nâng cấp hay đóng gói Runner.
+6. **Tắt Daemon ngầm trước khi Dev Local:** Luôn chạy `.\runner.bat service stop` trước khi gõ `.\runner.bat start` trong repo để tránh tranh chấp hàng đợi RabbitMQ.
+7. **An toàn tuyệt đối khi chạy Windowless (`pythonw`):** Không dùng `print()` trực tiếp khi đọc stdout của DCC Subprocess; luôn sử dụng `logger` hoặc bọc try-except để không làm đứt luồng `PIPELINE_EVENT`.

@@ -288,3 +288,6 @@ export const useBatchUpsertCustomNodesMutation = (projectId?: string) =>
     Api.getGetNodePaletteQueryKey(projectId ? { projectId } : undefined),
     ["/api/pipeline/nodes/custom/"],
   ])();
+
+export { useCancelPipelineExecution } from "./usePipelineGraph";
+

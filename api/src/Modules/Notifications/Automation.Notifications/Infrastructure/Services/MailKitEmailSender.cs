@@ -25,9 +25,10 @@ public class MailKitEmailSender : IEmailSender
         var user = _config["Smtp:Username"];
         var pass = _config["Smtp:Password"];
         var from = _config["Smtp:From"] ?? "noreply@example.com";
+        var fromName = _config["Smtp:FromName"] ?? "Forgity Studio";
 
         var message = new MimeMessage();
-        message.From.Add(new MailboxAddress("ModularTemplateSystem", from));
+        message.From.Add(new MailboxAddress(fromName, from));
         message.To.Add(new MailboxAddress(to, to));
         message.Subject = subject;
 

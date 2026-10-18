@@ -120,4 +120,15 @@ Quy tắc áp dụng bắt buộc khi xây dựng hoặc sửa đổi mã nguồ
       dotnet test api/tests/Automation.Pipeline.Tests
       ```
 
+20. **Quy Chuẩn Handler Nghiệp Vụ Phức Tạp: Tóm Tắt Thứ Tự Xử Lý & Bắt Buộc Dựng Unit/Slice Tests:**
+    - **Đối tượng áp dụng:** Bắt buộc đối với các Handler chứa logic nghiệp vụ đa điều kiện (Guard validation, kiểm tra khóa/lock độc quyền, phụ thuộc quan hệ cha-con cascade, rẽ nhánh dữ liệu an toàn hoặc các điều kiện ngăn mất mát dữ liệu).
+    - **Tóm tắt đầu Handler (Header Docstring):** Ngay phía trên class Handler, **BẮT BUỘC** có khối tài liệu tóm tắt ngắn gọn:
+      1. `[Thứ tự xử lý]`: Trình bày tuần tự các bước (vd: 1. Existence Check -> 2. Guard Validation -> 3. Domain Mutation -> 4. Cascade/Commit -> 5. Broadcast/Side effects).
+      2. `[Test Cases dựng kèm]`: Danh sách các kịch bản kiểm thử (tất cả các trường hợp chặn/lỗi và trường hợp thành công).
+    - **Bắt buộc dựng Unit/Slice Tests:**
+      - Dựng file test tương ứng trong `api/tests/` sử dụng `xUnit + FluentAssertions + SQLite In-Memory` (với `TestDbContext` kế thừa và xóa schema).
+      - Toàn bộ các nhánh rẽ bảo vệ (Guard blocks) và luồng thành công đều phải được kiểm thử tự động.
+      - **Lợi ích cốt lõi:** Ngăn chặn triệt để lỗi runtime dịch LINQ sang SQL (như truy vấn trên unmapped computed properties), rò rỉ logic, hoặc hỏng dữ liệu trong DB; chạy nghiệm thu siêu tốc chỉ 1-2 giây qua `dotnet test` trước khi chạy server thật.
+
+
 

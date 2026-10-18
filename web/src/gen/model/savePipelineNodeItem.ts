@@ -6,6 +6,7 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { DictionaryOfStringAndObject } from "./dictionaryOfStringAndObject";
+import type { NodePosition } from "./nodePosition";
 import type { PipelineNodeKind } from "./pipelineNodeKind";
 
 export interface SavePipelineNodeItem {
@@ -25,4 +26,6 @@ export interface SavePipelineNodeItem {
   height?: number | null;
   /** @nullable */
   metadata?: DictionaryOfStringAndObject | null;
+  /** @nullable */
+  position?: NodePosition | null;
 }

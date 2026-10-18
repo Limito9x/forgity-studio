@@ -72,9 +72,24 @@ export const AttachRunnerToRepositoryResponse = /*#__PURE__*/ zod.object({
   "isEnabled": /*#__PURE__*/ zod.boolean(),
   "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
-})))
+}))),
+  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 }))
 })
+
+export const GetAttachedRepositoriesByRunnerParams = /*#__PURE__*/ zod.object({
+  "runnerId": /*#__PURE__*/ zod.uuid()
+})
+
+export const GetAttachedRepositoriesByRunnerResponseItem = /*#__PURE__*/ zod.object({
+  "repositoryId": /*#__PURE__*/ zod.uuid(),
+  "repositoryName": /*#__PURE__*/ zod.string(),
+  "projectId": /*#__PURE__*/ zod.uuid(),
+  "mountPath": /*#__PURE__*/ zod.string(),
+  "attachedAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "activeLocksCount": /*#__PURE__*/ zod.int()
+})
+export const GetAttachedRepositoriesByRunnerResponse = /*#__PURE__*/ zod.array(GetAttachedRepositoriesByRunnerResponseItem)
 
 
 
@@ -306,4 +321,11 @@ export const SyncLocalChangesResponse = /*#__PURE__*/ zod.object({
   "workspaceId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid()),
   "agentId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid())
 })
+
+export const DetachRunnerFromRepositoryParams = /*#__PURE__*/ zod.object({
+  "repositoryId": /*#__PURE__*/ zod.uuid(),
+  "runnerId": /*#__PURE__*/ zod.uuid()
+})
+
+export const DetachRunnerFromRepositoryResponse = /*#__PURE__*/ zod.unknown()
 
