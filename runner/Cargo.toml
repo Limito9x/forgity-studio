@@ -25,6 +25,18 @@ anyhow = "1.0"
 thiserror = "2.0"
 winreg = "0.52"
 dirs = "6.0"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+uuid = { version = "1.15", features = ["v4"] }
+sysinfo = "0.33"
+lapin = { version = "2.5", default-features = false, features = ["rustls"] }
+futures-lite = "2.6"
+async-trait = "0.1"
+windows-sys = { version = "0.59", features = [
+    "Win32_System_JobObjects",
+    "Win32_Foundation",
+    "Win32_System_Threading",
+    "Win32_Security"
+] }
 
 [build-dependencies]
 tonic-build = "0.12"
