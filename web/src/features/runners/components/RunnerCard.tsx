@@ -11,7 +11,9 @@ import {
   Layers,
   XCircle,
   ArrowUpCircle,
+  ArrowUpRight,
 } from "lucide-react";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
 import type { RunnerDto, RunnerDiskInfo } from "../types";
 import {
   formatBytes,
@@ -40,6 +42,7 @@ export function RunnerCard({
   onUpgradeRunner,
   isUpgrading = false,
 }: RunnerCardProps) {
+  const nav = useProjectNav();
   const isOnline = runner.isOnline ?? true;
 
   const cpuSummary = formatCpuModel(
@@ -63,11 +66,18 @@ export function RunnerCard({
         <CardHeader className="pb-3">
           {/* Row 1: Icon + Title on left, Online Status Badge on right */}
           <div className="flex items-center justify-between gap-2.5">
-            <div className="flex items-center gap-2.5 min-w-0 flex-1">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <div
+              className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer group"
+              onClick={() => nav.toRunnerDetail(runner.id)}
+              title="Open runner workstation details"
+            >
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                 <Server className="size-4.5" />
               </div>
-              <CardTitle className="text-sm font-semibold truncate tracking-tight text-foreground" title={runner.name || runner.machineKey}>
+              <CardTitle
+                className="text-sm font-semibold truncate tracking-tight text-foreground group-hover:text-primary transition-colors"
+                title={runner.name || runner.machineKey}
+              >
                 {runner.name || runner.machineKey}
               </CardTitle>
             </div>
@@ -261,6 +271,16 @@ export function RunnerCard({
               <span>Re-scan</span>
             </Button>
           )}
+
+          <Button
+            variant="default"
+            size="sm"
+            onPress={() => nav.toRunnerDetail(runner.id)}
+            className="h-7 px-2.5 text-[11px] gap-1 cursor-pointer font-medium"
+          >
+            <span>Manage</span>
+            <ArrowUpRight className="size-3" />
+          </Button>
         </div>
       </CardFooter>
     </Card>

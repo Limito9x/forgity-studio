@@ -89,6 +89,17 @@ export const useAttachRunnerToRepository = (repositoryId?: string) => {
     : ["repositories"];
   return createMutationHook(RepositoryRunnersApi.useAttachRunnerToRepository, [
     queryKey,
+    ["/api/repository-runners"],
+  ])();
+};
+
+export const useDetachRunnerFromRepository = (repositoryId?: string) => {
+  const queryKey = repositoryId
+    ? RepositoriesApi.getGetRepositoryByIdQueryKey(repositoryId)
+    : ["repositories"];
+  return createMutationHook(RepositoryRunnersApi.useDetachRunnerFromRepository, [
+    queryKey,
+    ["/api/repository-runners"],
   ])();
 };
 

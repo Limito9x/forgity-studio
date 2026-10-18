@@ -51,7 +51,7 @@ $InstallDir = """"
 
 $ErrorActionPreference = ""Stop""
 
-$title = ""$AppName - RUNNER AGENT SETUP"".ToUpper()
+$title = ""$AppName - NATIVE RUNNER SETUP"".ToUpper()
 $bannerLine = ""="" * [Math]::Max(50, $title.Length + 6)
 Write-Host $bannerLine -ForegroundColor Cyan
 Write-Host (""   {0}   "" -f $title) -ForegroundColor Cyan
@@ -61,50 +61,44 @@ if (-not $InstallDir) {
     $InstallDir = ""$env:LOCALAPPDATA\Forgity\runner""
 }
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
-$zipPath = ""$env:TEMP\forgity-runner.zip""
-Write-Host "" - Downloading runner package..."" -ForegroundColor Cyan
-$packageUrls = @(
-    ""https://github.com/Limito9x/forgity-studio/releases/latest/download/forgity-runner.zip"",
-    ""$Url/runners/bootstrap/package.zip""
-)
-$downloadSuccess = $false
-foreach ($pUrl in $packageUrls) {
-    try {
-        Write-Host ""   Fetching from $pUrl..."" -ForegroundColor Gray
-        Invoke-WebRequest -Uri $pUrl -OutFile $zipPath -TimeoutSec 60
-        Expand-Archive -Path $zipPath -DestinationPath $InstallDir -Force
-        Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
-        foreach ($legacy in @(""pipelines"", ""tests"", ""tools"")) {
-            if (Test-Path ""$InstallDir\$legacy"") {
-                Remove-Item ""$InstallDir\$legacy"" -Recurse -Force -ErrorAction SilentlyContinue
-            }
+$exePath = ""$InstallDir\forgity-runner.exe""
+
+if (-not (Test-Path $exePath)) {
+    $zipPath = ""$env:TEMP\forgity-runner.zip""
+    Write-Host "" - Downloading forgity-runner package..."" -ForegroundColor Cyan
+    $packageUrls = @(
+        ""https://github.com/Limito9x/forgity-studio/releases/latest/download/forgity-runner.zip"",
+        ""$Url/runners/bootstrap/package.zip""
+    )
+    $downloadSuccess = $false
+    foreach ($pUrl in $packageUrls) {
+        try {
+            Write-Host ""   Fetching from $pUrl..."" -ForegroundColor Gray
+            Invoke-WebRequest -Uri $pUrl -OutFile $zipPath -TimeoutSec 90
+            Expand-Archive -Path $zipPath -DestinationPath $InstallDir -Force
+            Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+            $downloadSuccess = $true
+            Write-Host "" - Native runner extracted successfully."" -ForegroundColor Green
+            break
+        } catch {
+            Write-Host ""   Could not download from $pUrl, trying alternative..."" -ForegroundColor DarkGray
         }
-        $downloadSuccess = $true
-        Write-Host "" - Runner package extracted successfully."" -ForegroundColor Green
-        break
-    } catch {
-        Write-Host ""   Could not download from $pUrl, trying alternative..."" -ForegroundColor DarkGray
+    }
+    if (-not $downloadSuccess -or -not (Test-Path $exePath)) {
+        Write-Host ""[ERROR] Failed to download forgity-runner package from all available sources."" -ForegroundColor Red
+        exit 1
     }
 }
-if (-not $downloadSuccess) {
-    Write-Host ""[ERROR] Failed to download runner package from all available sources."" -ForegroundColor Red
-    exit 1
+
+Write-Host ""`n - Registering workstation runner..."" -ForegroundColor Yellow
+if ($Token) {
+    & $exePath register --api-url $Url --token $Token
 }
 
-$venvPath = ""$InstallDir\worker\venv""
-$venvPython = ""$venvPath\Scripts\python.exe""
-if (-not (Test-Path $venvPython)) {
-    & python -m venv $venvPath
-}
-$reqFile = ""$InstallDir\worker\requirements.txt""
-if (Test-Path $reqFile) {
-    & $venvPython -m pip install --quiet -r $reqFile
-} else {
-    & $venvPython -m pip install --quiet grpcio grpcio-tools pika==1.3.2 requests==2.31.0
-}
-& $venvPython ""$InstallDir\cli.py"" register --url $Url --token $Token --non-interactive
-& $venvPython ""$InstallDir\cli.py"" service install
-& $venvPython ""$InstallDir\cli.py"" service start";
+Write-Host ""`n=================================================="" -ForegroundColor Green
+Write-Host "" [SUCCESS] FORGITY RUNNER READY & CONFIGURED!"" -ForegroundColor Green
+Write-Host ""=================================================="" -ForegroundColor Green
+Start-Process -FilePath $exePath -ArgumentList ""start"" -WindowStyle Minimized";
             }
             else
             {

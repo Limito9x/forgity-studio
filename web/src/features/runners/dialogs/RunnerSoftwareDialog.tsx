@@ -8,19 +8,16 @@ import {
   type RunnerExecutorConfigDto,
 } from "../hooks/useRunners";
 import type { ExecutorCandidateDto } from "../types";
-import { BaseExecutorCard } from "../components/BaseExecutorCard";
+import { CompactExecutorRow } from "../components/CompactExecutorRow";
 import { RemoteFileBrowserDialog } from "@/components/custom-ui/file-tree";
-import { getSoftwareMetadata, SUPPORTED_EXECUTOR_KEYS } from "../constants/dccEngines";
+import { getSoftwareMetadata } from "../constants/dccEngines";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import {
   RefreshCw,
-  Sparkles,
-  PackageOpen,
   Cpu,
-  Search,
-  X,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -41,14 +38,14 @@ export function RunnerSoftwareDialog({
   const currentRunner = runners?.find((r) => r.id === runnerId);
   const activeConfigs = (currentRunner?.executorConfigs || []) as RunnerExecutorConfigDto[];
   const activeConfigMap = useMemo(
-    () => new Map<string, RunnerExecutorConfigDto>(
-      activeConfigs.map((c) => [c.executorKey?.toLowerCase(), c])
-    ),
+    () =>
+      new Map<string, RunnerExecutorConfigDto>(
+        activeConfigs.map((c) => [c.executorKey?.toLowerCase(), c])
+      ),
     [activeConfigs]
   );
 
   const [executors, setExecutors] = useState<ExecutorCandidateDto[]>([]);
-  const [searchQuery, setSearchQuery] = useState<string>("");
 
   const [browserState, setBrowserState] = useState<{
     open: boolean;
@@ -110,8 +107,12 @@ export function RunnerSoftwareDialog({
       },
       {
         onSuccess: () => {
+          const meta = getSoftwareMetadata(payload.executorKey);
           toast.success(
-            `Saved ${payload.executorKey.toUpperCase()} executor configuration`
+            `Saved ${meta.name} path successfully`,
+            {
+              description: payload.version ? `Active version: ${payload.version}` : undefined,
+            }
           );
         },
         onError: (err: any) => {
@@ -121,29 +122,23 @@ export function RunnerSoftwareDialog({
     );
   };
 
-  useEffect(() => {
-    if (open && runnerId && executors.length === 0 && !scanMutation.isPending) {
-      handleScan();
-    }
-  }, [open, runnerId]);
-
-  // Luôn đảm bảo các executor hệ thống hỗ trợ xuất hiện trong danh mục
+  // Group candidates by supported executor key
   const groupedExecutors = useMemo(() => {
     const map = new Map<string, ExecutorCandidateDto[]>();
 
-    // 1. Thêm các supported executor keys cốt lõi (python, blender, unreal)
-    for (const key of SUPPORTED_EXECUTOR_KEYS) {
+    // 1. Core supported keys in order: blender, unreal, python
+    for (const key of ["blender", "unreal", "python"]) {
       map.set(key, []);
     }
 
-    // 2. Điền candidates phát hiện từ máy
+    // 2. Populate discovered candidates
     for (const item of executors) {
       const key = item.executorKey.toLowerCase();
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(item);
     }
 
-    // 3. Đảm bảo những active configs đã cấu hình trước đó vẫn luôn xuất hiện
+    // 3. Populate existing active configs if not in candidate list
     for (const active of activeConfigs) {
       const key = active.executorKey.toLowerCase();
       if (!map.has(key)) {
@@ -162,149 +157,101 @@ export function RunnerSoftwareDialog({
 
   const uniqueKeys = Array.from(groupedExecutors.keys());
 
-  // Số lượng executor đã được setup path trên máy này
+  // Count configured executors
   const configuredCount = useMemo(() => {
     return uniqueKeys.filter((key) => !!activeConfigMap.get(key)?.executablePath).length;
   }, [uniqueKeys, activeConfigMap]);
 
-  // Filter keys by search query
-  const filteredKeys = useMemo(() => {
-    if (!searchQuery.trim()) return uniqueKeys;
-    const q = searchQuery.toLowerCase().trim();
-    return uniqueKeys.filter((key) => {
-      const meta = getSoftwareMetadata(key);
-      return (
-        key.toLowerCase().includes(q) ||
-        meta.name.toLowerCase().includes(q)
-      );
-    });
-  }, [uniqueKeys, searchQuery]);
+  const isAllReady = configuredCount === uniqueKeys.length;
 
   return (
     <BaseDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Runner Settings"
-      description={`Manage supported pipeline executors and machine configuration for ${runnerName}.`}
-      size="2xl"
+      title="Runner Software Settings"
+      description={`Manage installed 3D DCC engines and pipeline runtimes for ${runnerName}.`}
+      size="lg"
       footer={
         <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Sparkles className="size-4 text-primary" />
-            <span>Ready for pipeline stage execution</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onPress={handleScan}
-              isDisabled={scanMutation.isPending || !runnerId}
-              className="cursor-pointer gap-1.5"
-            >
-              <RefreshCw
-                className={`size-3.5 ${scanMutation.isPending ? "animate-spin" : ""}`}
-              />
-              <span>{scanMutation.isPending ? "Scanning..." : "Re-scan Machine"}</span>
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onPress={() => onOpenChange(false)}
-              className="cursor-pointer"
-            >
-              Done
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onPress={handleScan}
+            isDisabled={scanMutation.isPending || !runnerId}
+            className="cursor-pointer gap-1.5"
+          >
+            <RefreshCw
+              className={`size-3.5 ${scanMutation.isPending ? "animate-spin" : ""}`}
+            />
+            <span>{scanMutation.isPending ? "Scanning..." : "Re-scan Machine"}</span>
+          </Button>
+
+          <Button
+            variant="default"
+            size="sm"
+            onPress={() => onOpenChange(false)}
+            className="cursor-pointer"
+          >
+            Done
+          </Button>
         </div>
       }
     >
-      <div className="space-y-4 py-1 max-h-[620px] overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/25 [&::-webkit-scrollbar-track]:bg-transparent">
-        {/* VS Code Settings Search & Runner Banner */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground pointer-events-none" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search executor settings (e.g. unreal, python, blender)..."
-              className="pl-9 pr-8 h-9 text-xs bg-muted/30 font-mono"
-            />
-            {searchQuery && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onPress={() => setSearchQuery("")}
-                className="absolute right-1 top-1 h-7 w-7 p-0 text-muted-foreground hover:text-foreground cursor-pointer"
-              >
-                <X className="size-3.5" />
-              </Button>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/40 border border-border/60 text-xs shrink-0">
-            <Cpu className="size-3.5 text-primary shrink-0" />
-            <span className="font-semibold text-foreground truncate max-w-[140px]">
+      <div className="space-y-3 py-1">
+        {/* Machine Status Bar */}
+        <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/40 border border-border/60 text-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <Cpu className="size-4 text-primary shrink-0" />
+            <span className="font-semibold text-foreground truncate">
               {runnerName}
             </span>
-            <Badge variant="outline" className="font-mono text-[10px] h-4 px-1.5">
-              {configuredCount}/{uniqueKeys.length} setup
-            </Badge>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {isAllReady ? (
+              <Badge
+                variant="outline"
+                className="h-5 px-2 gap-1 text-[11px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+              >
+                <CheckCircle2 className="size-3" />
+                <span>{configuredCount}/{uniqueKeys.length} Engines Ready</span>
+              </Badge>
+            ) : (
+              <Badge
+                variant="outline"
+                className="h-5 px-2 gap-1 text-[11px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+              >
+                <AlertCircle className="size-3" />
+                <span>{configuredCount}/{uniqueKeys.length} Configured</span>
+              </Badge>
+            )}
           </div>
         </div>
 
-        {/* Loading state */}
+        {/* Loading Skeleton during filesystem scan */}
         {scanMutation.isPending && (
-          <div className="flex flex-col items-center justify-center p-12 rounded-xl border border-dashed bg-muted/30 space-y-3">
-            <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center text-primary animate-spin">
-              <RefreshCw className="size-5" />
-            </div>
-            <div className="text-center space-y-1">
-              <p className="text-sm font-medium text-foreground">
-                Scanning runner workstation filesystem...
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Querying standard install dirs, PATH registry, and Epic Games launcher.
-              </p>
-            </div>
+          <div className="flex items-center justify-center p-6 rounded-xl border border-dashed bg-muted/20 gap-3">
+            <RefreshCw className="size-4 text-primary animate-spin" />
+            <span className="text-xs text-muted-foreground">
+              Scanning workstation for Blender, Unreal Engine, and Python installations...
+            </span>
           </div>
         )}
 
-        {/* Empty state */}
-        {!scanMutation.isPending && filteredKeys.length === 0 && (
-          <div className="flex flex-col items-center justify-center p-12 rounded-xl border border-dashed bg-card text-center space-y-3">
-            <div className="size-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
-              <PackageOpen className="size-5" />
-            </div>
-            <div className="space-y-1 max-w-sm">
-              <p className="text-sm font-semibold text-foreground">
-                No Executors Found
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {searchQuery
-                  ? `No executors matched "${searchQuery}". Try clearing search.`
-                  : "No executors configured or discovered on this runner."}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Render BaseExecutorCard for each key (Collapsible) */}
-        {!scanMutation.isPending &&
-          filteredKeys.map((key, index) => {
+        {/* Compact Executor Rows */}
+        <div className="space-y-2.5">
+          {uniqueKeys.map((key) => {
             const candidates = groupedExecutors.get(key) || [];
             const activeConfig = activeConfigMap.get(key);
-            const defaultCand = candidates[0];
 
             return (
-              <BaseExecutorCard
+              <CompactExecutorRow
                 key={key}
+                executorKey={key}
                 runnerId={runnerId}
                 runnerName={runnerName}
-                executorKey={key}
-                defaultCandidate={defaultCand}
-                activeConfig={activeConfig}
                 availableCandidates={candidates}
-                defaultExpanded={index === 0 || !activeConfig?.executablePath}
+                activeConfig={activeConfig}
                 onOpenBrowse={(initialPath, onSelect) => {
                   const meta = getSoftwareMetadata(key);
                   setBrowserState({
@@ -320,9 +267,10 @@ export function RunnerSoftwareDialog({
               />
             );
           })}
+        </div>
       </div>
 
-      {/* Single Remote File Browser Modal */}
+      {/* Remote File Browser Modal */}
       {runnerId && (
         <RemoteFileBrowserDialog
           open={browserState.open}
@@ -332,7 +280,7 @@ export function RunnerSoftwareDialog({
           runnerId={runnerId}
           runnerName={runnerName}
           title={browserState.title || "Browse Executable"}
-          description="Browse and select an executable binary on the runner machine."
+          description="Select an executable binary on the runner machine."
           mode="file"
           extensions={[".exe", ""]}
           initialPath={browserState.initialPath}

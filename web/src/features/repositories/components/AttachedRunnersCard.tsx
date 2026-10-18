@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Cpu, HardDrive, Plus, Clock, Edit2, RefreshCw } from "lucide-react";
+import { Cpu, HardDrive, Plus, Clock, Edit2, RefreshCw, Unlink } from "lucide-react";
 import type { RepositoryRunnerDto } from "../hooks/useRepositories";
 
 interface AttachedRunnersCardProps {
@@ -10,6 +10,7 @@ interface AttachedRunnersCardProps {
   runners: RepositoryRunnerDto[];
   onAttachRunner: (initialData?: { runnerId?: string; rootPath?: string }) => void;
   onScanSyncRunner?: (runnerId: string) => void;
+  onDetachRunner?: (runnerId: string, runnerName?: string, rootPath?: string) => void;
 }
 
 export function AttachedRunnersCard({
@@ -17,6 +18,7 @@ export function AttachedRunnersCard({
   runners,
   onAttachRunner,
   onScanSyncRunner,
+  onDetachRunner,
 }: AttachedRunnersCardProps) {
   return (
     <Card className="rounded-2xl border-border/60 bg-card">
@@ -147,6 +149,24 @@ export function AttachedRunnersCard({
                       >
                         <Edit2 className="size-3" /> Edit Path
                       </Button>
+
+                      {onDetachRunner && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onPress={() =>
+                            onDetachRunner(
+                              item.runnerId,
+                              item.runner?.name || item.runner?.machineKey,
+                              item.rootPath
+                            )
+                          }
+                          className="gap-1 cursor-pointer text-xs h-7 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+                          aria-label="Detach runner from repository"
+                        >
+                          <Unlink className="size-3" /> Detach
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>

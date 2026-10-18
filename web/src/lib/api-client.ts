@@ -102,7 +102,7 @@ async function handleTokenRefresh(
 function handleApiError(status: number, data: Record<string, unknown> | null) {
   switch (status) {
     case 403:
-      toast.error('You do not have permission to perform this action.');
+      toast.error('You do not have permission to perform this action.', { id: 'api-error-403' });
       break;
 
     case 400:
@@ -112,18 +112,20 @@ function handleApiError(status: number, data: Record<string, unknown> | null) {
       if (errors && typeof errors === 'object') {
         Object.entries(errors).forEach(([field, messages]) => {
           const list = Array.isArray(messages) ? messages : [messages];
-          list.forEach((msg) => toast.error(`${field}: ${msg}`));
+          list.forEach((msg) => toast.error(`${field}: ${msg}`, { id: `val-${field}-${msg}` }));
         });
       } else {
-        const msg = (data?.title ?? data?.message ?? 'Invalid input data.') as string;
-        toast.error(msg);
+        const msg = (data?.title ?? data?.message ?? data?.detail ?? 'Invalid input data.') as string;
+        toast.error(msg, { id: `api-error-${msg}` });
       }
       break;
     }
 
-    default:
-      toast.error((data?.title ?? data?.message ?? 'A system error occurred.') as string);
+    default: {
+      const msg = (data?.title ?? data?.message ?? data?.detail ?? 'A system error occurred.') as string;
+      toast.error(msg, { id: `api-error-${msg}` });
       break;
+    }
   }
 }
 
@@ -198,8 +200,12 @@ AXIOS_INSTANCE.interceptors.response.use(
 // Orval Mutator
 // -----------------------------------------------------------------------------
 export const customInstance = <T>(config: AxiosRequestConfig): Promise<T> => {
+  const method = config.method?.toUpperCase();
+  const hasPayloadMethod = method === 'POST' || method === 'PUT' || method === 'PATCH';
+  const data = hasPayloadMethod && config.data === undefined ? {} : config.data;
+
   const source = axios.CancelToken.source();
-  const promise = AXIOS_INSTANCE({ ...config, cancelToken: source.token }).then(
+  const promise = AXIOS_INSTANCE({ ...config, data, cancelToken: source.token }).then(
     (response) => response.data
   );
   // @ts-expect-error - attach cancel for React Query
