@@ -42,9 +42,11 @@ import type {
   RunnerExecutorConfigDto,
   RunnerStudioDto,
   RunnerTokenStatusDto,
+  RunnerUpdateResultDto,
   ScanExecutorsRequest,
   SetupTokenDto,
   UpdateRunnerHardwareProfileRequest,
+  UpgradeRunnerRequest,
 } from "../../model";
 
 import { customInstance } from "../../../lib/api-client";
@@ -1863,4 +1865,79 @@ export const useAttachRunnerToStudio = <TError = void, TContext = unknown>(
     getAttachRunnerToStudioMutationOptions(options),
     queryClient,
   );
+};
+export const upgradeRunner = (
+  runnerId: string,
+  upgradeRunnerRequest: UpgradeRunnerRequest,
+  signal?: AbortSignal,
+) => {
+  return customInstance<RunnerUpdateResultDto>({
+    url: `/api/runners/${runnerId}/upgrade`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: upgradeRunnerRequest,
+    signal,
+  });
+};
+
+export const getUpgradeRunnerMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof upgradeRunner>>,
+    TError,
+    { runnerId: string; data: UpgradeRunnerRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof upgradeRunner>>,
+  TError,
+  { runnerId: string; data: UpgradeRunnerRequest },
+  TContext
+> => {
+  const mutationKey = ["upgradeRunner"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof upgradeRunner>>,
+    { runnerId: string; data: UpgradeRunnerRequest }
+  > = (props) => {
+    const { runnerId, data } = props ?? {};
+
+    return upgradeRunner(runnerId, data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpgradeRunnerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof upgradeRunner>>
+>;
+export type UpgradeRunnerMutationBody = UpgradeRunnerRequest;
+export type UpgradeRunnerMutationError = void;
+
+export const useUpgradeRunner = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof upgradeRunner>>,
+      TError,
+      { runnerId: string; data: UpgradeRunnerRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof upgradeRunner>>,
+  TError,
+  { runnerId: string; data: UpgradeRunnerRequest },
+  TContext
+> => {
+  return useMutation(getUpgradeRunnerMutationOptions(options), queryClient);
 };

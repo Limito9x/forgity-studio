@@ -2,6 +2,7 @@ import { Separator } from '@/components/ui/separator'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { AppBreadcrumb } from './AppBreadcrumb'
 import { ThemeToggle } from '@/components/custom-ui/theme/ThemeToggle'
+import { SupportDialog } from '@/components/custom-ui/support/SupportDialog'
 
 interface AppHeaderProps {
   showSidebarTrigger?: boolean;
@@ -19,7 +20,8 @@ export function AppHeader({ showSidebarTrigger = true }: AppHeaderProps) {
         )}
         <AppBreadcrumb />
       </div>
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-2">
+        <SupportDialog />
         <ThemeToggle />
       </div>
     </header>

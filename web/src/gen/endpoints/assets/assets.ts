@@ -5,12 +5,20 @@
  * Digital Content Creation Automation Studio Engine & API
  * OpenAPI spec version: 1.0.0
  */
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  DataTag,
+  DefinedInitialDataOptions,
+  DefinedUseQueryResult,
   MutationFunction,
   QueryClient,
+  QueryFunction,
+  QueryKey,
+  UndefinedInitialDataOptions,
   UseMutationOptions,
   UseMutationResult,
+  UseQueryOptions,
+  UseQueryResult,
 } from "@tanstack/react-query";
 
 import type {
@@ -18,10 +26,31 @@ import type {
   ErrorResponse,
   IReadOnlyListOfAssetUploadDto,
   IReadOnlyListOfConfirmAssetDto,
+  MigrateStorageJobResponse,
+  MigrateStorageRequest,
   RequestUploadCommand,
+  StorageMigrationJobState,
 } from "../../model";
 
 import { customInstance } from "../../../lib/api-client";
+
+const withQueryKey = <T extends object, K>(
+  query: T,
+  queryKey: K,
+): T & { queryKey: K } => {
+  const result = { queryKey } as T & { queryKey: K };
+  for (const key of Object.keys(query)) {
+    // The explicit queryKey always wins, matching the previous
+    // `{ ...query, queryKey }` spread where it was set last.
+    if (key === "queryKey") continue;
+    Object.defineProperty(result, key, {
+      enumerable: true,
+      configurable: true,
+      get: () => (query as Record<string, unknown>)[key],
+    });
+  }
+  return result;
+};
 
 export const confirmUpload = (
   confirmUploadCommand: ConfirmUploadCommand,
@@ -37,7 +66,7 @@ export const confirmUpload = (
 };
 
 export const getConfirmUploadMutationOptions = <
-  TError = ErrorResponse,
+  TError = ErrorResponse | void,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -77,9 +106,12 @@ export type ConfirmUploadMutationResult = NonNullable<
   Awaited<ReturnType<typeof confirmUpload>>
 >;
 export type ConfirmUploadMutationBody = ConfirmUploadCommand;
-export type ConfirmUploadMutationError = ErrorResponse;
+export type ConfirmUploadMutationError = ErrorResponse | void;
 
-export const useConfirmUpload = <TError = ErrorResponse, TContext = unknown>(
+export const useConfirmUpload = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof confirmUpload>>,
@@ -97,6 +129,235 @@ export const useConfirmUpload = <TError = ErrorResponse, TContext = unknown>(
 > => {
   return useMutation(getConfirmUploadMutationOptions(options), queryClient);
 };
+export const migrateStorage = (
+  migrateStorageRequest: MigrateStorageRequest,
+  signal?: AbortSignal,
+) => {
+  return customInstance<MigrateStorageJobResponse>({
+    url: `/api/assets/migrate`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: migrateStorageRequest,
+    signal,
+  });
+};
+
+export const getMigrateStorageMutationOptions = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof migrateStorage>>,
+    TError,
+    { data: MigrateStorageRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof migrateStorage>>,
+  TError,
+  { data: MigrateStorageRequest },
+  TContext
+> => {
+  const mutationKey = ["migrateStorage"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof migrateStorage>>,
+    { data: MigrateStorageRequest }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return migrateStorage(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type MigrateStorageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof migrateStorage>>
+>;
+export type MigrateStorageMutationBody = MigrateStorageRequest;
+export type MigrateStorageMutationError = ErrorResponse | void;
+
+export const useMigrateStorage = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof migrateStorage>>,
+      TError,
+      { data: MigrateStorageRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof migrateStorage>>,
+  TError,
+  { data: MigrateStorageRequest },
+  TContext
+> => {
+  return useMutation(getMigrateStorageMutationOptions(options), queryClient);
+};
+export const getMigrationJobStatus = (jobId: string, signal?: AbortSignal) => {
+  return customInstance<StorageMigrationJobState>({
+    url: `/api/assets/migrate-jobs/${jobId}`,
+    method: "GET",
+    signal,
+  });
+};
+
+export const getGetMigrationJobStatusQueryKey = (jobId: string) => {
+  return [`/api/assets/migrate-jobs/${jobId}`] as const;
+};
+
+export const getGetMigrationJobStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMigrationJobStatus>>,
+  TError = void,
+>(
+  jobId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getMigrationJobStatus>>,
+        TError,
+        TData
+      >
+    >;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetMigrationJobStatusQueryKey(jobId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getMigrationJobStatus>>
+  > = ({ signal }) => getMigrationJobStatus(jobId, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: jobId !== null && jobId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMigrationJobStatus>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetMigrationJobStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMigrationJobStatus>>
+>;
+export type GetMigrationJobStatusQueryError = void;
+
+export function useGetMigrationJobStatus<
+  TData = Awaited<ReturnType<typeof getMigrationJobStatus>>,
+  TError = void,
+>(
+  jobId: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getMigrationJobStatus>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMigrationJobStatus>>,
+          TError,
+          Awaited<ReturnType<typeof getMigrationJobStatus>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetMigrationJobStatus<
+  TData = Awaited<ReturnType<typeof getMigrationJobStatus>>,
+  TError = void,
+>(
+  jobId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getMigrationJobStatus>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMigrationJobStatus>>,
+          TError,
+          Awaited<ReturnType<typeof getMigrationJobStatus>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetMigrationJobStatus<
+  TData = Awaited<ReturnType<typeof getMigrationJobStatus>>,
+  TError = void,
+>(
+  jobId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getMigrationJobStatus>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useGetMigrationJobStatus<
+  TData = Awaited<ReturnType<typeof getMigrationJobStatus>>,
+  TError = void,
+>(
+  jobId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getMigrationJobStatus>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetMigrationJobStatusQueryOptions(jobId, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 export const requestUpload = (
   requestUploadCommand: RequestUploadCommand,
   signal?: AbortSignal,
@@ -111,7 +372,7 @@ export const requestUpload = (
 };
 
 export const getRequestUploadMutationOptions = <
-  TError = ErrorResponse,
+  TError = ErrorResponse | void,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -151,9 +412,12 @@ export type RequestUploadMutationResult = NonNullable<
   Awaited<ReturnType<typeof requestUpload>>
 >;
 export type RequestUploadMutationBody = RequestUploadCommand;
-export type RequestUploadMutationError = ErrorResponse;
+export type RequestUploadMutationError = ErrorResponse | void;
 
-export const useRequestUpload = <TError = ErrorResponse, TContext = unknown>(
+export const useRequestUpload = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof requestUpload>>,

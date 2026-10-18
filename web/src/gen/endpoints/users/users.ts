@@ -23,6 +23,8 @@ import type {
 
 import type {
   AssignUserRolesCommand,
+  BulkInviteUsersCommand,
+  BulkInviteUsersResponse,
   BulkUpdateUserStatusCommand,
   CreateUserCommand,
   ErrorResponse,
@@ -254,6 +256,83 @@ export function useGetUsers<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+export const bulkInviteUsers = (
+  bulkInviteUsersCommand: BulkInviteUsersCommand,
+  signal?: AbortSignal,
+) => {
+  return customInstance<BulkInviteUsersResponse>({
+    url: `/api/users/bulk-invite`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: bulkInviteUsersCommand,
+    signal,
+  });
+};
+
+export const getBulkInviteUsersMutationOptions = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof bulkInviteUsers>>,
+    TError,
+    { data: BulkInviteUsersCommand },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof bulkInviteUsers>>,
+  TError,
+  { data: BulkInviteUsersCommand },
+  TContext
+> => {
+  const mutationKey = ["bulkInviteUsers"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof bulkInviteUsers>>,
+    { data: BulkInviteUsersCommand }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return bulkInviteUsers(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type BulkInviteUsersMutationResult = NonNullable<
+  Awaited<ReturnType<typeof bulkInviteUsers>>
+>;
+export type BulkInviteUsersMutationBody = BulkInviteUsersCommand;
+export type BulkInviteUsersMutationError = ErrorResponse | void;
+
+export const useBulkInviteUsers = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof bulkInviteUsers>>,
+      TError,
+      { data: BulkInviteUsersCommand },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof bulkInviteUsers>>,
+  TError,
+  { data: BulkInviteUsersCommand },
+  TContext
+> => {
+  return useMutation(getBulkInviteUsersMutationOptions(options), queryClient);
+};
 export const bulkUpdateUserStatus = (
   bulkUpdateUserStatusCommand: BulkUpdateUserStatusCommand,
   signal?: AbortSignal,

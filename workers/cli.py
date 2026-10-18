@@ -32,7 +32,7 @@ from commands import register, scan, health, start, browse, connect, rescan_hard
 def main():
     parser = argparse.ArgumentParser(
         prog="runner",
-        description="Automation Studio Runner Daemon & CLI Tools"
+        description="Forgity Studio Runner Daemon & CLI Tools"
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 

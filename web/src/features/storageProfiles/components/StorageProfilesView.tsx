@@ -182,7 +182,7 @@ export function StorageProfilesView() {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl">
           {profiles.map((profile) => {
             const isStudioCloud = profile.providerType === 0;
             const usedBytes = profile.usedSizeBytes || 0;
@@ -371,6 +371,27 @@ export function StorageProfilesView() {
               </div>
             );
           })}
+
+          {profiles.length === 1 && (
+            <div
+              onClick={handleCreateNew}
+              className="group relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border/60 hover:border-primary/50 bg-muted/5 hover:bg-muted/15 p-6 text-center transition-all cursor-pointer min-h-[220px]"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted group-hover:bg-primary/10 group-hover:text-primary text-muted-foreground transition-colors mb-3">
+                <Plus className="h-6 w-6" />
+              </div>
+              <h4 className="font-semibold text-foreground text-sm group-hover:text-primary transition-colors">
+                Connect Custom S3 Bucket
+              </h4>
+              <p className="text-xs text-muted-foreground max-w-xs mt-1.5 leading-relaxed">
+                Connect your AWS S3, Cloudflare R2, MinIO, or Wasabi for zero-byte asset sync and unlimited storage.
+              </p>
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary mt-4 group-hover:underline">
+                <Plus className="h-3.5 w-3.5" />
+                Add BYOS Storage
+              </span>
+            </div>
+          )}
         </div>
       )}
 

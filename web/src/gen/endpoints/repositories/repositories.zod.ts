@@ -118,7 +118,8 @@ export const GetRepositoryByIdResponse = /*#__PURE__*/ zod.object({
   "isEnabled": /*#__PURE__*/ zod.boolean(),
   "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
-})))
+}))),
+  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 }))
 })),
   "supportedExtensions": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())
