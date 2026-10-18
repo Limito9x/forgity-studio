@@ -100,8 +100,11 @@ export const GetNodeExecutionsResponseItem = /*#__PURE__*/ zod.object({
 })
 export const GetNodeExecutionsResponse = /*#__PURE__*/ zod.array(GetNodeExecutionsResponseItem)
 
+export const exportPipelineBatchBodyModeDefault = 0;
+
 export const ExportPipelineBatchBody = /*#__PURE__*/ zod.object({
-  "pipelineIds": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.uuid())
+  "pipelineIds": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.uuid()),
+  "mode": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1)]), exportPipelineBatchBodyModeDefault)
 })
 
 export const exportPipelineBatchResponsePipelinesItemGraphEdgesItemKindDefault = 2;
@@ -187,7 +190,13 @@ export const ExportPipelineBatchResponse = /*#__PURE__*/ zod.object({
   "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.looseObject({
 
 })),
-  "customScriptKey": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+  "customScriptKey": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "filePins": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.object({
+  "originalFileName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "sizeBytes": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
+  "hashSha256": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "contentType": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+})))
 })),
   "edges": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "sourceNodeTempId": /*#__PURE__*/ zod.string(),
@@ -330,7 +339,13 @@ export const ImportPipelinePackageBody = /*#__PURE__*/ zod.object({
   "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.looseObject({
 
 })),
-  "customScriptKey": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+  "customScriptKey": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "filePins": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.object({
+  "originalFileName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "sizeBytes": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
+  "hashSha256": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "contentType": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+})))
 })),
   "edges": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "sourceNodeTempId": /*#__PURE__*/ zod.string(),
@@ -486,7 +501,13 @@ export const ValidatePipelinePackageBody = /*#__PURE__*/ zod.object({
   "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.looseObject({
 
 })),
-  "customScriptKey": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+  "customScriptKey": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "filePins": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.object({
+  "originalFileName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "sizeBytes": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
+  "hashSha256": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "contentType": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+})))
 })),
   "edges": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "sourceNodeTempId": /*#__PURE__*/ zod.string(),
@@ -544,6 +565,8 @@ export const ValidatePipelinePackageBody = /*#__PURE__*/ zod.object({
 })
 })
 
+export const validatePipelinePackageResponseScriptsItemHasScriptContentDefault = true;
+
 export const ValidatePipelinePackageResponse = /*#__PURE__*/ zod.object({
   "isValid": /*#__PURE__*/ zod.boolean(),
   "validationErrors": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()),
@@ -569,14 +592,16 @@ export const ValidatePipelinePackageResponse = /*#__PURE__*/ zod.object({
   "executor": /*#__PURE__*/ zod.string(),
   "contentHash": /*#__PURE__*/ zod.string(),
   "fileName": /*#__PURE__*/ zod.string(),
-  "alreadyExists": /*#__PURE__*/ zod.boolean()
+  "alreadyExists": /*#__PURE__*/ zod.boolean(),
+  "hasScriptContent": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), validatePipelinePackageResponseScriptsItemHasScriptContentDefault)
 })),
   "contentTypes": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "key": /*#__PURE__*/ zod.string(),
   "name": /*#__PURE__*/ zod.string(),
   "displayName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "alreadyExists": /*#__PURE__*/ zod.boolean()
-}))
+})),
+  "validationWarnings": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()))
 })
 
 export const GetPinCatalogueResponseItem = /*#__PURE__*/ zod.object({
@@ -729,7 +754,13 @@ export const ExportPipelineResponse = /*#__PURE__*/ zod.object({
   "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.looseObject({
 
 })),
-  "customScriptKey": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+  "customScriptKey": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "filePins": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.object({
+  "originalFileName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "sizeBytes": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
+  "hashSha256": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "contentType": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+})))
 })),
   "edges": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "sourceNodeTempId": /*#__PURE__*/ zod.string(),
@@ -849,7 +880,8 @@ export const GetPipelineGraphResponse = /*#__PURE__*/ zod.object({
   "originalName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "contentType": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "sizeBytes": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
-  "status": /*#__PURE__*/ zod.string()
+  "status": /*#__PURE__*/ zod.string(),
+  "hashSha256": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })))
 })),
   "edges": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
@@ -906,6 +938,10 @@ export const SavePipelineGraphBody = /*#__PURE__*/ zod.object({
   "height": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.number()),
   "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.looseObject({
 
+})),
+  "position": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.object({
+  "x": /*#__PURE__*/ zod.number(),
+  "y": /*#__PURE__*/ zod.number()
 }))
 }))),
   "edges": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
@@ -992,7 +1028,8 @@ export const SavePipelineGraphResponse = /*#__PURE__*/ zod.object({
   "originalName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "contentType": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "sizeBytes": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
-  "status": /*#__PURE__*/ zod.string()
+  "status": /*#__PURE__*/ zod.string(),
+  "hashSha256": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })))
 })),
   "edges": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({

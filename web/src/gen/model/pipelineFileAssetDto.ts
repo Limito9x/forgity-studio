@@ -18,4 +18,6 @@ export interface PipelineFileAssetDto {
   /** @nullable */
   sizeBytes: number | null;
   status: string;
+  /** @nullable */
+  hashSha256?: string | null;
 }

@@ -58,7 +58,8 @@ export const GetRunnersResponseItem = /*#__PURE__*/ zod.object({
   "isEnabled": /*#__PURE__*/ zod.boolean(),
   "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
-})))
+}))),
+  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 export const GetRunnersResponse = /*#__PURE__*/ zod.array(GetRunnersResponseItem)
 
@@ -132,7 +133,8 @@ export const GetStudioRunnersResponseItem = /*#__PURE__*/ zod.object({
   "isEnabled": /*#__PURE__*/ zod.boolean(),
   "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
-})))
+}))),
+  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 }))
 })
 export const GetStudioRunnersResponse = /*#__PURE__*/ zod.array(GetStudioRunnersResponseItem)
@@ -192,7 +194,8 @@ export const GetMyRunnerResponse = /*#__PURE__*/ zod.object({
   "isEnabled": /*#__PURE__*/ zod.boolean(),
   "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
-})))
+}))),
+  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 export const registerRunnerBodyNameMin = 0;
@@ -219,7 +222,8 @@ export const RegisterRunnerResponse = /*#__PURE__*/ zod.object({
   "username": /*#__PURE__*/ zod.string(),
   "password": /*#__PURE__*/ zod.string(),
   "virtualHost": /*#__PURE__*/ zod.string()
-}))
+})),
+  "grpcUrl": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 
@@ -244,7 +248,8 @@ export const RegisterRunnerWithTokenResponse = /*#__PURE__*/ zod.object({
   "username": /*#__PURE__*/ zod.string(),
   "password": /*#__PURE__*/ zod.string(),
   "virtualHost": /*#__PURE__*/ zod.string()
-}))
+})),
+  "grpcUrl": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 export const GetSetupTokenStatusParams = /*#__PURE__*/ zod.object({
@@ -445,7 +450,8 @@ export const UpdateRunnerHardwareProfileResponse = /*#__PURE__*/ zod.object({
   "isEnabled": /*#__PURE__*/ zod.boolean(),
   "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
-})))
+}))),
+  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 export const ScanRunnerHardwareParams = /*#__PURE__*/ zod.object({
@@ -497,7 +503,8 @@ export const ScanRunnerHardwareResponse = /*#__PURE__*/ zod.object({
   "isEnabled": /*#__PURE__*/ zod.boolean(),
   "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
-})))
+}))),
+  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 export const AttachRunnerToStudioParams = /*#__PURE__*/ zod.object({
@@ -561,7 +568,24 @@ export const AttachRunnerToStudioResponse = /*#__PURE__*/ zod.object({
   "isEnabled": /*#__PURE__*/ zod.boolean(),
   "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
-})))
+}))),
+  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 }))
+})
+
+export const UpgradeRunnerParams = /*#__PURE__*/ zod.object({
+  "runnerId": /*#__PURE__*/ zod.uuid()
+})
+
+export const UpgradeRunnerBody = /*#__PURE__*/ zod.object({
+  "downloadUrl": /*#__PURE__*/ zod.string(),
+  "targetVersion": /*#__PURE__*/ zod.string(),
+  "expectedSha256": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+})
+
+export const UpgradeRunnerResponse = /*#__PURE__*/ zod.object({
+  "currentVersion": /*#__PURE__*/ zod.string(),
+  "updatedVersion": /*#__PURE__*/ zod.string(),
+  "restartScheduled": /*#__PURE__*/ zod.boolean()
 })
 
