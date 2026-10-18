@@ -7,3 +7,5 @@ backup.sql
 scripts/scratch/
 scripts/*.local.*
 *.scratch.*
+runner/dist/
+runner/target/
