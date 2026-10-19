@@ -34,6 +34,36 @@ public class GetNodePaletteEndpoint(IMessageBus bus)
 [NonTransactional]
 public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext db)
 {
+    private static readonly HashSet<string> HiddenToolKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Start",
+        "BeginExecute",
+        // 23 Zombie / 0-usage tools cleaned from Palette:
+        "ForEachLoop",
+        "MakeMap",
+        "GetMapItem",
+        "SetMapItem",
+        "GetMapKeys",
+        "GetMapValues",
+        "MergeMaps",
+        "ZipToMap",
+        "RemapKeys",
+        "GetArrayItem",
+        "GetCollectionCount",
+        "FilterArray",
+        "SortArray",
+        "SliceArray",
+        "Aggregate",
+        "Branch",
+        "Switch",
+        "Select",
+        "GetVariable",
+        "SetVariable",
+        "AssignTag",
+        "InspectModel",
+        "GetTagValueFromInspection"
+    };
+
     public async Task<Result<IReadOnlyList<NodePaletteItemDto>>> HandleAsync(
         GetNodePaletteQuery query,
         CancellationToken ct
@@ -41,12 +71,11 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
     {
         var result = new List<NodePaletteItemDto>();
 
-        // 1. Built-in Tools from ToolRegistry
+        // 1. Built-in Tools from ToolRegistry (excluding hidden / zombie tools)
         var builtInTools = toolRegistry.GetAll();
         foreach (var tool in builtInTools)
         {
-            if (string.Equals(tool.Key, "Start", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(tool.Key, "BeginExecute", StringComparison.OrdinalIgnoreCase))
+            if (HiddenToolKeys.Contains(tool.Key))
             {
                 continue;
             }
@@ -61,7 +90,8 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
                 "builtin",
                 pInputs,
                 pOutputs,
-                null
+                null,
+                tool.Description
             ));
         }
 
@@ -75,7 +105,8 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
             "builtin",
             returnInputs,
             returnOutputs,
-            null
+            null,
+            "Defines the final outputs and completes the execution of the pipeline graph."
         ));
 
         // 2. Custom User NodeDefinitions from DB
@@ -100,12 +131,13 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
                 node.Executor,
                 pInputs,
                 pOutputs,
-                node.Id
+                node.Id,
+                null
             ));
         }
 
-        // 3. Sub-Pipelines from DB (Pipelines in the same Project)
-        if (query.ProjectId.HasValue)
+        // 3. Sub-Pipelines from DB (Only include if explicitly requested via executor == "macro")
+        if (query.ProjectId.HasValue && string.Equals(query.Executor, "macro", StringComparison.OrdinalIgnoreCase))
         {
             var pipelines = await db.Pipelines
                 .AsNoTracking()
@@ -153,7 +185,8 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
                     "builtin",
                     pInputs,
                     pOutputs,
-                    p.Id
+                    p.Id,
+                    null
                 ));
             }
         }
@@ -199,5 +232,6 @@ public record NodePaletteItemDto(
     string Executor,
     IReadOnlyList<PinDefinition> Inputs,
     IReadOnlyList<PinDefinition> Outputs,
-    Guid? Id = null
+    Guid? Id = null,
+    string? Description = null
 );

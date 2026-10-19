@@ -5,6 +5,7 @@ import { NodeLibraryTable } from "./NodeLibraryTable";
 import { PinBadge } from "./PinBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogHeader,
@@ -23,6 +24,8 @@ import {
   Trash2,
   Loader2,
   BookOpen,
+  Server,
+  Code2,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { NodePaletteItemDto } from "@/gen/model";
@@ -39,6 +42,9 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
   const { data: nodes = [], isLoading } = useNodePalette(projectId);
   const { deleteNode, isDeletingNode } = usePipelineNodeMutations(projectId);
 
+  // Tab Scope: "custom" (Custom Script Library) vs "builtin" (Server Built-in Tools)
+  const [activeScopeTab, setActiveScopeTab] = useState<"custom" | "builtin">("custom");
+
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const isSearching = search !== deferredSearch;
@@ -49,20 +55,8 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    nodes.forEach((n) => {
-      if (n.category) set.add(n.category);
-    });
-    return ["All", "BuiltIn", "Custom", ...Array.from(set)];
-  }, [nodes]);
-
-  const filteredNodes = useMemo(() => {
-    const q = deferredSearch.trim().toLowerCase();
-    const isAll = selectedCategory === "All";
-    const isCustom = selectedCategory === "Custom";
-    const isBuiltIn = selectedCategory === "BuiltIn";
-
+  // Filter out Start node and SubPipeline from general library view
+  const validNodes = useMemo(() => {
     return nodes.filter((node) => {
       const isStart =
         node.key?.toLowerCase() === "start" ||
@@ -70,16 +64,40 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
         node.label?.toLowerCase() === "start" ||
         node.label?.toLowerCase() === "start pipeline";
       if (isStart) return false;
-
-      // Hide sub-pipelines from the script library — they live in the canvas picker.
       if (node.source === "SubPipeline") return false;
+      return true;
+    });
+  }, [nodes]);
 
-      const matchCategory =
-        isAll ||
-        (isCustom && node.source === "Custom") ||
-        (isBuiltIn && node.source !== "Custom") ||
-        node.category === selectedCategory;
+  const builtInNodesCount = useMemo(() => {
+    return validNodes.filter((n) => n.source !== "Custom").length;
+  }, [validNodes]);
 
+  const customNodesCount = useMemo(() => {
+    return validNodes.filter((n) => n.source === "Custom").length;
+  }, [validNodes]);
+
+  // Categories based on active tab scope
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    validNodes
+      .filter((n) => (activeScopeTab === "custom" ? n.source === "Custom" : n.source !== "Custom"))
+      .forEach((n) => {
+        if (n.category) set.add(n.category);
+      });
+    return ["All", ...Array.from(set)];
+  }, [validNodes, activeScopeTab]);
+
+  const filteredNodes = useMemo(() => {
+    const q = deferredSearch.trim().toLowerCase();
+    const isAll = selectedCategory === "All";
+
+    return validNodes.filter((node) => {
+      const matchScope =
+        activeScopeTab === "custom" ? node.source === "Custom" : node.source !== "Custom";
+      if (!matchScope) return false;
+
+      const matchCategory = isAll || node.category === selectedCategory;
       if (!matchCategory) return false;
 
       if (!q) return true;
@@ -91,7 +109,7 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
         node.executor?.toLowerCase().includes(q)
       );
     });
-  }, [nodes, deferredSearch, selectedCategory]);
+  }, [validNodes, deferredSearch, selectedCategory, activeScopeTab]);
 
   const handleDelete = useCallback(
     async (node: NodePaletteItemDto) => {
@@ -117,6 +135,7 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
 
   const { table, columns, selectedNodes, setRowSelection } = useNodeLibraryTable({
     data: filteredNodes,
+    scope: activeScopeTab,
     onInspect: handleInspect,
     onEdit: handleEdit,
     onDelete: handleDelete,
@@ -127,8 +146,6 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
     if (ids.length === 0) return;
     setIsBulkDeleting(true);
     try {
-      // No bulk endpoint yet — sequential delete keeps behaviour atomic per node
-      // and reuses the existing invalidation. Replace with bulk API when available.
       for (const id of ids) {
         await deleteNode(id);
       }
@@ -136,15 +153,21 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
       setRowSelection({});
       setBulkDeleteOpen(false);
     } catch {
-      // per-node toast already handled in usePipelineNodeMutations
+      // per-node toast handled in mutation
     } finally {
       setIsBulkDeleting(false);
     }
   };
 
+  const handleSwitchTab = (tab: "builtin" | "custom") => {
+    setActiveScopeTab(tab);
+    setSelectedCategory("All");
+    setRowSelection({});
+  };
+
   return (
     <div className="space-y-4 max-w-full">
-      {/* Header Bar — Batch Upload is the primary action, single create stays secondary */}
+      {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3.5">
         <div>
           <h1 className="text-xl font-bold tracking-tight flex items-center gap-2 text-foreground">
@@ -178,6 +201,49 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
         </div>
       </div>
 
+      {/* 2 Scope Tabs: Custom Script Library vs Server Built-in Tools */}
+      <div className="flex items-center border-b border-border/60 gap-1 pb-px">
+        <button
+          type="button"
+          onClick={() => handleSwitchTab("custom")}
+          className={cn(
+            "flex items-center gap-2 px-3.5 py-2 text-xs font-semibold border-b-2 transition-all cursor-pointer",
+            activeScopeTab === "custom"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+          )}
+        >
+          <Code2 className="h-3.5 w-3.5" />
+          <span>Custom Script Library (Python)</span>
+          <Badge
+            variant={activeScopeTab === "custom" ? "default" : "secondary"}
+            className="text-[10px] px-1.5 py-0 h-4 font-mono font-normal ml-0.5"
+          >
+            {customNodesCount}
+          </Badge>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleSwitchTab("builtin")}
+          className={cn(
+            "flex items-center gap-2 px-3.5 py-2 text-xs font-semibold border-b-2 transition-all cursor-pointer",
+            activeScopeTab === "builtin"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+          )}
+        >
+          <Server className="h-3.5 w-3.5" />
+          <span>Server Built-in Tools</span>
+          <Badge
+            variant={activeScopeTab === "builtin" ? "default" : "secondary"}
+            className="text-[10px] px-1.5 py-0 h-4 font-mono font-normal ml-0.5"
+          >
+            {builtInNodesCount}
+          </Badge>
+        </button>
+      </div>
+
       {/* Filter & Search Bar */}
       <div className="space-y-2">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
@@ -188,7 +254,7 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
               <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
             )}
             <Input
-              placeholder="Search nodes by name, key, or category..."
+              placeholder={activeScopeTab === "custom" ? "Search custom scripts..." : "Search server tools..."}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 pr-7 h-8 text-xs bg-muted/40 border-border/50"
@@ -205,7 +271,8 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
 
           <div className="flex items-center justify-between sm:justify-end gap-2 text-[11px] text-muted-foreground">
             <span>
-              Showing <strong className="text-foreground">{filteredNodes.length}</strong> of {nodes.length} nodes
+              Showing <strong className="text-foreground">{filteredNodes.length}</strong> of{" "}
+              {activeScopeTab === "builtin" ? builtInNodesCount : customNodesCount} nodes
             </span>
             {(search || selectedCategory !== "All") && (
               <Button
@@ -223,31 +290,33 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
           </div>
         </div>
 
-        {/* Scrollable Categories Pills */}
-        <div className="flex items-center gap-1 overflow-x-auto py-1 max-w-full no-scrollbar">
-          {categories.map((cat) => {
-            const isSelected = selectedCategory === cat;
-            return (
-              <Button
-                key={cat}
-                variant={isSelected ? "default" : "outline"}
-                size="sm"
-                className={cn(
-                  "h-6.5 text-[11px] px-2.5 rounded-full shrink-0 font-medium transition-all duration-150",
-                  isSelected
-                    ? "shadow-xs font-semibold"
-                    : "text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted/50"
-                )}
-                onPress={() => {
-                  setSelectedCategory(cat);
-                  setRowSelection({});
-                }}
-              >
-                {cat}
-              </Button>
-            );
-          })}
-        </div>
+        {/* Scrollable Categories Pills — only show if there are 2 or more distinct categories */}
+        {categories.length > 2 && (
+          <div className="flex items-center gap-1 overflow-x-auto py-1 max-w-full no-scrollbar">
+            {categories.map((cat) => {
+              const isSelected = selectedCategory === cat;
+              return (
+                <Button
+                  key={cat}
+                  variant={isSelected ? "default" : "outline"}
+                  size="sm"
+                  className={cn(
+                    "h-6.5 text-[11px] px-2.5 rounded-full shrink-0 font-medium transition-all duration-150",
+                    isSelected
+                      ? "shadow-xs font-semibold"
+                      : "text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted/50"
+                  )}
+                  onPress={() => {
+                    setSelectedCategory(cat);
+                    setRowSelection({});
+                  }}
+                >
+                  {cat}
+                </Button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Batch toolbar — only Custom rows are selectable */}
@@ -286,21 +355,36 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
       ) : filteredNodes.length === 0 ? (
         <div className="text-center py-12 border rounded-xl border-dashed bg-muted/10 space-y-2.5">
           <Box className="size-8 text-muted-foreground mx-auto opacity-70" />
-          <p className="font-semibold text-sm">No matching nodes found</p>
-          <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-            Try adjusting your search query or selecting a different category filter.
+          <p className="font-semibold text-sm">
+            No {activeScopeTab === "builtin" ? "core tools" : "custom scripts"} found
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs"
-            onPress={() => {
-              setSearch("");
-              setSelectedCategory("All");
-            }}
-          >
-            Reset Filters
-          </Button>
+          <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+            {activeScopeTab === "custom"
+              ? "You haven't uploaded any custom Python script nodes yet. Click 'Upload Scripts' to get started."
+              : "Try adjusting your search query or selecting a different category filter."}
+          </p>
+          {activeScopeTab === "custom" ? (
+            <Button
+              size="sm"
+              className="h-7 text-xs gap-1.5"
+              onPress={() => nav.toNodeIngest()}
+            >
+              <UploadCloud className="size-3.5" />
+              Upload Python Script
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onPress={() => {
+                setSearch("");
+                setSelectedCategory("All");
+              }}
+            >
+              Reset Filters
+            </Button>
+          )}
         </div>
       ) : (
         <div className={cn("transition-opacity duration-150", isSearching && "opacity-60 pointer-events-none")}>

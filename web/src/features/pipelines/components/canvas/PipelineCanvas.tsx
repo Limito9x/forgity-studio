@@ -6,6 +6,7 @@ import {
   MiniMap,
   BackgroundVariant,
   useReactFlow,
+  ConnectionLineType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { toast } from "sonner";
@@ -46,12 +47,15 @@ const nodeTypes = {
 
 const defaultEdgeOptions = {
   animated: true,
+  type: "smoothstep",
+  pathOptions: { borderRadius: 12 },
   style: { strokeWidth: 2 },
 };
 
 export function PipelineCanvas({ projectId, graph }: PipelineCanvasProps) {
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, setCenter } = useReactFlow();
   const { data: paletteItems = [] } = useNodePalette(projectId);
+  const [isAutoFollow, setIsAutoFollow] = useState(true);
 
   // 1. Headless Draft State & Auto-save (with Stage Auto-expanding)
   const draft = usePipelineDraftState(graph);
@@ -153,6 +157,30 @@ export function PipelineCanvas({ projectId, graph }: PipelineCanvasProps) {
   // Canvas Lock status: Locked when executing or inspecting an execution
   const isLocked = Boolean(live.isExecutionRunning || live.activeExecutionId);
 
+  // Camera Auto-Follow: Smoothly center on the active running node during execution
+  useEffect(() => {
+    if (!isAutoFollow || !live.activeRunningNodeId) return;
+
+    const targetNode = draft.nodes.find((n) => n.id === live.activeRunningNodeId);
+    if (!targetNode) return;
+
+    let posX = targetNode.position.x;
+    let posY = targetNode.position.y;
+
+    if (targetNode.parentId) {
+      const parent = draft.nodes.find((n) => n.id === targetNode.parentId);
+      if (parent) {
+        posX += parent.position.x;
+        posY += parent.position.y;
+      }
+    }
+
+    const width = (targetNode.measured?.width ?? targetNode.width ?? 240) as number;
+    const height = (targetNode.measured?.height ?? targetNode.height ?? 120) as number;
+
+    setCenter(posX + width / 2, posY + height / 2, { zoom: 1.25, duration: 650 });
+  }, [live.activeRunningNodeId, isAutoFollow, draft.nodes, setCenter]);
+
   return (
     <PipelineFormScopeProvider value={scopeValue}>
       <div className="relative flex h-full w-full flex-col overflow-hidden bg-background">
@@ -171,6 +199,8 @@ export function PipelineCanvas({ projectId, graph }: PipelineCanvasProps) {
           onValidate={handleValidate}
           isValidating={validateMutation.isPending}
           isExecuting={live.isExecutionRunning}
+          isAutoFollow={isAutoFollow}
+          onToggleAutoFollow={() => setIsAutoFollow((prev) => !prev)}
         />
 
         {/* Main Canvas & Inspector Layout */}
@@ -212,6 +242,7 @@ export function PipelineCanvas({ projectId, graph }: PipelineCanvasProps) {
               isValidConnection={conn.isValidConnection}
               nodeTypes={nodeTypes}
               defaultEdgeOptions={defaultEdgeOptions}
+              connectionLineType={ConnectionLineType.SmoothStep}
               deleteKeyCode={isLocked ? null : ["Backspace", "Delete"]}
               onNodeClick={(_, node) => {
                 if (node.type !== "scopeContainer") {
