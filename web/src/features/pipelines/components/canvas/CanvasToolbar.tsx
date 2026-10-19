@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Pencil,
   Download,
+  LocateFixed,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useReactFlow } from "@xyflow/react";
@@ -34,6 +35,8 @@ interface CanvasToolbarProps {
   onValidate: () => void;
   isValidating?: boolean;
   isExecuting?: boolean;
+  isAutoFollow?: boolean;
+  onToggleAutoFollow?: () => void;
 }
 
 export function CanvasToolbar({
@@ -47,6 +50,8 @@ export function CanvasToolbar({
   onValidate,
   isValidating,
   isExecuting = false,
+  isAutoFollow = true,
+  onToggleAutoFollow,
 }: CanvasToolbarProps) {
   const { studioSlug } = useCurrentStudio();
   const { fitView, zoomIn, zoomOut } = useReactFlow();
@@ -184,17 +189,47 @@ export function CanvasToolbar({
 
       {/* Right: Canvas Actions & Run */}
       <div className="flex items-center gap-2">
-        {/* Zoom & Fit View */}
+        {/* Zoom, Fit View & Auto-Follow */}
         <div className="hidden md:flex items-center gap-1 bg-muted/40 p-1 rounded-lg border border-border/40">
-          <Button variant="ghost" size="icon" className="h-7 w-7" onPress={() => zoomIn()}>
-            <ZoomIn className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onPress={() => zoomOut()}>
-            <ZoomOut className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onPress={() => fitView({ padding: 0.2 })}>
-            <Maximize2 className="h-3.5 w-3.5" />
-          </Button>
+          {onToggleAutoFollow && (
+            <div
+              title={
+                isAutoFollow
+                  ? "Auto-follow running node: Enabled (Click to pause)"
+                  : "Auto-follow running node: Disabled (Click to enable)"
+              }
+            >
+              <Button
+                variant={isAutoFollow ? "default" : "ghost"}
+                size="icon"
+                className={cn(
+                  "h-7 w-7 transition-colors",
+                  isAutoFollow
+                    ? "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                onPress={onToggleAutoFollow}
+                aria-label="Toggle auto-follow running node"
+              >
+                <LocateFixed className={cn("h-3.5 w-3.5", isAutoFollow && "animate-pulse")} />
+              </Button>
+            </div>
+          )}
+          <div title="Zoom In">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onPress={() => zoomIn()} aria-label="Zoom In">
+              <ZoomIn className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <div title="Zoom Out">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onPress={() => zoomOut()} aria-label="Zoom Out">
+              <ZoomOut className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <div title="Fit View">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onPress={() => fitView({ padding: 0.2 })} aria-label="Fit View">
+              <Maximize2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
 
         {/* History / Executions Drawer Trigger */}

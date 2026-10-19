@@ -131,13 +131,15 @@ export function useCanvasConnectionRules({
               height: 16,
             },
             className: isExec ? "text-foreground" : isRunnerEdge ? "text-amber-500" : "text-sky-400",
+            type: "smoothstep",
+            pathOptions: { borderRadius: 12 },
             style: isExec
               ? { stroke: "currentColor", strokeWidth: 3.5, strokeDasharray: "none" }
               : isRunnerEdge
               ? { stroke: "#f59e0b", strokeWidth: 2.5 }
               : { stroke: "#38bdf8", strokeWidth: 2 },
             data: isStageEdge ? { isStageEdge: true } : isRunnerEdge ? { isRunnerEdge: true } : undefined,
-          },
+          } as any,
           filtered
         );
       });

@@ -24,7 +24,6 @@ import {
   Trash2,
   Loader2,
   BookOpen,
-  Cpu,
   Server,
   Code2,
 } from "lucide-react";
