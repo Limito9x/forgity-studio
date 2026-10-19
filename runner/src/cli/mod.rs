@@ -5,15 +5,20 @@ pub mod register;
 pub mod start;
 
 use clap::{Parser, Subcommand};
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(
     name = "forgity-runner",
-    version,
+    version = env!("FORGITY_RUNNER_VERSION"),
     about = "Forgity Studio Native Runner Daemon — High Performance 3D Automation Engine",
     long_about = "Forgity Studio Native Runner Daemon executes headless 3D pipelines directly on your workstation GPU with Blender and Unreal Engine."
 )]
 pub struct Cli {
+    /// Custom path to runner configuration TOML file
+    #[arg(short, long, global = true, env = "FORGITY_CONFIG")]
+    pub config: Option<PathBuf>,
+
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -32,6 +37,10 @@ pub enum Commands {
         /// API endpoint URL
         #[arg(long, default_value = "http://localhost:5189", env = "FORGITY_API_URL")]
         api_url: String,
+
+        /// Save runner configuration locally to ./runner.toml in current directory (for local dev/testing)
+        #[arg(short, long)]
+        local: bool,
     },
 
     /// Start the runner daemon in background worker mode
@@ -39,6 +48,10 @@ pub enum Commands {
         /// Override log level (trace, debug, info, warn, error)
         #[arg(long, default_value = "info", env = "FORGITY_LOG_LEVEL")]
         log_level: String,
+
+        /// Force loading local ./runner.toml from current working directory
+        #[arg(short, long)]
+        local: bool,
     },
 
     /// Manage the background runner daemon (install, uninstall, start, stop, restart, status)

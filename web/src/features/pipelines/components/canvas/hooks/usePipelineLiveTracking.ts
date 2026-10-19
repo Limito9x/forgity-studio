@@ -26,6 +26,7 @@ export function usePipelineLiveTracking({
     "history" | "inspect" | "logs"
   >("logs");
   const [isExecutionRunning, setIsExecutionRunning] = useState<boolean>(false);
+  const [activeRunningNodeId, setActiveRunningNodeId] = useState<string | null>(null);
 
   const [liveNodeStatuses, setLiveNodeStatuses] = useState<
     Record<string, "idle" | "running" | "succeeded" | "failed">
@@ -57,6 +58,7 @@ export function usePipelineLiveTracking({
 
   const clearActiveExecution = useCallback(() => {
     setActiveExecutionId(null);
+    setActiveRunningNodeId(null);
     setLiveNodeStatuses({});
     setLiveNodeOutputs({});
     setLiveNodeErrors({});
@@ -69,6 +71,7 @@ export function usePipelineLiveTracking({
     onExecutionStarted: (execId: string) => {
       isCancelledRef.current = false;
       setActiveExecutionId(execId);
+      setActiveRunningNodeId(null);
       setLiveNodeStatuses({});
       setLiveNodeOutputs({});
       setLiveNodeErrors({});
@@ -90,6 +93,12 @@ export function usePipelineLiveTracking({
           ...prev,
           [nodeId]: mappedStatus,
         }));
+        if (mappedStatus === "running") {
+          setActiveRunningNodeId(nodeId);
+        } else {
+          setActiveRunningNodeId((prev) => (prev === nodeId ? null : prev));
+        }
+
         if (outputs) {
           setLiveNodeOutputs((prev) => ({
             ...prev,
@@ -116,6 +125,7 @@ export function usePipelineLiveTracking({
       errorMessage?: string,
     ) => {
       setIsExecutionRunning(false);
+      setActiveRunningNodeId(null);
       const isFail =
         status === ExecutionStatus.Failed ||
         String(status).toLowerCase() === "failed" ||
@@ -269,6 +279,7 @@ export function usePipelineLiveTracking({
     setActiveExecutionId,
     clearActiveExecution,
     isExecutionRunning,
+    activeRunningNodeId,
     isDrawerOpen,
     setIsDrawerOpen,
     drawerDefaultTab,

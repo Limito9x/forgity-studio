@@ -13,6 +13,7 @@ export type StageCreationOption = {
   name: string;
   kind: "Worker" | "Server" | "Macro";
   executorKey: string;
+  description: string;
 };
 
 interface ContextMenuPaletteProps {
@@ -85,13 +86,46 @@ export function ContextMenuPalette({
   }, [position, onClose]);
 
   // Stage Creation Options when right-clicking on empty canvas
-  const stageOptions: StageCreationOption[] = useMemo(() => [
-    { type: "stage", name: "Python Stage", kind: "Worker", executorKey: "python" },
-    { type: "stage", name: "Blender Stage", kind: "Worker", executorKey: "blender" },
-    { type: "stage", name: "Unreal Stage", kind: "Worker", executorKey: "unreal" },
-    { type: "stage", name: "Core Services", kind: "Server", executorKey: "dotNet" },
-    { type: "stage", name: "Macro Stage", kind: "Macro", executorKey: "dotNet" },
-  ], []);
+  const stageOptions: StageCreationOption[] = useMemo(
+    () => [
+      {
+        type: "stage",
+        name: "Python Stage",
+        kind: "Worker",
+        executorKey: "python",
+        description: "General scripting & worker operations",
+      },
+      {
+        type: "stage",
+        name: "Blender Stage",
+        kind: "Worker",
+        executorKey: "blender",
+        description: "3D scene processing, mesh & geometry",
+      },
+      {
+        type: "stage",
+        name: "Unreal Stage",
+        kind: "Worker",
+        executorKey: "unreal",
+        description: "Asset ingestion, materials & level bake",
+      },
+      {
+        type: "stage",
+        name: "Core Services",
+        kind: "Server",
+        executorKey: "dotNet",
+        description: "Native C# services, storage & database",
+      },
+      {
+        type: "stage",
+        name: "Macro Stage",
+        kind: "Macro",
+        executorKey: "dotNet",
+        description: "Reusable composite sub-pipeline scope",
+      },
+    ],
+    []
+  );
 
   // Filtered items (Server already handles scoped executor filtering)
   const filteredItems = useMemo(() => {
@@ -100,7 +134,7 @@ export function ContextMenuPalette({
       return [];
     }
 
-    let items = paletteItems.filter(
+    const items = paletteItems.filter(
       (item) =>
         item.key.toLowerCase() !== "start" &&
         item.key.toLowerCase() !== "beginexecute" &&
@@ -124,7 +158,10 @@ export function ContextMenuPalette({
     const q = search.trim().toLowerCase();
     if (!q) return stageOptions;
     return stageOptions.filter(
-      (s) => s.name.toLowerCase().includes(q) || s.kind.toLowerCase().includes(q)
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        s.kind.toLowerCase().includes(q) ||
+        s.description.toLowerCase().includes(q)
     );
   }, [onCreateStage, targetStage, stageOptions, search]);
 
@@ -145,18 +182,20 @@ export function ContextMenuPalette({
   // Keep menu within viewport
   const style: React.CSSProperties = {
     top: Math.min(position.y, window.innerHeight - 380),
-    left: Math.min(position.x, window.innerWidth - 320),
+    left: Math.min(position.x, window.innerWidth - 340),
   };
 
   return (
     <div
       ref={containerRef}
       style={style}
-      className="fixed z-50 w-72 rounded-xl border border-border/80 bg-popover p-2 shadow-2xl animate-in fade-in zoom-in-95 duration-100"
+      className="fixed z-50 w-80 rounded-xl border border-border/80 bg-popover p-2 shadow-2xl animate-in fade-in zoom-in-95 duration-100"
     >
       {targetStage && (
-        <div className="mb-2 px-2 py-1 bg-muted/60 rounded-md flex items-center justify-between text-[11px] text-muted-foreground border border-border/40">
-          <span className="truncate">Adding to: <strong className="text-foreground font-semibold">{targetStage.name}</strong></span>
+        <div className="mb-2 px-2.5 py-1.5 bg-muted/60 rounded-md flex items-center justify-between text-[11px] text-muted-foreground border border-border/40">
+          <span className="truncate">
+            Adding to: <strong className="text-foreground font-semibold">{targetStage.name}</strong>
+          </span>
           <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-background font-mono font-semibold">
             {isWorkerStage ? (targetStage.executorKey || "DCC").toUpperCase() : isServerStage ? "CORE" : "MACRO"}
           </span>
@@ -182,7 +221,7 @@ export function ContextMenuPalette({
         )}
       </div>
 
-      <ScrollArea className="h-64 pr-1">
+      <ScrollArea className="h-68 pr-1">
         {isLoading ? (
           <div className="py-8 text-center text-xs text-muted-foreground">Loading palette...</div>
         ) : grouped.length === 0 && filteredStages.length === 0 ? (
@@ -200,11 +239,11 @@ export function ContextMenuPalette({
                   {filteredStages.map((stage) => {
                     const icon =
                       stage.kind === "Worker" ? (
-                        <Cpu className="h-3 w-3" />
+                        <Cpu className="h-3.5 w-3.5" />
                       ) : stage.kind === "Server" ? (
-                        <Server className="h-3 w-3" />
+                        <Server className="h-3.5 w-3.5" />
                       ) : (
-                        <Layers className="h-3 w-3" />
+                        <Layers className="h-3.5 w-3.5" />
                       );
                     const color =
                       stage.kind === "Worker"
@@ -219,15 +258,20 @@ export function ContextMenuPalette({
                           onCreateStage?.(stage);
                           onClose();
                         }}
-                        className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent hover:text-accent-foreground group"
+                        className="flex w-full items-center justify-between gap-2.5 rounded-lg px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent hover:text-accent-foreground group cursor-pointer"
                       >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded", color)}>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md", color)}>
                             {icon}
                           </div>
-                          <span className="block truncate font-medium text-foreground group-hover:text-primary">
-                            {stage.name}
-                          </span>
+                          <div className="min-w-0">
+                            <span className="block truncate font-medium text-foreground group-hover:text-primary">
+                              {stage.name}
+                            </span>
+                            <span className="block text-[10px] text-muted-foreground truncate leading-tight">
+                              {stage.description}
+                            </span>
+                          </div>
                         </div>
                         <Plus className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-primary shrink-0" />
                       </button>
@@ -245,27 +289,39 @@ export function ContextMenuPalette({
                 <div className="space-y-0.5">
                   {items.map((item) => {
                     const isTool = item.source === "Tool";
+                    const inCount = item.inputs?.length || 0;
+                    const outCount = item.outputs?.length || 0;
+                    const tooltipText = `${item.label} (${item.key})\nExecutor: ${item.executor}\nInputs (${inCount}): ${
+                      item.inputs?.map((p: any) => p.label || p.id).join(", ") || "None"
+                    }\nOutputs (${outCount}): ${
+                      item.outputs?.map((p: any) => p.label || p.id).join(", ") || "None"
+                    }`;
+
                     return (
                       <button
                         key={item.key}
+                        title={tooltipText}
                         onClick={() => {
                           onSelect(item);
                           onClose();
                         }}
-                        className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent hover:text-accent-foreground group"
+                        className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent hover:text-accent-foreground group cursor-pointer"
                       >
-                        <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex items-center gap-2.5 min-w-0">
                           <div
                             className={cn(
-                              "flex h-5 w-5 shrink-0 items-center justify-center rounded",
+                              "flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
                               isTool ? "bg-blue-500/10 text-blue-500" : "bg-purple-500/10 text-purple-500"
                             )}
                           >
-                            {isTool ? <Box className="h-3 w-3" /> : <FileCode className="h-3 w-3" />}
+                            {isTool ? <Box className="h-3.5 w-3.5" /> : <FileCode className="h-3.5 w-3.5" />}
                           </div>
                           <div className="min-w-0">
                             <span className="block truncate font-medium text-foreground group-hover:text-primary">
                               {item.label}
+                            </span>
+                            <span className="block text-[10px] text-muted-foreground truncate font-mono leading-tight">
+                              {item.key} • {inCount} in, {outCount} out
                             </span>
                           </div>
                         </div>

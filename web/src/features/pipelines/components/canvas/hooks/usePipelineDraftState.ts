@@ -182,6 +182,8 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
           height: 16,
         },
         className: isExec ? "text-foreground" : "text-sky-400",
+        type: "smoothstep",
+        pathOptions: { borderRadius: 12 },
         style: isExec
           ? {
               stroke: "currentColor",

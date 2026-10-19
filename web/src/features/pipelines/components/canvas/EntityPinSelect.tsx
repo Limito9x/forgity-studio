@@ -200,9 +200,16 @@ export function EntityPinSelect({
         <div className="space-y-3 rounded-lg border border-border/60 bg-card/40 p-3 shadow-xs">
           {/* 1. Select Repository */}
           <div className="space-y-1">
-            <span className="text-[11px] font-medium text-muted-foreground">
-              1. Select Repository
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-muted-foreground">
+                1. Select Repository
+              </span>
+              {isRepositoriesLoading && (
+                <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <Loader2 className="h-2.5 w-2.5 animate-spin" /> Loading...
+                </span>
+              )}
+            </div>
             <BaseCombobox
               items={repositoryOptions}
               value={selectedRepositoryId || undefined}
@@ -283,9 +290,17 @@ export function EntityPinSelect({
               {/* Resources Checklist Container */}
               <div className="max-h-60 overflow-y-auto rounded-md border border-border/60 bg-background/80 p-1 divide-y divide-border/20">
                 {isResourcesLoading ? (
-                  <div className="flex items-center justify-center py-6 text-xs text-muted-foreground gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    Loading repository resources...
+                  <div className="space-y-1.5 p-2 animate-pulse">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="flex items-center gap-2.5 px-2 py-2 rounded bg-muted/30">
+                        <div className="h-3.5 w-3.5 rounded bg-muted/60 shrink-0" />
+                        <div className="h-4 w-4 rounded bg-muted/60 shrink-0" />
+                        <div className="flex-1 space-y-1">
+                          <div className="h-3 w-3/5 rounded bg-muted/70" />
+                          <div className="h-2 w-2/5 rounded bg-muted/40" />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : filteredResources.length === 0 ? (
                   <div className="py-6 text-center text-xs text-muted-foreground">
@@ -337,7 +352,14 @@ export function EntityPinSelect({
     return (
       <div className="space-y-2">
         <div className="space-y-1">
-          <span className="text-[10px] font-medium text-muted-foreground">1. Select Repository</span>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-medium text-muted-foreground">1. Select Repository</span>
+            {isRepositoriesLoading && (
+              <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                <Loader2 className="h-2.5 w-2.5 animate-spin" /> Loading...
+              </span>
+            )}
+          </div>
           <BaseCombobox
             items={repositoryOptions}
             value={selectedRepositoryId || undefined}
@@ -351,12 +373,25 @@ export function EntityPinSelect({
         </div>
 
         <div className="space-y-1">
-          <span className="text-[10px] font-medium text-muted-foreground">2. Select Resource (Auto Latest Version)</span>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-medium text-muted-foreground">2. Select Resource (Draft Version)</span>
+            {isResourcesLoading && (
+              <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
+                <Loader2 className="h-2.5 w-2.5 animate-spin" /> Loading...
+              </span>
+            )}
+          </div>
           <BaseCombobox
             items={resourceOptions}
             value={value ? String(value) : undefined}
             onValueChange={(newVal) => onChange(newVal || null)}
-            placeholder={selectedRepositoryId ? "Select resource file..." : "Select repository above first..."}
+            placeholder={
+              isResourcesLoading
+                ? "Loading resources..."
+                : selectedRepositoryId
+                ? "Select resource file..."
+                : "Select repository above first..."
+            }
             disabled={disabled || !selectedRepositoryId || isResourcesLoading}
             emptyText={isResourcesLoading ? "Loading resources..." : "No resources found in this repository."}
           />
@@ -375,13 +410,22 @@ export function EntityPinSelect({
   const displayLabel = isRepo ? "Repository" : (entityType || "Entity");
 
   return (
-    <BaseCombobox
-      items={options}
-      value={value ? String(value) : undefined}
-      onValueChange={(newVal) => onChange(newVal || null)}
-      placeholder={placeholder || `Select ${displayLabel}...`}
-      disabled={disabled || isLoading}
-      emptyText={isLoading ? "Loading..." : `No ${displayLabel.toLowerCase()} found.`}
-    />
+    <div className="space-y-1">
+      {isLoading && (
+        <div className="flex items-center justify-end">
+          <span className="flex items-center gap-1 text-[9px] text-muted-foreground">
+            <Loader2 className="h-2.5 w-2.5 animate-spin" /> Loading {displayLabel.toLowerCase()}...
+          </span>
+        </div>
+      )}
+      <BaseCombobox
+        items={options}
+        value={value ? String(value) : undefined}
+        onValueChange={(newVal) => onChange(newVal || null)}
+        placeholder={isLoading ? `Loading ${displayLabel.toLowerCase()}...` : placeholder || `Select ${displayLabel}...`}
+        disabled={disabled || isLoading}
+        emptyText={isLoading ? "Loading..." : `No ${displayLabel.toLowerCase()} found.`}
+      />
+    </div>
   );
 }

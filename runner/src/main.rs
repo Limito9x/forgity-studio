@@ -23,19 +23,20 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let cli = Cli::parse();
+    let config_override = cli.config.as_deref();
 
     match cli.command {
         Commands::Doctor => {
             cli::doctor::run_doctor();
         }
-        Commands::Register { token, api_url } => {
-            cli::register::run_register(api_url, token).await?;
+        Commands::Register { token, api_url, local } => {
+            cli::register::run_register(api_url, token, config_override, local).await?;
         }
-        Commands::Start { log_level: _ } => {
-            cli::start::run_start().await?;
+        Commands::Start { log_level: _, local } => {
+            cli::start::run_start(config_override, local).await?;
         }
         Commands::Daemon { action } => {
-            cli::daemon::run_daemon(action).await?;
+            cli::daemon::run_daemon(action, config_override).await?;
         }
         Commands::Clean { all, days } => {
             cli::clean::run_clean(all, days).await?;

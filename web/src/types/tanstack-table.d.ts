@@ -5,5 +5,7 @@ declare module '@tanstack/react-table' {
         label?: string;
         icon?: React.ElementType;
         isRowHeader?: boolean;
+        headerClassName?: string;
+        className?: string;
     }
 }

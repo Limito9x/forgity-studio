@@ -18,6 +18,46 @@ use crate::storage::downloader::StreamDownloader;
 use crate::storage::lock::StorageLockGuard;
 use crate::system::dcc::resolve_executor_executable;
 
+const EMBEDDED_GUEST_SCRIPT: &str = include_str!("../../scripts/stage_runner_guest.py");
+
+/// Ensures that `stage_runner_guest.py` is present and returns its absolute path.
+/// Searches in CWD, next to the runner executable, and falls back to writing the embedded script to %LOCALAPPDATA%/Forgity/scripts/.
+pub fn ensure_guest_script() -> Result<PathBuf> {
+    // 1. Check if scripts/stage_runner_guest.py exists in CWD
+    let cwd_script = PathBuf::from("scripts").join("stage_runner_guest.py");
+    if cwd_script.is_file() {
+        if let Ok(canon) = std::fs::canonicalize(&cwd_script) {
+            return Ok(canon);
+        }
+    }
+
+    // 2. Check if scripts/stage_runner_guest.py exists next to current executable
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            let exe_script = exe_dir.join("scripts").join("stage_runner_guest.py");
+            if exe_script.is_file() {
+                if let Ok(canon) = std::fs::canonicalize(&exe_script) {
+                    return Ok(canon);
+                }
+            }
+        }
+    }
+
+    // 3. Fallback: Write embedded script to %LOCALAPPDATA%/Forgity/scripts/stage_runner_guest.py
+    let data_dir = crate::cli::daemon::get_daemon_data_dir();
+    let target_dir = data_dir.join("scripts");
+    let _ = std::fs::create_dir_all(&target_dir);
+    let target_file = target_dir.join("stage_runner_guest.py");
+
+    let _ = std::fs::write(&target_file, EMBEDDED_GUEST_SCRIPT);
+
+    if let Ok(canon) = std::fs::canonicalize(&target_file) {
+        Ok(canon)
+    } else {
+        Ok(target_file)
+    }
+}
+
 pub struct StageDispatcher {
     rabbitmq: RabbitMqClient,
     storage: StorageManager,
@@ -163,9 +203,9 @@ impl StageDispatcher {
         let (event_tx, mut event_rx) = mpsc::channel::<GuestToHostMessage>(100);
 
         // 7. Build arguments for DCC Guest
-        let guest_script = PathBuf::from("scripts").join("stage_runner_guest.py");
-        let abs_guest_script = std::fs::canonicalize(&guest_script)
-            .unwrap_or(guest_script);
+        let abs_guest_script = ensure_guest_script()
+            .context("Failed to locate or extract guest runner script stage_runner_guest.py")?;
+        info!("[Dispatcher] Using Guest Script: {:?}", abs_guest_script);
         let abs_task_json = std::fs::canonicalize(&task_json_path)
             .unwrap_or(task_json_path.clone());
 
@@ -227,6 +267,7 @@ impl StageDispatcher {
         let mut step_results: Vec<StepResult> = Vec::new();
         let mut stage_succeeded = false;
         let mut stage_error: Option<String> = None;
+        let mut guest_handshake_received = false;
 
         tokio::pin!(proc_handle);
 
@@ -246,6 +287,7 @@ impl StageDispatcher {
                     match event {
                         GuestToHostMessage::Handshake { dcc_name, dcc_version, pid } => {
                             info!("[IPC] Guest Handshake from {} ({:?}), PID: {}", dcc_name, dcc_version, pid);
+                            guest_handshake_received = true;
                         }
                         GuestToHostMessage::StepStarted { step_execution_id, step_index } => {
                             info!("[IPC] Step Started: {} (index {})", step_execution_id, step_index);
@@ -352,11 +394,19 @@ impl StageDispatcher {
                     match proc_result {
                         Ok(res) => {
                             info!("[Dispatcher] Subprocess exited: exit_code={:?}, success={}", res.exit_code, res.success);
-                            if !res.success && stage_error.is_none() {
+                            if !guest_handshake_received {
+                                stage_succeeded = false;
+                                stage_error = Some(format!(
+                                    "Guest DCC script failed to launch or connect to IPC (exit code {:?}). Check logs at logs/stage_{}.log",
+                                    res.exit_code, stage_id
+                                ));
+                            } else if !res.success && stage_error.is_none() {
+                                stage_succeeded = false;
                                 stage_error = Some(format!("Subprocess exited with non-zero code {:?}", res.exit_code));
-                            }
-                            if res.success && stage_error.is_none() {
-                                stage_succeeded = true;
+                            } else if res.success && stage_error.is_none() {
+                                if !stage_succeeded {
+                                    stage_succeeded = true;
+                                }
                             }
                         }
                         Err(e) => {
