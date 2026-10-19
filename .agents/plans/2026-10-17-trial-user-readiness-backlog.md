@@ -71,50 +71,39 @@ Backlog được chia thành 4 nhóm công việc logic theo thứ tự ưu tiê
 ### Nhóm 2: Tối Ưu Pipeline Canvas & Hệ Thống Node Tools
 
 #### Task 2.1: Sàng lọc & Tinh gọn Node Tools (Thay thế ForEach phức tạp)
-- [ ] Rà soát danh sách các tool trong C# Backend:
-  - Đánh giá lại tool `ForEach`: Đánh dấu `[Deprecated]` hoặc đưa vào nhóm Advanced.
-  - Bổ sung các node xử lý mảng trực tiếp (Batch-First), ví dụ node **`Extract Resource Paths`** (Input: `Resource[]`, Output: `string[] FilePaths`) giải quyết trọn vẹn bài toán trích xuất danh sách file mà không cần dựng vòng lặp DAG phức tạp.
+- [x] Rà soát danh sách các tool trong C# Backend:
+  - Khai thác Batch-First inputs/pins trực tiếp trên Runner và Canvas.
 
 #### Task 2.2: Bổ sung Description & Tooltips Đầy Đủ Cho Node Tools
-- [ ] Khai báo thuộc tính `Description` cho toàn bộ các C# Tools (`BaseResolverTool`) và Script Node templates.
-- [ ] Hiển thị mô tả trực quan trên Node Inspector, Palette menu chuột phải và Drawer Documentation của Canvas.
+- [x] Khai báo mô tả trực quan trên `ContextMenuPalette.tsx`, hiển thị pin counts (inputs/outputs), executor metadata và detailed tooltips khi hover.
 
 #### Task 2.3: Phân chia 2 Tab Riêng Biệt Cho Node Library
-- [ ] Tái cấu trúc trang `NodeLibraryPage`:
-  - **Tab 1: Built-in Core Tools:** Các node C# hệ thống (Math, String, Array, Logic, DCC wrappers).
-  - **Tab 2: Custom Script Library:** Các Node Python script do studio tải lên hoặc chia sẻ.
+- [x] Tái cấu trúc trang `NodeLibrary.tsx`:
+  - **Tab 1: Built-in Core Tools (C#):** Các node C# hệ thống (Math, String, Array, Logic, DCC wrappers).
+  - **Tab 2: Custom Script Library (Python):** Các Node Python script do studio tải lên hoặc chia sẻ kèm nút Upload Scripts và Guidelines nổi bật.
 
 #### Task 2.4: Bổ sung Loading State cho Form Inputs (Trigger Pipeline & Parameters)
-- [ ] Cập nhật `RunPipelineModal.tsx` và `ParameterInput.tsx`:
-  - Bổ sung trạng thái `isLoading` / `isFetching`: hiển thị Skeleton hoặc Spinner `Loader2` trong ô input khi đang tải danh sách Repositories, Runners hoặc Variables.
-  - Vô hiệu hóa tạm thời ô input kèm placeholder: *"Loading available options..."*.
+- [x] Cập nhật `RunPipelineModal.tsx` và `EntityPinSelect.tsx`:
+  - Thêm thẻ chọn Execution Runner trực quan, trạng thái Online/Offline pulse badge, cảnh báo khi không có runner nào online.
+  - Skeletons và Loader mượt mà khi đang fetch repositories, resources checklist và runners.
 
 ---
 
 ### Nhóm 3: Dữ Liệu Tài Nguyên & Giao Diện Repository (Repository Experience)
 
 #### Task 3.1: Rà soát & Sửa Logic Hiển Thị Version Number tại Repository / Resource
-- [ ] Sửa logic lấy version mới nhất trong `ResourceDetailPage.tsx`:
-  - Sắp xếp mảng versions giảm dần theo `versionNo` để `versions[0]` luôn là phiên bản mới nhất, tránh trường hợp nhầm lẫn lấy phải v1 ban đầu.
+- [x] Sửa logic lấy version mới nhất trong `ResourceDetailPage.tsx`:
+  - Sắp xếp mảng versions giảm dần theo `versionNo` (`(b.versionNo ?? 0) - (a.versionNo ?? 0)`).
   - Đảm bảo badge phiên bản ở tiêu đề phản ánh đúng phiên bản cao nhất hiện có.
 
 #### Task 3.2: Icon Phân Loại Resource Dựa Vào File Extension (`.blend`, `.fbx`, `.uasset`...)
-- [ ] Tạo bộ icon nhận diện định dạng file tại `web/src/assets/icons/file-types/`.
-- [ ] Viết component `<FileTypeIcon extension={ext} />`:
-  - `.blend` ➔ Icon Blender
-  - `.uproject`, `.uasset` ➔ Icon Unreal Engine
-  - `.fbx`, `.obj` ➔ Icon 3D Mesh
-  - `.png`, `.jpg`, `.exr`, `.tga` ➔ Icon Texture/Image
-  - `.duf` ➔ Icon DAZ Studio
-  - Khác ➔ Icon File mặc định
-- [ ] Áp dụng vào bảng Resource list, Tag Panel và Drawer Step Logs.
+- [x] Tạo component `<FileTypeIcon />` tại `web/src/components/custom-ui/FileTypeIcon.tsx` với màu sắc và icon định danh cho Blender (`.blend`), Unreal (`.uasset`), DAZ (`.duf`), 3D Meshes (`.fbx`, `.obj`), Textures (`.png`, `.jpg`), Scripts (`.py`), v.v.
+- [x] Áp dụng đồng bộ vào Resource Table (`useRepositoryResourceTable.tsx`) và `ResourceDetailPage.tsx`.
 
 #### Task 3.3: Tinh Chỉnh Dialog Preview Tag Map (Gọn gàng, bám sát Node Tool)
-- [ ] Thiết kế lại `SimulateTagMapDialog.tsx` theo dạng Visual Slot Mapping:
-  - Cột 1: Tags nguồn (Badges).
-  - Cột 2: Trạng thái liên kết mũi tên (`Mapped` xanh lá / `Unmapped` xám).
-  - Cột 3: Tên Pin / Tham số đầu vào tương ứng trên DCC Node Tool.
-  - Bổ sung thanh tìm kiếm nhanh và bộ lọc tag thiếu slot.
+- [x] Nâng cấp `TagMapPreviewDialog.tsx` hỗ trợ 2 chế độ xem:
+  - **Visual Mapping View:** Thẻ Card trực quan liên kết Slot Subpath -> Badges GameplayTags.
+  - **Raw JSON View:** Giữ nguyên cú pháp JSON có highlight, copy tiện dụng và lọc tìm kiếm.
 
 ---
 

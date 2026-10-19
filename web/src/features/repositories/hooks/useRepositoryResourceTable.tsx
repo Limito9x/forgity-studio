@@ -27,6 +27,7 @@ import {
 import { toast } from "sonner";
 import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 import { useProjectNav } from "@/lib/navigation/useProjectNav";
+import { FileTypeIcon } from "@/components/custom-ui/FileTypeIcon";
 
 export interface UseRepositoryResourceTableOptions {
   data: WorkspaceResourceDto[];
@@ -149,9 +150,11 @@ export function useRepositoryResourceTable({
 
           return (
             <div className="flex items-center gap-2.5 py-1 min-w-[200px]">
-              <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0 border border-primary/20">
-                <FileCode className="size-4" />
-              </div>
+              <FileTypeIcon
+                fileName={item.displayName}
+                relativePath={item.relativePath ?? undefined}
+                size="md"
+              />
               <div className="min-w-0">
                 <Link
                   to={nav.urls.resourceDetail(item.id, repositoryId)}
@@ -322,7 +325,7 @@ export function useRepositoryResourceTable({
         },
       },
     ],
-    [selectedRowIds, onOpenAssignPanel, projectId, repositoryId]
+    [selectedRowIds, onOpenAssignPanel, projectId, repositoryId, nav.urls]
   );
 
   const table = useReactTable({

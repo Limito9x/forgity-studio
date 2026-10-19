@@ -5,6 +5,11 @@ import {
   PYTHON_SCRIPT_TEMPLATE,
 } from "./templates";
 
+import blenderSvg from "@/assets/dcc/blender.svg";
+import unrealSvg from "@/assets/dcc/unreal-engine.svg";
+import daz3dSvg from "@/assets/dcc/daz3d.svg";
+import pythonSvg from "@/assets/dcc/python.svg";
+
 export type { ScriptTemplateDefinition };
 
 export interface SoftwareDefinition {
@@ -35,11 +40,6 @@ export interface SoftwareCatalogItem {
 export const SUPPORTED_EXECUTOR_KEYS = ["python", "blender", "unreal"] as const;
 
 /**
- * Vector SVG nhúng trực tiếp cho Daz 3D (do SimpleIcons chưa có slug chính thức)
- */
-const DAZ3D_INLINE_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><polygon points="24,4 42,14 24,24 6,14" fill="%2300B4D8"/><polygon points="42,14 42,34 24,44 24,24" fill="%230077B6"/><polygon points="6,14 24,24 24,44 6,34" fill="%23023E8A"/><text x="24" y="27" font-family="Arial,sans-serif" font-size="9" font-weight="900" fill="%23FFFFFF" text-anchor="middle" letter-spacing="0.5">DAZ</text></svg>`;
-
-/**
  * Danh sách cấu hình chuẩn duy nhất (Single Source of Truth)
  * Định nghĩa id, tên hiển thị, category, và mảng aliases linh hoạt.
  */
@@ -49,6 +49,7 @@ export const SOFTWARE_DEFINITIONS: SoftwareDefinition[] = [
     name: "Blender 3D",
     category: "DCC",
     aliases: ["blender", "blender3d"],
+    iconUrl: blenderSvg,
     simpleIconSlug: "blender/F5792A",
     brandColor: "#F5792A",
     description: "Open-source 3D creation suite (modeling, rigging, rendering)",
@@ -59,6 +60,7 @@ export const SOFTWARE_DEFINITIONS: SoftwareDefinition[] = [
     name: "Unreal Engine",
     category: "Game Engine",
     aliases: ["unreal", "unrealengine", "ue", "ue5", "ue4"],
+    iconUrl: unrealSvg,
     simpleIconSlug: "unrealengine/3183FF",
     brandColor: "#3183FF",
     description: "Real-time 3D creation tool for photoreal visuals and immersive experiences",
@@ -69,6 +71,7 @@ export const SOFTWARE_DEFINITIONS: SoftwareDefinition[] = [
     name: "Python Environment",
     category: "Runtime",
     aliases: ["python", "python3", "py"],
+    iconUrl: pythonSvg,
     simpleIconSlug: "python/3776AB",
     brandColor: "#3776AB",
     description: "Core automation runtime & pipeline scripting environment",
@@ -79,7 +82,7 @@ export const SOFTWARE_DEFINITIONS: SoftwareDefinition[] = [
     name: "Daz Studio",
     category: "DCC",
     aliases: ["daz", "daz3d", "dazstudio"],
-    iconUrl: DAZ3D_INLINE_SVG,
+    iconUrl: daz3dSvg,
     brandColor: "#00B4D8",
     description: "3D character creation, digital figure posing, morphs & animation",
   },
@@ -150,7 +153,7 @@ for (const def of SOFTWARE_DEFINITIONS) {
 }
 
 /**
- * Trả về icon URL chuẩn (hoặc CDN SimpleIcons hoặc custom inline SVG)
+ * Trả về icon URL chuẩn (ưu tiên local asset SVG, fallback CDN SimpleIcons)
  */
 function resolveIconUrl(def: SoftwareDefinition): string {
   if (def.iconUrl) {

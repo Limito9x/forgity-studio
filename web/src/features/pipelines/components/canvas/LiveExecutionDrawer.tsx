@@ -25,6 +25,7 @@ import {
   ChevronDown,
   ChevronUp,
   Square,
+  Minus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +46,7 @@ export function LiveExecutionDrawer({
 }: LiveExecutionDrawerProps) {
   const [activeTab, setActiveTab] = useState<"history" | "inspect" | "logs">(defaultTab);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
 
@@ -169,11 +171,59 @@ export function LiveExecutionDrawer({
     { key: "history", label: "History", icon: History },
   ];
 
+  if (isMinimized) {
+    return (
+      <div className="absolute bottom-4 right-4 z-30 flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border border-border/80 bg-background/95 backdrop-blur-md shadow-xl text-xs animate-in slide-in-from-bottom-2 fade-in">
+        <div
+          className="flex items-center gap-2 cursor-pointer select-none group"
+          onClick={() => setIsMinimized(false)}
+          title="Click to expand execution panel"
+        >
+          <Terminal className="h-3.5 w-3.5 text-primary shrink-0 group-hover:scale-110 transition-transform" />
+          {activeExecution && getStatusBadge(activeExecution.status)}
+          <span className="text-[11px] text-muted-foreground font-mono hidden sm:inline">
+            {activeExecution ? `#${activeExecution.id.slice(0, 8)}` : "Execution"}
+          </span>
+          {nodeExecs && nodeExecs.length > 0 && (
+            <span className="text-[10px] text-muted-foreground px-1.5 py-0.2 rounded-full bg-muted/60 font-mono">
+              {nodeExecs.length} steps
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1 border-l border-border/50 pl-2">
+          <div title="Expand panel">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+              onPress={() => setIsMinimized(false)}
+              aria-label="Expand logs panel"
+            >
+              <ChevronUp className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <div title="Close">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+              onPress={onClose}
+              aria-label="Close logs drawer"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(
         "absolute bottom-4 left-4 right-4 md:left-12 md:right-12 z-30 rounded-xl border border-border/80 bg-background/95 backdrop-blur-md shadow-2xl overflow-hidden transition-all duration-300 flex flex-col",
-        isExpanded ? "h-[600px]" : "h-[340px]"
+        isExpanded ? "h-[540px]" : "h-[280px]"
       )}
     >
       {/* Drawer Header & Tabs */}
@@ -255,18 +305,41 @@ export function LiveExecutionDrawer({
             </Button>
           )}
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 text-muted-foreground hover:text-foreground"
-            onPress={() => setIsExpanded((prev) => !prev)}
-          >
-            {isExpanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-          </Button>
+          <div title="Minimize to bottom corner">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+              onPress={() => setIsMinimized(true)}
+              aria-label="Minimize drawer to corner"
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </Button>
+          </div>
 
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onPress={onClose}>
-            <X className="h-3.5 w-3.5" />
-          </Button>
+          <div title={isExpanded ? "Restore height" : "Maximize height"}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+              onPress={() => setIsExpanded((prev) => !prev)}
+              aria-label="Toggle drawer height"
+            >
+              {isExpanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            </Button>
+          </div>
+
+          <div title="Close drawer">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+              onPress={onClose}
+              aria-label="Close logs drawer"
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
       </div>
 

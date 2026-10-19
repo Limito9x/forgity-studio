@@ -34,6 +34,7 @@ public class GetRelativePathTool : BaseResolverTool<GetRelativePathInputs, GetRe
     public override IReadOnlyList<string> Aliases => ["MakeRelativePath", "ComputeRelativePath"];
     public override string Label => "Get Relative Path";
     public override string? Category => "Utility";
+    public override string? Description => "Computes the normalized POSIX relative path of a target file or folder relative to a specified root path.";
     public override bool IsPure => true;
 
     protected override Task<GetRelativePathOutputs> ExecuteCoreAsync(GetRelativePathInputs input, ToolExecutionContext context)

@@ -13,11 +13,30 @@ namespace Automation.Pipeline.Tools.Tags;
 public class BuildTagMapFromResourceInputs
 {
     [ToolPin(
+        Id = "Repository",
+        Label = "Repository",
+        PrimitiveType = PinPrimitiveType.EntityRef,
+        Cardinality = PinCardinality.Single,
+        IsRequired = false,
+        Metadata = """{"type": "entity-select", "properties": {"entity": "Repository"}}"""
+    )]
+    public object? Repository { get; set; }
+
+    [ToolPin(
+        Id = "RelativePaths",
+        Label = "Relative Paths",
+        PrimitiveType = PinPrimitiveType.String,
+        Cardinality = PinCardinality.Array,
+        IsRequired = false
+    )]
+    public object? RelativePaths { get; set; }
+
+    [ToolPin(
         Id = "Target",
-        Label = "Resources",
+        Label = "Resources (Fallback)",
         PrimitiveType = PinPrimitiveType.EntityRef,
         Cardinality = PinCardinality.Array,
-        IsRequired = true,
+        IsRequired = false,
         Metadata = """{"type": "entity-select", "properties": {"entity": "Resource", "multiple": true}}"""
     )]
     public object? Target { get; set; }
@@ -84,7 +103,7 @@ public class BuildTagMapFromResourceTool(
     public override IReadOnlyList<string> Aliases => ["BuildTagMapFromInspection"];
     public override string Label => "Build Tag Map from Resource";
     public override string? Category => "Tag & Metadata";
-    public override string? Description => "Builds an ObjectsMap of TaggedAsset items from target Resources and their metadata.";
+    public override string? Description => "Builds a batch-first ObjectsMap of TaggedAsset items (keyed by POSIX relative_path) from repository relative paths or target resources.";
     public override bool IsPure => true;
 
     protected override async Task<BuildTagMapFromResourceOutputs> ExecuteCoreAsync(
@@ -94,11 +113,42 @@ public class BuildTagMapFromResourceTool(
     {
         var ct = context.CancellationToken;
 
-        // 1. Extract Target Resource GUIDs
-        var resourceGuids = ExtractGuids(input.Target);
+        // 1. Resolve Target Resource Version GUIDs
+        var resourceGuids = new List<Guid>();
+
+        // 1a. Batch-First: Try Repository + RelativePaths
+        var repoId = EntityRefHelper.ExtractRefId(input.Repository);
+        var relativePaths = ExtractStrings(input.RelativePaths);
+
+        if (repoId.HasValue && relativePaths.Count > 0)
+        {
+            var resolveRes = await workspaceApi.ResolveResourceVersionIdsByPathsAsync(repoId.Value, relativePaths, ct);
+            if (resolveRes.IsSuccess && resolveRes.Value != null && resolveRes.Value.Count > 0)
+            {
+                resourceGuids.AddRange(resolveRes.Value.Values);
+            }
+            else
+            {
+                logger.LogWarning(
+                    "ResolveResourceVersionIdsByPathsAsync returned no matches for Repository {RepoId} and {PathCount} paths.",
+                    repoId.Value,
+                    relativePaths.Count
+                );
+            }
+        }
+
+        // 1b. Fallback: Target Resource GUIDs (backward-compatible)
         if (resourceGuids.Count == 0)
         {
-            throw new ArgumentException($"Invalid or empty Target Resource GUID(s): '{input.Target}'");
+            resourceGuids = ExtractGuids(input.Target);
+        }
+
+        if (resourceGuids.Count == 0)
+        {
+            throw new ArgumentException(
+                "Invalid or empty input for BuildTagMapFromResource: " +
+                "Provide either 'Repository' + 'RelativePaths' or 'Target' Resource GUID(s)."
+            );
         }
 
         // 2. Parse options
@@ -138,6 +188,11 @@ public class BuildTagMapFromResourceTool(
                     ? Path.GetFileNameWithoutExtension(item.RelativePath)
                     : item.ResourceId.ToString());
 
+            // POSIX relative path normalized for Technical Artists & DCC
+            var relPath = !string.IsNullOrWhiteSpace(item.RelativePath)
+                ? item.RelativePath.Replace('\\', '/').TrimStart('/')
+                : assetName;
+
             var assetPathMap = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
             var assetTagMap = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
 
@@ -153,6 +208,7 @@ public class BuildTagMapFromResourceTool(
                         : null;
 
                     var matchedTagItems = new List<Dictionary<string, object?>>();
+                    var matchedTagNames = new List<string>();
 
                     foreach (var tag in tagLinks)
                     {
@@ -173,15 +229,16 @@ public class BuildTagMapFromResourceTool(
                         if (!string.IsNullOrWhiteSpace(tag.TagName))
                         {
                             allTagsSet.Add(tag.TagName);
+                            matchedTagNames.Add(tag.TagName);
                         }
                         if (!string.IsNullOrWhiteSpace(tag.TagPath))
                         {
                             allTagsSet.Add(tag.TagPath);
                         }
 
+                        // Tinh giản: Bỏ vĩnh viễn GUID 'id' để giảm payload và chống rác log cho TA
                         matchedTagItems.Add(new Dictionary<string, object?>
                         {
-                            ["id"] = tag.TagId.ToString(),
                             ["name"] = tag.TagName,
                             ["path"] = tag.TagPath
                         });
@@ -207,7 +264,8 @@ public class BuildTagMapFromResourceTool(
                         assetPathMap[path] = new Dictionary<string, object?>
                         {
                             ["value"] = val,
-                            ["tags"] = matchedTagItems
+                            ["tags"] = matchedTagItems,
+                            ["tag_names"] = matchedTagNames
                         };
                     }
                 }
@@ -225,20 +283,21 @@ public class BuildTagMapFromResourceTool(
                 allTagsSet.Add(rTag);
             }
 
-            // C. Build asset entry for ObjectsMap
+            // C. Build asset entry for ObjectsMap (TaggedAsset struct)
             var assetObj = new Dictionary<string, object?>
             {
                 ["resource_id"] = item.ResourceId.ToString(),
                 ["version_id"] = item.ResourceVersionId.ToString(),
                 ["asset_name"] = assetName,
-                ["relative_path"] = item.RelativePath,
+                ["relative_path"] = relPath,
                 ["file_path"] = item.FullLocalPath ?? item.RelativePath,
                 ["resource_tags"] = resourceTagStrings,
                 ["path_map"] = assetPathMap,
                 ["tag_map"] = assetTagMap
             };
 
-            objectsMap[assetName] = assetObj;
+            // Batch-First key: relative_path prevents collisions and directly matches DCC inputs
+            objectsMap[relPath] = assetObj;
         }
 
         logger.LogInformation(

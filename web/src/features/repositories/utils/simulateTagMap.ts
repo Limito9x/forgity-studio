@@ -196,7 +196,6 @@ export function simulateBuildTagMap({
             if (tag.tagPath) allTagsSet.add(tag.tagPath);
 
             matchedTagItems.push({
-                id: tag.tagId,
                 name: tag.tagName,
                 path: tag.tagPath,
             });
@@ -225,20 +224,23 @@ export function simulateBuildTagMap({
         }
     }
 
+    const cleanRelPath = (relativePath || filePath || "").replace(/\\/g, "/").replace(/^\/+/, "");
+
     const assetObj = {
         resource_id: resourceId,
         version_id: versionId,
         repository_id: repositoryId || "",
         asset_name: assetName,
-        relative_path: relativePath || "",
+        relative_path: cleanRelPath,
         file_path: filePath || relativePath || "",
         resource_tags: resourceTagStrings,
         path_map: assetPathMap,
         tag_map: assetTagMap,
     };
 
+    const objectKey = cleanRelPath || assetName;
     const objectsMap: Record<string, any> = {
-        [assetName]: assetObj,
+        [objectKey]: assetObj,
     };
 
     return {
