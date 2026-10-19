@@ -128,4 +128,6 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 - [runner-detach-and-cancel-execution](file:///d:/FullStack/Automation/.agents/plans/2026-10-18-runner-detach-and-cancel-execution.md): Kế hoạch Kỹ Thuật Bổ sung Cancel Pipeline Execution trên Canvas và Triển khai Cơ chế Detach Runner 2 Cấp độ (Repository & Studio).
 - [refactor-runner-software-settings-dialog](file:///d:/FullStack/Automation/.agents/plans/2026-10-18-refactor-runner-software-settings-dialog.md): Kế hoạch Tinh Giản & Tối Ưu Triệt Để Giao Diện Cấu Hình Runner Software (Compact Rows, Auto-Save on Select, Xóa Bỏ Headless Flags Ảo).
 - [runner-detail-page-and-attached-repositories](file:///d:/FullStack/Automation/.agents/plans/2026-10-18-runner-detail-page-and-attached-repositories.md): Kế hoạch Xây Dựng Trang Chi Tiết Máy Trạm (Runner Detail Page `/runners/:id`) Đẳng Cấp Studio Grade & Hệ Thống Quản Trị Attached Repositories Đa Dự Án.
+- [standardize-pipeline-tools-and-tagmap](file:///d:/FullStack/Automation/.agents/plans/2026-10-19-standardize-pipeline-tools-and-tagmap.md): Kế hoạch Kỹ Thuật Chuẩn Hóa Server Pipeline Tools, Tái Cấu Trúc TagMap Batch-First & Thanh Lọc 23 Zombie Tools.
+
 
