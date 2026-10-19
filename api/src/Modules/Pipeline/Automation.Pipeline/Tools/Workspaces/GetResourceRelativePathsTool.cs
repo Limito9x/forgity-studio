@@ -23,6 +23,7 @@ public class GetResourceRelativePathsTool(
     public string Key => "GetResourceRelativePaths";
     public string Label => "Get Resource Relative Paths";
     public string? Category => "Workspaces";
+    public string? Description => "Resolves a batch of Resource entity refs or IDs into their POSIX relative paths within the repository.";
     public bool IsPure => false;
 
     public IReadOnlyList<PinDefinition> Inputs =>

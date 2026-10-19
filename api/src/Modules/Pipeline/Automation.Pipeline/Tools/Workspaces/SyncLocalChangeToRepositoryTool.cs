@@ -3,6 +3,7 @@ using System.Text.Json;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Repository.Contracts;
+using Microsoft.Extensions.Logging;
 
 namespace Automation.Pipeline.Tools.Workspaces;
 
@@ -10,12 +11,16 @@ namespace Automation.Pipeline.Tools.Workspaces;
 /// Tool phát hiện và đồng bộ các thay đổi file cục bộ (relative paths) từ Repository Runner vào Database.
 /// Hoạt động thuần túy trên đường dẫn tương đối (Relative Path), độc lập với Root Path cục bộ của máy Runner.
 /// </summary>
-public class SyncLocalChangeToRepositoryTool(IRepositoryApi repositoryApi) : IResolverTool
+public class SyncLocalChangeToRepositoryTool(
+    IRepositoryApi repositoryApi,
+    ILogger<SyncLocalChangeToRepositoryTool>? logger = null
+) : IResolverTool
 {
     public string Key => "SyncLocalChangeToRepository";
     public IReadOnlyList<string> Aliases => ["SyncLocalChangeToWorkspace", "SyncLocalChanges"];
     public string Label => "Sync Local Change To Repository";
     public string? Category => "Repository";
+    public string? Description => "Detects and synchronizes newly created or modified local files from a runner workstation back into the repository database.";
 
     public IReadOnlyList<PinDefinition> Inputs =>
         new List<PinDefinition>
@@ -151,6 +156,26 @@ public class SyncLocalChangeToRepositoryTool(IRepositoryApi repositoryApi) : IRe
             ?? inputs.GetValueOrDefault("relative_paths");
 
         var targetPaths = ExtractNormalizedRelativePaths(rawPaths);
+
+        // Guard clause: Ngăn chặn quét sạch toàn bộ workspace local lên database nếu RelativePaths không có hoặc rỗng
+        if (targetPaths.Count == 0)
+        {
+            logger?.LogWarning(
+                "SyncLocalChangeToRepositoryTool: RelativePaths is empty for repository {RepoId} and runner {RunnerId}. Sync skipped to prevent unintended full workspace scan.",
+                repositoryId.Value,
+                runnerId.Value
+            );
+
+            return new Dictionary<string, object>
+            {
+                ["AddedCount"] = 0,
+                ["ModifiedCount"] = 0,
+                ["LocationRemoved"] = 0,
+                ["ResourceMap"] = new Dictionary<string, object>(),
+                ["FirstResource"] = "",
+                ["Resources"] = Array.Empty<object>(),
+            };
+        }
 
         var notes =
             inputs.TryGetValue("Notes", out var nObj) && nObj != null

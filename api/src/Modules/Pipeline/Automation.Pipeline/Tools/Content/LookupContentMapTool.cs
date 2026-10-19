@@ -26,6 +26,7 @@ public class LookupContentMapTool(
     public IReadOnlyList<string> Aliases => ["GetContentMapByKeys", "GetContentMapByNames", "FindContentItems"];
     public string Label => "Lookup Content Map";
     public string? Category => "Content & Struct";
+    public string? Description => "Queries project ContentItems by key, name, or ContentType, resolving their dynamic schema properties (such as master material contracts).";
     public bool IsPure => true;
 
     public IReadOnlyList<PinDefinition> Inputs =>

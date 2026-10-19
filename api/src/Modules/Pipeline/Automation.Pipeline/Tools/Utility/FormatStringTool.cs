@@ -13,6 +13,7 @@ public class FormatStringTool : IResolverTool
     public string Key => "FormatString";
     public string Label => "Format String";
     public string? Category => "Utility";
+    public string? Description => "Formats text or file paths dynamically by substituting {placeholder} variables with input pin values.";
     public bool IsPure => true;
 
     public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(

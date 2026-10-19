@@ -16,6 +16,7 @@ public class GetRepositoryInfoTool(
     public string Key => "GetRepositoryInfo";
     public string Label => "Get Repository Info";
     public string? Category => "Workspaces";
+    public string? Description => "Retrieves repository metadata including local root path mounted on the target execution runner.";
     public bool IsPure => false;
 
     public IReadOnlyList<PinDefinition> Inputs =>

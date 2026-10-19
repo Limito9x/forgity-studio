@@ -12,6 +12,7 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
     public string Key => "BreakStruct";
     public string Label => "Break Struct";
     public string? Category => "Data / Struct";
+    public string? Description => "Deconstructs a structured entity (Resource, Version, TaggedAsset, etc.) into its individual property pins.";
     public bool IsPure => true;
 
     public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(
