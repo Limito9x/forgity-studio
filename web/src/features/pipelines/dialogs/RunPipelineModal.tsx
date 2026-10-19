@@ -10,7 +10,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Play, Loader2, AlertCircle, Sparkles } from "lucide-react";
+import {
+  Play,
+  Loader2,
+  AlertCircle,
+  Sparkles,
+} from "lucide-react";
 import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { buildDynamicSchema } from "@/lib/schema-builder";
@@ -59,7 +64,7 @@ export function RunPipelineModal({
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const runMutation = useRunPipeline(pipelineId);
 
-  // Auto-select active or first agent
+  // Auto-select active or first agent in background
   useEffect(() => {
     if (agents && agents.length > 0 && !selectedAgentId) {
       const active = agents.find((a: any) => a.isOnline || a.isActive || a.status === "Active" || a.status === 1);
@@ -223,7 +228,7 @@ export function RunPipelineModal({
         }
       });
 
-      // Inject selectedAgentId vào runtimeInputs
+      // Inject selectedAgentId vào runtimeInputs nếu chưa được chọn qua form
       if (selectedAgentId) {
         const runnerRef = `runner:${selectedAgentId}`;
         if (!runtimeInputs["Runner"] || runtimeInputs["Runner"] === "") {
@@ -276,7 +281,7 @@ export function RunPipelineModal({
           <span>Run Pipeline</span>
         </DialogTitle>
         <p className="text-xs text-muted-foreground">
-          Running <span className="font-semibold text-foreground">{pipelineName}</span> requires selecting an Execution Runner and specifying pipeline inputs.
+          Configure runtime arguments and inputs for <span className="font-semibold text-foreground">{pipelineName}</span>.
         </p>
       </DialogHeader>
 
@@ -293,7 +298,7 @@ export function RunPipelineModal({
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
                   Configure runtime arguments for your pipeline execution entry point.
                 </p>
-                <div className="rounded-lg border border-border/70 bg-card p-3 shadow-sm">
+                <div className="rounded-lg border border-border/70 bg-card p-3 shadow-xs">
                   <FormRenderer
                     registry={pipelineRegistry}
                     control={form.control}
@@ -313,7 +318,7 @@ export function RunPipelineModal({
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
                   Required inputs on internal nodes that are not connected to any wire.
                 </p>
-                <div className="rounded-lg border border-border/70 bg-card p-3 shadow-sm">
+                <div className="rounded-lg border border-border/70 bg-card p-3 shadow-xs">
                   <FormRenderer
                     registry={pipelineRegistry}
                     control={form.control}
@@ -324,14 +329,14 @@ export function RunPipelineModal({
             )}
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t">
+          <DialogFooter className="gap-2 pt-2 border-t">
             <Button variant="outline" size="sm" onPress={onClose} isDisabled={isSubmitting}>
               Cancel
             </Button>
             <Button
               size="sm"
               type="submit"
-              isDisabled={!selectedAgentId || isSubmitting}
+              isDisabled={isSubmitting}
               className="gap-1.5"
             >
               {isSubmitting ? (

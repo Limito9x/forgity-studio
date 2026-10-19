@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -38,7 +38,10 @@ import {
 import { ResourceMetadataTab } from "../components/ResourceMetadataTab";
 import { PublishVersionDialog } from "../dialogs/PublishVersionDialog";
 import { TagTool } from "@/features/tags/components/TagTool";
+import { FileTypeIcon } from "@/components/custom-ui/FileTypeIcon";
 import { cn } from "@/lib/utils";
+import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
+import { useProjectNav } from "@/lib/navigation/useProjectNav";
 
 interface ResourceDetailPageProps {
   projectId: string;
@@ -55,9 +58,6 @@ function formatBytes(bytes?: number, decimals = 2): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
-import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
-import { useProjectNav } from "@/lib/navigation/useProjectNav";
-
 export function ResourceDetailPage({
   projectId,
   workspaceId,
@@ -71,13 +71,20 @@ export function ResourceDetailPage({
   const [isPublishOpen, setIsPublishOpen] = useState(false);
   const [versionToPublish, setVersionToPublish] = useState<ResourceVersionDto | null>(null);
 
-  const versions: ResourceVersionDto[] = (resource?.versions || []) as ResourceVersionDto[];
+  // Sort versions descending by versionNo (latest first)
+  const versions: ResourceVersionDto[] = useMemo(() => {
+    const list = [...((resource?.versions || []) as ResourceVersionDto[])];
+    return list.sort((a, b) => (b.versionNo ?? 0) - (a.versionNo ?? 0));
+  }, [resource?.versions]);
+
   const [selectedVersionId, setSelectedVersionId] = useState<string>("");
 
   const latestVersion = versions[0];
   const currentActiveVersionId = selectedVersionId || latestVersion?.id || "";
   const fileExtension = resource?.name ? resource.name.split(".").pop() : "";
-  const isLatestDraft = latestVersion ? (latestVersion.status === 0 || (latestVersion as any).status === undefined) : false;
+  const isLatestDraft = latestVersion
+    ? latestVersion.status === 0 || (latestVersion as any).status === undefined
+    : false;
 
   const unlockMutation = useUnlockResource(resourceId, workspaceId);
   const downloadMutation = useDownloadResourceVersion();
@@ -85,31 +92,28 @@ export function ResourceDetailPage({
 
   const handleDownload = (ver: ResourceVersionDto) => {
     setDownloadingVersionId(ver.id);
-    downloadMutation.mutate(
-      ver.id,
-      {
-        onSuccess: (data) => {
-          setDownloadingVersionId(null);
-          if (data?.downloadUrl) {
-            toast.success(`Download started for ${data.fileName || "asset"}`);
-            const link = document.createElement("a");
-            link.href = data.downloadUrl;
-            link.download = data.fileName || resource?.name || "asset";
-            link.target = "_blank";
-            link.rel = "noopener noreferrer";
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-          } else {
-            toast.error("Download URL not found.");
-          }
-        },
-        onError: (err: any) => {
-          setDownloadingVersionId(null);
-          toast.error(err?.message || "Failed to get download URL.");
-        },
-      }
-    );
+    downloadMutation.mutate(ver.id, {
+      onSuccess: (data) => {
+        setDownloadingVersionId(null);
+        if (data?.downloadUrl) {
+          toast.success(`Download started for ${data.fileName || "asset"}`);
+          const link = document.createElement("a");
+          link.href = data.downloadUrl;
+          link.download = data.fileName || resource?.name || "asset";
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        } else {
+          toast.error("Download URL not found.");
+        }
+      },
+      onError: (err: any) => {
+        setDownloadingVersionId(null);
+        toast.error(err?.message || "Failed to get download URL.");
+      },
+    });
   };
 
   const handleForceUnlock = () => {
@@ -153,8 +157,12 @@ export function ResourceDetailPage({
 
           <div className="min-w-0">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2 truncate">
-                <FileText className="size-6 text-primary shrink-0" />
+              <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5 truncate">
+                <FileTypeIcon
+                  fileName={resource?.name}
+                  filePath={resource?.filePath}
+                  size="lg"
+                />
                 <span className="truncate">{resource?.name || "Resource Detail"}</span>
               </h1>
               {fileExtension && (
@@ -168,15 +176,24 @@ export function ResourceDetailPage({
                     v{latestVersion?.versionNo ?? 1}
                   </Badge>
                   {isLatestDraft ? (
-                    <Badge variant="outline" className="text-amber-500 border-amber-500/30 bg-amber-500/10 text-[10px]">
+                    <Badge
+                      variant="outline"
+                      className="text-amber-500 border-amber-500/30 bg-amber-500/10 text-[10px]"
+                    >
                       Draft
                     </Badge>
                   ) : latestVersion?.isCloudSynced ? (
-                    <Badge variant="outline" className="text-emerald-500 border-emerald-500/30 bg-emerald-500/10 text-[10px] gap-1">
+                    <Badge
+                      variant="outline"
+                      className="text-emerald-500 border-emerald-500/30 bg-emerald-500/10 text-[10px] gap-1"
+                    >
                       <Cloud className="size-3" /> Published (Cloud Synced)
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="text-muted-foreground border-border bg-muted/20 text-[10px] gap-1">
+                    <Badge
+                      variant="outline"
+                      className="text-muted-foreground border-border bg-muted/20 text-[10px] gap-1"
+                    >
                       <HardDrive className="size-3" /> Published (Local)
                     </Badge>
                   )}
@@ -198,105 +215,89 @@ export function ResourceDetailPage({
           </div>
         </div>
 
-        {/* Tab Navigation in Header & Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          <div className="flex items-center p-1 rounded-xl bg-muted/60 border">
-            <button
-              type="button"
-              onClick={() => setActiveTab("metadata")}
-              className={cn(
-                "inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer",
-                activeTab === "metadata"
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <History className="size-3.5" />
-              <span>Metadata & Tagging</span>
-            </button>
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            className="h-8 gap-1.5 text-xs cursor-pointer shadow-xs"
+          >
+            <RefreshCw className="size-3.5" />
+            Refresh
+          </Button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTab("versions")}
-              className={cn(
-                "inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer",
-                activeTab === "versions"
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <History className="size-3.5" />
-              <span>Version History ({versions.length})</span>
-            </button>
-          </div>
-
-          {latestVersion && isLatestDraft && (
+          {isLatestDraft && latestVersion && (
             <Button
               size="sm"
               onPress={() => {
                 setVersionToPublish(latestVersion);
                 setIsPublishOpen(true);
               }}
-              className="gap-1.5 cursor-pointer text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+              className="h-8 gap-1.5 text-xs shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
             >
               <CheckCircle2 className="size-3.5" />
-              <span>Publish v{latestVersion.versionNo}</span>
+              Publish v{latestVersion.versionNo}
             </Button>
           )}
 
-          {latestVersion && latestVersion.isCloudSynced && (
+          {latestVersion?.isCloudSynced && (
             <Button
               variant="outline"
               size="sm"
               isDisabled={downloadingVersionId === latestVersion.id}
               onClick={() => handleDownload(latestVersion)}
-              className="gap-1.5 cursor-pointer text-xs h-8 text-primary border-primary/30 hover:bg-primary/10 font-medium"
+              className="h-8 gap-1.5 text-xs border-primary/30 text-primary hover:bg-primary/10 cursor-pointer shadow-xs"
             >
               {downloadingVersionId === latestVersion.id ? (
                 <Loader2 className="size-3.5 animate-spin" />
               ) : (
                 <Download className="size-3.5" />
               )}
-              <span>Download v{latestVersion.versionNo}</span>
-            </Button>
-          )}
-
-          {resource?.isLocked && (
-            <Button
-              size="sm"
-              variant="outline"
-              isDisabled={unlockMutation.isPending}
-              onPress={handleForceUnlock}
-              className="gap-1.5 cursor-pointer text-xs h-8 border-rose-500/30 text-rose-500 hover:bg-rose-500/10 font-medium"
-            >
-              <Unlock className="size-3.5" />
-              <span>{unlockMutation.isPending ? "Unlocking..." : "Force Unlock"}</span>
-            </Button>
-          )}
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            className="gap-1.5 cursor-pointer text-xs h-8"
-          >
-            <RefreshCw className="size-3.5" /> Refresh
-          </Button>
-
-          {workspaceId && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => nav.toRepositoryDetail(workspaceId)}
-              className="gap-1.5 cursor-pointer text-xs h-8"
-            >
-              <FolderGit2 className="size-3.5 text-primary" /> Repository
+              Download Asset
             </Button>
           )}
         </div>
       </div>
 
-      {/* Lock Notice Banner */}
+      {/* Tabs */}
+      <div className="flex items-center border-b border-border gap-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab("metadata")}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all cursor-pointer",
+            activeTab === "metadata"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+          )}
+        >
+          <Layers className="size-3.5" />
+          <span>Metadata & Inspection</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("versions")}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2.5 text-xs font-semibold border-b-2 transition-all cursor-pointer",
+            activeTab === "versions"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+          )}
+        >
+          <History className="size-3.5" />
+          <span>Version History & Runners</span>
+          <Badge
+            variant="secondary"
+            className="text-[10px] px-1.5 py-0 h-4 font-mono font-normal"
+          >
+            {versions.length}
+          </Badge>
+        </button>
+      </div>
+
+      {/* Locked Alert Banner */}
       {resource?.isLocked && (
         <div className="flex items-center justify-between gap-3 p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/5 text-rose-300 text-xs shadow-2xs">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -366,7 +367,8 @@ export function ResourceDetailPage({
                 <Cpu className="size-3 text-primary" /> Physical Runner Mounts
               </span>
               <p className="text-lg font-bold font-mono text-foreground">
-                {latestVersion?.locations?.length ?? 0} {latestVersion?.locations?.length === 1 ? "machine" : "machines"}
+                {latestVersion?.locations?.length ?? 0}{" "}
+                {latestVersion?.locations?.length === 1 ? "machine" : "machines"}
               </p>
             </div>
           </div>
@@ -418,9 +420,17 @@ export function ResourceDetailPage({
                         (ver.locations || []) as ResourceVersionLocationDto[];
 
                       return (
-                        <div key={ver.id} className="p-6 space-y-4 hover:bg-muted/10 transition-colors">
+                        <div
+                          key={ver.id}
+                          className="p-6 space-y-4 hover:bg-muted/10 transition-colors"
+                        >
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div className="flex items-center gap-2.5 flex-wrap">
+                              <FileTypeIcon
+                                fileName={resource.name}
+                                filePath={resource.filePath}
+                                size="sm"
+                              />
                               <Badge
                                 variant={isLatest ? "default" : "outline"}
                                 className="font-mono text-xs px-2.5 py-0.5"
