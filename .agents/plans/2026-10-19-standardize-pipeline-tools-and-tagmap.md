@@ -1,4 +1,4 @@
-# Kế Hoạch Kỹ Thuật: Chuẩn Hóa Server Pipeline Tools, Tái Cấu Trúc TagMap Batch-First & Thanh Lọc Node Library
+# Kế Hoạch Kỹ Thuật: Chuẩn Hóa Server Pipeline Tools, Tái Cấu Trúc TagMap Batch-First, Thanh Lọc Node Library & Định Hướng AI Script Node
 
 - **Ngày tạo:** 19/10/2026
 - **Trạng thái:** Sẵn sàng thực hiện (Ready for Execution)
@@ -12,7 +12,7 @@
 
 ## 1. Bối Cảnh & Dữ Liệu Thực Nghiệm (Data-Driven Discovery)
 
-Ngày 18/10/2026, thông qua script quét trực tiếp database PostgreSQL (`Forgity`) trên toàn bộ **18 Pipelines đang hoạt động** ([scripts/scan_pipeline_nodes.py](file:///d:/FullStack/Automation/scripts/scan_pipeline_nodes.py)), hệ thống ghi nhận số liệu thực tế:
+Ngày 18/10/2026, thông qua script quét trực tiếp database PostgreSQL (`Forgity`) trên toàn bộ **18 Pipelines đang hoạt động** ([scripts/scratch/scan_pipeline_nodes.py](file:///d:/FullStack/Automation/scripts/scratch/scan_pipeline_nodes.py)), hệ thống ghi nhận số liệu thực tế:
 
 ```
 - Tổng số Server Built-in Tools  : 35 tools
@@ -27,7 +27,7 @@ Ngày 18/10/2026, thông qua script quét trực tiếp database PostgreSQL (`Fo
 1. **`BuildTagMapFromResource` đang bị lệch chuẩn Batch-First:**
    - **Key của Map là `assetName`:** Dòng 241 `objectsMap[assetName] = assetObj;` lấy tên hiển thị hoặc tên file không có extension (ví dụ `"Eva"`). Gây nguy cơ trùng lặp (collision) nếu repo có nhiều file cùng tên ở các thư mục khác nhau. Technical Artist (TA) trong Python script lại phải bóc `item["relative_path"]` ra để ráp path.
    - **Đầu vào ép nhận Resource GUIDs:** Input pin `Target` chỉ nhận `List<Guid>` của `Resource`. Nhưng trên Canvas thực tế, khi Repository Trigger chạy hoặc user chọn batch, dữ liệu đầu vào có sẵn là **`RepositoryId`** và **`List<RelativePath>`**. Ép nhận Resource GUIDs khiến đồ thị phải dùng thêm node trung gian không cần thiết.
-   - **Tag cấp Resource không có đất diễn:** `ResourceTags` (nhãn chung cấp file) thực tế không phát huy tác dụng so với việc phân loại qua thư mục hoặc Subpath Tags (vật liệu, slot, texture).
+   - **Trường `id` (GUID) trong Tag Map hoàn toàn vô dụng:** Cấu trúc `{ "id": "01a10ae8-...", "name": "Skin", "path": "Materials.Skin" }` mang theo database GUID vô nghĩa đối với các engine 3D (Unreal/Blender), gây phình to payload JSON và làm rối log Python.
 2. **"Spaghetti Node Hell" do lạm dụng tool vụn vặt (Over-granularity):**
    - Có tới **10 tool Map lắt vặt** (`ZipToMap`, `RemapKeys`, `SetMapItem`, `GetMapItem`, `GetMapKeys`, `GetMapValues`, `MergeMaps`, `MakeMap`, `GetArrayItem`, `GetCollectionCount`) **hoàn toàn có 0 lượt sử dụng** trong 18 pipeline!
    - Người dùng chỉ dùng duy nhất `MakeArray` để gom mảng. Mọi phép biến đổi Map sâu thực tế đều được viết trong Python Script Node với 1 dòng code thay vì nối 5-6 node rối rắm.
@@ -42,75 +42,71 @@ Ngày 18/10/2026, thông qua script quét trực tiếp database PostgreSQL (`Fo
 - **Nhóm State/Variable không dùng (2 tools):** `GetVariableTool`, `SetVariableTool`.
 - **Nhóm Tag dư thừa (3 tools):** `AssignTagTool`, `InspectModelTool` (đã thay bằng dynamic worker inspection), `GetTagValueFromInspectionTool` (đã merge vào `GetTagValueFromResourceTool`).
 
-
 ---
 
 ## 2. Mục Tiêu Kỹ Thuật (Objectives)
 
 1. **Chuẩn hóa `BuildTagMapFromResourceTool`:**
    - Key của `ObjectsMap` đổi thành **`RelativePath`** (chuẩn hóa POSIX `/`, ví dụ `"Characters/Eva/Eva.fbx"`).
-   - Mở rộng Input nhận linh hoạt: **`Repository`** (EntityRef/GUID) + **`RelativePaths`** (Array<string>), tự động fallback nếu truyền `Resources`.
-   - Tối giản hóa dữ liệu bên trong từng asset item: `{ relative_path, tag_map, path_map, resource_id }`.
-2. **Đồng bộ Frontend & Nâng cấp trải nghiệm cho Technical Artist:**
-   - Cập nhật `simulateTagMap.ts` để đồng bộ đúng định dạng mới.
-   - Thêm nút/tab **"Python Snippet"** ngay trong modal `TagMapPreviewDialog` để TA xem sẵn 3 dòng code mẫu Python đọc map.
-3. **Thanh lọc Server Built-in Tools (Dọn sạch 23 Zombie Tools):**
-   - Ẩn hoặc loại bỏ các tool 0-usage gây nhiễu (`ForEach`, 10 tools Map lắt vặt).
-   - Viết đầy đủ `Description` kỹ thuật rõ ràng cho 12+ Server Tools cốt lõi còn lại.
+   - Mở rộng Input nhận linh hoạt: **`Repository`** (EntityRef/GUID) + **`RelativePaths`** (Array<string>), tự động fallback nếu truyền `Target` (Resource GUIDs).
+   - **Tinh giản triệt để Tag Data:** Loại bỏ vĩnh viễn trường `id` (GUID) trong mảng `tags`, chỉ giữ danh sách chuỗi Tag Name / Tag Path gọn nhẹ (`tags: ["Eyelash_Normal"]`).
+2. **Thanh lọc Server Built-in Tools & Mô Tả Kỹ Thuật:**
+   - Loại bỏ hoặc ẩn 23 zombie tools khỏi Node Library và Canvas Context Menu.
+   - Bổ sung property `Description` vào `NodePaletteItemDto` và khai báo mô tả kỹ thuật chuẩn chỉnh cho 12 Server Tools cốt lõi còn lại.
+3. **Đồng bộ Frontend & Hỗ trợ Secret Pin:**
+   - Cập nhật `simulateTagMap.ts` sang key `relative_path` và tag strings sạch sẽ.
+   - Hỗ trợ loại chân pin mật khẩu/khóa (`{"type": "password"}` hoặc `{"isSecret": true}`) để che giấu API keys/credentials trên Canvas.
 4. **Kiểm thử E2E:** Đảm bảo toàn bộ 18 active pipelines (đặc biệt là *Fbx Body to Unreal*, *Daz Body To Blender*, *Inspect Daz*) tiếp tục hoạt động trơn tru.
+5. **Định hướng AI-First (Next Step):** Thay vì xây dựng abstraction C# cồng kềnh, triển khai Node AI bằng Custom Python Script Node chuyên biệt (`ai_material_mapper.py` dùng Gemini Flash / Local Ollama), đưa thẳng raw metadata thành Unreal Material Manifest không cần qua bước gắn tag thủ công.
 
 ---
 
-## 3. Kế Hoạch Triển Khai Chi Tiết (Phase Breakdown)
+## 3. Kế Hoạch Triển Khai Chi Tiết (3-Phase Layer Breakdown)
 
-### Phase 1: Tái cấu trúc & Chuẩn hóa `BuildTagMapFromResourceTool` (Backend)
-- [ ] **1.1. Cập nhật Input Pins của `BuildTagMapFromResourceInputs`:**
-  - Thêm `RepositoryId` / `Repository` (EntityRef hoặc GUID).
-  - Thêm `RelativePaths` (Array<string>, tùy chọn: nếu có thì filter đúng các path này, nếu không thì lấy toàn bộ active resources trong Repo).
-  - Giữ `Target` (Resource Array) làm fallback để tương thích ngược 100% với các pipeline cũ.
-- [ ] **1.2. Chuẩn hóa Output Pin `ObjectsMap`:**
-  - Chuyển `objectsMap[key]` sang dùng POSIX `RelativePath` (ví dụ: `Characters/Eva/Eva.fbx`).
-  - Lược bỏ các trường thừa không dùng, tinh gọn payload JSON gửi qua gRPC/RabbitMQ sang Runner.
-- [ ] **1.3. Cập nhật Unit/Integration Tests:**
-  - Viết/cập nhật test case kiểm tra việc build tag map bằng cả `Repository + RelativePaths` lẫn `Resource GUIDs`.
+### Phase 1: Toàn diện C# Backend Layer (TagMap + Dọn Tools + Description)
+- [x] **1.1. Chuẩn hóa `BuildTagMapFromResourceTool.cs`:**
+  - Input Pins: Bổ sung `Repository` (EntityRef/GUID) và `RelativePaths` (mảng string). Giữ `Target` (Resource GUIDs) làm fallback tương thích ngược.
+  - Xử lý Batch: Nếu có `Repository` + `RelativePaths`, gọi `workspaceApi.ResolveResourceVersionIdsByPathsAsync` để lấy `resourceVersionIds`.
+  - Output Key: Đổi key `objectsMap[key]` sang POSIX `item.RelativePath.Replace('\\', '/')`.
+  - Tinh giản Tags: Trong `assetPathMap[path]["tags"]`, loại bỏ `id` GUID, chỉ lưu mảng chuỗi `[tag.TagName]` hoặc `[tag.TagPath]`.
+- [x] **1.2. Thanh lọc 23 Zombie Tools:**
+  - Gỡ bỏ `ForEachLoopTool` khỏi `Tools/Utility/` (hoặc đánh dấu ẩn khỏi Palette).
+  - Loại bỏ / ẩn 10 tools Map lắt vặt và các tools không dùng khỏi danh sách trả về của [GetNodePalette.cs](file:///d:/FullStack/Automation/api/src/Modules/Pipeline/Automation.Pipeline/Features/Nodes/GetNodePalette.cs).
+- [x] **1.3. Bổ sung `Description` cho Built-in Tools:**
+  - Bổ sung property `string? Description = null` vào `NodePaletteItemDto`.
+  - Viết thuộc tính `public override string? Description => "..."` kỹ thuật, rõ ràng cho 12 Server Tools cốt lõi: `FormatString`, `GetRepositoryInfo`, `UpdateResourceMetadata`, `MakeArray`, `GetRelativePath`, `BreakStruct`, `BuildTagMapFromResource`, `GetTagValueFromResource`, `GetResourceRelativePaths`, `AssignResourcesToContent`, `SyncLocalChangeToRepository`, `LookupContentMap`.
+- [x] **1.4. Build & Verify Backend:**
+  - Chạy `dotnet build api/Automation.sln` đạt 0 lỗi compile.
+  - Dựng bộ 3 test cases chuyên biệt trong [BuildTagMapFromResourceToolTests.cs](file:///d:/FullStack/Automation/api/tests/Automation.Pipeline.Tests/BuildTagMapFromResourceToolTests.cs) (Batch-First, POSIX key, Clean tags, Backward compatibility) đạt 100% Passed.
 
-### Phase 2: Đồng bộ Frontend & Bổ sung "Python Snippet" cho Technical Artist
+### Phase 2: Toàn diện Frontend & UX Layer (Simulate + Node Library + Secret Input)
 - [ ] **2.1. Cập nhật `simulateTagMap.ts`:**
-  - Sửa `objects_map` để key là `relative_path` thay vì `assetName`.
-- [ ] **2.2. Thêm "Python Snippet" vào `TagMapPreviewDialog.tsx`:**
-  - Bổ sung toggle hoặc button `Python Snippet` bên cạnh `Visual Mapping` và `Raw JSON`.
-  - Hiển thị đoạn code Python mẫu sẵn sàng copy:
-    ```python
-    # Example: How to read ObjectsMap in your Python/Blender/Unreal Node
-    for rel_path, data in inputs["ObjectsMap"].items():
-        tag_map = data.get("tag_map", {})
-        diffuse_path = tag_map.get("Diffuse")
-        print(f"Processing {rel_path} -> Diffuse: {diffuse_path}")
-    ```
-- [ ] **2.3. Tooltip chân Pin trên Canvas:**
-  - Cập nhật tooltip của chân pin `ObjectsMap` để người dùng rê chuột là hiểu ngay định dạng map.
+  - Đồng bộ key theo `relative_path` và mảng tags dạng chuỗi sạch sẽ.
+- [ ] **2.2. Kiểm tra hiển thị `NodeLibraryTable` & `ContextMenuPalette`:**
+  - Kiểm tra bảng Node Library tab "Built-in Core Tools" hiển thị đầy đủ cột `Description`.
+  - Danh sách node trên Palette Canvas tự động biến mất 23 zombie tools, trở nên gọn gàng, chuyên nghiệp.
+- [ ] **2.3. Hỗ trợ Secret Pin trên Canvas Inspector:**
+  - Khi một Input Pin có metadata `{"type": "password"}` hoặc `{"isSecret": true}` (ví dụ API key), hiển thị Input dạng masked password có icon toggle ẩn/hiện mắt.
+- [ ] **2.4. Build & Verify Frontend:**
+  - Chạy `pnpm tsc --noEmit` đạt 0 lỗi typecheck.
 
-### Phase 3: Thanh lọc Server Tools & Viết Description Chuẩn Hóa
-- [ ] **3.1. Phân loại và ẩn bớt Zombie Tools:**
-  - Gỡ bỏ `ForEachLoopTool` khỏi danh sách Server Tools (tránh người dùng hiểu nhầm canvas có loop).
-  - Ẩn hoặc gom bớt 10 tool Map lắt vặt (`ZipToMap`, `RemapKeys`, `SetMapItem`...).
-  - Giữ lại các tool thực sự cần: `FormatString`, `GetRepositoryInfo`, `UpdateResourceMetadata`, `MakeArray`, `GetRelativePath`, `BreakStruct`, `BuildTagMapFromResource`, `GetTagValueFromResource`, `GetResourceRelativePaths`, `AssignResourcesToContent`, `SyncLocalChangeToRepository`, `LookupContentMap`.
-- [ ] **3.2. Bổ sung `Description` hoàn chỉnh cho tất cả Server Tools còn lại:**
-  - Cập nhật thuộc tính `public override string? Description => "..."` cho từng class tool trong `api/.../Tools/`.
-  - Giúp bảng Node Library tab "Server Built-in Tools" hiển thị cột Description rõ ràng, chuyên nghiệp.
-
-### Phase 4: Kiểm Thử E2E & Nghiệm Thu
-- [ ] **4.1. Chạy lại script `scan_pipeline_nodes.py`:**
-  - Đảm bảo không có pipeline nào bị lỗi reference gãy node.
-- [ ] **4.2. Chạy thử nghiệm Pipeline E2E:**
-  - Chạy thử Pipeline *Fbx Body to Unreal* hoặc *Inspect Daz* với `BuildTagMap` đã chuẩn hóa.
-- [ ] **4.3. Typecheck & Build:**
-  - `dotnet build api/Automation.sln` đạt 0 lỗi.
-  - `pnpm tsc --noEmit` phía Frontend đạt 0 lỗi.
+### Phase 3: Kiểm Thử E2E, Verify Pipelines & Nghiệm Thu
+- [ ] **3.1. Quét lại Database bằng script:**
+  - Chạy lại [scripts/scratch/scan_pipeline_nodes.py](file:///d:/FullStack/Automation/scripts/scratch/scan_pipeline_nodes.py) verify không còn node mồ côi nào bị gãy tham chiếu.
+- [ ] **3.2. Test chạy thử nghiệm Pipeline thực tế:**
+  - Chạy thử Pipeline *Fbx Body to Unreal* hoặc *Inspect Daz* để kiểm chứng backward compatibility và tốc độ thực thi.
+- [ ] **3.3. Cập nhật tài liệu Master Index:**
+  - Đăng ký và cập nhật trạng thái trong [.agents/AGENTS.md](file:///d:/FullStack/Automation/.agents/AGENTS.md) và [PIPELINE_PIN_SYSTEM.md](file:///d:/FullStack/Automation/docs/backend/PIPELINE_PIN_SYSTEM.md).
 
 ---
 
-## 4. Master Index Checklist
-Sau khi hoàn thành kế hoạch này, cần cập nhật:
-- Master Index tại [AGENTS.md](file:///d:/FullStack/Automation/.agents/AGENTS.md).
-- Cập nhật tài liệu [PIPELINE_PIN_SYSTEM.md](file:///d:/FullStack/Automation/docs/backend/PIPELINE_PIN_SYSTEM.md).
+## 4. Định Hướng AI-First Script Node (Bước Tiếp Theo Sau Khi Hoàn Thành Plan Này)
+
+Sau khi dọn dẹp sạch sẽ lõi Tooling:
+1. **Tạo Custom Python Script Node: `ai_material_mapper.py`:**
+   - Nhận đầu vào: `metadata` (raw json từ Inspector) + `material_contracts` (từ `LookupContentMap`).
+   - Gọi Gemini 2.0 Flash (hoặc Local Ollama) với Structured Output Pydantic Schema.
+   - Nhả thẳng ra `manifest` cho `setup_asset_materials.py` của Unreal 5 mà không cần người dùng gắn bất kỳ Gameplay Tag nào.
+2. **Cung cấp 2 lựa chọn cho người dùng:**
+   - **Luồng Truyền Thống / Offline:** `BuildTagMap` -> `resolve_material_manifest.py`.
+   - **Luồng AI-First (1-Click):** Raw Metadata -> `ai_material_mapper.py` -> Unreal Engine.

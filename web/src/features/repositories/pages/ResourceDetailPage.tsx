@@ -17,7 +17,6 @@ import {
   Calendar,
   Layers,
   Loader2,
-  FolderGit2,
   History,
   RefreshCw,
   CheckCircle2,
@@ -160,7 +159,7 @@ export function ResourceDetailPage({
               <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5 truncate">
                 <FileTypeIcon
                   fileName={resource?.name}
-                  filePath={resource?.filePath}
+                  filePath={resource?.filePath ?? undefined}
                   size="lg"
                 />
                 <span className="truncate">{resource?.name || "Resource Detail"}</span>
@@ -428,7 +427,7 @@ export function ResourceDetailPage({
                             <div className="flex items-center gap-2.5 flex-wrap">
                               <FileTypeIcon
                                 fileName={resource.name}
-                                filePath={resource.filePath}
+                                filePath={resource.filePath ?? undefined}
                                 size="sm"
                               />
                               <Badge

@@ -15,7 +15,6 @@ import {
   ArrowRight,
   Eye,
   Code2,
-  X,
 } from "lucide-react";
 import {
   simulateBuildTagMap,

@@ -16,6 +16,7 @@ public class AssignResourcesToContentTool(
     public IReadOnlyList<string> Aliases => ["AssignResources"];
     public string Label => "Assign Resources to Content";
     public string? Category => "Workspace & Content";
+    public string? Description => "Binds a list of Resource items to a designated ContentItem in the project.";
     public bool IsPure => false;
 
     public IReadOnlyList<PinDefinition> Inputs =>
