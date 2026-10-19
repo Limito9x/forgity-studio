@@ -5,7 +5,6 @@ import {
   FileImage,
   FileText,
   FileJson,
-  Film,
   Archive,
   Layers,
   Sparkles,

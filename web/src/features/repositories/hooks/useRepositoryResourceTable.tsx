@@ -152,7 +152,7 @@ export function useRepositoryResourceTable({
             <div className="flex items-center gap-2.5 py-1 min-w-[200px]">
               <FileTypeIcon
                 fileName={item.displayName}
-                relativePath={item.relativePath}
+                relativePath={item.relativePath ?? undefined}
                 size="md"
               />
               <div className="min-w-0">
