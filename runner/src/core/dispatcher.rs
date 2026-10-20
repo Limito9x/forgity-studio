@@ -7,6 +7,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use super::contracts::{StageResultMessage, StageTaskMessage, StepProgressMessage, StepResult};
+use super::executors::{ExecutionContext, ExecutorRegistry};
 use crate::ipc::pipe_server::PipeServer;
 use crate::ipc::protocol::{GuestToHostMessage, HostToGuestMessage};
 use crate::process::active_stage::ActiveStageManager;
@@ -63,17 +64,20 @@ pub struct StageDispatcher {
     storage: StorageManager,
     downloader: StreamDownloader,
     active_stages: Arc<ActiveStageManager>,
+    executor_registry: Arc<ExecutorRegistry>,
 }
 
 impl StageDispatcher {
     pub fn new(rabbitmq: RabbitMqClient, active_stages: Arc<ActiveStageManager>) -> Self {
         let storage = StorageManager::new(None);
         let downloader = StreamDownloader::new(StorageManager::new(None));
+        let executor_registry = Arc::new(ExecutorRegistry::new());
         Self {
             rabbitmq,
             storage,
             downloader,
             active_stages,
+            executor_registry,
         }
     }
 
@@ -107,11 +111,14 @@ impl StageDispatcher {
                         .await
                     {
                         Ok((script_path, computed_hash)) => {
+                            let abs_path = crate::storage::cache::normalize_absolute_path(
+                                std::fs::canonicalize(&script_path).unwrap_or(script_path),
+                            );
                             info!(
                                 "[Storage] Script cached at {:?} (hash: {})",
-                                script_path, computed_hash
+                                abs_path, computed_hash
                             );
-                            step.script_path = script_path.to_string_lossy().to_string();
+                            step.script_path = abs_path.to_string_lossy().to_string();
                         }
                         Err(e) => {
                             warn!(
@@ -157,7 +164,9 @@ impl StageDispatcher {
 
                     match self.downloader.download_asset(url, hash, ext).await {
                         Ok((local_path, _)) => {
-                            let abs_path = std::fs::canonicalize(&local_path).unwrap_or(local_path);
+                            let abs_path = crate::storage::cache::normalize_absolute_path(
+                                std::fs::canonicalize(&local_path).unwrap_or(local_path),
+                            );
                             info!("[Storage] Pin '{}' resolved to local file: {:?}", key, abs_path);
                             *val = serde_json::Value::String(abs_path.to_string_lossy().to_string());
                         }
@@ -169,12 +178,16 @@ impl StageDispatcher {
             }
         }
 
-        // 3. Resolve executable for this executor (e.g. blender.exe)
+        // 3. Resolve Executor Strategy & Validate fail-fast
+        let executor = self.executor_registry.get(&task.executor)?;
+        executor.validate(&task)?;
+
+        // 4. Resolve executable for this executor (e.g. blender.exe)
         let exe_path = resolve_executor_executable(&task.executor)
             .with_context(|| format!("Could not resolve executable for executor '{}'", task.executor))?;
         info!("[Dispatcher] Resolved executor binary: {:?}", exe_path);
 
-        // 4. Prepare temp working directory and task.json
+        // 5. Prepare temp working directory and task.json
         let temp_dir = PathBuf::from("temp").join(&stage_id);
         create_dir_all(&temp_dir).await.ok();
         let task_json_path = temp_dir.join("task.json");
@@ -183,7 +196,7 @@ impl StageDispatcher {
         file.write_all(&task_bytes).await?;
         file.flush().await?;
 
-        // 5. Create Windows Job Object for lifecycle containment
+        // 6. Create Windows Job Object for lifecycle containment
         let job_object = Arc::new(JobObject::create()
             .context("Failed to initialize Windows Job Object")?);
 
@@ -195,55 +208,39 @@ impl StageDispatcher {
             Arc::clone(&job_object),
         ).await;
 
-        // 6. Create Named Pipe IPC Server
+        // 7. Create Named Pipe IPC Server
         let pipe_server = Arc::new(PipeServer::new(&stage_id));
         let pipe_path = pipe_server.pipe_path().to_string();
 
         // Channel for events from guest subprocess
         let (event_tx, mut event_rx) = mpsc::channel::<GuestToHostMessage>(100);
 
-        // 7. Build arguments for DCC Guest
+        // 8. Build arguments & env vars via Strategy Pattern
         let abs_guest_script = ensure_guest_script()
             .context("Failed to locate or extract guest runner script stage_runner_guest.py")?;
         info!("[Dispatcher] Using Guest Script: {:?}", abs_guest_script);
         let abs_task_json = std::fs::canonicalize(&task_json_path)
             .unwrap_or(task_json_path.clone());
 
-        let mut args: Vec<String> = Vec::new();
-        match task.executor.to_lowercase().as_str() {
-            "blender" => {
-                args.push("-b".to_string()); // Headless background
-                args.push("--python".to_string());
-                args.push(abs_guest_script.to_string_lossy().to_string());
-                args.push("--".to_string());
-                args.push("--pipe".to_string());
-                args.push(pipe_path.clone());
-                args.push("--task".to_string());
-                args.push(abs_task_json.to_string_lossy().to_string());
-            }
-            "unreal" => {
-                args.push("-run=ExecutePythonScript".to_string());
-                args.push(format!("-script={}", abs_guest_script.display()));
-                args.push("-nullrhi".to_string());
-                args.push("-unattended".to_string());
-                args.push("-nosplash".to_string());
-            }
-            _ => {
-                // Standalone Python
-                args.push(abs_guest_script.to_string_lossy().to_string());
-                args.push("--pipe".to_string());
-                args.push(pipe_path.clone());
-                args.push("--task".to_string());
-                args.push(abs_task_json.to_string_lossy().to_string());
-            }
-        }
+        let exec_ctx = ExecutionContext {
+            guest_script_path: abs_guest_script,
+            task_json_path: abs_task_json.clone(),
+            pipe_path: pipe_path.clone(),
+            exe_path: exe_path.clone(),
+        };
+
+        let args = executor.build_args(&task, &exec_ctx)?;
+        let extra_env = executor.prepare_env(&task, &exec_ctx)?;
 
         let task_json_str = abs_task_json.to_string_lossy().to_string();
-        let env_vars = [
+        let mut env_vars: Vec<(&str, &str)> = vec![
             ("FORGITY_IPC_PIPE", pipe_path.as_str()),
             ("FORGITY_TASK_JSON", task_json_str.as_str()),
             ("PYTHONUNBUFFERED", "1"),
         ];
+        for (k, v) in &extra_env {
+            env_vars.push((k.as_str(), v.as_str()));
+        }
 
         // 8. Spawn IPC listener in background
         let pipe_server_clone = Arc::clone(&pipe_server);
@@ -258,7 +255,7 @@ impl StageDispatcher {
             &exe_path,
             &args,
             &env_vars,
-            None,
+            Some(self.storage.base_dir()),
             &stage_id,
             &job_object,
         );
@@ -425,8 +422,9 @@ impl StageDispatcher {
         // Wait brief moment for any remaining pipe cleanup
         pipe_handle.abort();
 
-        // 11. Clean up temp task file
+        // 11. Clean up temp task file and executor artifacts
         let _ = remove_file(&task_json_path).await;
+        let _ = executor.cleanup(&task);
 
         let result = StageResultMessage {
             stage_execution_id: stage_id.clone(),
