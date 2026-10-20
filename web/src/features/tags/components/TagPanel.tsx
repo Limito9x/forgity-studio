@@ -69,6 +69,7 @@ export function TagPanel({ projectId, contextTitle }: TagPanelProps) {
     const openDialog = useDialogStore((s) => s.openDialog);
 
     const isMinimized = isCollapsed;
+    const isHeaderOnly = isMinimized || isDraggingGlobal;
     const { mutate: exportTags, isPending: isExporting } = useExportTags();
 
     // Resizable panel width state
@@ -195,22 +196,24 @@ export function TagPanel({ projectId, contextTitle }: TagPanelProps) {
             aria-label="GameplayTags Explorer"
             style={{ width: `${panelWidth}px` }}
             className={cn(
-                "fixed right-12 top-16 bottom-4 z-40 bg-card/95 backdrop-blur-2xl border border-border/80 rounded-2xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ease-in-out",
-                isMinimized
-                    ? "h-14 max-h-14 border-primary/40 shadow-lg"
-                    : "h-auto max-h-[calc(100vh-5rem)]",
-                isDraggingGlobal && "opacity-30 pointer-events-none scale-95 origin-top-right shadow-none"
+                "fixed right-12 top-16 z-40 bg-card/95 backdrop-blur-2xl border border-border/80 rounded-2xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ease-in-out",
+                isHeaderOnly
+                    ? "h-14 max-h-14 border-primary/50 shadow-lg"
+                    : "bottom-4 h-auto max-h-[calc(100vh-5rem)]",
+                isDraggingGlobal && "border-primary/60 shadow-primary/20 shadow-xl ring-2 ring-primary/30"
             )}
         >
-            {/* Left Edge Resize Handle */}
-            <div
-                onMouseDown={handleMouseDownResize}
-                onDoubleClick={() => setPanelWidth(480)}
-                title="Drag left/right to resize panel width • Double-click to reset"
-                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-primary/20 active:bg-primary/40 transition-colors z-50 group flex items-center justify-center select-none"
-            >
-                <div className="w-0.5 h-8 rounded-full bg-border/60 group-hover:bg-primary/80 transition-colors" />
-            </div>
+            {/* Left Edge Resize Handle (only when not header-only) */}
+            {!isHeaderOnly && (
+                <div
+                    onMouseDown={handleMouseDownResize}
+                    onDoubleClick={() => setPanelWidth(480)}
+                    title="Drag left/right to resize panel width • Double-click to reset"
+                    className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-primary/20 active:bg-primary/40 transition-colors z-50 group flex items-center justify-center select-none"
+                >
+                    <div className="w-0.5 h-8 rounded-full bg-border/60 group-hover:bg-primary/80 transition-colors" />
+                </div>
+            )}
             {/* Header */}
             <div className="px-4 py-2.5 border-b border-border/70 flex items-center justify-between gap-2 bg-muted/20 shrink-0 h-14">
                 <div className="flex items-center gap-2.5 min-w-0">
@@ -234,7 +237,14 @@ export function TagPanel({ projectId, contextTitle }: TagPanelProps) {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-1 ml-auto">
+                {isDraggingGlobal && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/15 text-primary border border-primary/30 text-[11px] font-medium animate-pulse shrink-0">
+                        <Sparkles className="w-3 h-3" />
+                        <span>Drop tag into cell</span>
+                    </div>
+                )}
+
+                <div className={cn("flex items-center gap-1 ml-auto", isDraggingGlobal && "opacity-40 pointer-events-none")}>
                     <Button
                         size="icon"
                         variant="ghost"
@@ -342,76 +352,84 @@ export function TagPanel({ projectId, contextTitle }: TagPanelProps) {
                 </div>
             </div>
 
-            {/* Search and Hint Bar (only when not minimized) */}
-            {!isMinimized && (
-                <div className="p-3 border-b border-border/60 flex flex-col gap-2 shrink-0 bg-muted/5">
-                    <div className="relative w-full">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                        <Input
-                            placeholder="Filter by path (e.g. Character.Hero)..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-8 h-8 text-xs bg-card"
-                        />
-                    </div>
-
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1 gap-2">
-                        <div className="flex items-center gap-1.5 truncate">
-                            <Sparkles className="w-3 h-3 text-primary shrink-0" />
-                            <span className="truncate">Drag tag into metadata cells</span>
-                        </div>
-                        <span className="text-[10px] text-muted-foreground/70 shrink-0 font-mono">
-                            Shift+Click: expand branch
-                        </span>
-                    </div>
-                </div>
-            )}
-
-            {/* Scrollable Tree View */}
-            {!isMinimized && (
-                <div className="flex-1 overflow-y-auto p-2.5 space-y-1">
-                    {isLoading ? (
-                        <div className="flex flex-col items-center justify-center h-48 text-muted-foreground text-xs gap-2">
-                            <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                            <span>Loading GameplayTags...</span>
-                        </div>
-                    ) : filteredTree.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-48 text-center p-4 border border-dashed border-border/70 rounded-xl">
-                            <Tag className="w-8 h-8 text-muted-foreground/40 mb-2" />
-                            <p className="text-xs font-semibold text-foreground">
-                                {searchQuery ? "No tags match your search" : "No GameplayTags created yet"}
-                            </p>
-                            <p className="text-[11px] text-muted-foreground mt-1 max-w-[200px]">
-                                {searchQuery
-                                    ? "Try typing a different path prefix."
-                                    : "Click '+ New' to create hierarchical tags like Asset.Character.Hero."}
-                            </p>
-                            {!searchQuery && (
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="mt-3 text-xs h-7 gap-1"
-                                    onClick={() => openDialog("create-tag", { projectId })}
-                                >
-                                    <Plus className="w-3 h-3" />
-                                    <span>Create Tag</span>
-                                </Button>
-                            )}
-                        </div>
-                    ) : (
-                        filteredTree.map((node) => (
-                            <TagTreeNodeItem
-                                key={node.id}
-                                node={node}
-                                projectId={projectId}
-                                expandedPaths={expandedPaths}
-                                toggleExpand={toggleExpand}
-                                autoExpandAll={Boolean(searchQuery.trim())}
+            {/* Body: Search & Tree view (Hidden when minimized or dragging) */}
+            <div
+                className={cn(
+                    "flex flex-col flex-1 min-h-0 overflow-hidden transition-all duration-200",
+                    isHeaderOnly && "invisible opacity-0 pointer-events-none h-0 max-h-0"
+                )}
+            >
+                {/* Search and Hint Bar (only when not minimized) */}
+                {!isMinimized && (
+                    <div className="p-3 border-b border-border/60 flex flex-col gap-2 shrink-0 bg-muted/5">
+                        <div className="relative w-full">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                            <Input
+                                placeholder="Filter by path (e.g. Character.Hero)..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-8 h-8 text-xs bg-card"
                             />
-                        ))
-                    )}
-                </div>
-            )}
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1 gap-2">
+                            <div className="flex items-center gap-1.5 truncate">
+                                <Sparkles className="w-3 h-3 text-primary shrink-0" />
+                                <span className="truncate">Drag tag into metadata cells</span>
+                            </div>
+                            <span className="text-[10px] text-muted-foreground/70 shrink-0 font-mono">
+                                Shift+Click: expand branch
+                            </span>
+                        </div>
+                    </div>
+                )}
+
+                {/* Scrollable Tree View */}
+                {!isMinimized && (
+                    <div className="flex-1 overflow-y-auto p-2.5 space-y-1">
+                        {isLoading ? (
+                            <div className="flex flex-col items-center justify-center h-48 text-muted-foreground text-xs gap-2">
+                                <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                <span>Loading GameplayTags...</span>
+                            </div>
+                        ) : filteredTree.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-48 text-center p-4 border border-dashed border-border/70 rounded-xl">
+                                <Tag className="w-8 h-8 text-muted-foreground/40 mb-2" />
+                                <p className="text-xs font-semibold text-foreground">
+                                    {searchQuery ? "No tags match your search" : "No GameplayTags created yet"}
+                                </p>
+                                <p className="text-[11px] text-muted-foreground mt-1 max-w-[200px]">
+                                    {searchQuery
+                                        ? "Try typing a different path prefix."
+                                        : "Click '+ New' to create hierarchical tags like Asset.Character.Hero."}
+                                </p>
+                                {!searchQuery && (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="mt-3 text-xs h-7 gap-1"
+                                        onClick={() => openDialog("create-tag", { projectId })}
+                                    >
+                                        <Plus className="w-3 h-3" />
+                                        <span>Create Tag</span>
+                                    </Button>
+                                )}
+                            </div>
+                        ) : (
+                            filteredTree.map((node) => (
+                                <TagTreeNodeItem
+                                    key={node.id}
+                                    node={node}
+                                    projectId={projectId}
+                                    expandedPaths={expandedPaths}
+                                    toggleExpand={toggleExpand}
+                                    autoExpandAll={Boolean(searchQuery.trim())}
+                                />
+                            ))
+                        )}
+                    </div>
+                )}
+            </div>
         </aside>
     );
 }

@@ -207,3 +207,66 @@ Trên một máy tính trạm của Developer, có thể tồn tại **2 bản R
 5. **Bảo tồn tệp bí mật và môi trường:** Tuyệt đối không xóa hay ghi đè `config.json` và `.venv/` khi nâng cấp hay đóng gói Runner.
 6. **Tắt Daemon ngầm trước khi Dev Local:** Luôn chạy `.\runner.bat service stop` trước khi gõ `.\runner.bat start` trong repo để tránh tranh chấp hàng đợi RabbitMQ.
 7. **An toàn tuyệt đối khi chạy Windowless (`pythonw`):** Không dùng `print()` trực tiếp khi đọc stdout của DCC Subprocess; luôn sử dụng `logger` hoặc bọc try-except để không làm đứt luồng `PIPELINE_EVENT`.
+
+---
+
+## 11. Kiến Trúc Native Rust Runner (`runner/`) & Strategy Pattern Cho DCC
+
+Để tối ưu hóa tài nguyên RAM (< 15MB) và đảm bảo tính cách ly tuyệt đối của tiến trình trên hệ điều hành, hệ thống chuyển dịch sang **Native Rust Runner (`runner/`)**.
+
+```
+runner/src/
+├── core/
+│   ├── dispatcher.rs             # Pure Stage Orchestrator (Job Object, Named Pipe, IPC)
+│   └── executors/                # DCC Strategy Pattern
+│       ├── mod.rs                # Trait `DccExecutor` & struct `ExecutorRegistry`
+│       ├── blender.rs            # BlenderStrategy (-b --python ... -- --pipe ... --task ...)
+│       ├── unreal.rs             # UnrealStrategy (Validate .uproject, -run=pythonscript)
+│       └── python.rs             # Standalone Python CLI Strategy
+├── storage/
+│   ├── cache.rs                  # StorageManager: CAS deduplication, Absolute Path & Verbatim stripping
+│   └── downloader.rs             # Zero-RAM chunked streaming download S3/MinIO
+└── process/
+    ├── job_object.rs             # Windows Job Object process tree hard containment
+    └── subprocess.rs             # Subprocess spawner & live log streamer
+```
+
+### 11.1. Trait `DccExecutor` & Strategy Pattern
+- **Single Responsibility:** `dispatcher.rs` đóng vai trò là "Nhạc trưởng" (Orchestrator). Mọi logic khởi tạo cờ lệnh và tiền kiểm tra của từng phần mềm 3D (Blender, Unreal, Maya) được ủy quyền cho các struct triển khai trait `DccExecutor`:
+  ```rust
+  pub trait DccExecutor: Send + Sync {
+      fn name(&self) -> &'static str;
+      fn validate(&self, task: &StageTaskMessage) -> Result<()>;
+      fn build_args(&self, task: &StageTaskMessage, ctx: &ExecutionContext) -> Result<Vec<String>>;
+      fn prepare_env(&self, task: &StageTaskMessage, ctx: &ExecutionContext) -> Result<HashMap<String, String>>;
+      fn cleanup(&self, task: &StageTaskMessage) -> Result<()>;
+  }
+  ```
+- **Fail-Fast Prerequisite Validation:** Hook `validate()` kiểm tra tính hợp lệ của môi trường (ví dụ file `.uproject` của Unreal có tồn tại thực sự trên đĩa không) **trước khi tiến trình OS được khởi động**, ngăn ngừa crash vô nghĩa sau 15 giây khởi động engine.
+
+### 11.2. Chuẩn Cờ Lệnh Headless Của Unreal Engine (`UnrealEditor-Cmd.exe`)
+- **Tên Commandlet Bắt Buộc:** Unreal Engine sử dụng reflection C++ tìm class `UPythonScriptCommandlet`. Cờ CLI bắt buộc phải là **`-run=pythonscript`** (tuyệt đối không dùng `-run=ExecutePythonScript`).
+- **Đường Dẫn Dự Án (`.uproject`):** Bắt buộc phải là đối số đầu tiên truyền vào CLI để Unreal nạp plugins theo Project Context.
+- **Cờ Output & Headless Chuẩn:**
+  ```text
+  UnrealEditor-Cmd.exe <project.uproject> -run=pythonscript -script=<script_path> -stdout -FullStdOutLogOutput -UTF8Output -nullrhi -unattended -nosplash
+  ```
+
+### 11.3. Chuẩn Đường Dẫn Tuyệt Đối (Absolute Path) & Windows Verbatim Prefix (`\\?\`)
+- **Nguyên nhân lỗi CWD:** Khi Unreal Engine hoặc Blender chạy headless, thư mục làm việc hiện tại (CWD) của chúng có thể bị thay đổi về thư mục cài đặt (`Engine\Binaries\Win64` hoặc `Blender Foundation\Blender`). Nếu `StorageManager` trả về đường dẫn tương đối `.\cache\assets\...`, guest script bên trong DCC sẽ báo lỗi `Script not found` ngay lập tức.
+- **Quy chuẩn bắt buộc:**
+  1. Toàn bộ đường dẫn script (`step.script_path`) và file pin assets khi ghi vào `task.json` **BẮT BUỘC PHẢI LÀ ĐƯỜNG DẪN TUYỆT ĐỐI (Absolute Path)**.
+  2. Sử dụng hàm `normalize_absolute_path()` để **bóc tách tiền tố Windows Verbatim `\\?\`** (do `canonicalize` sinh ra), tránh gây lỗi parser command line của Unreal/Blender.
+  3. Khi spawn tiến trình con qua `SubprocessRunner`, luôn truyền `Some(self.storage.base_dir())` để ép thư mục làm việc về Runner root.
+
+### 11.4. Bộ Kiểm Chứng Tự Động (`cargo test`)
+Mọi thay đổi liên quan đến Command Builder, Strategy Registry, Path Normalization và Storage Manager **bắt buộc phải có Unit Tests** và pass 100% trước khi đóng gói Release:
+```bash
+cargo test
+# Đảm bảo pass 11/11 tests bao gồm:
+# - test_registry_lookup_case_insensitive
+# - test_unreal_build_args_and_clean_path
+# - test_unreal_validation_fails_on_nonexistent_project
+# - test_storage_manager_paths_are_absolute
+# - test_normalize_verbatim_path
+```

@@ -133,14 +133,24 @@ public class FormatStringTool : IResolverTool
         var normalized = input.Replace('\\', '/');
 
         // 2. Thu gọn nhiều dấu '/' liên tiếp thành 1 dấu '/' (trừ trường hợp UNC // ở đầu)
+        var isUnc = normalized.StartsWith("//");
         normalized = Regex.Replace(normalized, @"/{2,}", "/");
+        if (isUnc && !normalized.StartsWith("//"))
+        {
+            normalized = "/" + normalized;
+        }
 
-        // 3. Cho phép dấu '/' cho đường dẫn thư mục, sanitize các ký tự đặc biệt bất hợp pháp còn lại
+        // 3. Tách từng segment và trim khoảng trắng ở đầu/cuối của từng thư mục/tập tin
+        var segments = normalized.Split('/');
+        var cleanSegments = segments.Select(s => s.Trim()).ToArray();
+        normalized = string.Join('/', cleanSegments);
+
+        // 4. Cho phép dấu '/' cho đường dẫn thư mục, sanitize các ký tự đặc biệt bất hợp pháp còn lại
         var invalidChars = new HashSet<char>(Path.GetInvalidFileNameChars().Where(c => c != '/' && c != '\\' && c != ':'));
         var cleanChars = normalized.Select(c => invalidChars.Contains(c) ? '_' : c).ToArray();
         var result = new string(cleanChars).Trim();
 
-        // 4. Nếu kết quả chỉ còn là "/" thì trả về rỗng
+        // 5. Nếu kết quả chỉ còn là "/" thì trả về rỗng
         if (result == "/") return string.Empty;
 
         return result;
