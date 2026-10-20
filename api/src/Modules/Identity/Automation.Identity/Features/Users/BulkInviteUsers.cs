@@ -9,6 +9,7 @@ using FluentResults;
 using FluentValidation;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Wolverine;
 
@@ -111,50 +112,81 @@ public class BulkInviteUsersHandler(
                     continue;
                 }
 
-                // Check if user already exists
-                var existingUser = await userManager.FindByEmailAsync(email);
+                // Check if user already exists (including soft-deleted)
+                var normalizedEmail = userManager.NormalizeEmail(email);
+                var existingUser = await userManager.Users
+                    .IgnoreQueryFilters()
+                    .FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail, ct);
+
+                User user;
                 if (existingUser != null)
                 {
-                    details.Add(new BulkInviteUserItemResult(
-                        email,
-                        false,
-                        "User already exists with this email address.",
-                        IsExistingUser: true
-                    ));
-                    continue;
+                    if (existingUser.DeletedAt.HasValue)
+                    {
+                        // Reactivate soft-deleted user
+                        user = existingUser;
+                        user.DeletedAt = null;
+                        user.DeletedBy = null;
+                        user.Status = Automation.Identity.Domain.Enums.UserStatus.Active;
+                        user.MustChangePassword = true;
+
+                        var updateResult = await userManager.UpdateAsync(user);
+                        if (!updateResult.Succeeded)
+                        {
+                            var errors = string.Join("; ", updateResult.Errors.Select(e => e.Description));
+                            details.Add(new BulkInviteUserItemResult(email, false, $"Failed to reactivate user: {errors}"));
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        details.Add(new BulkInviteUserItemResult(
+                            email,
+                            false,
+                            "User already exists with this email address.",
+                            IsExistingUser: true
+                        ));
+                        continue;
+                    }
                 }
-
-                // Generate a friendly unique username
-                var localPart = email.Split('@')[0];
-                var candidateUsername = localPart;
-                if (await userManager.FindByNameAsync(candidateUsername) != null)
+                else
                 {
-                    candidateUsername = $"{localPart}_{Guid.NewGuid().ToString("N")[..6]}";
-                }
+                    // Generate a friendly unique username
+                    var localPart = email.Split('@')[0];
+                    var candidateUsername = localPart;
+                    var normalizedCandidate = userManager.NormalizeName(candidateUsername);
+                    if (await userManager.Users.IgnoreQueryFilters().AnyAsync(u => u.NormalizedUserName == normalizedCandidate, ct))
+                    {
+                        candidateUsername = $"{localPart}_{Guid.NewGuid().ToString("N")[..6]}";
+                    }
 
-                var user = new User
-                {
-                    UserName = candidateUsername,
-                    Email = email,
-                    FirstName = localPart,
-                    LastName = "Beta Tester",
-                    DisplayName = localPart,
-                    EmailConfirmed = true,
-                    MustChangePassword = true
-                };
+                    user = new User
+                    {
+                        UserName = candidateUsername,
+                        Email = email,
+                        FirstName = localPart,
+                        LastName = "Beta Tester",
+                        DisplayName = localPart,
+                        EmailConfirmed = true,
+                        MustChangePassword = true
+                    };
 
-                var createResult = await userManager.CreateAsync(user);
-                if (!createResult.Succeeded)
-                {
-                    var errors = string.Join("; ", createResult.Errors.Select(e => e.Description));
-                    details.Add(new BulkInviteUserItemResult(email, false, $"Failed to create user: {errors}"));
-                    continue;
+                    var createResult = await userManager.CreateAsync(user);
+                    if (!createResult.Succeeded)
+                    {
+                        var errors = string.Join("; ", createResult.Errors.Select(e => e.Description));
+                        details.Add(new BulkInviteUserItemResult(email, false, $"Failed to create user: {errors}"));
+                        continue;
+                    }
                 }
 
                 // Assign target role
                 if (!string.IsNullOrWhiteSpace(targetRoleName))
                 {
-                    await userManager.AddToRoleAsync(user, targetRoleName);
+                    if (!await userManager.IsInRoleAsync(user, targetRoleName))
+                    {
+                        await userManager.AddToRoleAsync(user, targetRoleName);
+                    }
                 }
 
                 // Generate invite token & link
