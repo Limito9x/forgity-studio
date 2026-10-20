@@ -107,9 +107,12 @@ Hệ thống GameplayTags cho phép gắn nhãn phân loại theo cấu trúc c�
 - Một Tag có thể liên kết ở 2 cấp độ:
   1. **Toàn bộ Entity** (`targetSubPath = ""`): Gán nhãn cho toàn bộ Resource.
   2. **Trường/Thuộc tính chi tiết** (`targetSubPath = "slots[0].textures.BASE_COLOR"`): Gán nhãn trực tiếp vào một cell cụ thể trong bảng Metadata của Resource.
-- **Dnd-Kit Integration**:
+- **Dnd-Kit Integration & Auto-Collapse**:
   - Vùng kéo: `DraggableTagCard` và `TagTreeNodeItem` trong `TagPanel.tsx`.
-  - **Quy tắc bất biến (DOM Integrity)**: Trong suốt quá trình kéo (`isDraggingGlobal = true`), cây tag trong `TagPanel` **BẮT BUỘC PHẢI GIỮ MOUNT TRONG DOM** (chỉ áp dụng `opacity-40 pointer-events-none` để không che khuất màn hình). Tuyệt đối không dùng cờ kéo để unmount/thu gọn cây tag vì sẽ làm dnd-kit mất node nguồn và hủy sự kiện drop giữa chừng.
+  - **Quy tắc bất biến (DOM Integrity & Auto-Collapse)**:
+    - Khi phát hiện `isDraggingGlobal = true`: `TagPanel` tự động co rút chiều cao container về đúng thanh Header `h-14` (cao 56px).
+    - Toàn bộ thân dưới (thanh tìm kiếm & cây tag) được ẩn bằng class CSS: `overflow-hidden opacity-0 h-0 pointer-events-none`.
+    - **TUYỆT ĐỐI KHÔNG UNMOUNT KHỎI REACT DOM**: Việc giữ nguyên component trong cây DOM ảo giúp `@dnd-kit` không bị mất node nguồn (source ref), duy trì trọn vẹn sự kiện kéo thả trong khi mở rộng 100% tầm nhìn cho bảng dữ liệu bên dưới.
   - Vùng thả: `TagDroppableCell` trong `JsonTreeTable.tsx` được mở rộng `w-full min-h-[28px]` phủ kín toàn bộ ô bảng `<td>`, tự động sáng viền đứt nét khi nhấc tag lên (`border-dashed border-primary/50`).
   - Khi thả: Kích hoạt mutation `createTagLink` với payload `{ projectId, tagPath, entityId, entityType, targetSubPath }`. Sau khi thành công, tự động invalidate và cập nhật lại cache resource ngay lập tức.
 
