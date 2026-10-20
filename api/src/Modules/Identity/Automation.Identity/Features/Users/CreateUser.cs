@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Automation.Identity.Domain;
 using Automation.Notifications.Contracts.Messages;
@@ -33,29 +34,65 @@ public class CreateUserHandler(
 {
     public async Task<Result<Guid>> Handle(CreateUserCommand command, CancellationToken ct)
     {        
-        var user = new User
-        {
-            UserName = command.Username,
-            Email = command.Email,
-            FirstName = command.FirstName,
-            LastName = command.LastName,
-            DisplayName = command.Username,
-            EmailConfirmed = true,
-            MustChangePassword = true
-        };
+        var normalizedEmail = userManager.NormalizeEmail(command.Email);
+        var existingUser = await userManager.Users
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail, ct);
 
-        var result = await userManager.CreateAsync(user);
-        
-        if (!result.Succeeded)
+        User user;
+        if (existingUser != null)
         {
-            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-            return Result.Fail("Failed to create user: " + errors);
+            if (existingUser.DeletedAt.HasValue)
+            {
+                // Reactivate previously deleted user
+                user = existingUser;
+                user.DeletedAt = null;
+                user.DeletedBy = null;
+                user.Status = Automation.Identity.Domain.Enums.UserStatus.Active;
+                user.MustChangePassword = true;
+                user.FirstName = command.FirstName;
+                user.LastName = command.LastName;
+                user.DisplayName = command.Username;
+                user.UserName = command.Username;
+
+                var updateResult = await userManager.UpdateAsync(user);
+                if (!updateResult.Succeeded)
+                {
+                    var errors = string.Join(", ", updateResult.Errors.Select(e => e.Description));
+                    return Result.Fail("Failed to reactivate user: " + errors);
+                }
+            }
+            else
+            {
+                return Result.Fail("A user with this email address already exists.");
+            }
+        }
+        else
+        {
+            user = new User
+            {
+                UserName = command.Username,
+                Email = command.Email,
+                FirstName = command.FirstName,
+                LastName = command.LastName,
+                DisplayName = command.Username,
+                EmailConfirmed = true,
+                MustChangePassword = true
+            };
+
+            var result = await userManager.CreateAsync(user);
+            
+            if (!result.Succeeded)
+            {
+                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                return Result.Fail("Failed to create user: " + errors);
+            }
         }
 
         if (command.RoleId != Guid.Empty)
         {
             var role = await roleManager.FindByIdAsync(command.RoleId.ToString());
-            if (role != null)
+            if (role != null && !await userManager.IsInRoleAsync(user, role.Name!))
             {
                 await userManager.AddToRoleAsync(user, role.Name!);
             }

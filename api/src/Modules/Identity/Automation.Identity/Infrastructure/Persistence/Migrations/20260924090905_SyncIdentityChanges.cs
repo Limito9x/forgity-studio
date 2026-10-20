@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -10,19 +10,13 @@ namespace Automation.Identity.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AlterDatabase(
-                collation: "case_insensitive")
-                .Annotation("Npgsql:CollationDefinition:case_insensitive", "und-u-ks-level2,und-u-ks-level2,icu,False")
-                .Annotation("Npgsql:PostgresExtension:unaccent", ",,");
+            // PostgreSQL does not support altering database collation on an existing database.
+            // Extension 'unaccent' is already enabled.
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AlterDatabase(
-                oldCollation: "case_insensitive")
-                .OldAnnotation("Npgsql:CollationDefinition:case_insensitive", "und-u-ks-level2,und-u-ks-level2,icu,False")
-                .OldAnnotation("Npgsql:PostgresExtension:unaccent", ",,");
         }
     }
 }
