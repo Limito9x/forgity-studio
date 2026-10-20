@@ -17,7 +17,18 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired()
             .HasMaxLength(256);
             
-        builder.HasIndex(x => x.Email).IsUnique();
+        builder.HasIndex(x => x.Email)
+            .IsUnique()
+            .HasFilter("\"DeletedAt\" IS NULL");
+
+        builder.HasIndex(x => x.NormalizedEmail)
+            .HasDatabaseName("EmailIndex")
+            .HasFilter("\"DeletedAt\" IS NULL");
+
+        builder.HasIndex(x => x.NormalizedUserName)
+            .IsUnique()
+            .HasDatabaseName("UserNameIndex")
+            .HasFilter("\"DeletedAt\" IS NULL");
 
         builder.Property(x => x.DisplayName)
             .IsRequired()
