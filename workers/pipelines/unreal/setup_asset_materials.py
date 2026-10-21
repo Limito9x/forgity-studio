@@ -356,14 +356,53 @@ def create_single_mic(
 
     unreal.MaterialEditingLibrary.set_material_instance_parent(mic_asset, parent_mat)
 
+    # Lấy danh sách tên Texture Parameters thực tế trên Master Material
+    real_texture_param_names: List[str] = []
+    try:
+        raw_names = unreal.MaterialEditingLibrary.get_texture_parameter_names(parent_mat)
+        real_texture_param_names = [str(n) for n in raw_names]
+    except Exception:
+        pass
+
+    def _resolve_real_param_name(target_param: str) -> str:
+        if not real_texture_param_names:
+            return target_param
+        # 1. Khớp chính xác
+        if target_param in real_texture_param_names:
+            return target_param
+        # 2. Khớp không phân biệt hoa thường
+        t_low = target_param.lower()
+        for r in real_texture_param_names:
+            if r.lower() == t_low:
+                return r
+        # 3. Khớp theo từ khóa đặc thù (Normal, BaseColor, Mask/ART, Opacity)
+        if any(k in t_low for k in ["norm", "nm"]):
+            for r in real_texture_param_names:
+                if any(k in r.lower() for k in ["norm", "nm"]):
+                    return r
+        if any(k in t_low for k in ["color", "base", "albedo", "diff"]):
+            for r in real_texture_param_names:
+                if any(k in r.lower() for k in ["color", "base", "albedo", "diff"]):
+                    return r
+        if any(k in t_low for k in ["art", "orm", "mask", "rough", "spec"]):
+            for r in real_texture_param_names:
+                if any(k in r.lower() for k in ["art", "orm", "mask", "rough", "spec"]):
+                    return r
+        if any(k in t_low for k in ["opacity", "alpha", "trans"]):
+            for r in real_texture_param_names:
+                if any(k in r.lower() for k in ["opacity", "alpha", "trans"]):
+                    return r
+        return target_param
+
     if texture_parameters:
         for param_name, tex_path in texture_parameters.items():
             if not tex_path:
                 continue
             tex_obj = unreal.EditorAssetLibrary.load_asset(tex_path)
             if tex_obj:
+                actual_param = _resolve_real_param_name(param_name)
                 unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(
-                    mic_asset, param_name, tex_obj
+                    mic_asset, actual_param, tex_obj
                 )
             else:
                 print(f"[setup_asset_materials] Warning: Texture asset not found at '{tex_path}'", flush=True)
@@ -553,7 +592,8 @@ def main(
     manifest: Union[Dict[str, Any], str],
     material_contracts: Optional[Union[Dict[str, Any], str]] = None,
     destination_root: str = "/Game/Assets",
-    mesh_paths: Optional[Union[Dict[str, str], str]] = None,
+    mesh_paths: Optional[Union[Dict[str, str], List[str], str]] = None,
+    folder_path: str = "",
     mesh_uasset_path: Optional[str] = None,
     destination_path: Optional[str] = None,
     **kwargs
@@ -565,13 +605,16 @@ def main(
         manifest: Manifest dict (or JSON string) containing objects, slots, and textures.
         material_contracts: Master Material lookup registry dict (or JSON string).
         destination_root: Unreal Content destination root (e.g. /Game/Characters/Eva).
-        mesh_paths: Dict[obj_name, uasset_path] or single mesh path for binding.
+        mesh_paths: Dict[obj_name, uasset_path], List[uasset_path], or single mesh path for binding.
+        folder_path: Root folder of repository for resolving any relative texture paths.
         mesh_uasset_path: Backward-compatibility alias for single mesh.
         destination_path: Alias for destination_root.
 
     Returns:
         Dictionary with batch_results, created_instances, and imported_textures.
     """
+    folder_path = folder_path or kwargs.get("root_path") or ""
+
     # 1. Parse Manifest
     if isinstance(manifest, str):
         if os.path.isfile(manifest):
@@ -604,6 +647,15 @@ def main(
     raw_meshes = mesh_paths if mesh_paths is not None else mesh_uasset_path
     if isinstance(raw_meshes, dict):
         mesh_map = {str(k).strip(): str(v).strip() for k, v in raw_meshes.items() if v}
+    elif isinstance(raw_meshes, list):
+        for item in raw_meshes:
+            if isinstance(item, str) and item.strip():
+                p = item.strip()
+                stem = os.path.splitext(os.path.basename(p))[0]
+                mesh_map[stem] = p
+                mesh_map[sanitize_asset_name(stem)] = p
+        if raw_meshes and "*" not in mesh_map:
+            mesh_map["*"] = str(raw_meshes[0]).strip()
     elif isinstance(raw_meshes, str) and raw_meshes.strip():
         # Single mesh path given: map default or first
         single_p = raw_meshes.strip()
@@ -627,7 +679,12 @@ def main(
     materials_dest = f"{destination_root}/Materials"
 
     asset_name = manifest_data.get("asset_name") or kwargs.get("character_name") or "Asset"
-    objects_dict: Dict[str, Any] = manifest_data.get("objects", {})
+    objects_dict: Dict[str, Any] = (
+        manifest_data.get("objects")
+        or manifest_data.get("manifest")
+        or manifest_data.get("objects_map")
+        or {}
+    )
     if not objects_dict and "slots" in manifest_data:
         objects_dict = {asset_name: {"slots": manifest_data["slots"]}}
     elif not objects_dict and isinstance(manifest_data, dict):
@@ -649,8 +706,8 @@ def main(
         obj_slot_bindings: Dict[str, str] = {}
         obj_created_mics: List[str] = []
 
-        for slot_info in slots:
-            slot_name = slot_info.get("name") or f"Slot_{slot_info.get('index', 0)}"
+        for slot_idx, slot_info in enumerate(slots):
+            slot_name = slot_info.get("name") or f"Slot_{slot_info.get('index', slot_idx)}"
             slot_tag = slot_info.get("tag") or slot_name
 
             # Resolve Contract (lookup by material_tag, tag, name, textures, or DEFAULT)
@@ -690,7 +747,13 @@ def main(
                 mapped_params = map_slot_textures_to_parameters(valid_textures, contract)
 
                 for final_param, (file_path, tex_type) in mapped_params.items():
-                    if not file_path or not os.path.exists(file_path):
+                    if not file_path:
+                        continue
+                    if not os.path.exists(file_path) and folder_path and not os.path.isabs(file_path):
+                        candidate = os.path.normpath(os.path.join(folder_path, file_path)).replace("\\", "/")
+                        if os.path.exists(candidate):
+                            file_path = candidate
+                    if not os.path.exists(file_path):
                         continue
 
                     norm_path = os.path.normpath(os.path.abspath(file_path)).replace("\\", "/").lower()
@@ -724,7 +787,11 @@ def main(
             # Assign Material: Always create a dedicated Material Instance (MIC) for every slot
             final_material_path = ""
             if master_path:
-                mic_name = sanitize_asset_name(f"MI_{asset_name}_{obj_name}_{slot_name}")
+                if str(asset_name).lower() == str(obj_name).lower():
+                    mic_name = sanitize_asset_name(f"MI_{asset_name}_{slot_name}")
+                else:
+                    mic_name = sanitize_asset_name(f"MI_{asset_name}_{obj_name}_{slot_name}")
+
                 final_material_path = create_single_mic(
                     master_material_path=master_path,
                     instance_name=mic_name,
@@ -740,6 +807,10 @@ def main(
 
             if final_material_path:
                 obj_slot_bindings[slot_name] = final_material_path
+                obj_slot_bindings[str(slot_idx)] = final_material_path
+                obj_slot_bindings[f"idx_{slot_idx}"] = final_material_path
+                if "index" in slot_info:
+                    obj_slot_bindings[str(slot_info["index"])] = final_material_path
 
         # Find matching mesh for this object and bind materials
         stem = os.path.splitext(os.path.basename(obj_name))[0]
