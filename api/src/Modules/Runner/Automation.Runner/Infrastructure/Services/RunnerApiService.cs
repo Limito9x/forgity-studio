@@ -711,6 +711,76 @@ public class RunnerApiService(
 
         return Result.Ok(anySent);
     }
+
+    public async Task<Result<ExecuteCommandResponseDto>> SendExecuteCommandAsync(
+        Guid runnerId,
+        string program,
+        IEnumerable<string> args,
+        int timeoutSeconds = 30,
+        CancellationToken ct = default
+    )
+    {
+        if (!registry.TryGet(runnerId, out var connection) || connection is null)
+        {
+            return Result.Fail<ExecuteCommandResponseDto>(
+                $"Runner with ID '{runnerId}' is not connected via gRPC stream (Offline)."
+            );
+        }
+
+        var commandId = Guid.NewGuid().ToString();
+        var execCommand = new ExecuteCommand
+        {
+            CommandId = commandId,
+            Program = program ?? string.Empty,
+            TimeoutSeconds = timeoutSeconds,
+        };
+        execCommand.Args.AddRange(args);
+
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds + 5));
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+
+        var task = commandTracker.RegisterCommandAsync(commandId, linkedCts.Token);
+
+        try
+        {
+            await connection.ResponseStream.WriteAsync(
+                new ServerMessage { ExecuteCommand = execCommand },
+                linkedCts.Token
+            );
+
+            var response = await task;
+
+            if (!response.Success && response.ExecuteCommandResult is null)
+            {
+                return Result.Fail<ExecuteCommandResponseDto>(
+                    $"Error from Runner: {response.ErrorMessage}"
+                );
+            }
+
+            var result = response.ExecuteCommandResult;
+            if (result is null)
+            {
+                return Result.Fail<ExecuteCommandResponseDto>("No ExecuteCommandResult received from Runner.");
+            }
+
+            return Result.Ok(new ExecuteCommandResponseDto(
+                result.ExitCode,
+                result.Stdout,
+                result.Stderr,
+                result.TimedOut,
+                response.Success,
+                response.ErrorMessage
+            ));
+        }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+        {
+            return Result.Fail<ExecuteCommandResponseDto>($"Execution timed out while waiting for Runner response ({timeoutSeconds}s).");
+        }
+        catch (Exception ex)
+        {
+            return Result.Fail<ExecuteCommandResponseDto>($"Failed to send execute command to Runner: {ex.Message}");
+        }
+    }
 }
 
 // Backward-compatibility alias

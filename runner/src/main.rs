@@ -41,6 +41,12 @@ async fn main() -> anyhow::Result<()> {
         Commands::Clean { all, days } => {
             cli::clean::run_clean(all, days).await?;
         }
+        Commands::Env { action } => {
+            cli::env::run_env(action, config_override).await?;
+        }
+        Commands::Setup => {
+            cli::setup::run_setup().await?;
+        }
     }
 
     Ok(())

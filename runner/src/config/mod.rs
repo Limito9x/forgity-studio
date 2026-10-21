@@ -2,6 +2,8 @@ use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+use std::collections::HashMap;
+
 pub const CONFIG_FILE_NAME: &str = "runner.toml";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -39,6 +41,38 @@ pub struct RunnerConfig {
     pub rabbitmq: Option<RabbitMqConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hardware_profile: Option<HardwareProfileConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub env: Option<HashMap<String, String>>,
+}
+
+impl RunnerConfig {
+    pub fn get_env(&self, key: &str) -> Option<&str> {
+        self.env.as_ref()?.get(key).map(|s| s.as_str())
+    }
+
+    pub fn set_env(&mut self, key: String, val: String) {
+        let env_map = self.env.get_or_insert_with(HashMap::new);
+        env_map.insert(key, val);
+    }
+
+    pub fn remove_env(&mut self, key: &str) -> Option<String> {
+        if let Some(ref mut env_map) = self.env {
+            let removed = env_map.remove(key);
+            if env_map.is_empty() {
+                self.env = None;
+            }
+            removed
+        } else {
+            None
+        }
+    }
+
+    pub fn list_env(&self) -> Vec<(&str, &str)> {
+        match &self.env {
+            Some(map) => map.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect(),
+            None => Vec::new(),
+        }
+    }
 }
 
 pub fn get_global_config_path() -> PathBuf {
@@ -151,4 +185,44 @@ pub fn save_config(
         .with_context(|| format!("Failed to write config to {}", path.display()))?;
 
     Ok(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_runner_config_env_serde() {
+        let toml_str = r#"
+api_url = "http://localhost:5000"
+runner_id = "test-runner"
+name = "Test Workstation"
+machine_key = "machine-123"
+registration_token = "token-abc"
+
+[env]
+GEMINI_API_KEY = "AIzaSyTestKey123"
+CUSTOM_DCC_ROOT = "D:\\Softwares"
+"#;
+
+        let mut config: RunnerConfig = toml::from_str(toml_str).expect("Failed to parse TOML");
+        assert_eq!(config.get_env("GEMINI_API_KEY"), Some("AIzaSyTestKey123"));
+        assert_eq!(config.get_env("CUSTOM_DCC_ROOT"), Some("D:\\Softwares"));
+        assert_eq!(config.get_env("NON_EXISTENT"), None);
+
+        // Test set_env
+        config.set_env("NEW_VAR".to_string(), "val456".to_string());
+        assert_eq!(config.get_env("NEW_VAR"), Some("val456"));
+
+        // Test remove_env
+        let removed = config.remove_env("CUSTOM_DCC_ROOT");
+        assert_eq!(removed, Some("D:\\Softwares".to_string()));
+        assert_eq!(config.get_env("CUSTOM_DCC_ROOT"), None);
+
+        // Test serialize back
+        let serialized = toml::to_string_pretty(&config).expect("Serialize to TOML failed");
+        assert!(serialized.contains("GEMINI_API_KEY = \"AIzaSyTestKey123\""));
+        assert!(serialized.contains("NEW_VAR = \"val456\""));
+        assert!(!serialized.contains("CUSTOM_DCC_ROOT"));
+    }
 }

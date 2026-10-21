@@ -60,6 +60,14 @@ public interface IRunnerApi
         CancellationToken ct = default
     );
 
+    Task<Result<ExecuteCommandResponseDto>> SendExecuteCommandAsync(
+        Guid runnerId,
+        string program,
+        IEnumerable<string> args,
+        int timeoutSeconds = 30,
+        CancellationToken ct = default
+    );
+
     Task<Result<RunnerUploadResultDto>> SendUploadCommandAsync(
         Guid runnerId,
         string filePath,

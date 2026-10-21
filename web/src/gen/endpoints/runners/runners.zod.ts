@@ -309,6 +309,42 @@ export const RevokeRunnerParams = /*#__PURE__*/ zod.object({
 
 export const RevokeRunnerResponse = /*#__PURE__*/ zod.void()
 
+export const GetRunnerEnvParams = /*#__PURE__*/ zod.object({
+  "runnerId": /*#__PURE__*/ zod.uuid()
+})
+
+export const GetRunnerEnvResponse = /*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.string())
+
+export const UpdateRunnerEnvParams = /*#__PURE__*/ zod.object({
+  "runnerId": /*#__PURE__*/ zod.uuid()
+})
+
+export const UpdateRunnerEnvBody = /*#__PURE__*/ zod.object({
+  "env": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.string())),
+  "removeKeys": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()))
+})
+
+export const UpdateRunnerEnvResponse = /*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.string())
+
+export const ExecuteRunnerCommandParams = /*#__PURE__*/ zod.object({
+  "runnerId": /*#__PURE__*/ zod.uuid()
+})
+
+export const ExecuteRunnerCommandBody = /*#__PURE__*/ zod.object({
+  "program": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "args": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())),
+  "timeoutSeconds": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int())
+})
+
+export const ExecuteRunnerCommandResponse = /*#__PURE__*/ zod.object({
+  "exitCode": /*#__PURE__*/ zod.int(),
+  "stdout": /*#__PURE__*/ zod.string(),
+  "stderr": /*#__PURE__*/ zod.string(),
+  "timedOut": /*#__PURE__*/ zod.boolean(),
+  "success": /*#__PURE__*/ zod.boolean(),
+  "errorMessage": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+})
+
 export const ReportExecutorConfigsParams = /*#__PURE__*/ zod.object({
   "runnerId": /*#__PURE__*/ zod.uuid()
 })

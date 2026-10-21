@@ -129,5 +129,6 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 - [refactor-runner-software-settings-dialog](file:///d:/FullStack/Automation/.agents/plans/2026-10-18-refactor-runner-software-settings-dialog.md): Kế hoạch Tinh Giản & Tối Ưu Triệt Để Giao Diện Cấu Hình Runner Software (Compact Rows, Auto-Save on Select, Xóa Bỏ Headless Flags Ảo).
 - [runner-detail-page-and-attached-repositories](file:///d:/FullStack/Automation/.agents/plans/2026-10-18-runner-detail-page-and-attached-repositories.md): Kế hoạch Xây Dựng Trang Chi Tiết Máy Trạm (Runner Detail Page `/runners/:id`) Đẳng Cấp Studio Grade & Hệ Thống Quản Trị Attached Repositories Đa Dự Án.
 - [standardize-pipeline-tools-and-tagmap](file:///d:/FullStack/Automation/.agents/plans/2026-10-19-standardize-pipeline-tools-and-tagmap.md): Kế hoạch Kỹ Thuật Chuẩn Hóa Server Pipeline Tools, Tái Cấu Trúc TagMap Batch-First & Thanh Lọc 23 Zombie Tools.
+- [generic-runner-env-and-remote-control](file:///d:/FullStack/Automation/.agents/plans/2026-10-21-generic-runner-env-and-remote-control.md): Kế hoạch Kỹ Thuật Biến Môi Trường Generic cho Runner ([env]), Quản Trị Từ Xa Phong Cách PaaS & Global CLI (forgity setup).
 
 

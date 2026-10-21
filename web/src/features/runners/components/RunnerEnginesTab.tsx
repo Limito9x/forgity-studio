@@ -89,11 +89,8 @@ export function RunnerEnginesTab({
     );
   };
 
-  useEffect(() => {
-    if (runnerId && executors.length === 0 && !scanMutation.isPending && isOnline) {
-      handleScan();
-    }
-  }, [runnerId, isOnline]);
+  // Automatic scan on mount is removed to prevent unwanted gRPC spam & toast notifications on tab switch.
+  // Users can click "Re-scan Installed DCCs" when they want to inspect new software installations.
 
   const handleSaveExecutor = (payload: {
     executorKey: string;

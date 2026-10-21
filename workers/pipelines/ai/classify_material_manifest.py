@@ -58,44 +58,53 @@ class BatchClassificationResult(BaseModel):
 
 
 # ==============================================================================
-# 2. Secret Key Resolver
+# 2. API Key Resolver (Generic Runner Environment)
 # ==============================================================================
 
 def resolve_api_key(explicit_key: str = "", provider: str = "gemini") -> str:
-    """Resolve API key from explicit arg -> runner.toml -> secret files -> env."""
+    """
+    Resolve API key for AI provider following standard precedence:
+    1. Explicit function argument (**kwargs)
+    2. OS Environment variable (injected automatically by Forgity Runner from runner.toml [env])
+       - GEMINI_API_KEY (for Gemini)
+       - OPENAI_API_KEY (for OpenAI)
+    3. Standalone fallback: parse [env] table directly from runner.toml (%LOCALAPPDATA% or CWD)
+    """
     if explicit_key and explicit_key.strip():
         return explicit_key.strip()
 
-    # 1. Check runner.toml
-    runner_toml = os.path.expandvars(r"%LOCALAPPDATA%\Forgity\runner.toml")
-    if os.path.isfile(runner_toml):
-        try:
-            import tomllib
-            with open(runner_toml, "rb") as f:
-                data = tomllib.load(f)
-                key = data.get("ai", {}).get("api_key", "").strip()
-                if key:
-                    return key
-        except Exception:
-            pass
+    target_env_var = "GEMINI_API_KEY" if provider.lower() == "gemini" else "OPENAI_API_KEY"
 
-    # 2. Check secret files
-    candidates = [
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".secret_gemini_key")),
-        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".secret_gemini_key")),
-        os.path.expandvars(r"%LOCALAPPDATA%\Forgity\.gemini_key"),
+    # 1. Standard OS Environment Variable (Primary source in Runner subprocess)
+    env_val = os.environ.get(target_env_var, "").strip()
+    if env_val:
+        return env_val
+
+    # Secondary check for generic OPENAI_API_KEY if primary was not found
+    if not env_val and target_env_var != "OPENAI_API_KEY":
+        env_val = os.environ.get("OPENAI_API_KEY", "").strip()
+        if env_val:
+            return env_val
+
+    # 2. Standalone fallback: Read runner.toml [env] if executing outside of runner daemon
+    config_paths = [
+        os.path.expandvars(r"%LOCALAPPDATA%\Forgity\runner.toml"),
+        os.path.abspath("runner.toml"),
     ]
-    for p in candidates:
+    for p in config_paths:
         if os.path.isfile(p):
             try:
-                with open(p, "r", encoding="utf-8") as f:
-                    key = f.read().strip()
+                import tomllib
+                with open(p, "rb") as f:
+                    data = tomllib.load(f)
+                    env_table = data.get("env", {})
+                    key = env_table.get(target_env_var, "").strip() or env_table.get("OPENAI_API_KEY", "").strip()
                     if key:
                         return key
             except Exception:
                 pass
 
-    return os.environ.get("GEMINI_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "")
+    return ""
 
 
 # ==============================================================================
@@ -108,8 +117,6 @@ def main(
     contracts: Optional[Union[Dict[str, Any], str]] = None,
     provider: str = "gemini",
     model: str = "gemini-2.5-flash",
-    api_key: str = "",
-    endpoint: str = "",
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -117,6 +124,8 @@ def main(
     Sends raw JSON tree directly to LLM for zero-brittle semantic parsing.
     """
     start_time = time.time()
+    api_key = kwargs.get("api_key", "")
+    endpoint = kwargs.get("endpoint", "")
 
     # 1. Parse raw_manifest to Python object if string
     if isinstance(raw_manifest, str):

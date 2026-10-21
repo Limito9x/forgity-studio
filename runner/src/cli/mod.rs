@@ -1,7 +1,9 @@
 pub mod clean;
 pub mod daemon;
 pub mod doctor;
+pub mod env;
 pub mod register;
+pub mod setup;
 pub mod start;
 
 use clap::{Parser, Subcommand};
@@ -70,4 +72,13 @@ pub enum Commands {
         #[arg(short, long, default_value = "7")]
         days: u64,
     },
+
+    /// Manage custom environment variables for pipeline subprocesses
+    Env {
+        #[command(subcommand)]
+        action: env::EnvAction,
+    },
+
+    /// Install runner binaries globally into %LOCALAPPDATA%\Forgity\bin and configure Windows PATH
+    Setup,
 }

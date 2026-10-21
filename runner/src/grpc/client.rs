@@ -12,7 +12,7 @@ use super::agent::{
     agent_message, command_response, server_message, AgentMessage, CommandResponse,
     ExecutorCandidateMessage, ScanCommandResult, ScanExecutorsCommandResult,
     ScanHardwareCommandResult, UploadFileItemResult, UploadFilesCommandResult,
-    CancelExecutionCommandResult,
+    CancelExecutionCommandResult, ExecuteCommandResult,
 };
 use crate::process::active_stage::ActiveStageManager;
 
@@ -372,6 +372,100 @@ impl GrpcRunnerClient {
                         error!("[gRPC] Failed to send CancelExecutionCommand response: {}", e);
                     } else {
                         info!("[gRPC] CancelExecutionCommand response sent successfully (killed={})!", killed);
+                    }
+                }
+
+                Some(server_message::Payload::ExecuteCommand(cmd)) => {
+                    info!(
+                        "[gRPC] Handling remote ExecuteCommand (cmd_id: {}, program: '{}', args: {:?})...",
+                        cmd.command_id, cmd.program, cmd.args
+                    );
+
+                    let program_exe = if cmd.program.is_empty()
+                        || cmd.program == "forgity"
+                        || cmd.program == "forgity-runner"
+                    {
+                        std::env::current_exe()
+                            .unwrap_or_else(|_| std::path::PathBuf::from("forgity"))
+                    } else {
+                        std::path::PathBuf::from(&cmd.program)
+                    };
+
+                    let timeout_secs = if cmd.timeout_seconds > 0 {
+                        cmd.timeout_seconds as u64
+                    } else {
+                        30
+                    };
+
+                    let mut child_cmd = tokio::process::Command::new(program_exe);
+                    child_cmd.args(&cmd.args);
+                    child_cmd.stdout(std::process::Stdio::piped());
+                    child_cmd.stderr(std::process::Stdio::piped());
+
+                    let (exit_code, stdout, stderr, timed_out, success, err_msg) = match tokio::time::timeout(
+                        Duration::from_secs(timeout_secs),
+                        child_cmd.output(),
+                    )
+                    .await
+                    {
+                        Ok(Ok(output)) => {
+                            let code = output.status.code().unwrap_or(-1);
+                            let out_str = String::from_utf8_lossy(&output.stdout).to_string();
+                            let err_str = String::from_utf8_lossy(&output.stderr).to_string();
+                            (
+                                code,
+                                out_str,
+                                err_str,
+                                false,
+                                output.status.success(),
+                                String::new(),
+                            )
+                        }
+                        Ok(Err(e)) => (
+                            -1,
+                            String::new(),
+                            e.to_string(),
+                            false,
+                            false,
+                            format!("Failed to spawn process: {}", e),
+                        ),
+                        Err(_) => (
+                            -1,
+                            String::new(),
+                            "Execution timed out".to_string(),
+                            true,
+                            false,
+                            "Execution timed out".to_string(),
+                        ),
+                    };
+
+                    let resp = CommandResponse {
+                        command_id: cmd.command_id,
+                        success,
+                        error_message: err_msg,
+                        result: Some(command_response::Result::ExecuteCommandResult(
+                            ExecuteCommandResult {
+                                exit_code,
+                                stdout,
+                                stderr,
+                                timed_out,
+                            },
+                        )),
+                    };
+
+                    let reply = AgentMessage {
+                        agent_id: runner_id.to_string(),
+                        app_version: app_version.to_string(),
+                        payload: Some(agent_message::Payload::CommandResponse(resp)),
+                    };
+
+                    if let Err(e) = tx.send(reply).await {
+                        error!("[gRPC] Failed to send ExecuteCommand response: {}", e);
+                    } else {
+                        info!(
+                            "[gRPC] ExecuteCommand response sent successfully (exit_code={})!",
+                            exit_code
+                        );
                     }
                 }
 

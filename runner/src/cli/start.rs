@@ -76,6 +76,17 @@ pub async fn run_start(config_override: Option<&std::path::Path>, force_local: b
         rabbitmq_config.port,
         rabbitmq_config.virtual_host
     );
+    if let Some(ref env_map) = config.env {
+        if !env_map.is_empty() {
+            println!(
+                "   Environment : {} variable(s) loaded",
+                env_map.len().to_string().green().bold()
+            );
+            for (k, _) in env_map {
+                println!("                 • {}", k.cyan());
+            }
+        }
+    }
     println!();
 
     let active_stages = Arc::new(crate::process::active_stage::ActiveStageManager::new());
@@ -129,7 +140,11 @@ pub async fn run_start(config_override: Option<&std::path::Path>, force_local: b
             }
         };
 
-        let dispatcher = StageDispatcher::new(rabbitmq.clone(), active_stages.clone());
+        let dispatcher = StageDispatcher::new(
+            rabbitmq.clone(),
+            active_stages.clone(),
+            config.env.clone(),
+        );
 
         let mut should_reconnect = false;
         while !should_reconnect {

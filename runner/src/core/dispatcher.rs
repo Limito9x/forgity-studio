@@ -19,6 +19,8 @@ use crate::storage::downloader::StreamDownloader;
 use crate::storage::lock::StorageLockGuard;
 use crate::system::dcc::resolve_executor_executable;
 
+use std::collections::HashMap;
+
 const EMBEDDED_GUEST_SCRIPT: &str = include_str!("../../scripts/stage_runner_guest.py");
 
 /// Ensures that `stage_runner_guest.py` is present and returns its absolute path.
@@ -65,10 +67,15 @@ pub struct StageDispatcher {
     downloader: StreamDownloader,
     active_stages: Arc<ActiveStageManager>,
     executor_registry: Arc<ExecutorRegistry>,
+    custom_env: Option<HashMap<String, String>>,
 }
 
 impl StageDispatcher {
-    pub fn new(rabbitmq: RabbitMqClient, active_stages: Arc<ActiveStageManager>) -> Self {
+    pub fn new(
+        rabbitmq: RabbitMqClient,
+        active_stages: Arc<ActiveStageManager>,
+        custom_env: Option<HashMap<String, String>>,
+    ) -> Self {
         let storage = StorageManager::new(None);
         let downloader = StreamDownloader::new(StorageManager::new(None));
         let executor_registry = Arc::new(ExecutorRegistry::new());
@@ -78,6 +85,7 @@ impl StageDispatcher {
             downloader,
             active_stages,
             executor_registry,
+            custom_env,
         }
     }
 
@@ -238,6 +246,14 @@ impl StageDispatcher {
             ("FORGITY_TASK_JSON", task_json_str.as_str()),
             ("PYTHONUNBUFFERED", "1"),
         ];
+
+        // Inject custom environment variables from runner.toml [env]
+        if let Some(ref env_map) = self.custom_env {
+            for (k, v) in env_map {
+                env_vars.push((k.as_str(), v.as_str()));
+            }
+        }
+
         for (k, v) in &extra_env {
             env_vars.push((k.as_str(), v.as_str()));
         }

@@ -34,7 +34,15 @@ message CommandResponse {
         UploadFilesCommandResult upload_files_result = 8;
         UpdateRunnerCommandResult update_runner_result = 9;
         CancelExecutionCommandResult cancel_execution_result = 10;
+        ExecuteCommandResult execute_command_result = 11;
     }
+}
+
+message ExecuteCommandResult {
+    int32 exit_code = 1;
+    string stdout = 2;
+    string stderr = 3;
+    bool timed_out = 4;
 }
 
 message CancelExecutionCommandResult {
@@ -132,7 +140,15 @@ message ServerMessage {
         UploadFilesCommand upload_files_command = 5;
         UpdateRunnerCommand update_runner_command = 6;
         CancelExecutionCommand cancel_execution_command = 7;
+        ExecuteCommand execute_command = 8;
     }
+}
+
+message ExecuteCommand {
+    string command_id = 1;
+    string program = 2;
+    repeated string args = 3;
+    int32 timeout_seconds = 4;
 }
 
 message CancelExecutionCommand {
