@@ -56,6 +56,14 @@ public class GetResourceRelativePathsTool(
             PrimitiveType = PinPrimitiveType.Number,
             Cardinality = PinCardinality.Single,
             IsRequired = false
+        },
+        new()
+        {
+            Id = "MetadataMap",
+            Label = "Metadata Map",
+            PrimitiveType = PinPrimitiveType.String,
+            Cardinality = PinCardinality.Map,
+            IsRequired = false
         }
     ];
 
@@ -79,6 +87,7 @@ public class GetResourceRelativePathsTool(
         var items = ExtractItems(rawResources);
         var relativePaths = new List<string>();
         var missingGuids = new List<Guid>();
+        var metadataMap = new Dictionary<string, object>();
 
         foreach (var item in items)
         {
@@ -89,7 +98,15 @@ public class GetResourceRelativePathsTool(
             {
                 if (!string.IsNullOrWhiteSpace(directPath))
                 {
-                    relativePaths.Add(directPath);
+                    var posix = directPath.Trim().Replace('\\', '/');
+                    relativePaths.Add(posix);
+                    var entry = new Dictionary<string, object?>
+                    {
+                        ["asset_name"] = Path.GetFileNameWithoutExtension(posix),
+                        ["relative_path"] = posix,
+                        ["file_name"] = Path.GetFileName(posix)
+                    };
+                    metadataMap[posix] = entry;
                     continue;
                 }
             }
@@ -100,7 +117,15 @@ public class GetResourceRelativePathsTool(
                 var trimmed = strVal.Trim();
                 if (IsLikelyFilePath(trimmed))
                 {
-                    relativePaths.Add(trimmed);
+                    var posix = trimmed.Replace('\\', '/');
+                    relativePaths.Add(posix);
+                    var entry = new Dictionary<string, object?>
+                    {
+                        ["asset_name"] = Path.GetFileNameWithoutExtension(posix),
+                        ["relative_path"] = posix,
+                        ["file_name"] = Path.GetFileName(posix)
+                    };
+                    metadataMap[posix] = entry;
                     continue;
                 }
             }
@@ -119,7 +144,9 @@ public class GetResourceRelativePathsTool(
                 var props = entityStore.GetProperties("resource", parsedGuid);
                 if (props != null && props.TryGetValue("RelativePath", out var relPath) && relPath is string relPathStr && !string.IsNullOrWhiteSpace(relPathStr))
                 {
-                    relativePaths.Add(relPathStr);
+                    var posix = relPathStr.Trim().Replace('\\', '/');
+                    relativePaths.Add(posix);
+                    BuildAndStoreMaps(posix, props, metadataMap);
                     continue;
                 }
             }
@@ -145,8 +172,10 @@ public class GetResourceRelativePathsTool(
                     var props = entityStore.GetProperties("resource", guid);
                     if (props != null && props.TryGetValue("RelativePath", out var relPath) && relPath is string relPathStr && !string.IsNullOrWhiteSpace(relPathStr))
                     {
-                        relativePaths.Add(relPathStr);
-                        logger?.LogDebug("GetResourceRelativePaths: Successfully loaded {Guid} → '{Path}'", guid, relPathStr);
+                        var posix = relPathStr.Trim().Replace('\\', '/');
+                        relativePaths.Add(posix);
+                        BuildAndStoreMaps(posix, props, metadataMap);
+                        logger?.LogDebug("GetResourceRelativePaths: Successfully loaded {Guid} → '{Path}'", guid, posix);
                     }
                     else
                     {
@@ -161,17 +190,126 @@ public class GetResourceRelativePathsTool(
         }
 
         logger?.LogInformation(
-            "GetResourceRelativePaths: Resolved {Count} path(s) → [{Paths}]",
+            "GetResourceRelativePaths: Resolved {Count} path(s) → [{Paths}] (Metadata mapped: {MappedCount})",
             relativePaths.Count,
-            string.Join(", ", relativePaths)
+            string.Join(", ", relativePaths),
+            metadataMap.Count
         );
 
         return new Dictionary<string, object>
         {
             ["RelativePaths"] = relativePaths.ToArray(),
             ["Count"] = relativePaths.Count,
-            ["relative_paths"] = relativePaths.ToArray()
+            ["relative_paths"] = relativePaths.ToArray(),
+            ["MetadataMap"] = metadataMap,
+            ["metadata_map"] = metadataMap
         };
+    }
+
+    private static void BuildAndStoreMaps(
+        string posixPath,
+        IReadOnlyDictionary<string, object?> props,
+        Dictionary<string, object> metadataMap
+    )
+    {
+        var assetName = props.GetValueOrDefault("BaseName")?.ToString()
+                        ?? props.GetValueOrDefault("DisplayName")?.ToString()
+                        ?? Path.GetFileNameWithoutExtension(posixPath);
+
+        object? parsedMeta = null;
+        JsonDocument? jsonDoc = null;
+        if (props.TryGetValue("Metadata", out var metaRaw) && metaRaw is string metaStr && !string.IsNullOrWhiteSpace(metaStr))
+        {
+            try
+            {
+                jsonDoc = JsonDocument.Parse(metaStr);
+                parsedMeta = jsonDoc.RootElement.Clone();
+            }
+            catch
+            {
+                parsedMeta = metaStr;
+            }
+        }
+
+        var resEntry = new Dictionary<string, object?>
+        {
+            ["asset_name"] = assetName,
+            ["relative_path"] = posixPath,
+            ["file_path"] = posixPath,
+            ["file_name"] = props.GetValueOrDefault("FileName") ?? Path.GetFileName(posixPath),
+            ["extension"] = props.GetValueOrDefault("Extension") ?? Path.GetExtension(posixPath).TrimStart('.'),
+            ["resource_id"] = props.GetValueOrDefault("ResourceId")?.ToString() ?? string.Empty,
+            ["version_id"] = props.GetValueOrDefault("ResourceVersionId")?.ToString() ?? string.Empty,
+            ["repository_id"] = props.GetValueOrDefault("RepositoryId")?.ToString() ?? string.Empty,
+            ["content_name"] = props.GetValueOrDefault("ContentName")?.ToString() ?? string.Empty,
+            ["content_type"] = props.GetValueOrDefault("ContentType")?.ToString() ?? string.Empty,
+            ["metadata"] = parsedMeta
+        };
+
+        if (parsedMeta is JsonElement rootElem && rootElem.ValueKind == JsonValueKind.Object)
+        {
+            UnwrapJsonElementMetadata(rootElem, assetName, resEntry);
+        }
+        else if (parsedMeta is Dictionary<string, object> metaDict)
+        {
+            if (metaDict.TryGetValue("slots", out var sVal)) resEntry["slots"] = sVal;
+            if (metaDict.TryGetValue("slot_count", out var scVal)) resEntry["slot_count"] = scVal;
+            if (metaDict.TryGetValue("raw_textures", out var rtVal)) resEntry["raw_textures"] = rtVal;
+        }
+
+        jsonDoc?.Dispose();
+        metadataMap[posixPath] = resEntry;
+    }
+
+    private static void UnwrapJsonElementMetadata(
+        JsonElement root,
+        string assetName,
+        Dictionary<string, object?> resEntry
+    )
+    {
+        // 1. Root-level slots / slot_count / raw_textures
+        if (root.TryGetProperty("slots", out var sElem)) resEntry["slots"] = sElem.Clone();
+        if (root.TryGetProperty("slot_count", out var scElem) && scElem.TryGetInt32(out var sc)) resEntry["slot_count"] = sc;
+        if (root.TryGetProperty("raw_textures", out var rtElem)) resEntry["raw_textures"] = rtElem.Clone();
+
+        // 2. Nested "objects" -> "Sam" -> "slots" (Blender inspector output)
+        if (!resEntry.ContainsKey("slots") && root.TryGetProperty("objects", out var objsElem) && objsElem.ValueKind == JsonValueKind.Object)
+        {
+            JsonElement targetObj = default;
+            bool found = false;
+
+            if (objsElem.TryGetProperty(assetName, out var namedObj) && namedObj.ValueKind == JsonValueKind.Object)
+            {
+                targetObj = namedObj;
+                found = true;
+            }
+            else
+            {
+                foreach (var prop in objsElem.EnumerateObject())
+                {
+                    if (prop.Value.ValueKind == JsonValueKind.Object)
+                    {
+                        targetObj = prop.Value;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+
+            if (found)
+            {
+                if (targetObj.TryGetProperty("slots", out var innerSlots)) resEntry["slots"] = innerSlots.Clone();
+                if (targetObj.TryGetProperty("slot_count", out var innerCount) && innerCount.TryGetInt32(out var count))
+                {
+                    resEntry["slot_count"] = count;
+                }
+                else if (targetObj.TryGetProperty("slots", out var slElem) && slElem.ValueKind == JsonValueKind.Array)
+                {
+                    resEntry["slot_count"] = slElem.GetArrayLength();
+                }
+                if (targetObj.TryGetProperty("raw_textures", out var innerTextures)) resEntry["raw_textures"] = innerTextures.Clone();
+            }
+        }
     }
 
     // --- Helpers ---

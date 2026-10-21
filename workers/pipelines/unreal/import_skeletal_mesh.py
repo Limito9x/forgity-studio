@@ -171,9 +171,10 @@ def import_with_fbx_fallback(
 
 
 def _normalize_input_items(
-    fbx_files: Optional[Union[str, List[str], Dict[str, str]]],
+    fbx_files: Optional[Union[str, List[str], Dict[str, Any]]],
     fbx_path: Optional[str],
-    mesh_name: str
+    mesh_name: str,
+    folder_path: str = ""
 ) -> List[Tuple[str, str]]:
     """Normalize input representations into a list of (mesh_name, file_path)."""
     items: List[Tuple[str, str]] = []
@@ -182,19 +183,38 @@ def _normalize_input_items(
     if not raw:
         return items
 
+    def _resolve_path(p: str) -> str:
+        p_clean = p.strip()
+        if folder_path and not os.path.isabs(p_clean):
+            candidate = os.path.normpath(os.path.join(folder_path, p_clean)).replace("\\", "/")
+            if os.path.isfile(candidate):
+                return candidate
+            return candidate
+        return p_clean
+
     if isinstance(raw, dict):
         for k, v in raw.items():
-            if v and isinstance(v, str):
+            if isinstance(v, str) and v.strip():
                 name = str(k).strip()
-                items.append((name, v.strip()))
+                items.append((name, _resolve_path(v)))
+            elif isinstance(v, dict):
+                p = v.get("file_path") or v.get("relative_path") or v.get("path")
+                if p and isinstance(p, str):
+                    name = v.get("asset_name") or str(k).strip()
+                    items.append((str(name).strip(), _resolve_path(p)))
     elif isinstance(raw, list):
         for p in raw:
             if isinstance(p, str) and p.strip():
-                p_clean = p.strip()
+                p_clean = _resolve_path(p)
                 name = os.path.splitext(os.path.basename(p_clean))[0]
                 items.append((name, p_clean))
+            elif isinstance(p, dict):
+                path_val = p.get("file_path") or p.get("relative_path") or p.get("path")
+                if path_val and isinstance(path_val, str):
+                    name = p.get("asset_name") or os.path.splitext(os.path.basename(path_val))[0]
+                    items.append((str(name).strip(), _resolve_path(path_val)))
     elif isinstance(raw, str):
-        raw_clean = raw.strip()
+        raw_clean = _resolve_path(raw)
         if raw_clean:
             name = mesh_name.strip() if mesh_name else os.path.splitext(os.path.basename(raw_clean))[0]
             items.append((name, raw_clean))
@@ -203,11 +223,12 @@ def _normalize_input_items(
 
 
 def main(
-    fbx_files: Optional[Union[str, List[str], Dict[str, str]]] = None,
+    fbx_files: Optional[Union[str, List[str], Dict[str, Any]]] = None,
     destination_path: str = "/Game/Meshes",
     skeleton_path: str = "",
     pipeline_preset_path: str = "",
     mesh_name: str = "",
+    folder_path: str = "",
     fbx_path: Optional[str] = None,
     **kwargs
 ) -> Dict[str, Any]:
@@ -215,11 +236,12 @@ def main(
     Import one or multiple FBX files as Skeletal Meshes sharing a common Skeleton.
 
     Args:
-        fbx_files: Single path, list of paths, or dict { "mesh_name": "file_path" }.
+        fbx_files: Single path, list of paths, or dict { "mesh_name": "file_path" or metadata }.
         destination_path: Unreal package destination path (e.g. /Game/Characters/Eva/Meshes).
         skeleton_path: Shared Skeleton asset path in Unreal Engine.
         pipeline_preset_path: Optional Interchange Pipeline Preset UAsset path.
         mesh_name: Optional override name if importing a single file.
+        folder_path: Optional repository root path for resolving relative FBX paths.
         fbx_path: Backward compatibility alias for single file import.
 
     Returns:
@@ -233,7 +255,8 @@ def main(
     destination_path = _clean_ue_path(destination_path or "/Game/Meshes")
     skeleton_path = _clean_ue_path(skeleton_path) if skeleton_path else ""
     pipeline_preset_path = _clean_ue_path(pipeline_preset_path) if pipeline_preset_path else ""
-    items = _normalize_input_items(fbx_files, fbx_path, mesh_name)
+    folder_path = folder_path or kwargs.get("root_path") or ""
+    items = _normalize_input_items(fbx_files, fbx_path, mesh_name, folder_path)
 
     if not items:
         print("[import_skeletal_mesh] Warning: No FBX files provided for import.", flush=True)

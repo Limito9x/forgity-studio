@@ -114,4 +114,41 @@ public class GetResourceRelativePathsToolTests
         paths.Should().Contain("Characters/Genesis8/Female.duf");
         paths.Should().Contain("Scenes/Prop/sword.duf");
     }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldProduce_MetadataMap()
+    {
+        // Arrange
+        var resourceId = Guid.NewGuid();
+        var store = new ExecutionEntityStore(_repositoryApi, _storeLogger);
+        store.SetProperties("resource", resourceId, new Dictionary<string, object?>
+        {
+            ["ResourceId"] = resourceId,
+            ["RelativePath"] = "Characters/Sam/Sam.fbx",
+            ["BaseName"] = "Sam",
+            ["Metadata"] = "{\"slot_count\": 8, \"slots\": [{\"name\": \"Undies_Heart-1\"}]}"
+        });
+
+        var tool = new GetResourceRelativePathsTool(store, _toolLogger);
+        var inputs = new Dictionary<string, object>
+        {
+            ["Resources"] = new[] { resourceId.ToString() }
+        };
+
+        // Act
+        var result = await tool.ExecuteAsync(inputs, _context);
+
+        // Assert
+        result.Should().ContainKey("MetadataMap");
+
+        var metaMap = result["MetadataMap"] as Dictionary<string, object>;
+        metaMap.Should().NotBeNull();
+        metaMap.Should().ContainKey("Characters/Sam/Sam.fbx");
+
+        var samEntry = metaMap!["Characters/Sam/Sam.fbx"] as Dictionary<string, object?>;
+        samEntry.Should().NotBeNull();
+        samEntry!["asset_name"].Should().Be("Sam");
+        samEntry.Should().ContainKey("slots");
+        samEntry["slot_count"]!.ToString().Should().Be("8");
+    }
 }

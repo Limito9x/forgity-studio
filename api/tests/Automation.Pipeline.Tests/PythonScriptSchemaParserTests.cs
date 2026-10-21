@@ -101,4 +101,24 @@ public class PythonScriptSchemaParserTests
             result.Outputs.Should().Contain(p => p.Id == "export_map" && p.Cardinality == PinCardinality.Map);
         }
     }
+
+    [Fact]
+    public void Parse_ClassifyMaterialManifest_ShouldExtractCleanPinsAndPythonExecutor()
+    {
+        var filePath = @"d:\FullStack\Automation\workers\pipelines\ai\classify_material_manifest.py";
+        if (File.Exists(filePath))
+        {
+            var content = File.ReadAllText(filePath);
+            var result = PythonScriptSchemaParser.Parse(content, "classify_material_manifest.py");
+
+            result.Executor.Should().Be("python");
+            result.SuggestedLabel.Should().Be("Classify Material Manifest");
+            result.Inputs.Should().Contain(p => p.Id == "raw_manifest");
+            result.Inputs.Should().Contain(p => p.Id == "provider");
+            result.Inputs.Should().Contain(p => p.Id == "model");
+            result.Outputs.Should().Contain(p => p.Id == "manifest");
+            result.Outputs.Should().Contain(p => p.Id == "objects_map");
+            result.Outputs.Should().Contain(p => p.Id == "summary");
+        }
+    }
 }
