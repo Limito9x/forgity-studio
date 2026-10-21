@@ -49,7 +49,6 @@ function isLikelySecret(key: string): boolean {
 
 export function RunnerEnvironmentTab({
   runnerId,
-  runnerName,
   isOnline,
 }: RunnerEnvironmentTabProps) {
   const { data: envMap = {}, isLoading, isFetching, refetch } = useRunnerEnv(runnerId, isOnline);
