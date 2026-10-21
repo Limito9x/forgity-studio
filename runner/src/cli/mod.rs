@@ -5,6 +5,7 @@ pub mod env;
 pub mod register;
 pub mod setup;
 pub mod start;
+pub mod update;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -81,4 +82,15 @@ pub enum Commands {
 
     /// Install runner binaries globally into %LOCALAPPDATA%\Forgity\bin and configure Windows PATH
     Setup,
+
+    /// Self-update runner daemon and CLI to the latest GitHub release
+    Update {
+        /// Only check if an update is available without downloading or installing
+        #[arg(short, long)]
+        check: bool,
+
+        /// Force reinstall even if already on the latest version
+        #[arg(short, long)]
+        force: bool,
+    },
 }

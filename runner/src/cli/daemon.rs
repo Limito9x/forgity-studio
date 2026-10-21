@@ -199,7 +199,7 @@ async fn uninstall_daemon() -> Result<()> {
     Ok(())
 }
 
-async fn start_daemon(config_override: Option<&std::path::Path>) -> Result<()> {
+pub async fn start_daemon(config_override: Option<&std::path::Path>) -> Result<()> {
     let current_exe = std::env::current_exe()
         .context("Could not determine current executable path")?;
 
@@ -274,7 +274,7 @@ async fn start_daemon(config_override: Option<&std::path::Path>) -> Result<()> {
     Ok(())
 }
 
-async fn stop_daemon() -> Result<()> {
+pub async fn stop_daemon() -> Result<()> {
     let pid = match read_pid() {
         Some(p) => p,
         None => {

@@ -34,5 +34,6 @@ EXPOSE 5189
 EXPOSE 50051
 
 COPY --from=build /app/publish .
+COPY runner/scripts/ ./runner/scripts/
 
 ENTRYPOINT ["dotnet", "Automation.Api.dll"]

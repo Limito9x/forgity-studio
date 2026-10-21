@@ -47,6 +47,9 @@ async fn main() -> anyhow::Result<()> {
         Commands::Setup => {
             cli::setup::run_setup().await?;
         }
+        Commands::Update { check, force } => {
+            cli::update::run_update(check, force).await?;
+        }
     }
 
     Ok(())

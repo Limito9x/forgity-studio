@@ -63,32 +63,55 @@ if (-not $InstallDir) {
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 $exePath = ""$InstallDir\forgity-runner.exe""
 
-if (-not (Test-Path $exePath)) {
-    $zipPath = ""$env:TEMP\forgity-runner.zip""
-    Write-Host "" - Downloading forgity-runner package..."" -ForegroundColor Cyan
-    $packageUrls = @(
-        ""https://github.com/Limito9x/forgity-studio/releases/latest/download/forgity-runner.zip"",
-        ""$Url/runners/bootstrap/package.zip""
-    )
-    $downloadSuccess = $false
-    foreach ($pUrl in $packageUrls) {
-        try {
-            Write-Host ""   Fetching from $pUrl..."" -ForegroundColor Gray
-            Invoke-WebRequest -Uri $pUrl -OutFile $zipPath -TimeoutSec 90
-            Expand-Archive -Path $zipPath -DestinationPath $InstallDir -Force
-            Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
-            $downloadSuccess = $true
-            Write-Host "" - Native runner extracted successfully."" -ForegroundColor Green
-            break
-        } catch {
-            Write-Host ""   Could not download from $pUrl, trying alternative..."" -ForegroundColor DarkGray
-        }
-    }
-    if (-not $downloadSuccess -or -not (Test-Path $exePath)) {
-        Write-Host ""[ERROR] Failed to download forgity-runner package from all available sources."" -ForegroundColor Red
-        exit 1
+# Stop existing daemon if runner is already installed to prevent file lock
+if (Test-Path $exePath) {
+    Write-Host "" - Existing runner detected, ensuring background daemon is stopped..."" -ForegroundColor DarkGray
+    try {
+        & $exePath daemon stop 2>$null | Out-Null
+    } catch {}
+    Get-Process -Name ""forgity-runner"" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 500
+
+    $oldExe = ""$exePath.old""
+    if (Test-Path $oldExe) { Remove-Item $oldExe -Force -ErrorAction SilentlyContinue }
+    try {
+        Rename-Item -Path $exePath -NewName ""forgity-runner.exe.old"" -Force -ErrorAction SilentlyContinue
+    } catch {}
+}
+
+$zipPath = ""$env:TEMP\forgity-runner.zip""
+Write-Host "" - Fetching latest forgity-runner package..."" -ForegroundColor Cyan
+$packageUrls = @(
+    ""https://github.com/Limito9x/forgity-studio/releases/latest/download/forgity-runner.zip"",
+    ""$Url/runners/bootstrap/package.zip""
+)
+$downloadSuccess = $false
+foreach ($pUrl in $packageUrls) {
+    try {
+        Write-Host ""   Downloading from $pUrl..."" -ForegroundColor Gray
+        Invoke-WebRequest -Uri $pUrl -OutFile $zipPath -TimeoutSec 90
+        Expand-Archive -Path $zipPath -DestinationPath $InstallDir -Force
+        Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
+        $downloadSuccess = $true
+        Write-Host "" - Native runner extracted successfully."" -ForegroundColor Green
+        break
+    } catch {
+        Write-Host ""   Could not download from $pUrl, trying alternative..."" -ForegroundColor DarkGray
     }
 }
+
+if (Test-Path ""$exePath.old"") {
+    Remove-Item ""$exePath.old"" -Force -ErrorAction SilentlyContinue
+}
+
+if (-not $downloadSuccess -or -not (Test-Path $exePath)) {
+    Write-Host ""[ERROR] Failed to obtain forgity-runner.exe from all available sources."" -ForegroundColor Red
+    exit 1
+}
+
+try {
+    & $exePath setup 2>$null | Out-Null
+} catch {}
 
 Write-Host ""`n - Registering workstation runner..."" -ForegroundColor Yellow
 if ($Token) {
@@ -98,7 +121,8 @@ if ($Token) {
 Write-Host ""`n=================================================="" -ForegroundColor Green
 Write-Host "" [SUCCESS] FORGITY RUNNER DAEMON READY & RUNNING!"" -ForegroundColor Green
 Write-Host ""=================================================="" -ForegroundColor Green
-& $exePath daemon install";
+& $exePath daemon install
+& $exePath daemon start";
             }
             else
             {
@@ -162,18 +186,21 @@ echo ""[Automation Studio] Downloading runner...""";
 
     private static string? ResolveScriptPath(string scriptName)
     {
-        // 1. Check direct relative locations (published container, etc.)
-        var direct = Path.Combine(AppContext.BaseDirectory, "workers", "scripts", scriptName);
+        // 1. Check runner/scripts
+        var direct = Path.Combine(AppContext.BaseDirectory, "runner", "scripts", scriptName);
         if (File.Exists(direct)) return direct;
 
         direct = Path.Combine(AppContext.BaseDirectory, "Scripts", scriptName);
         if (File.Exists(direct)) return direct;
 
-        // 2. Scan upwards to locate workers/scripts/scriptName
+        direct = Path.Combine(AppContext.BaseDirectory, "workers", "scripts", scriptName);
+        if (File.Exists(direct)) return direct;
+
+        // 2. Scan upwards to locate runner/scripts/scriptName
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir != null)
         {
-            var target = Path.Combine(dir.FullName, "workers", "scripts", scriptName);
+            var target = Path.Combine(dir.FullName, "runner", "scripts", scriptName);
             if (File.Exists(target)) return target;
             dir = dir.Parent;
         }
@@ -181,7 +208,7 @@ echo ""[Automation Studio] Downloading runner...""";
         dir = new DirectoryInfo(Directory.GetCurrentDirectory());
         while (dir != null)
         {
-            var target = Path.Combine(dir.FullName, "workers", "scripts", scriptName);
+            var target = Path.Combine(dir.FullName, "runner", "scripts", scriptName);
             if (File.Exists(target)) return target;
             dir = dir.Parent;
         }
