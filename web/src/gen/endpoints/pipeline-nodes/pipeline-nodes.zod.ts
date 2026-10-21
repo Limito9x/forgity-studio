@@ -385,7 +385,8 @@ export const GetNodePaletteResponseItem = /*#__PURE__*/ zod.object({
   "entityTarget": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "allowedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })),
-  "id": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid())
+  "id": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "description": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 export const GetNodePaletteResponse = /*#__PURE__*/ zod.array(GetNodePaletteResponseItem)
 

@@ -175,6 +175,7 @@ tests/
 agent_config.json
 cache/
 runtime/
+scratch/
 
 # LSP config files
 pyrightconfig.json

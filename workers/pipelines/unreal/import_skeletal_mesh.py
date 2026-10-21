@@ -54,68 +54,13 @@ def extract_mesh_slot_names(mesh_asset) -> List[str]:
     return slot_names
 
 
-def import_with_interchange(
-    fbx_path: str,
-    destination_path: str,
-    mesh_name: str,
-    pipeline_preset_path: str = ""
-) -> Optional[str]:
-    """Import asset using UE5 Interchange Manager with an optional Pipeline Preset Asset."""
-    if not pipeline_preset_path or not hasattr(unreal, "InterchangeManager"):
-        return None
-
-    try:
-        interchange_mgr = None
-        if hasattr(unreal.InterchangeManager, "get_interchange_manager"):
-            interchange_mgr = unreal.InterchangeManager.get_interchange_manager()
-        elif hasattr(unreal, "get_editor_subsystem"):
-            subsystem_cls = getattr(unreal, "InterchangeEditorManager", None) or getattr(unreal, "InterchangeManager", None)
-            if subsystem_cls:
-                interchange_mgr = unreal.get_editor_subsystem(subsystem_cls)
-
-        if not interchange_mgr:
-            return None
-
-        source_data = None
-        if hasattr(unreal, "InterchangeSourceData"):
-            source_data = unreal.InterchangeSourceData()
-            source_data.set_filename(os.path.abspath(fbx_path))
-
-        if not source_data:
-            return None
-
-        import_params = unreal.ImportAssetParameters()
-        import_params.is_automated = True
-
-        pipeline_asset = unreal.EditorAssetLibrary.load_asset(pipeline_preset_path)
-        if pipeline_asset:
-            import_params.override_pipelines.append(pipeline_asset)
-            print(f"[import_skeletal_mesh] Using Interchange Pipeline Preset: '{pipeline_preset_path}'", flush=True)
-
-        success = interchange_mgr.import_asset(destination_path, source_data, import_params)
-        if success:
-            target_path = f"{destination_path}/{mesh_name}"
-            if unreal.EditorAssetLibrary.does_asset_exist(target_path):
-                return target_path
-            base_name = os.path.splitext(os.path.basename(fbx_path))[0]
-            alt_path = f"{destination_path}/{base_name}"
-            if unreal.EditorAssetLibrary.does_asset_exist(alt_path):
-                if alt_path != target_path:
-                    unreal.EditorAssetLibrary.rename_asset(alt_path, target_path)
-                return target_path
-    except Exception as ex:
-        print(f"[import_skeletal_mesh] Interchange import error: {ex}. Falling back to FBX importer.", flush=True)
-
-    return None
-
-
-def import_with_fbx_fallback(
+def import_fbx_skeletal_mesh(
     fbx_path: str,
     destination_path: str,
     mesh_name: str,
     skeleton_path: str = ""
 ) -> Optional[str]:
-    """Fallback import using standard AssetImportTask and FbxImportUI."""
+    """Standard FBX Skeletal Mesh import using Unreal AssetImportTask and FbxImportUI."""
     try:
         task = unreal.AssetImportTask()
         task.set_editor_property("filename", os.path.abspath(fbx_path))
@@ -171,9 +116,10 @@ def import_with_fbx_fallback(
 
 
 def _normalize_input_items(
-    fbx_files: Optional[Union[str, List[str], Dict[str, str]]],
+    fbx_files: Optional[Union[str, List[str], Dict[str, Any]]],
     fbx_path: Optional[str],
-    mesh_name: str
+    mesh_name: str,
+    folder_path: str = ""
 ) -> List[Tuple[str, str]]:
     """Normalize input representations into a list of (mesh_name, file_path)."""
     items: List[Tuple[str, str]] = []
@@ -182,19 +128,38 @@ def _normalize_input_items(
     if not raw:
         return items
 
+    def _resolve_path(p: str) -> str:
+        p_clean = p.strip()
+        if folder_path and not os.path.isabs(p_clean):
+            candidate = os.path.normpath(os.path.join(folder_path, p_clean)).replace("\\", "/")
+            if os.path.isfile(candidate):
+                return candidate
+            return candidate
+        return p_clean
+
     if isinstance(raw, dict):
         for k, v in raw.items():
-            if v and isinstance(v, str):
+            if isinstance(v, str) and v.strip():
                 name = str(k).strip()
-                items.append((name, v.strip()))
+                items.append((name, _resolve_path(v)))
+            elif isinstance(v, dict):
+                p = v.get("file_path") or v.get("relative_path") or v.get("path")
+                if p and isinstance(p, str):
+                    name = v.get("asset_name") or str(k).strip()
+                    items.append((str(name).strip(), _resolve_path(p)))
     elif isinstance(raw, list):
         for p in raw:
             if isinstance(p, str) and p.strip():
-                p_clean = p.strip()
+                p_clean = _resolve_path(p)
                 name = os.path.splitext(os.path.basename(p_clean))[0]
                 items.append((name, p_clean))
+            elif isinstance(p, dict):
+                path_val = p.get("file_path") or p.get("relative_path") or p.get("path")
+                if path_val and isinstance(path_val, str):
+                    name = p.get("asset_name") or os.path.splitext(os.path.basename(path_val))[0]
+                    items.append((str(name).strip(), _resolve_path(path_val)))
     elif isinstance(raw, str):
-        raw_clean = raw.strip()
+        raw_clean = _resolve_path(raw)
         if raw_clean:
             name = mesh_name.strip() if mesh_name else os.path.splitext(os.path.basename(raw_clean))[0]
             items.append((name, raw_clean))
@@ -203,24 +168,20 @@ def _normalize_input_items(
 
 
 def main(
-    fbx_files: Optional[Union[str, List[str], Dict[str, str]]] = None,
+    fbx_files: Optional[Union[str, List[str], Dict[str, Any]]] = None,
     destination_path: str = "/Game/Meshes",
     skeleton_path: str = "",
-    pipeline_preset_path: str = "",
-    mesh_name: str = "",
-    fbx_path: Optional[str] = None,
+    folder_path: str = "",
     **kwargs
 ) -> Dict[str, Any]:
     """
     Import one or multiple FBX files as Skeletal Meshes sharing a common Skeleton.
 
     Args:
-        fbx_files: Single path, list of paths, or dict { "mesh_name": "file_path" }.
+        fbx_files: Single path, list of paths, or dict { "mesh_name": "file_path" or metadata }.
         destination_path: Unreal package destination path (e.g. /Game/Characters/Eva/Meshes).
         skeleton_path: Shared Skeleton asset path in Unreal Engine.
-        pipeline_preset_path: Optional Interchange Pipeline Preset UAsset path.
-        mesh_name: Optional override name if importing a single file.
-        fbx_path: Backward compatibility alias for single file import.
+        folder_path: Optional repository root path for resolving relative FBX paths.
 
     Returns:
         Dictionary with:
@@ -232,8 +193,10 @@ def main(
     """
     destination_path = _clean_ue_path(destination_path or "/Game/Meshes")
     skeleton_path = _clean_ue_path(skeleton_path) if skeleton_path else ""
-    pipeline_preset_path = _clean_ue_path(pipeline_preset_path) if pipeline_preset_path else ""
-    items = _normalize_input_items(fbx_files, fbx_path, mesh_name)
+    folder_path = folder_path or kwargs.get("root_path") or ""
+    mesh_name = kwargs.get("mesh_name", "")
+    fbx_path = kwargs.get("fbx_path")
+    items = _normalize_input_items(fbx_files, fbx_path, mesh_name, folder_path)
 
     if not items:
         print("[import_skeletal_mesh] Warning: No FBX files provided for import.", flush=True)
@@ -269,12 +232,7 @@ def main(
             print(f"[import_skeletal_mesh] [Dry-Run] Simulated import '{clean_mesh_name}' -> '{target_uasset_path}'", flush=True)
             continue
 
-        # 1. Attempt Interchange import
-        imported_path = import_with_interchange(file_path, destination_path, clean_mesh_name, pipeline_preset_path)
-
-        # 2. Fallback to standard FBX import task
-        if not imported_path:
-            imported_path = import_with_fbx_fallback(file_path, destination_path, clean_mesh_name, skeleton_path)
+        imported_path = import_fbx_skeletal_mesh(file_path, destination_path, clean_mesh_name, skeleton_path)
 
         if imported_path and unreal.EditorAssetLibrary.does_asset_exist(imported_path):
             mesh_asset = unreal.EditorAssetLibrary.load_asset(imported_path)
