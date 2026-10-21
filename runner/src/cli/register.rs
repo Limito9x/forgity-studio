@@ -2,7 +2,7 @@ use anyhow::{bail, Context, Result};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 
-use crate::config::{save_config, HardwareProfileConfig, RabbitMqConfig, RunnerConfig};
+use crate::config::{load_config, save_config, HardwareProfileConfig, RabbitMqConfig, RunnerConfig};
 use crate::system::hardware::get_hardware_snapshot;
 
 #[derive(Serialize)]
@@ -215,6 +215,10 @@ pub async fn run_register(
     // 5. Save Config TOML
     println!("{}", " [5] Saving Runner Configuration...".yellow().bold());
     let now_iso = chrono_iso_now();
+    let existing_env = load_config(config_override, local)
+        .ok()
+        .and_then(|(cfg, _)| cfg.and_then(|c| c.env));
+
     let runner_config = RunnerConfig {
         api_url: normalized_api.to_string(),
         runner_id: reg_result.id,
@@ -232,6 +236,7 @@ pub async fn run_register(
             primary_gpu_vram_bytes: hw.primary_gpu_vram_bytes,
             last_scanned_at: now_iso,
         }),
+        env: existing_env,
     };
 
     let config_path = save_config(&runner_config, config_override, local)

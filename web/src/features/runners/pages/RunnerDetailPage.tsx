@@ -11,6 +11,7 @@ import { useProjectNav } from "@/lib/navigation/useProjectNav";
 import { RunnerEnginesTab } from "../components/RunnerEnginesTab";
 import { RunnerAttachedRepositoriesTab } from "../components/RunnerAttachedRepositoriesTab";
 import { RunnerHardwareTab } from "../components/RunnerHardwareTab";
+import { RunnerEnvironmentTab } from "../components/RunnerEnvironmentTab";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -24,11 +25,12 @@ import {
   Copy,
   Check,
   Terminal,
+  KeyRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-type RunnerDetailTab = "engines" | "repositories" | "hardware";
+type RunnerDetailTab = "engines" | "repositories" | "hardware" | "env";
 
 interface RunnerDetailPageProps {
   runnerId?: string;
@@ -167,6 +169,11 @@ export function RunnerDetailPage(props: RunnerDetailPageProps = {}) {
         key: "hardware",
         label: "Hardware Specs",
         icon: Cpu,
+      },
+      {
+        key: "env",
+        label: "Environment Variables",
+        icon: KeyRound,
       },
     ];
 
@@ -323,6 +330,15 @@ export function RunnerDetailPage(props: RunnerDetailPageProps = {}) {
 
       {/* Tab 3: Hardware Specs */}
       {activeTab === "hardware" && <RunnerHardwareTab runner={runner} />}
+
+      {/* Tab 4: Environment Variables */}
+      {activeTab === "env" && (
+        <RunnerEnvironmentTab
+          runnerId={runner.id}
+          runnerName={runner.name || runner.machineKey}
+          isOnline={isOnline}
+        />
+      )}
     </div>
   );
 }

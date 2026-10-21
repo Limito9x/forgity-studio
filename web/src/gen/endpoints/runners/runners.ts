@@ -24,9 +24,12 @@ import type {
 import type {
   AttachRunnerToStudioRequest,
   ConfigureRunnerExecutorRequest,
+  DictionaryOfStringAndString,
   DiscoverRunnerFolderResult,
   DiscoverRunnerFoldersParams,
   ErrorResponse,
+  ExecuteCommandResponseDto,
+  ExecuteRunnerCommandRequest,
   GenerateSetupTokenRequest,
   GetBootstrapScriptParams,
   GetRunnersParams,
@@ -45,6 +48,7 @@ import type {
   RunnerUpdateResultDto,
   ScanExecutorsRequest,
   SetupTokenDto,
+  UpdateRunnerEnvRequest,
   UpdateRunnerHardwareProfileRequest,
   UpgradeRunnerRequest,
 } from "../../model";
@@ -1401,6 +1405,290 @@ export const useRevokeRunner = <TError = void, TContext = unknown>(
   TContext
 > => {
   return useMutation(getRevokeRunnerMutationOptions(options), queryClient);
+};
+export const getRunnerEnv = (runnerId: string, signal?: AbortSignal) => {
+  return customInstance<DictionaryOfStringAndString>({
+    url: `/api/runners/${runnerId}/env`,
+    method: "GET",
+    signal,
+  });
+};
+
+export const getGetRunnerEnvQueryKey = (runnerId: string) => {
+  return [`/api/runners/${runnerId}/env`] as const;
+};
+
+export const getGetRunnerEnvQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRunnerEnv>>,
+  TError = void,
+>(
+  runnerId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getRunnerEnv>>, TError, TData>
+    >;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetRunnerEnvQueryKey(runnerId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getRunnerEnv>>> = ({
+    signal,
+  }) => getRunnerEnv(runnerId, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: runnerId !== null && runnerId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getRunnerEnv>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetRunnerEnvQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getRunnerEnv>>
+>;
+export type GetRunnerEnvQueryError = void;
+
+export function useGetRunnerEnv<
+  TData = Awaited<ReturnType<typeof getRunnerEnv>>,
+  TError = void,
+>(
+  runnerId: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getRunnerEnv>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRunnerEnv>>,
+          TError,
+          Awaited<ReturnType<typeof getRunnerEnv>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetRunnerEnv<
+  TData = Awaited<ReturnType<typeof getRunnerEnv>>,
+  TError = void,
+>(
+  runnerId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getRunnerEnv>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRunnerEnv>>,
+          TError,
+          Awaited<ReturnType<typeof getRunnerEnv>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetRunnerEnv<
+  TData = Awaited<ReturnType<typeof getRunnerEnv>>,
+  TError = void,
+>(
+  runnerId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getRunnerEnv>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useGetRunnerEnv<
+  TData = Awaited<ReturnType<typeof getRunnerEnv>>,
+  TError = void,
+>(
+  runnerId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getRunnerEnv>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetRunnerEnvQueryOptions(runnerId, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const updateRunnerEnv = (
+  runnerId: string,
+  updateRunnerEnvRequest: UpdateRunnerEnvRequest,
+  signal?: AbortSignal,
+) => {
+  return customInstance<DictionaryOfStringAndString>({
+    url: `/api/runners/${runnerId}/env`,
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    data: updateRunnerEnvRequest,
+    signal,
+  });
+};
+
+export const getUpdateRunnerEnvMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRunnerEnv>>,
+    TError,
+    { runnerId: string; data: UpdateRunnerEnvRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateRunnerEnv>>,
+  TError,
+  { runnerId: string; data: UpdateRunnerEnvRequest },
+  TContext
+> => {
+  const mutationKey = ["updateRunnerEnv"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateRunnerEnv>>,
+    { runnerId: string; data: UpdateRunnerEnvRequest }
+  > = (props) => {
+    const { runnerId, data } = props ?? {};
+
+    return updateRunnerEnv(runnerId, data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateRunnerEnvMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateRunnerEnv>>
+>;
+export type UpdateRunnerEnvMutationBody = UpdateRunnerEnvRequest;
+export type UpdateRunnerEnvMutationError = void;
+
+export const useUpdateRunnerEnv = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateRunnerEnv>>,
+      TError,
+      { runnerId: string; data: UpdateRunnerEnvRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateRunnerEnv>>,
+  TError,
+  { runnerId: string; data: UpdateRunnerEnvRequest },
+  TContext
+> => {
+  return useMutation(getUpdateRunnerEnvMutationOptions(options), queryClient);
+};
+export const executeRunnerCommand = (
+  runnerId: string,
+  executeRunnerCommandRequest: ExecuteRunnerCommandRequest,
+  signal?: AbortSignal,
+) => {
+  return customInstance<ExecuteCommandResponseDto>({
+    url: `/api/runners/${runnerId}/execute`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: executeRunnerCommandRequest,
+    signal,
+  });
+};
+
+export const getExecuteRunnerCommandMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof executeRunnerCommand>>,
+    TError,
+    { runnerId: string; data: ExecuteRunnerCommandRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof executeRunnerCommand>>,
+  TError,
+  { runnerId: string; data: ExecuteRunnerCommandRequest },
+  TContext
+> => {
+  const mutationKey = ["executeRunnerCommand"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof executeRunnerCommand>>,
+    { runnerId: string; data: ExecuteRunnerCommandRequest }
+  > = (props) => {
+    const { runnerId, data } = props ?? {};
+
+    return executeRunnerCommand(runnerId, data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ExecuteRunnerCommandMutationResult = NonNullable<
+  Awaited<ReturnType<typeof executeRunnerCommand>>
+>;
+export type ExecuteRunnerCommandMutationBody = ExecuteRunnerCommandRequest;
+export type ExecuteRunnerCommandMutationError = void;
+
+export const useExecuteRunnerCommand = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof executeRunnerCommand>>,
+      TError,
+      { runnerId: string; data: ExecuteRunnerCommandRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof executeRunnerCommand>>,
+  TError,
+  { runnerId: string; data: ExecuteRunnerCommandRequest },
+  TContext
+> => {
+  return useMutation(
+    getExecuteRunnerCommandMutationOptions(options),
+    queryClient,
+  );
 };
 export const reportExecutorConfigs = (
   runnerId: string,

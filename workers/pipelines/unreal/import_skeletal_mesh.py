@@ -54,68 +54,13 @@ def extract_mesh_slot_names(mesh_asset) -> List[str]:
     return slot_names
 
 
-def import_with_interchange(
-    fbx_path: str,
-    destination_path: str,
-    mesh_name: str,
-    pipeline_preset_path: str = ""
-) -> Optional[str]:
-    """Import asset using UE5 Interchange Manager with an optional Pipeline Preset Asset."""
-    if not pipeline_preset_path or not hasattr(unreal, "InterchangeManager"):
-        return None
-
-    try:
-        interchange_mgr = None
-        if hasattr(unreal.InterchangeManager, "get_interchange_manager"):
-            interchange_mgr = unreal.InterchangeManager.get_interchange_manager()
-        elif hasattr(unreal, "get_editor_subsystem"):
-            subsystem_cls = getattr(unreal, "InterchangeEditorManager", None) or getattr(unreal, "InterchangeManager", None)
-            if subsystem_cls:
-                interchange_mgr = unreal.get_editor_subsystem(subsystem_cls)
-
-        if not interchange_mgr:
-            return None
-
-        source_data = None
-        if hasattr(unreal, "InterchangeSourceData"):
-            source_data = unreal.InterchangeSourceData()
-            source_data.set_filename(os.path.abspath(fbx_path))
-
-        if not source_data:
-            return None
-
-        import_params = unreal.ImportAssetParameters()
-        import_params.is_automated = True
-
-        pipeline_asset = unreal.EditorAssetLibrary.load_asset(pipeline_preset_path)
-        if pipeline_asset:
-            import_params.override_pipelines.append(pipeline_asset)
-            print(f"[import_skeletal_mesh] Using Interchange Pipeline Preset: '{pipeline_preset_path}'", flush=True)
-
-        success = interchange_mgr.import_asset(destination_path, source_data, import_params)
-        if success:
-            target_path = f"{destination_path}/{mesh_name}"
-            if unreal.EditorAssetLibrary.does_asset_exist(target_path):
-                return target_path
-            base_name = os.path.splitext(os.path.basename(fbx_path))[0]
-            alt_path = f"{destination_path}/{base_name}"
-            if unreal.EditorAssetLibrary.does_asset_exist(alt_path):
-                if alt_path != target_path:
-                    unreal.EditorAssetLibrary.rename_asset(alt_path, target_path)
-                return target_path
-    except Exception as ex:
-        print(f"[import_skeletal_mesh] Interchange import error: {ex}. Falling back to FBX importer.", flush=True)
-
-    return None
-
-
-def import_with_fbx_fallback(
+def import_fbx_skeletal_mesh(
     fbx_path: str,
     destination_path: str,
     mesh_name: str,
     skeleton_path: str = ""
 ) -> Optional[str]:
-    """Fallback import using standard AssetImportTask and FbxImportUI."""
+    """Standard FBX Skeletal Mesh import using Unreal AssetImportTask and FbxImportUI."""
     try:
         task = unreal.AssetImportTask()
         task.set_editor_property("filename", os.path.abspath(fbx_path))
@@ -226,10 +171,7 @@ def main(
     fbx_files: Optional[Union[str, List[str], Dict[str, Any]]] = None,
     destination_path: str = "/Game/Meshes",
     skeleton_path: str = "",
-    pipeline_preset_path: str = "",
-    mesh_name: str = "",
     folder_path: str = "",
-    fbx_path: Optional[str] = None,
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -239,10 +181,7 @@ def main(
         fbx_files: Single path, list of paths, or dict { "mesh_name": "file_path" or metadata }.
         destination_path: Unreal package destination path (e.g. /Game/Characters/Eva/Meshes).
         skeleton_path: Shared Skeleton asset path in Unreal Engine.
-        pipeline_preset_path: Optional Interchange Pipeline Preset UAsset path.
-        mesh_name: Optional override name if importing a single file.
         folder_path: Optional repository root path for resolving relative FBX paths.
-        fbx_path: Backward compatibility alias for single file import.
 
     Returns:
         Dictionary with:
@@ -254,8 +193,9 @@ def main(
     """
     destination_path = _clean_ue_path(destination_path or "/Game/Meshes")
     skeleton_path = _clean_ue_path(skeleton_path) if skeleton_path else ""
-    pipeline_preset_path = _clean_ue_path(pipeline_preset_path) if pipeline_preset_path else ""
     folder_path = folder_path or kwargs.get("root_path") or ""
+    mesh_name = kwargs.get("mesh_name", "")
+    fbx_path = kwargs.get("fbx_path")
     items = _normalize_input_items(fbx_files, fbx_path, mesh_name, folder_path)
 
     if not items:
@@ -292,12 +232,7 @@ def main(
             print(f"[import_skeletal_mesh] [Dry-Run] Simulated import '{clean_mesh_name}' -> '{target_uasset_path}'", flush=True)
             continue
 
-        # 1. Attempt Interchange import
-        imported_path = import_with_interchange(file_path, destination_path, clean_mesh_name, pipeline_preset_path)
-
-        # 2. Fallback to standard FBX import task
-        if not imported_path:
-            imported_path = import_with_fbx_fallback(file_path, destination_path, clean_mesh_name, skeleton_path)
+        imported_path = import_fbx_skeletal_mesh(file_path, destination_path, clean_mesh_name, skeleton_path)
 
         if imported_path and unreal.EditorAssetLibrary.does_asset_exist(imported_path):
             mesh_asset = unreal.EditorAssetLibrary.load_asset(imported_path)

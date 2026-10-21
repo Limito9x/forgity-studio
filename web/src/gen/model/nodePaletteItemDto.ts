@@ -17,4 +17,6 @@ export interface NodePaletteItemDto {
   outputs: IReadOnlyListOfPinDefinition;
   /** @nullable */
   id?: string | null;
+  /** @nullable */
+  description?: string | null;
 }
