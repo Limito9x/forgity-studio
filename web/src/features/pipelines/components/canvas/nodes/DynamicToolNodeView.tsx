@@ -1,11 +1,11 @@
-import { Plus, Boxes } from "lucide-react";
+import { Boxes } from "lucide-react";
 import type { NodeProps } from "@xyflow/react";
 import type { CustomPipelineNodeData } from "./types";
 import { isExecPin } from "./types";
 import { NodeCard } from "./parts/NodeCard";
 import { NodeHeader } from "./parts/NodeHeader";
 import { ExecPinBar } from "./parts/ExecPinBar";
-import { PinInputRow, PinOutputRow } from "./parts/PinRow";
+import { DataPinColumns } from "./parts/DataPinColumns";
 import { useNodePinResolver, useCollectionPinActions } from "./hooks";
 
 export function DynamicToolNodeView({ id, data, selected }: NodeProps) {
@@ -60,56 +60,16 @@ export function DynamicToolNodeView({ id, data, selected }: NodeProps) {
         execColor="#a855f7"
       />
 
-      {(dataInputs.length > 0 || dataOutputs.length > 0) && (
-        <div className="p-3 text-xs">
-          <div className="flex justify-between gap-6">
-            <div className="flex-1 space-y-2.5">
-              {dataInputs.map((pin, idx) => {
-                const pinId = pin.id || `in_${idx}`;
-                const hasConfig = nodeData.configValues?.[pinId] !== undefined;
-                const isDefaultPin = pinId === "A" || pinId === "B" || pinId === "Separator" || pinId === "Items";
-                const canRemove = canRemovePin && !isDefaultPin;
-
-                return (
-                  <PinInputRow
-                    key={pinId}
-                    pin={pin}
-                    pinId={pinId}
-                    hasConfig={hasConfig}
-                    canRemove={canRemove}
-                    onRemove={handleRemovePin}
-                  />
-                );
-              })}
-
-              {canAddPin && (
-                <button
-                  type="button"
-                  onClick={handleAddPin}
-                  className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary hover:text-primary/80 bg-primary/10 hover:bg-primary/20 px-2 py-0.5 rounded transition-colors mt-1"
-                  title="Add Pin"
-                >
-                  <Plus className="h-3 w-3" />
-                  <span>Add Pin</span>
-                </button>
-              )}
-            </div>
-
-            <div className="flex-1 space-y-2.5 text-right">
-              {dataOutputs.map((pin, idx) => {
-                const pinId = pin.id || `out_${idx}`;
-                return (
-                  <PinOutputRow
-                    key={pinId}
-                    pin={pin}
-                    pinId={pinId}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
+      <DataPinColumns
+        dataInputs={dataInputs}
+        dataOutputs={dataOutputs}
+        configValues={nodeData.configValues}
+        protectedPinIds={nodeData.capabilities?.protectedPinIds}
+        canRemovePin={canRemovePin}
+        canAddPin={canAddPin}
+        onRemovePin={handleRemovePin}
+        onAddPin={handleAddPin}
+      />
     </NodeCard>
   );
 }

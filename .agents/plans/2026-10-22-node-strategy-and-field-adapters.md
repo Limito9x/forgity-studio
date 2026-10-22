@@ -119,7 +119,7 @@ flowchart TD
 
 ---
 
-### Giai đoạn B: 6.2 - Node View Strategy & Symmetrical Boundary Nodes (Frontend)
+### Giai đoạn B: 6.2 - Node View Strategy & Symmetrical Boundary Nodes (Frontend) - [x] HOÀN TẤT
 
 > **Mục tiêu**: Thay thế bộ router `CustomPipelineNode.tsx` bằng `PipelineNodeRouter.tsx` thuần túy, dùng chung layout cột pin `DataPinColumns`, và tạo `ReturnNodeView` chuẩn chỉ.
 
