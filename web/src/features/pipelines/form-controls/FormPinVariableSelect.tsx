@@ -9,7 +9,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { usePipelineFormScope } from "../form-scope/PipelineFormScope";
-import { formatPinTypeLabel } from "../components/canvas/CustomPipelineNode";
+import { formatPinTypeLabel } from "../components/canvas/nodes/types";
 
 export interface FormPinVariableSelectProps<T extends FieldValues>
   extends BaseFormControlProps<T> {

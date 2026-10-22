@@ -387,6 +387,7 @@ export const getNodePaletteResponseIsDynamicDefault = false;
 export const getNodePaletteResponseCapabilitiesOneCanAddPinDefault = false;
 export const getNodePaletteResponseCapabilitiesOneCanRemovePinDefault = false;
 export const getNodePaletteResponseCapabilitiesOneViewVariantDefault = `Standard`;
+export const getNodePaletteResponseIsVisibleInPaletteDefault = true;
 
 export const GetNodePaletteResponseItem = /*#__PURE__*/ zod.object({
   "key": /*#__PURE__*/ zod.string(),
@@ -433,7 +434,8 @@ export const GetNodePaletteResponseItem = /*#__PURE__*/ zod.object({
   "ruleNotes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "viewVariant": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.string(), getNodePaletteResponseCapabilitiesOneViewVariantDefault),
   "protectedPinIds": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()))
-}))
+})),
+  "isVisibleInPalette": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), getNodePaletteResponseIsVisibleInPaletteDefault)
 })
 export const GetNodePaletteResponse = /*#__PURE__*/ zod.array(GetNodePaletteResponseItem)
 

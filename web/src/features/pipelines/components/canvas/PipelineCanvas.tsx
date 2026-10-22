@@ -11,7 +11,8 @@ import {
 import "@xyflow/react/dist/style.css";
 import { toast } from "sonner";
 
-import { CustomPipelineNode } from "./CustomPipelineNode";
+import { PipelineNodeRouter } from "./nodes/PipelineNodeRouter";
+import { NodeDefinitionsProvider } from "./NodeDefinitions";
 import { ScopeContainerNode } from "./ScopeContainerNode";
 import { CapsuleNode } from "./CapsuleNode";
 import { ContextMenuPalette } from "./ContextMenuPalette";
@@ -42,7 +43,7 @@ interface PipelineCanvasProps {
 }
 
 const nodeTypes = {
-  pipelineNode: CustomPipelineNode,
+  pipelineNode: PipelineNodeRouter,
   scopeContainer: ScopeContainerNode,
   capsuleNode: CapsuleNode,
 };
@@ -54,7 +55,16 @@ const defaultEdgeOptions = {
   style: { strokeWidth: 2 },
 };
 
-export function PipelineCanvas({ projectId, graph }: PipelineCanvasProps) {
+export function PipelineCanvas(props: PipelineCanvasProps) {
+  const definitions = useNodePalette(props.projectId);
+  if (!definitions.data) {
+    if (definitions.isError) return <div role="alert">Failed to load node definitions. <button onClick={() => void definitions.refetch()}>Retry</button></div>;
+    return <div role="status">Loading node definitions...</div>;
+  }
+  return <NodeDefinitionsProvider items={definitions.data}><PipelineCanvasContent key={`${props.projectId}:${props.graph.id}`} {...props} /></NodeDefinitionsProvider>;
+}
+
+function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
   const { screenToFlowPosition, setCenter } = useReactFlow();
   const { data: paletteItems = [] } = useNodePalette(projectId);
   const { data: structCatalogue = [] } = useGetStructCatalogue({ projectId });

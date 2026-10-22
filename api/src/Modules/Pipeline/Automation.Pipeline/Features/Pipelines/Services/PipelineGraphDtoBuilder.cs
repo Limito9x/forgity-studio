@@ -62,7 +62,6 @@ public class PipelineGraphDtoBuilder(
             string label = node.RefId;
             string? category = null;
             string? executor = null;
-            NodeCapabilitiesDto? capabilities = null;
 
             Dictionary<string, object?>? configValues = null;
             if (node.Config != null)
@@ -242,7 +241,6 @@ public class PipelineGraphDtoBuilder(
                 label = !string.IsNullOrWhiteSpace(tool.Label) ? tool.Label : tool.Key;
                 category = tool.Category ?? "Tools";
                 executor = "builtin";
-                capabilities = GetNodePaletteHandler.ResolveCapabilities(tool);
             }
             else
             {
@@ -307,8 +305,7 @@ public class PipelineGraphDtoBuilder(
                 node.ParentId,
                 node.Size,
                 metadata,
-                FileAssets: null,
-                Capabilities: capabilities
+                FileAssets: null
             ));
         }
 

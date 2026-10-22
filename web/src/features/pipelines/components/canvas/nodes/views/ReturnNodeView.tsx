@@ -1,7 +1,7 @@
 import { CheckCircle2 } from "lucide-react";
 import type { NodeProps } from "@xyflow/react";
 import type { CustomPipelineNodeData } from "../types";
-import { isExecPin } from "../types";
+import { useSplitPins } from "../hooks/useSplitPins";
 import { NodeCard } from "../parts/NodeCard";
 import { NodeHeader } from "../parts/NodeHeader";
 import { ExecPinBar } from "../parts/ExecPinBar";
@@ -9,9 +9,7 @@ import { DataPinColumns } from "../parts/DataPinColumns";
 
 export function ReturnNodeView({ id: _id, data, selected }: NodeProps) {
   const nodeData = data as unknown as CustomPipelineNodeData;
-  const inputs = nodeData.inputs || [];
-  const execInputs = inputs.filter(isExecPin);
-  const dataInputs = inputs.filter((p) => !isExecPin(p));
+  const { execInputs, dataInputs } = useSplitPins(nodeData.inputs, nodeData.outputs);
 
   const execInLabel = execInputs[0]?.label || "Complete";
 
@@ -44,6 +42,7 @@ export function ReturnNodeView({ id: _id, data, selected }: NodeProps) {
         dataInputs={dataInputs}
         dataOutputs={[]}
         configValues={nodeData.configValues}
+        fileAssets={nodeData.fileAssets}
       />
     </NodeCard>
   );

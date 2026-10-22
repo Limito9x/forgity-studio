@@ -1,5 +1,49 @@
 # Kế hoạch Kỹ thuật: Node View Strategy (6.2) & Field Adapter Registry (6.3)
 
+## Điều chỉnh Phase B — 22/10/2026 (ưu tiên hơn mô tả cũ bên dưới)
+
+**Trạng thái: B0/B1 đã triển khai và qua kiểm tra tự động; chờ nghiệm thu UI.** Mô tả A/B cũ bên dưới là lịch sử, không còn là hướng dẫn implementation hiện hành.
+
+Kết quả 22/10/2026: Pipeline tests 177 pass, 4 skipped; frontend definition/menu tests 3 pass; typecheck và production build pass. API đã được chạy tạm ở Development để Orval generate client rồi dừng. Chưa kiểm tra UI F5, thêm/xóa pin, đổi struct, retry và cập nhật definition trên trình duyệt. Phase C chưa thực hiện.
+
+Canvas dùng NodeDefinitionsProvider và query cache theo project; menu lọc visibility/executor ở client. Graph DTO đã bỏ Capabilities. Instance inputs/outputs lấy từ graph/resolver, không chép pins mặc định palette khi refetch. Router chọn view theo kind/definition; resolver chỉ gọi tại router. DataPinColumns giữ file Unbound; Standard giữ Missing Script/Missing Definition.
+
+**Checkpoint review:** Chưa khép kín nguyên tắc backend-authoritative pins: usePipelineDraftState vẫn có nhánh BreakStruct khi load và xử lý StructType của BreakStruct/MakeStruct. Inspector còn fallback tên tool cho StructSelector; collection actions còn tên Separator. Phase C xử lý field mapping/entity controls, không tự giải quyết ba nhánh này. Cần một phần hoàn thiện pin/inspector riêng trước nghiệm thu toàn bộ Phase B; chưa có xác nhận UI.
+
+### B0. Một nguồn định nghĩa node dùng chung
+
+- `capabilities` và `isDynamic` thuộc định nghĩa node. Backend registry là nguồn chân lý; frontend dùng một query cache theo project cho router, inspector và menu.
+- Điều chỉnh GetNodePalette trả đầy đủ định nghĩa được phép đọc trong project: built-in, custom nodes và subpipelines. HiddenToolKeys trở thành metadata `isVisibleInPalette`; tool bị ẩn vẫn có định nghĩa để render graph cũ. Giữ kiểm tra quyền backend.
+- Bỏ lọc executor phía endpoint. Menu lọc client theo visibility và các quy tắc executor/macro hiện hành; không fetch lại mỗi lần mở menu hoặc đổi stage.
+- Query cache theo project, staleTime Infinity, không refetch khi focus; invalidate khi publish/update/delete custom node hoặc thay đổi định nghĩa/parameters subpipeline. Đổi project phải đọc đúng cache project mới.
+- Dùng Definition Map trong provider chung; lookup theo source/kind và refId, đối chiếu cách lưu key/id hiện hành để tránh trùng giữa tool/custom/subpipeline. Không đổi refId đã lưu chỉ để phục vụ lookup.
+- Fetch graph và definitions song song. Chỉ mount Canvas dùng draft state khi cả hai tải lần đầu thành công. Loading/error có UI và retry; dữ liệu rỗng thành công khác lỗi tải.
+- Router và inspector đọc definition trực tiếp từ provider/query cache. Không dùng useEffect chép capabilities/isDynamic vào từng node. Refetch definitions cập nhật provider, không remount graph hay mất draft.
+- Definition không tồn tại: hiện Missing Definition, giữ config/pins/edges; tắt resolver và thêm/xóa pin cho node đó. Start/Return được xử lý riêng theo kind.
+- Gỡ Capabilities khỏi PipelineNodeGraphDto và builder sau khi chuyển consumer; không thêm IsDynamic vào graph. Graph giữ trạng thái instance gồm config, resolved pins, fileAssets và metadata. Không đổi save payload hay thêm migration.
+- Generate API client bằng Orval, không sửa tay src/gen. Kiểm tra toàn bộ consumer capabilities/isDynamic, gồm thao tác thêm node, inspector và collection actions.
+
+### B1. Hoàn thiện Node View Strategy
+
+- PipelineNodeRouter chọn Start/Return/FlowControl theo kind; các tool chọn Collection/Struct/Standard theo definition.capabilities.viewVariant. Variant thiếu/không biết dùng Standard; thiếu definition có trạng thái riêng.
+- Router sở hữu duy nhất useNodePinResolver; bật theo definition.isDynamic === true đối với tool. Bỏ lời gọi trong view con. FormatString dùng Standard nhưng vẫn resolve pin động.
+- Đổi DynamicToolNodeView thành CollectionNodeView, ActionToolNodeView thành StandardToolNodeView; bỏ nhận diện theo tên tool/category và nhánh isBreakStruct trong Standard.
+- Standard/Collection/Struct dùng useSplitPins theo PinKind. Start chỉ Exec Out, Return chỉ Exec In và data inputs; giữ FlowControl chuyên biệt. Struct chưa chọn hiển thị trạng thái chưa chọn, không mặc định Resource.
+- DataPinColumns dùng chung, nhận fileAssets để giữ cảnh báo Unbound. Giữ Missing Script từ metadata instance. Nút thêm/xóa theo definition capabilities; protectedPinIds không fallback tên Items/A/B. Collection rỗng vẫn có nút thêm nếu được phép.
+- Chuyển import types/helpers trực tiếp sang nodes/types.ts, bỏ re-export qua component cũ. Memo phải phản ánh props và provider, gồm fileAssets, metadata, executor và execution status/error. Dùng UI tokens hiện có.
+- Thuật toán đặt tên pin, chống response resolve về sai thứ tự và autosave gate để riêng. Phase C và Parameters Panel chưa triển khai trong B.
+
+### Nghiệm thu thiết kế sửa đổi
+
+- Backend: hidden tools vẫn có definition, visibility đúng; custom/subpipeline đúng project; metadata đúng registry; graph không còn Capabilities.
+- Frontend: menu giữ đúng lựa chọn từng stage; graph cũ chứa hidden tool vẫn render; identity không trùng giữa nguồn; lỗi tải có retry; đổi project không dùng definitions cũ.
+- Cache: mở menu không fetch lại; publish/update làm invalidation; refetch không mất draft. Thiếu definition không xóa config hoặc dây.
+- View: FormatString Standard vẫn resolve; không gọi resolver trùng; protected pins và nút thêm/xóa đúng sau F5; Start/Return đúng Exec; Missing Script/Unbound cập nhật đúng.
+- Chạy backend tests liên quan, frontend typecheck và build; kiểm tra UI thêm/xóa pin, đổi struct, reload. Ghi rõ manual checks chưa chạy.
+- Sau implementation cập nhật playbook Canvas và index theo thực tế. Không ghi thiết kế dự kiến thành hành vi đã hoàn thành.
+
+---
+
 Tài liệu này chi tiết hóa việc thực thi 2 mục Backlog **6.2** và **6.3** từ kế hoạch gốc [2026-10-22-refactor-pipeline-build-time-type-contract-and-struct-registry.md](file:///d:/FullStack/Automation/.agents/plans/2026-10-22-refactor-pipeline-build-time-type-contract-and-struct-registry.md), kết hợp phản hồi và kết luận từ đợt review.
 
 Triết lý tối thượng: **No Backward Compatibility Debt** và **Backend C# là Single Source of Truth**.

@@ -22,6 +22,7 @@ export function useCollectionPinActions({
   const handleAddPin = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
+      if (!capabilities?.canAddPin) return;
       setNodes((nds) =>
         nds.map((n) => {
           if (n.id !== nodeId) return n;
@@ -69,12 +70,13 @@ export function useCollectionPinActions({
         })
       );
     },
-    [nodeId, pinAddMode, setNodes]
+    [nodeId, pinAddMode, setNodes, capabilities]
   );
 
   const handleRemovePin = useCallback(
     (e: React.MouseEvent, pinId: string) => {
       e.stopPropagation();
+      if (!capabilities?.canRemovePin || capabilities.protectedPinIds?.includes(pinId)) return;
       setNodes((nds) =>
         nds.map((n) => {
           if (n.id !== nodeId) return n;
@@ -117,7 +119,7 @@ export function useCollectionPinActions({
         })
       );
     },
-    [nodeId, pinAddMode, setNodes]
+    [nodeId, pinAddMode, setNodes, capabilities]
   );
 
   return {

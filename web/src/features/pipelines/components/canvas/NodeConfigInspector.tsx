@@ -1,8 +1,9 @@
+import { useNodeDefinition } from "./NodeDefinitions";
 import { useMemo, memo, useEffect } from "react";
 import type { Node } from "@xyflow/react";
 import { useForm } from "react-hook-form";
-import type { CustomPipelineNodeData } from "./CustomPipelineNode";
-import { getPinVisual } from "./CustomPipelineNode";
+import type { CustomPipelineNodeData } from "./nodes/types";
+import { getPinVisual } from "./nodes/types";
 import { PipelineStartNodeInspector } from "./PipelineStartNodeInspector";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -55,6 +56,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
   const { data: structCatalogue = [] } = useGetStructCatalogue({ projectId });
 
   const data = (node?.data as unknown as CustomPipelineNodeData) || {};
+  const definition = useNodeDefinition(data.kind, data.refId);
   const refIdLower = String(data.refId || "").toLowerCase();
   const kindLower = String(data.kind || "").toLowerCase();
   const labelLower = String(data.label || "").toLowerCase();
@@ -251,15 +253,15 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
               </div>
             )}
             {/* Capability-driven Rule Notes */}
-            {data.capabilities?.ruleNotes && (
+            {definition?.capabilities?.ruleNotes && (
               <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 text-[11px] text-muted-foreground">
                 <span className="font-semibold text-primary block mb-0.5">Note:</span>
-                {data.capabilities.ruleNotes}
+                {definition?.capabilities.ruleNotes}
               </div>
             )}
 
             {/* StructSelector: BreakStruct / MakeStruct / CastToStruct Configuration */}
-            {(data.capabilities?.inspectorMode === "StructSelector" ||
+            {(definition?.capabilities?.inspectorMode === "StructSelector" ||
               refIdLower === "breakstruct" ||
               refIdLower === "makestruct" ||
               refIdLower === "casttostruct") && (() => {

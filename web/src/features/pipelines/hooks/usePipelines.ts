@@ -1,3 +1,4 @@
+import { filterPalette } from "../nodeDefinitions";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as Api from "@/gen/endpoints/pipeline-nodes/pipeline-nodes";
 import { createMutationHook } from "@/lib/query-utils";
@@ -75,6 +76,9 @@ export function useCreatePipelineMutation(projectId?: string) {
         queryClient.invalidateQueries({
           queryKey: [`/api/pipelines`],
         });
+        queryClient.invalidateQueries({
+          queryKey: getGetNodePaletteQueryKey({ projectId }),
+        });
       }
     },
     onError: (err: any) => {
@@ -99,6 +103,9 @@ export function useUpdatePipelineMutation(projectId?: string, pipelineId?: strin
       if (projectId) {
         queryClient.invalidateQueries({
           queryKey: [`/api/pipelines`],
+        });
+        queryClient.invalidateQueries({
+          queryKey: getGetNodePaletteQueryKey({ projectId }),
         });
       }
       const targetId = pipelineId || updated?.id;
@@ -125,6 +132,9 @@ export function useDeletePipelineMutation(projectId?: string) {
         queryClient.invalidateQueries({
           queryKey: [`/api/pipelines`],
         });
+        queryClient.invalidateQueries({
+          queryKey: getGetNodePaletteQueryKey({ projectId }),
+        });
       }
     },
   });
@@ -146,6 +156,9 @@ export function useRestorePipelineMutation(projectId?: string) {
         queryClient.invalidateQueries({
           queryKey: [`/api/pipelines`],
         });
+        queryClient.invalidateQueries({
+          queryKey: getGetNodePaletteQueryKey({ projectId }),
+        });
       }
     },
   });
@@ -165,6 +178,9 @@ export function usePurgePipelineMutation(projectId?: string) {
         queryClient.invalidateQueries({
           queryKey: [`/api/pipelines`],
         });
+        queryClient.invalidateQueries({
+          queryKey: getGetNodePaletteQueryKey({ projectId }),
+        });
       }
     },
   });
@@ -172,17 +188,12 @@ export function usePurgePipelineMutation(projectId?: string) {
 
 export function useNodePalette(projectId?: string, executor?: string) {
   return useQuery({
-    queryKey: getGetNodePaletteQueryKey({
-      projectId: projectId ?? null,
-      executor: executor ?? null,
-    }),
-    queryFn: ({ signal }) =>
-      getNodePalette(
-        { projectId: projectId ?? null, executor: executor ?? null },
-        signal
-      ),
+    queryKey: getGetNodePaletteQueryKey({ projectId }),
+    queryFn: ({ signal }) => getNodePalette({ projectId }, signal),
     enabled: !!projectId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    select: executor ? (items) => filterPalette(items, executor) : undefined,
   });
 }
 

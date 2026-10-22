@@ -13,8 +13,8 @@ import {
   useSavePipelineGraph,
 } from "../../../hooks/usePipelineGraph";
 import type { NodePaletteItemDto, PinDefinition } from "@/gen/model";
-import type { CustomPipelineNodeData } from "../CustomPipelineNode";
-import { isExecPin } from "../CustomPipelineNode";
+import type { CustomPipelineNodeData } from "../nodes/types";
+import { isExecPin } from "../nodes/types";
 import type { CapsuleNodeData } from "../CapsuleNode";
 import type { ScopeContainerNodeData } from "../ScopeContainerNode";
 import type { StageCreationOption } from "../ContextMenuPalette";
@@ -141,6 +141,7 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
             outputs: initialOutputs,
             configValues: n.configValues || {},
             fileAssets: n.fileAssets || {},
+            metadata: n.metadata,
             pipelineId: graph.id,
           } as CustomPipelineNodeData,
         });
@@ -878,15 +879,7 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
           }
         : { x: flowCoordinates.x, y: flowCoordinates.y };
 
-      let initialOutputs = (item.outputs as PinDefinition[]) || [];
-      if (item.key?.toLowerCase() === "breakstruct") {
-        const dynamicPins = getStructPins("Resource");
-        if (dynamicPins.length > 0) {
-          const execOutputs = initialOutputs.filter(isExecPin);
-          initialOutputs = [...execOutputs, ...dynamicPins];
-        }
-      }
-
+      const initialOutputs = (item.outputs as PinDefinition[]) || [];
       const newNode: Node = {
         id: newNodeId,
         type: "pipelineNode",
@@ -902,8 +895,6 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
           outputs: initialOutputs,
           configValues: {},
           pipelineId: graph.id,
-          isDynamic: item.isDynamic ?? false,
-          capabilities: item.capabilities ?? null,
         } as CustomPipelineNodeData,
       };
 
