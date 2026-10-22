@@ -36,6 +36,7 @@ public class SetVariableTool(
             {
                 var dynamicInputs = new List<PinDefinition>
                 {
+                    FlowPinHelper.ExecInPin,
                     new()
                     {
                         Id = "VariableName",
@@ -60,6 +61,7 @@ public class SetVariableTool(
 
                 var dynamicOutputs = new List<PinDefinition>
                 {
+                    FlowPinHelper.ExecOutPin,
                     new()
                     {
                         Id = "Value",
@@ -81,6 +83,7 @@ public class SetVariableTool(
 
     public IReadOnlyList<PinDefinition> Inputs =>
     [
+        FlowPinHelper.ExecInPin,
         new()
         {
             Id = "VariableName",
@@ -103,6 +106,7 @@ public class SetVariableTool(
 
     public IReadOnlyList<PinDefinition> Outputs =>
     [
+        FlowPinHelper.ExecOutPin,
         new()
         {
             Id = "Value",

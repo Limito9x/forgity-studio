@@ -8,6 +8,7 @@ using Automation.Pipeline.Engine.Messages;
 using Automation.Pipeline.Engine.Models;
 using Automation.Pipeline.Engine.Orchestrator.Enrichers;
 using Automation.Pipeline.Hubs;
+using Automation.Repository.Contracts;
 using Automation.Runner.Contracts;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Configuration;
@@ -23,7 +24,8 @@ public class RunnerSegmentDispatcher(
     ILogger<RunnerSegmentDispatcher> logger,
     IEnumerable<IExecutorEnvironmentEnricher>? enrichers = null,
     IPinValueResolver? pinResolver = null,
-    IHubContext<PipelineExecutionHub>? hubContext = null
+    IHubContext<PipelineExecutionHub>? hubContext = null,
+    IRepositoryApi? repositoryApi = null
 )
 {
     public async Task<Result> DispatchAsync(
@@ -238,6 +240,139 @@ public class RunnerSegmentDispatcher(
                 }
             }
             catch { }
+        }
+
+        // Fallback 3: Auto-Routing từ Holding Runner của Resource Input (Zero Manual Selection)
+        if (effectiveRunnerId == Guid.Empty && repositoryApi != null)
+        {
+            try
+            {
+                // 3a. Thử tìm Resource ID từ Stage Pin Resolver (nếu có pin liên quan resource/file)
+                if (pinResolver != null && segment.StageId.HasValue)
+                {
+                    foreach (var pinName in new[] { "resource", "Resource", "resource_id", "ResourceId", "file", "input_file", "source_file" })
+                    {
+                        try
+                        {
+                            var resolvedRes = await pinResolver.ResolvePinAsync(execution.Id, segment.StageId.Value, pinName, scope, ct);
+                            if (resolvedRes != null)
+                            {
+                                var (_, parsedGuid, isValid) = EntityRefHelper.Parse(resolvedRes);
+                                if (isValid && parsedGuid != Guid.Empty)
+                                {
+                                    var locResult = await repositoryApi.GetResourceLocationAsync(parsedGuid, ct);
+                                    if (locResult.IsSuccess && locResult.Value.RunnerId.HasValue && locResult.Value.RunnerId.Value != Guid.Empty)
+                                    {
+                                        effectiveRunnerId = locResult.Value.RunnerId.Value;
+                                        logger.LogInformation(
+                                            "RunnerSegmentDispatcher: Auto-resolved Holding Runner {RunnerId} from Stage pin '{PinName}' (Resource: {ResourceId}, RelPath: '{RelPath}')",
+                                            effectiveRunnerId, pinName, locResult.Value.ResourceId, locResult.Value.RelativePath);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                }
+
+                // 3b. Thử tìm Resource ID từ ExecutionState RuntimeInputs
+                if (effectiveRunnerId == Guid.Empty && execution.ExecutionState != null)
+                {
+                    var doc = execution.ExecutionState;
+                    if (doc.RootElement.TryGetProperty("RuntimeInputs", out var rInputs) || doc.RootElement.TryGetProperty("runtimeInputs", out rInputs))
+                    {
+                        foreach (var prop in rInputs.EnumerateObject())
+                        {
+                            var valStr = prop.Value.GetString() ?? prop.Value.GetRawText();
+                            var (_, parsedGuid, isValid) = EntityRefHelper.Parse(valStr);
+                            if (isValid && parsedGuid != Guid.Empty)
+                            {
+                                var locResult = await repositoryApi.GetResourceLocationAsync(parsedGuid, ct);
+                                if (locResult.IsSuccess && locResult.Value.RunnerId.HasValue && locResult.Value.RunnerId.Value != Guid.Empty)
+                                {
+                                    effectiveRunnerId = locResult.Value.RunnerId.Value;
+                                    logger.LogInformation(
+                                        "RunnerSegmentDispatcher: Auto-resolved Holding Runner {RunnerId} from RuntimeInput '{Key}' (Resource: {ResourceId}, RelPath: '{RelPath}')",
+                                        effectiveRunnerId, prop.Name, locResult.Value.ResourceId, locResult.Value.RelativePath);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "RunnerSegmentDispatcher: Exception while resolving holding runner from resource input.");
+            }
+        }
+
+        // Fallback 4: Auto-Routing từ Single Attached Runner của Repository (nếu Repo chỉ có đúng 1 Runner gắn vào)
+        if (effectiveRunnerId == Guid.Empty && repositoryApi != null)
+        {
+            try
+            {
+                Guid? repoId = null;
+
+                // Thử tìm Repository ID từ Stage Pin Resolver hoặc RuntimeInputs
+                if (pinResolver != null && segment.StageId.HasValue)
+                {
+                    foreach (var pinName in new[] { "repository", "Repository", "repository_id", "RepositoryId", "workspace", "Workspace" })
+                    {
+                        try
+                        {
+                            var resolvedRepo = await pinResolver.ResolvePinAsync(execution.Id, segment.StageId.Value, pinName, scope, ct);
+                            if (resolvedRepo != null)
+                            {
+                                var (_, parsedGuid, isValid) = EntityRefHelper.Parse(resolvedRepo);
+                                if (isValid && parsedGuid != Guid.Empty)
+                                {
+                                    repoId = parsedGuid;
+                                    break;
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                }
+
+                if (!repoId.HasValue && execution.ExecutionState != null)
+                {
+                    var doc = execution.ExecutionState;
+                    if (doc.RootElement.TryGetProperty("RuntimeInputs", out var rInputs) || doc.RootElement.TryGetProperty("runtimeInputs", out rInputs))
+                    {
+                        foreach (var prop in rInputs.EnumerateObject())
+                        {
+                            if (prop.Name.Contains("repository", StringComparison.OrdinalIgnoreCase) || prop.Name.Contains("workspace", StringComparison.OrdinalIgnoreCase))
+                            {
+                                var (_, parsedGuid, isValid) = EntityRefHelper.Parse(prop.Value.GetString() ?? prop.Value.GetRawText());
+                                if (isValid && parsedGuid != Guid.Empty)
+                                {
+                                    repoId = parsedGuid;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (repoId.HasValue && repoId.Value != Guid.Empty)
+                {
+                    var attachedRunnersResult = await repositoryApi.GetAttachedRunnerIdsAsync(repoId.Value, ct);
+                    if (attachedRunnersResult.IsSuccess && attachedRunnersResult.Value.Count == 1)
+                    {
+                        effectiveRunnerId = attachedRunnersResult.Value[0];
+                        logger.LogInformation(
+                            "RunnerSegmentDispatcher: Auto-resolved single attached Runner {RunnerId} for Repository {RepoId}",
+                            effectiveRunnerId, repoId.Value);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "RunnerSegmentDispatcher: Exception while resolving single attached runner from repository.");
+            }
         }
 
         if (effectiveRunnerId == Guid.Empty)

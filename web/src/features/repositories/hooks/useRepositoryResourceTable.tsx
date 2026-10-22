@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DraggableResourceRowHandle } from "../components/DraggableResourceRowHandle";
-import { useAssignResourcesContent } from "./useRepositories";
+import { useAssignResourcesContent, useDeleteResource } from "./useRepositories";
 import type { WorkspaceResourceDto } from "@/gen/model";
 import {
   FileCode,
@@ -23,6 +23,8 @@ import {
   Eye,
   Calendar,
   Lock,
+  Trash2,
+  Cpu,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
@@ -50,11 +52,56 @@ export function useRepositoryResourceTable({
   const [sorting, setSorting] = useState<SortingState>([]);
 
   const assignMutation = useAssignResourcesContent(repositoryId);
+  const deleteMutation = useDeleteResource(repositoryId);
 
   const selectedRowIds = useMemo(
     () => Object.keys(rowSelection).filter((id) => rowSelection[id]),
     [rowSelection]
   );
+
+  const handleDelete = (resourceId: string, displayName?: string) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to remove "${displayName || "this resource"}" from the repository?`
+      )
+    ) {
+      return;
+    }
+
+    deleteMutation.mutate(
+      { id: resourceId },
+      {
+        onSuccess: () => {
+          toast.success(`Removed "${displayName || "resource"}" from repository.`);
+        },
+        onError: (err: any) => {
+          toast.error(err?.message || "Failed to remove resource.");
+        },
+      }
+    );
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedRowIds.length === 0) return;
+    if (
+      !window.confirm(
+        `Are you sure you want to remove ${selectedRowIds.length} selected resource(s) from the repository?`
+      )
+    ) {
+      return;
+    }
+
+    const toastId = toast.loading(`Removing ${selectedRowIds.length} resources...`);
+    try {
+      for (const id of selectedRowIds) {
+        await deleteMutation.mutateAsync({ id });
+      }
+      toast.success(`Removed ${selectedRowIds.length} resources successfully.`, { id: toastId });
+      setRowSelection({});
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to remove some resources.", { id: toastId });
+    }
+  };
 
   const handleUnlink = (resourceId: string, displayName: string) => {
     assignMutation.mutate(
@@ -266,9 +313,11 @@ export function useRepositoryResourceTable({
               {isDraft ? (
                 <Badge
                   variant="outline"
-                  className="text-amber-500 border-amber-500/30 bg-amber-500/10 text-[10px] px-1 py-0 h-4"
+                  className="text-amber-500 border-amber-500/30 bg-amber-500/10 text-[10px] px-1.5 py-0 h-4 gap-1 font-medium font-mono"
+                  title={item.holdingRunnerName ? `Draft on ${item.holdingRunnerName}` : "Local Draft"}
                 >
-                  Draft
+                  <Cpu className="size-2.5 shrink-0" />
+                  Draft {item.holdingRunnerName ? `@ ${item.holdingRunnerName}` : ""}
                 </Badge>
               ) : (
                 <Badge
@@ -294,20 +343,32 @@ export function useRepositoryResourceTable({
       },
       {
         id: "actions",
-        header: "Detail & Metadata",
-        meta: { label: "Detail", icon: Eye },
+        header: "Actions",
+        meta: { label: "Actions", icon: Eye },
         enableSorting: false,
         cell: ({ row }) => {
           const item = row.original;
 
           return (
-            <Link
-              to={nav.urls.resourceDetail(item.id, repositoryId)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground transition-all"
-            >
-              <Eye className="size-3.5" />
-              <span>Detail & Metadata</span>
-            </Link>
+            <div className="flex items-center gap-1.5">
+              <Link
+                to={nav.urls.resourceDetail(item.id, repositoryId)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground transition-all"
+              >
+                <Eye className="size-3.5" />
+                <span>Detail</span>
+              </Link>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                aria-label={`Remove "${item.displayName || "resource"}" from repository`}
+                onClick={() => handleDelete(item.id, item.displayName)}
+                isDisabled={deleteMutation.isPending}
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            </div>
           );
         },
       },
@@ -325,7 +386,7 @@ export function useRepositoryResourceTable({
         },
       },
     ],
-    [selectedRowIds, onOpenAssignPanel, projectId, repositoryId, nav.urls]
+    [selectedRowIds, onOpenAssignPanel, projectId, repositoryId, nav.urls, deleteMutation.isPending]
   );
 
   const table = useReactTable({
@@ -350,6 +411,9 @@ export function useRepositoryResourceTable({
     setRowSelection,
     handleUnlink,
     handleBatchUnlink,
+    handleDelete,
+    handleBatchDelete,
     assignMutation,
+    deleteMutation,
   };
 }

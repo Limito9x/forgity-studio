@@ -145,11 +145,51 @@ def _safe_stem(name: str) -> str:
     return cleaned.strip("_") or "Mesh"
 
 
-def setup_cycles_engine(resolution: int = 2048, margin: int = 16) -> None:
-    """Ep Cycles ve mode bake sieu toc: GPU neu co, samples thap, bounces=0."""
+def setup_cycles_engine(
+    resolution: int = 2048,
+    margin: int = 32,
+    flip_normal_y: bool = True,
+    ao_distance: float = 0.25
+) -> Dict[str, Any]:
+    """Ep Cycles ve mode bake sieu toc: GPU neu co, Standard color space, DirectX Normal, khong che AO distance."""
     scene = bpy.context.scene
     scene.render.engine = 'CYCLES'
     cycles = scene.cycles
+
+    orig_settings: Dict[str, Any] = {
+        "view_transform": getattr(scene.view_settings, "view_transform", "Standard"),
+        "look": getattr(scene.view_settings, "look", "None"),
+        "exposure": getattr(scene.view_settings, "exposure", 0.0),
+        "gamma": getattr(scene.view_settings, "gamma", 1.0),
+        "normal_g": getattr(scene.render.bake, "normal_g", "POS_Y"),
+    }
+
+    # 1. Ep Color Management ve Standard de giu 100% gia tri mau goc cua PBR (tranh bi dim mau / toi do AgX/Filmic cua Blender 4/5)
+    try:
+        scene.view_settings.view_transform = 'Standard'
+        scene.view_settings.look = 'None'
+        scene.view_settings.exposure = 0.0
+        scene.view_settings.gamma = 1.0
+        print("[bake_mesh] Color Management view_transform set to 'Standard' (PBR color preservation)", flush=True)
+    except Exception as ex:
+        print(f"[bake_mesh] Notice: could not set view_transform: {ex}", flush=True)
+
+    # 2. Cau hinh Normal Y- (DirectX / Unreal Engine 5 format)
+    try:
+        scene.render.bake.normal_g = 'NEG_Y' if flip_normal_y else 'POS_Y'
+        print(f"[bake_mesh] Normal Map Y-axis: {scene.render.bake.normal_g} ({'DirectX/UE5' if flip_normal_y else 'OpenGL'})", flush=True)
+    except Exception as ex:
+        print(f"[bake_mesh] Notice: could not set normal_g: {ex}", flush=True)
+
+    # 3. Khong che AO distance (tranh bong den loang kit toan than o cac khe/hoc)
+    if ao_distance and ao_distance > 0:
+        try:
+            if scene.world and hasattr(scene.world, "light_settings"):
+                orig_settings["ao_distance"] = scene.world.light_settings.distance
+                scene.world.light_settings.distance = float(ao_distance)
+                print(f"[bake_mesh] AO distance limited to {ao_distance}m", flush=True)
+        except Exception:
+            pass
 
     prefs = bpy.context.preferences
     if 'cycles' in prefs.addons:
@@ -186,9 +226,34 @@ def setup_cycles_engine(resolution: int = 2048, margin: int = 16) -> None:
         cycles.tile_size = resolution
     except Exception:
         pass
-    scene.render.bake.margin = margin
+    # Tang margin padding len toi thieu 32px de tranh Mipmap bleeding vien den
+    scene.render.bake.margin = max(int(margin), 32)
     scene.render.bake.margin_type = 'EXTEND'
     scene.render.bake.use_selected_to_active = False
+
+    return orig_settings
+
+
+def restore_cycles_settings(orig_settings: Dict[str, Any]) -> None:
+    """Khoi phuc lai cai dat scene view transform va bake sau khi hoan tat."""
+    if not orig_settings:
+        return
+    scene = bpy.context.scene
+    try:
+        if "view_transform" in orig_settings:
+            scene.view_settings.view_transform = orig_settings["view_transform"]
+        if "look" in orig_settings:
+            scene.view_settings.look = orig_settings["look"]
+        if "exposure" in orig_settings:
+            scene.view_settings.exposure = orig_settings["exposure"]
+        if "gamma" in orig_settings:
+            scene.view_settings.gamma = orig_settings["gamma"]
+        if "normal_g" in orig_settings:
+            scene.render.bake.normal_g = orig_settings["normal_g"]
+        if "ao_distance" in orig_settings and scene.world and hasattr(scene.world, "light_settings"):
+            scene.world.light_settings.distance = orig_settings["ao_distance"]
+    except Exception:
+        pass
 
 
 def ensure_bake_uv(obj: Any, uv_name: str, margin: float) -> str:
@@ -863,12 +928,14 @@ def main(
     output_dir: str = "",
     material_name: str = "",
     ao_samples: int = 64,
+    flip_normal_y: bool = True,
+    ao_distance: float = 0.25,
 ) -> dict:
     """
     Bake 1 luot: UV + Bake + Apply (per-mesh).
 
     Args:
-        target_objects: Array<Text> ten mesh, e.g. ["Body_GND"] hay ["Top_GND","Panty_GND"]. Rong = ca scene.
+        target_objects: Array<Text> ten mesh, e.g. ["Genesis 9"]. Rong = ca scene.
         uv_name: Layer UV dich tam de bake (default 'UVMap_Baked', xong apply doi ve 'UVMap').
         margin: Khe island UV ti le 0-1 (default 0.01 ~ 20px tren 2048, du che bleed 16px).
         maps: Array<Text> map can bake, e.g. ["diffuse","roughness","normal","metallic","specular","alpha","ao"].
@@ -877,6 +944,9 @@ def main(
         bake_orm: True = pack them file _ORM (R=AO, G=Rough, B=Metal) chuan Unreal.
         output_dir: Thu muc luu texture. Rong = canh file .blend (co 'baked_textures') hoac tempdir.
         material_name: Ten material dich. Rong = auto 'M_<Obj>'. 1 mesh + ten cho san = dung ten do.
+        ao_samples: So ray sample cho Ambient Occlusion (default 64 spp de triet tieu noise).
+        flip_normal_y: True = dao chieu Y kenh Green sang DirectX/UE5 format (default True).
+        ao_distance: Ban kinh toi da cua tia AO tinh bang met (default 0.25m de tranh bong den bi loang rong).
 
     Returns:
         {
@@ -934,7 +1004,12 @@ def main(
             output_dir = os.path.join(bpy.app.tempdir, "baked_textures")
     os.makedirs(output_dir, exist_ok=True)
 
-    setup_cycles_engine(resolution=resolution)
+    orig_cycles_settings = setup_cycles_engine(
+        resolution=resolution,
+        margin=32,
+        flip_normal_y=flip_normal_y,
+        ao_distance=ao_distance
+    )
     scene = bpy.context.scene
 
     baked_maps: Dict[str, Dict[str, str]] = {}
@@ -1117,6 +1192,7 @@ def main(
             updated_materials.append(baked_mat.name)
         print(f"[bake_mesh] Done '{obj.name}' -> material '{baked_mat.name}' ({len(obj_maps)} maps)", flush=True)
 
+    restore_cycles_settings(orig_cycles_settings)
     print(f"[bake_mesh] Completed {len(applied_objects)} mesh(es). Output: {output_dir}", flush=True)
     return {
         "status": "SUCCESS",

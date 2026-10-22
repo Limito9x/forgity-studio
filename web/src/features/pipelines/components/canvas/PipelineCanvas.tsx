@@ -22,6 +22,7 @@ import { VariableDropMenu } from "./VariableDropMenu";
 import { RunPipelineModal } from "../../dialogs/RunPipelineModal";
 import { LiveExecutionDrawer } from "./LiveExecutionDrawer";
 import { ExecutionStatusBanner } from "./ExecutionStatusBanner";
+import { DeleteStageConfirmDialog } from "./DeleteStageConfirmDialog";
 import { PipelineFormScopeProvider } from "../../form-scope/PipelineFormScope";
 import { useValidatePipeline } from "../../hooks/usePipelineGraph";
 import { useNodePalette, useCancelPipelineExecution } from "../../hooks/usePipelines";
@@ -235,6 +236,7 @@ export function PipelineCanvas({ projectId, graph }: PipelineCanvasProps) {
               onNodeDrag={isLocked ? undefined : draft.onNodeDrag}
               onNodeDragStop={isLocked ? undefined : draft.onNodeDragStop}
               onNodesDelete={isLocked ? undefined : draft.onNodesDelete}
+              onBeforeDelete={isLocked ? undefined : draft.handleBeforeDelete}
               onEdgesDelete={isLocked ? undefined : conn.onEdgesDelete}
               onEdgeContextMenu={conn.onEdgeContextMenu}
               onNodeContextMenu={ctxMenu.onNodeContextMenu}
@@ -372,6 +374,18 @@ export function PipelineCanvas({ projectId, graph }: PipelineCanvasProps) {
             }}
           />
         )}
+
+        {/* Delete Stage Scope Confirmation Dialog */}
+        <DeleteStageConfirmDialog
+          open={Boolean(draft.pendingStageDelete)}
+          onOpenChange={(open) => {
+            if (!open) draft.cancelStageDelete();
+          }}
+          stageName={draft.pendingStageDelete?.stageName || ""}
+          childCount={draft.pendingStageDelete?.childCount || 0}
+          onConfirm={draft.confirmStageDelete}
+          onCancel={draft.cancelStageDelete}
+        />
       </div>
     </PipelineFormScopeProvider>
   );

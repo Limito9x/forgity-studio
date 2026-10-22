@@ -24,9 +24,11 @@ import type {
 import type {
   CreateRepositoryCommand,
   ErrorResponse,
+  GetProjectWorkstationsParams,
   GetRepositoriesParams,
   GetRepositoryResourcesParams,
   IReadOnlyListOfRepositoryDto,
+  IReadOnlyListOfWorkstationRootDto,
   PagedResultOfWorkspaceResourceDto,
   RepositoryDetailDto,
   RepositoryDto,
@@ -271,6 +273,162 @@ export function useGetRepositories<
   queryKey: DataTag<QueryKey, TData, TError>;
 } {
   const queryOptions = getGetRepositoriesQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getProjectWorkstations = (
+  params: GetProjectWorkstationsParams,
+  signal?: AbortSignal,
+) => {
+  return customInstance<IReadOnlyListOfWorkstationRootDto>({
+    url: `/api/repositories/workstations`,
+    method: "GET",
+    params,
+    signal,
+  });
+};
+
+export const getGetProjectWorkstationsQueryKey = (
+  params?: GetProjectWorkstationsParams,
+) => {
+  return [
+    `/api/repositories/workstations`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetProjectWorkstationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getProjectWorkstations>>,
+  TError = ErrorResponse | void,
+>(
+  params: GetProjectWorkstationsParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProjectWorkstations>>,
+        TError,
+        TData
+      >
+    >;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetProjectWorkstationsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getProjectWorkstations>>
+  > = ({ signal }) => getProjectWorkstations(params, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getProjectWorkstations>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetProjectWorkstationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getProjectWorkstations>>
+>;
+export type GetProjectWorkstationsQueryError = ErrorResponse | void;
+
+export function useGetProjectWorkstations<
+  TData = Awaited<ReturnType<typeof getProjectWorkstations>>,
+  TError = ErrorResponse | void,
+>(
+  params: GetProjectWorkstationsParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProjectWorkstations>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getProjectWorkstations>>,
+          TError,
+          Awaited<ReturnType<typeof getProjectWorkstations>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetProjectWorkstations<
+  TData = Awaited<ReturnType<typeof getProjectWorkstations>>,
+  TError = ErrorResponse | void,
+>(
+  params: GetProjectWorkstationsParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProjectWorkstations>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getProjectWorkstations>>,
+          TError,
+          Awaited<ReturnType<typeof getProjectWorkstations>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetProjectWorkstations<
+  TData = Awaited<ReturnType<typeof getProjectWorkstations>>,
+  TError = ErrorResponse | void,
+>(
+  params: GetProjectWorkstationsParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProjectWorkstations>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useGetProjectWorkstations<
+  TData = Awaited<ReturnType<typeof getProjectWorkstations>>,
+  TError = ErrorResponse | void,
+>(
+  params: GetProjectWorkstationsParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProjectWorkstations>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetProjectWorkstationsQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<
     TData,

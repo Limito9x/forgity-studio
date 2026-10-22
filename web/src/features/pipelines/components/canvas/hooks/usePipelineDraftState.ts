@@ -619,6 +619,14 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
     [setNodes],
   );
 
+  // Pending Stage Delete Confirmation State
+  const [pendingStageDelete, setPendingStageDelete] = useState<{
+    stageId: string;
+    stageName: string;
+    childCount: number;
+    resolve?: (ok: boolean) => void;
+  } | null>(null);
+
   // Window event listeners for node/stage updates
   useEffect(() => {
     const handleStageUpdate = (e: Event) => {
@@ -643,15 +651,33 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
     };
 
     const handleStageDelete = (e: Event) => {
-      const { stageId } = (e as CustomEvent).detail;
-      setNodes((nds) =>
-        nds.filter((n) => n.id !== stageId && n.parentId !== stageId),
-      );
-      setEdges((eds) =>
-        eds.filter((e) => e.source !== stageId && e.target !== stageId),
-      );
-      setIsDirty(true);
-      toast.info("Stage deleted");
+      const { stageId, force } = (e as CustomEvent).detail || {};
+      if (!stageId) return;
+
+      if (force) {
+        setNodes((nds) =>
+          nds.filter((n) => n.id !== stageId && n.parentId !== stageId),
+        );
+        setEdges((eds) =>
+          eds.filter((e) => e.source !== stageId && e.target !== stageId),
+        );
+        setIsDirty(true);
+        toast.info("Stage deleted");
+        return;
+      }
+
+      setNodes((currentNodes) => {
+        const stageNode = currentNodes.find((n) => n.id === stageId);
+        const stageName = (stageNode?.data as any)?.name || "Stage Scope";
+        const childCount = currentNodes.filter((n) => n.parentId === stageId).length;
+
+        setPendingStageDelete({
+          stageId,
+          stageName,
+          childCount,
+        });
+        return currentNodes;
+      });
     };
 
     const handleCustomUpdate = (e: Event) => {
@@ -714,6 +740,62 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
     },
     [nodes, selectedNodeId, setNodes, setEdges],
   );
+
+  // Hook for ReactFlow onBeforeDelete: Intercepts stage container deletion and asks for confirmation
+  const handleBeforeDelete = useCallback(
+    async ({ nodes: nodesToDelete }: { nodes: Node[]; edges: any[] }) => {
+      const stageToDelete = nodesToDelete.find(
+        (n) =>
+          n.type === "scopeContainer" ||
+          (n.data as any)?.kind === PipelineNodeKind.Container ||
+          (n.data as any)?.kind === "Container" ||
+          (n.data as any)?.kind === 8,
+      );
+
+      if (stageToDelete) {
+        const stageName = (stageToDelete.data as any)?.name || "Stage Scope";
+        const childCount = nodes.filter((n) => n.parentId === stageToDelete.id).length;
+
+        return new Promise<boolean>((resolve) => {
+          setPendingStageDelete({
+            stageId: stageToDelete.id,
+            stageName,
+            childCount,
+            resolve,
+          });
+        });
+      }
+
+      return true;
+    },
+    [nodes],
+  );
+
+  const confirmStageDelete = useCallback(() => {
+    if (!pendingStageDelete) return;
+    const { stageId, resolve } = pendingStageDelete;
+
+    setNodes((nds) =>
+      nds.filter((n) => n.id !== stageId && n.parentId !== stageId),
+    );
+    setEdges((eds) =>
+      eds.filter((e) => e.source !== stageId && e.target !== stageId),
+    );
+    setIsDirty(true);
+    toast.info("Stage deleted");
+
+    if (resolve) {
+      resolve(true);
+    }
+    setPendingStageDelete(null);
+  }, [pendingStageDelete, setNodes, setEdges, setIsDirty]);
+
+  const cancelStageDelete = useCallback(() => {
+    if (pendingStageDelete?.resolve) {
+      pendingStageDelete.resolve(false);
+    }
+    setPendingStageDelete(null);
+  }, [pendingStageDelete]);
 
   // Update Config for an unwired input pin
   const handleUpdateConfig = useCallback(
@@ -897,5 +979,9 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
     handleAddParameter,
     handleUpdateParameter,
     handleDeleteParameter,
+    pendingStageDelete,
+    handleBeforeDelete,
+    confirmStageDelete,
+    cancelStageDelete,
   };
 }

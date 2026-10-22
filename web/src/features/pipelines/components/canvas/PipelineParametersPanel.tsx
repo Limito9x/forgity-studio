@@ -3,6 +3,7 @@ import {
   Variable,
   Plus,
   Trash2,
+  Pencil,
   ChevronLeft,
   ChevronRight,
   GripVertical,
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectTrigger,
@@ -26,6 +28,7 @@ import { cn } from "@/lib/utils";
 import type { PipelineParameterDto, PipelineParameterKind } from "../../hooks/usePipelineGraph";
 import { usePipelineFormScope } from "../../form-scope/PipelineFormScope";
 import { useGetProjectStructs } from "@/features/structs/hooks/useStructs";
+import { EntityPinSelect } from "./EntityPinSelect";
 import { toast } from "sonner";
 
 export type ParameterTab = "inputs" | "outputs" | "variables";
@@ -63,7 +66,7 @@ export function PipelineParametersPanel({
   pipelineId: _pipelineId,
   parameters = [],
   onAddParameter,
-  onUpdateParameter: _onUpdateParameter,
+  onUpdateParameter,
   onDeleteParameter,
   onSpawnCapsule,
   onSpawnAction,
@@ -76,6 +79,8 @@ export function PipelineParametersPanel({
   const activeTab = controlledTab ?? internalTab;
 
   const setTab = (tab: ParameterTab) => {
+    setIsCreating(false);
+    setEditingKey(null);
     if (onTabChange) {
       onTabChange(tab);
     } else {
@@ -86,19 +91,74 @@ export function PipelineParametersPanel({
   const { projectId = "" } = usePipelineFormScope();
   const { data: projectStructs = [] } = useGetProjectStructs(projectId);
 
+  // Creation form state
   const [isCreating, setIsCreating] = useState(false);
   const [name, setName] = useState("");
   const [type, setType] = useState("0");
   const [cardinality, setCardinality] = useState("0");
   const [structType, setStructType] = useState("Resource");
-  const [defaultValue, setDefaultValue] = useState("");
+  const [defaultValue, setDefaultValue] = useState<any>("");
   const [description, setDescription] = useState("");
   const [isRequired, setIsRequired] = useState(false);
+
+  // Edit form state
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editType, setEditType] = useState("0");
+  const [editCardinality, setEditCardinality] = useState("0");
+  const [editStructType, setEditStructType] = useState("Resource");
+  const [editDefaultValue, setEditDefaultValue] = useState<any>("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editIsRequired, setEditIsRequired] = useState(false);
 
   // Filter parameters by kind
   const inputs = parameters.filter((p) => p.kind === 1 || (p.kind as unknown) === "Input");
   const outputs = parameters.filter((p) => p.kind === 2 || (p.kind as unknown) === "Output");
   const variables = parameters.filter((p) => p.kind === 3 || (p.kind as unknown) === "Variable");
+
+  const startEdit = (param: PipelineParameterDto) => {
+    setIsCreating(false);
+    setEditingKey(param.key);
+    setEditLabel(param.label || param.key);
+    setEditType(String(param.type ?? 0));
+    setEditCardinality(String(param.cardinality ?? 0));
+    setEditStructType(param.structType || "Resource");
+    setEditDefaultValue(param.defaultValue ?? "");
+    setEditDescription(param.description ?? "");
+    setEditIsRequired(Boolean(param.isRequired));
+  };
+
+  const cancelEdit = () => {
+    setEditingKey(null);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingKey) return;
+    if (!onUpdateParameter) {
+      toast.error("Update parameter handler not available.");
+      return;
+    }
+
+    let finalDefVal: string | null = null;
+    if (typeof editDefaultValue === "string") {
+      finalDefVal = editDefaultValue.trim() || null;
+    } else if (editDefaultValue !== null && editDefaultValue !== undefined) {
+      finalDefVal = JSON.stringify(editDefaultValue);
+    }
+
+    onUpdateParameter(editingKey, {
+      label: editLabel.trim() || editingKey,
+      type: Number(editType) as any,
+      cardinality: Number(editCardinality) as any,
+      structType: (editType === "4" || editType === "5") ? editStructType : null,
+      defaultValue: finalDefVal,
+      description: editDescription.trim() || null,
+      isRequired: editIsRequired,
+    });
+
+    toast.success(`Updated ${activeTab.slice(0, -1)} '${editingKey}'`);
+    setEditingKey(null);
+  };
 
   const handleCreate = () => {
     const trimmed = name.trim();
@@ -118,6 +178,13 @@ export function PipelineParametersPanel({
       variables: 3,
     };
 
+    let finalDefVal: string | null = null;
+    if (typeof defaultValue === "string") {
+      finalDefVal = defaultValue.trim() || null;
+    } else if (defaultValue !== null && defaultValue !== undefined) {
+      finalDefVal = JSON.stringify(defaultValue);
+    }
+
     const newParam: PipelineParameterDto = {
       id: crypto.randomUUID(),
       key: trimmed,
@@ -126,7 +193,7 @@ export function PipelineParametersPanel({
       type: Number(type) as any,
       cardinality: Number(cardinality) as any,
       structType: (type === "4" || type === "5") ? structType : null,
-      defaultValue: defaultValue.trim() || null,
+      defaultValue: finalDefVal,
       description: description.trim() || null,
       isRequired,
       order: parameters.length + 1,
@@ -153,6 +220,101 @@ export function PipelineParametersPanel({
       label: isMap ? `Map<${label}>` : isArr ? `${label}[]` : label,
       color: opt.color,
     };
+  };
+
+  const renderDefaultValueField = (
+    typeVal: string,
+    cardVal: string,
+    structVal: string,
+    currentVal: any,
+    onChangeVal: (next: any) => void,
+    disabled = false
+  ) => {
+    // 1. EntityRef / Struct
+    if (typeVal === "4") {
+      const isMultiple = cardVal === "1" || cardVal === "Array";
+      let parsedVal = currentVal;
+      if (isMultiple && typeof currentVal === "string") {
+        try {
+          const parsed = JSON.parse(currentVal);
+          if (Array.isArray(parsed)) parsedVal = parsed;
+        } catch {
+          parsedVal = currentVal ? [currentVal] : [];
+        }
+      }
+
+      return (
+        <div className="space-y-1">
+          <label className="text-[10px] font-medium text-muted-foreground block">
+            Default {structVal} {isMultiple ? "(Array)" : "(Single)"}
+          </label>
+          <EntityPinSelect
+            entityType={structVal}
+            target={structVal}
+            projectId={projectId}
+            value={parsedVal}
+            onChange={(next) => {
+              if (isMultiple) {
+                onChangeVal(Array.isArray(next) ? JSON.stringify(next) : next ? JSON.stringify([next]) : "");
+              } else {
+                onChangeVal(next ? String(next) : "");
+              }
+            }}
+            multiple={isMultiple}
+            disabled={disabled}
+            placeholder={`Select default ${structVal.toLowerCase()}...`}
+          />
+        </div>
+      );
+    }
+
+    // 2. Boolean
+    if (typeVal === "2") {
+      const boolStr =
+        currentVal === true || currentVal === "true"
+          ? "true"
+          : currentVal === false || currentVal === "false"
+          ? "false"
+          : "";
+      return (
+        <div className="space-y-1">
+          <label className="text-[10px] font-medium text-muted-foreground block">
+            Default Value (Boolean)
+          </label>
+          <Select
+            selectedKey={boolStr}
+            onSelectionChange={(key) => onChangeVal(key ? String(key) : "")}
+            className="w-full"
+            isDisabled={disabled}
+          >
+            <SelectTrigger className="h-7 text-xs w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem id="">(None / Empty)</SelectItem>
+              <SelectItem id="true">True</SelectItem>
+              <SelectItem id="false">False</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      );
+    }
+
+    // 3. String, Number, Path, Asset, etc.
+    return (
+      <div className="space-y-1">
+        <label className="text-[10px] font-medium text-muted-foreground block">
+          Default Value (Optional)
+        </label>
+        <Input
+          value={typeof currentVal === "string" ? currentVal : String(currentVal ?? "")}
+          onChange={(e) => onChangeVal(e.target.value)}
+          placeholder="Default value"
+          className="h-7 text-xs font-mono"
+          disabled={disabled}
+        />
+      </div>
+    );
   };
 
   return (
@@ -240,19 +402,18 @@ export function PipelineParametersPanel({
               <span className="text-[11px] font-medium text-muted-foreground capitalize">
                 {activeTab} Management
               </span>
-              {!isCreating && (
+              {!isCreating && !editingKey && (
                 <Button
                   size="sm"
                   variant="outline"
                   className="h-7 text-xs gap-1 border-primary/40 bg-primary/5 text-primary hover:bg-primary/10"
-                  onPress={() => setIsCreating(true)}
+                  onPress={() => { setIsCreating(true); setEditingKey(null); }}
                 >
                   <Plus className="h-3.5 w-3.5" />
                   <span>Add {activeTab.slice(0, -1)}</span>
                 </Button>
               )}
             </div>
-
 
             {/* Inline Creation Form */}
             {isCreating && (
@@ -358,19 +519,8 @@ export function PipelineParametersPanel({
                   </div>
                 )}
 
-                {activeTab !== "outputs" && (
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-medium text-muted-foreground block">
-                      Default Value (Optional)
-                    </label>
-                    <Input
-                      value={defaultValue}
-                      onChange={(e) => setDefaultValue(e.target.value)}
-                      placeholder="Default value"
-                      className="h-7 text-xs"
-                    />
-                  </div>
-                )}
+                {activeTab !== "outputs" &&
+                  renderDefaultValueField(type, cardinality, structType, defaultValue, setDefaultValue)}
 
                 <div className="space-y-1">
                   <label className="text-[10px] font-medium text-muted-foreground block">
@@ -384,6 +534,17 @@ export function PipelineParametersPanel({
                   />
                 </div>
 
+                <div className="flex items-center gap-2 pt-0.5">
+                  <Checkbox
+                    isSelected={isRequired}
+                    onChange={setIsRequired}
+                    className="h-3.5 w-3.5"
+                  />
+                  <span className="text-[10px] font-medium text-muted-foreground select-none">
+                    Required parameter
+                  </span>
+                </div>
+
                 <Button
                   size="sm"
                   className="w-full h-7 text-xs bg-primary text-primary-foreground font-semibold"
@@ -391,6 +552,174 @@ export function PipelineParametersPanel({
                 >
                   Create
                 </Button>
+              </div>
+            )}
+
+            {/* Inline Edit Form */}
+            {editingKey && (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 space-y-2.5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 overflow-hidden">
+                    <span className="text-xs font-semibold text-amber-500 truncate">
+                      Edit {editingKey}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
+                    onPress={cancelEdit}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-medium text-muted-foreground block">
+                    Key (Read-only)
+                  </label>
+                  <Input
+                    value={editingKey}
+                    disabled
+                    className="h-7 text-xs font-mono bg-muted/50 cursor-not-allowed opacity-75"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-medium text-muted-foreground block">
+                    Display Label
+                  </label>
+                  <Input
+                    value={editLabel}
+                    onChange={(e) => setEditLabel(e.target.value)}
+                    placeholder="Display label"
+                    className="h-7 text-xs"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-medium text-muted-foreground block">
+                      Type
+                    </label>
+                    <Select
+                      selectedKey={editType}
+                      onSelectionChange={(key) => key && setEditType(String(key))}
+                      className="w-full"
+                    >
+                      <SelectTrigger className="h-7 text-xs w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TYPE_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} id={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-medium text-muted-foreground block">
+                      Cardinality
+                    </label>
+                    <Select
+                      selectedKey={editCardinality}
+                      onSelectionChange={(key) => key && setEditCardinality(String(key))}
+                      className="w-full"
+                    >
+                      <SelectTrigger className="h-7 text-xs w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CARDINALITY_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} id={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {editType === "4" && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-medium text-muted-foreground block">
+                      Struct Schema
+                    </label>
+                    <Select
+                      selectedKey={editStructType}
+                      onSelectionChange={(key) => key && setEditStructType(String(key))}
+                      className="w-full"
+                    >
+                      <SelectTrigger className="h-7 text-xs w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem id="Runner">Runner</SelectItem>
+                        <SelectItem id="Resource">Resource</SelectItem>
+                        <SelectItem id="Repository">Repository</SelectItem>
+                        <SelectItem id="ContentType">ContentType</SelectItem>
+                        {projectStructs.map((s: any) => (
+                          <SelectItem key={s.name} id={s.name}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {activeTab !== "outputs" &&
+                  renderDefaultValueField(
+                    editType,
+                    editCardinality,
+                    editStructType,
+                    editDefaultValue,
+                    setEditDefaultValue
+                  )}
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-medium text-muted-foreground block">
+                    Description
+                  </label>
+                  <Input
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    placeholder="Short description"
+                    className="h-7 text-xs"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-0.5">
+                  <Checkbox
+                    isSelected={editIsRequired}
+                    onChange={setEditIsRequired}
+                    className="h-3.5 w-3.5"
+                  />
+                  <span className="text-[10px] font-medium text-muted-foreground select-none">
+                    Required parameter
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 h-7 text-xs"
+                    onPress={cancelEdit}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="flex-1 h-7 text-xs bg-amber-600 hover:bg-amber-500 text-white font-semibold"
+                    onPress={handleSaveEdit}
+                  >
+                    Save Changes
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -462,14 +791,25 @@ export function PipelineParametersPanel({
                                   Def: {String(param.defaultValue ?? "none")}
                                 </span>
                               </div>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-5 w-5 text-muted-foreground hover:text-destructive"
-                                onPress={() => onDeleteParameter(param.key)}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
+                              <div className="flex items-center gap-0.5">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                                  onPress={() => startEdit(param)}
+                                  aria-label="Edit input parameter"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                                  onPress={() => onDeleteParameter(param.key)}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         );
@@ -513,7 +853,16 @@ export function PipelineParametersPanel({
                                 {param.description}
                               </p>
                             )}
-                            <div className="flex items-center justify-end pt-1 border-t border-border/30">
+                            <div className="flex items-center justify-end gap-0.5 pt-1 border-t border-border/30">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                                onPress={() => startEdit(param)}
+                                aria-label="Edit output parameter"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -601,14 +950,25 @@ export function PipelineParametersPanel({
                                 </Button>
                               </div>
 
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-5 w-5 text-muted-foreground hover:text-destructive"
-                                onPress={() => onDeleteParameter(param.key)}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
+                              <div className="flex items-center gap-0.5">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                                  onPress={() => startEdit(param)}
+                                  aria-label="Edit variable parameter"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                                  onPress={() => onDeleteParameter(param.key)}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         );

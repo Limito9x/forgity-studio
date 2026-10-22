@@ -123,6 +123,7 @@ export function RepositoryResourcesTab({
           isLoading={isLoading}
           projectId={projectId}
           repositoryId={repositoryId}
+          runners={runners}
         />
       )}
     </div>

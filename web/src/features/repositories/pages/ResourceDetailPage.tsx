@@ -24,12 +24,14 @@ import {
   Unlock,
   Cloud,
   Download,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   useResourceDetail,
   useUnlockResource,
   useDownloadResourceVersion,
+  useDeleteResource,
   type ResourceVersionDto,
   type ResourceVersionLocationDto,
 } from "../hooks/useRepositories";
@@ -87,7 +89,35 @@ export function ResourceDetailPage({
 
   const unlockMutation = useUnlockResource(resourceId, workspaceId);
   const downloadMutation = useDownloadResourceVersion();
+  const deleteMutation = useDeleteResource(workspaceId);
   const [downloadingVersionId, setDownloadingVersionId] = useState<string | null>(null);
+
+  const handleDeleteResource = () => {
+    if (
+      !window.confirm(
+        `Are you sure you want to remove "${resource?.name || "this resource"}" from the repository?`
+      )
+    ) {
+      return;
+    }
+
+    deleteMutation.mutate(
+      { id: resourceId },
+      {
+        onSuccess: () => {
+          toast.success("Resource removed from repository.");
+          if (workspaceId) {
+            nav.toRepositoryDetail(workspaceId);
+          } else {
+            nav.toRepositories();
+          }
+        },
+        onError: (err: any) => {
+          toast.error(err?.message || "Failed to remove resource.");
+        },
+      }
+    );
+  };
 
   const handleDownload = (ver: ResourceVersionDto) => {
     setDownloadingVersionId(ver.id);
@@ -256,6 +286,18 @@ export function ResourceDetailPage({
               Download Asset
             </Button>
           )}
+
+          <Button
+            variant="destructive"
+            size="sm"
+            isDisabled={deleteMutation.isPending}
+            onClick={handleDeleteResource}
+            className="h-8 gap-1.5 text-xs cursor-pointer shadow-xs"
+            aria-label="Delete this resource from repository"
+          >
+            <Trash2 className="size-3.5" />
+            Delete Resource
+          </Button>
         </div>
       </div>
 

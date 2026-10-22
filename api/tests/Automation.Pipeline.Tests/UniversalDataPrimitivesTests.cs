@@ -300,8 +300,16 @@ public class UniversalDataPrimitivesTests
 
         // 2. SetVariableTool
         var setVarTool = new Automation.Pipeline.Tools.Variables.SetVariableTool();
+
+        // Check static declaration
+        setVarTool.Inputs.Should().Contain(p => p.Kind == PinKind.Exec && p.Id == "exec_in");
+        setVarTool.Outputs.Should().Contain(p => p.Kind == PinKind.Exec && p.Id == "exec_out");
+
         var setConfig = new Dictionary<string, object?> { ["VariableName"] = "ResolvedSlotsMap" };
         var (setInputs, setOutputs) = setVarTool.ResolvePins(setConfig, resolutionCtx);
+
+        setInputs.Should().Contain(p => p.Kind == PinKind.Exec && p.Id == "exec_in");
+        setOutputs.Should().Contain(p => p.Kind == PinKind.Exec && p.Id == "exec_out");
 
         var setInputValuePin = setInputs.First(p => p.Id == "Value");
         setInputValuePin.PrimitiveType.Should().Be(PinPrimitiveType.EntityRef);

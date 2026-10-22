@@ -116,7 +116,9 @@ public record WorkspaceResourceDto(
     bool IsLocked = false,
     Guid? LockedByRunnerId = null,
     string? LockedByRunnerName = null,
-    DateTimeOffset? LockedAt = null
+    DateTimeOffset? LockedAt = null,
+    Guid? HoldingRunnerId = null,
+    string? HoldingRunnerName = null
 );
 
 public record WorkspaceAgentResourceDto(

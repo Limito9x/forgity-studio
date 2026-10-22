@@ -94,6 +94,65 @@ public class PinValueResolver(
 
             if (srcNode == null) return null;
 
+            // Special Handling for Variable Nodes & Variable Capsules (Fast-path memory & parameter default resolution)
+            var isVariableSrc = srcNode.Kind == PipelineNodeKind.Variable ||
+                                (srcNode.Kind == PipelineNodeKind.Capsule &&
+                                 srcNode.Metadata != null &&
+                                 srcNode.Metadata.RootElement.TryGetProperty("category", out var varCat) &&
+                                 string.Equals(varCat.GetString(), "Variable", StringComparison.OrdinalIgnoreCase)) ||
+                                (srcNode.Kind == PipelineNodeKind.Capsule &&
+                                 string.Equals(srcNode.RefId, "GetVariable", StringComparison.OrdinalIgnoreCase));
+
+            if (isVariableSrc)
+            {
+                var targetVarKey = conn.SourcePin;
+                if (srcNode.Config != null && srcNode.Config.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    if (srcNode.Config.RootElement.TryGetProperty("VariableName", out var vkProp) ||
+                        srcNode.Config.RootElement.TryGetProperty("key", out vkProp) ||
+                        srcNode.Config.RootElement.TryGetProperty("name", out vkProp))
+                    {
+                        var extractedVar = vkProp.GetString();
+                        if (!string.IsNullOrEmpty(extractedVar)) targetVarKey = extractedVar;
+                    }
+                }
+
+                // 1. Try reading from RAM memory store (populated by SetVariableTool)
+                var variableVal = await memoryStore.GetVariableAsync(executionId, targetVarKey, ct);
+
+                // 2. Fallback: Try reading declared DefaultValue from Pipeline Parameters
+                if (variableVal == null || (variableVal is string strVal && string.IsNullOrWhiteSpace(strVal)))
+                {
+                    if (frozenGraph != null)
+                    {
+                        if (frozenGraph.ParametersByKey.TryGetValue(targetVarKey, out var pDef) && pDef.DefaultValue != null)
+                        {
+                            variableVal = pDef.DefaultValue;
+                        }
+                    }
+                    else
+                    {
+                        var pipe = await graphProvider.GetPipelineByExecutionIdAsync(executionId, ct);
+                        if (pipe?.Parameters != null)
+                        {
+                            var varDef = pipe.Parameters
+                                .Where(p => p.Kind == PipelineParameterKind.Variable)
+                                .FirstOrDefault(i =>
+                                    CanonicalPinKey.IsMatching(i.Key, targetVarKey) ||
+                                    CanonicalPinKey.IsMatching(i.Label, targetVarKey) ||
+                                    (canonicalLabel != null && CanonicalPinKey.IsMatching(i.Key, canonicalLabel)));
+
+                            if (varDef?.DefaultValue != null)
+                            {
+                                variableVal = varDef.DefaultValue;
+                            }
+                        }
+                    }
+                }
+
+                if (variableVal != null) return variableVal;
+            }
+
             var isPure = frozenGraph != null
                 ? frozenGraph.PureNodeIds.Contains(srcNode.Id)
                 : toolRegistry.Get(srcNode.RefId) is { IsPure: true };

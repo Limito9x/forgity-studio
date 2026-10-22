@@ -70,6 +70,35 @@ public class ResourceStructDefinition(
             },
             new()
             {
+                Id = "FullPath",
+                Label = "Full Path",
+                PrimitiveType = PinPrimitiveType.String,
+                Cardinality = PinCardinality.Single,
+            },
+            new()
+            {
+                Id = "DirectoryPath",
+                Label = "Directory Path",
+                PrimitiveType = PinPrimitiveType.String,
+                Cardinality = PinCardinality.Single,
+            },
+            new()
+            {
+                Id = "MountPath",
+                Label = "Mount Path",
+                PrimitiveType = PinPrimitiveType.String,
+                Cardinality = PinCardinality.Single,
+            },
+            new()
+            {
+                Id = "HoldingRunnerId",
+                Label = "Holding Runner ID",
+                PrimitiveType = PinPrimitiveType.EntityRef,
+                EntityTarget = "Runner",
+                Cardinality = PinCardinality.Single,
+            },
+            new()
+            {
                 Id = "FileHash",
                 Label = "File Hash",
                 PrimitiveType = PinPrimitiveType.String,
@@ -257,6 +286,11 @@ public class ResourceStructDefinition(
             ["BaseName"] = baseName,
             ["Extension"] = extension,
             ["RelativePath"] = relPath,
+            ["FullPath"] = fullPath,
+            ["DirectoryPath"] = dirPath,
+            ["MountPath"] = locationInfo.MountPath ?? string.Empty,
+            ["HoldingRunnerId"] = locationInfo.RunnerId?.ToString() ?? string.Empty,
+            ["RunnerId"] = locationInfo.RunnerId?.ToString() ?? string.Empty,
             ["FileHash"] = locationInfo.FileHash ?? string.Empty,
             ["ContentId"] = contentId.HasValue ? contentId.Value.ToString() : string.Empty,
             ["ContentName"] = contentName,

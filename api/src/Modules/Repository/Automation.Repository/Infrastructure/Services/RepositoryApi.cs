@@ -6,11 +6,17 @@ using Automation.Tag.Contracts;
 using Automation.Tag.Contracts.Dtos;
 using FluentResults;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Wolverine;
 
 namespace Automation.Repository.Infrastructure.Services;
 
-public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagApi) : IRepositoryApi
+public class RepositoryApi(
+    RepositoryDbContext db,
+    IMessageBus bus,
+    ITagApi tagApi,
+    ILogger<RepositoryApi>? logger = null
+) : IRepositoryApi
 {
     public async Task<Result<ResourceLocationInfoDto>> GetResourceLocationAsync(
         Guid resourceVersionId,
@@ -228,6 +234,21 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
         return Result.Ok(repoRunner.RootPath);
     }
 
+    public async Task<Result<IReadOnlyList<Guid>>> GetAttachedRunnerIdsAsync(
+        Guid repositoryId,
+        CancellationToken ct = default
+    )
+    {
+        var runnerIds = await db
+            .RepositoryRunners.AsNoTracking()
+            .Where(rr => rr.RepositoryId == repositoryId)
+            .Select(rr => rr.RunnerId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        return Result.Ok<IReadOnlyList<Guid>>(runnerIds);
+    }
+
     public async Task<Result<Dictionary<string, Guid>>> ResolveResourceVersionIdsByPathsAsync(
         Guid repositoryId,
         IEnumerable<string> filePaths,
@@ -248,20 +269,60 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
 
         var result = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
 
+        // Gom nhóm theo FileName để kiểm tra tính nhập nhằng (Ambiguity Check)
+        var fileNameGroups = resources
+            .GroupBy(
+                r => Path.GetFileName(r.RelativePath.Replace('\\', '/').TrimStart('/')),
+                StringComparer.OrdinalIgnoreCase
+            )
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+
         foreach (var path in pathsList)
         {
             var normalizedPath = path.Replace('\\', '/').TrimStart('/');
+
+            // Ưu tiên 1: Exact Match tuyệt đối (khớp RelativePath nguyên vẹn)
             var matched = resources.FirstOrDefault(r =>
             {
                 var rRel = r.RelativePath.Replace('\\', '/').TrimStart('/');
-                return string.Equals(rRel, normalizedPath, StringComparison.OrdinalIgnoreCase)
-                    || normalizedPath.EndsWith("/" + rRel, StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(
-                        Path.GetFileName(rRel),
-                        Path.GetFileName(normalizedPath),
-                        StringComparison.OrdinalIgnoreCase
-                    );
+                return string.Equals(rRel, normalizedPath, StringComparison.OrdinalIgnoreCase);
             });
+
+            // Ưu tiên 2: EndsWith Match (nếu path kết thúc bằng / + RelativePath, ưu tiên relative path dài nhất / sâu nhất)
+            matched ??= resources
+                .Where(r =>
+                {
+                    var rRel = r.RelativePath.Replace('\\', '/').TrimStart('/');
+                    return normalizedPath.EndsWith("/" + rRel, StringComparison.OrdinalIgnoreCase);
+                })
+                .OrderByDescending(r => r.RelativePath.Length)
+                .FirstOrDefault();
+
+            // Ưu tiên 3: FileName Fallback với Ambiguity Check chặt chẽ
+            if (matched == null)
+            {
+                var targetFileName = Path.GetFileName(normalizedPath);
+                if (fileNameGroups.TryGetValue(targetFileName, out var candidates))
+                {
+                    if (candidates.Count == 1)
+                    {
+                        // Chỉ có DUY NHẤT 1 resource mang tên này trong toàn repo -> An toàn khớp
+                        matched = candidates[0];
+                    }
+                    else
+                    {
+                        // Có từ 2 resource trùng tên trở lên (như Moonrise.fbx ở các thư mục khác nhau)
+                        // TUYỆT ĐỐI không đoán mò để tránh ghi đè nhầm metadata!
+                        logger?.LogWarning(
+                            "ResolveResourceVersionIdsByPaths: Path '{Path}' has ambiguous filename '{FileName}' ({Count} matching resources in Repo {RepoId}). Skipped fallback matching to prevent data corruption.",
+                            path,
+                            targetFileName,
+                            candidates.Count,
+                            repositoryId
+                        );
+                    }
+                }
+            }
 
             if (matched != null)
             {
@@ -604,6 +665,8 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
             .ResourceItems.AsNoTracking()
             .Where(r => idsList.Contains(r.Id) || r.Versions.Any(v => idsList.Contains(v.Id)))
             .Include(r => r.Versions)
+                .ThenInclude(v => v.Locations)
+                    .ThenInclude(l => l.RepositoryRunner)
             .ToListAsync(ct);
 
         var result = new List<ResourceDto>();
@@ -614,6 +677,17 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
             var fileHash = latestVersion?.FileHash ?? string.Empty;
             var metaJson = UnwrapMetadataIfNeeded(latestVersion?.Metadata)?.RootElement.GetRawText();
 
+            var holdingLocation = latestVersion?.Locations
+                .OrderByDescending(l => l.IsOrigin)
+                .ThenByDescending(l => l.DiscoveredAt)
+                .FirstOrDefault();
+
+            var runnerRootPath = holdingLocation?.RepositoryRunner?.RootPath;
+            var runnerId = holdingLocation?.RepositoryRunner?.RunnerId;
+            var fullLocalPath = !string.IsNullOrEmpty(runnerRootPath) && !string.IsNullOrEmpty(item.RelativePath)
+                ? Path.Combine(runnerRootPath, item.RelativePath).Replace('\\', '/')
+                : null;
+
             result.Add(new ResourceDto(
                 item.Id,
                 versionId,
@@ -623,7 +697,10 @@ public class RepositoryApi(RepositoryDbContext db, IMessageBus bus, ITagApi tagA
                 fileHash,
                 item.ContentId,
                 metaJson,
-                item.RepositoryId
+                item.RepositoryId,
+                fullLocalPath,
+                runnerRootPath,
+                runnerId
             ));
         }
 
