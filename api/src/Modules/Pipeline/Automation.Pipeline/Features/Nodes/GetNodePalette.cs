@@ -75,10 +75,6 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
         var builtInTools = toolRegistry.GetAll();
         foreach (var tool in builtInTools)
         {
-            if (HiddenToolKeys.Contains(tool.Key))
-            {
-                continue;
-            }
 
             var (pInputs, pOutputs) = FlowPinHelper.WithExecPins(tool);
             var category = tool.Category ?? "Tools";
@@ -94,7 +90,8 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
                 null,
                 tool.Description,
                 tool.IsDynamic,
-                capabilities
+                capabilities,
+                IsVisibleInPalette: !HiddenToolKeys.Contains(tool.Key)
             ));
         }
 
@@ -140,7 +137,7 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
         }
 
         // 3. Sub-Pipelines from DB (Only include if explicitly requested via executor == "macro")
-        if (query.ProjectId.HasValue && string.Equals(query.Executor, "macro", StringComparison.OrdinalIgnoreCase))
+        if (query.ProjectId.HasValue)
         {
             var pipelines = await db.Pipelines
                 .AsNoTracking()
@@ -194,35 +191,6 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
             }
         }
 
-        // 4. Filter by Executor if specified
-        if (!string.IsNullOrWhiteSpace(query.Executor))
-        {
-            var exec = query.Executor.Trim().ToLowerInvariant();
-            if (exec == "macro")
-            {
-                result = result
-                    .Where(r => r.Source == Constants.PipelineNodeKind.SubPipeline.ToString() ||
-                                string.Equals(r.Category, "Flow Control", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(r.Key, "Return", StringComparison.OrdinalIgnoreCase))
-                    .ToList();
-            }
-            else if (exec == "server" || exec == "dotnet" || exec == "builtin")
-            {
-                result = result
-                    .Where(r => r.Source == Constants.PipelineNodeKind.Tool.ToString() ||
-                                r.Source == "BuiltIn" ||
-                                string.Equals(r.Executor, "builtin", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(r.Executor, "dotnet", StringComparison.OrdinalIgnoreCase))
-                    .ToList();
-            }
-            else
-            {
-                result = result
-                    .Where(r => string.Equals(r.Executor, exec, StringComparison.OrdinalIgnoreCase))
-                    .ToList();
-            }
-        }
-
         return Result.Ok<IReadOnlyList<NodePaletteItemDto>>(result);
     }
 
@@ -266,5 +234,6 @@ public record NodePaletteItemDto(
     Guid? Id = null,
     string? Description = null,
     bool IsDynamic = false,
-    NodeCapabilitiesDto? Capabilities = null
+    NodeCapabilitiesDto? Capabilities = null,
+    bool IsVisibleInPalette = true
 );

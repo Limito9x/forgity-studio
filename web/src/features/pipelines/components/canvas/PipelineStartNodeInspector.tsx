@@ -19,7 +19,7 @@ import {
 import { usePipelineFormScope } from "../../form-scope/PipelineFormScope";
 import { useRepositories } from "@/features/repositories/hooks/useRepositories";
 import { TagsInput } from "@/components/custom-ui/inputs/tags-input/TagsInput";
-import { getPinVisual, formatPinTypeLabel } from "./CustomPipelineNode";
+import { getPinVisual, formatPinTypeLabel } from "./nodes/types";
 import { toast } from "sonner";
 import type { PipelineTriggerType } from "@/gen/model";
 

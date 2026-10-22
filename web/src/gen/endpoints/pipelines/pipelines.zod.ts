@@ -895,9 +895,6 @@ export const GetPipelineGraphParams = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid()
 })
 
-export const getPipelineGraphResponseNodesItemCapabilitiesOneCanAddPinDefault = false;
-export const getPipelineGraphResponseNodesItemCapabilitiesOneCanRemovePinDefault = false;
-export const getPipelineGraphResponseNodesItemCapabilitiesOneViewVariantDefault = `Standard`;
 export const getPipelineGraphResponseEdgesItemKindDefault = 2;
 
 export const GetPipelineGraphResponse = /*#__PURE__*/ zod.object({
@@ -963,16 +960,7 @@ export const GetPipelineGraphResponse = /*#__PURE__*/ zod.object({
   "sizeBytes": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
   "status": /*#__PURE__*/ zod.string(),
   "hashSha256": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
-}))),
-  "capabilities": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.object({
-  "canAddPin": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), getPipelineGraphResponseNodesItemCapabilitiesOneCanAddPinDefault),
-  "canRemovePin": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), getPipelineGraphResponseNodesItemCapabilitiesOneCanRemovePinDefault),
-  "pinAddMode": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
-  "inspectorMode": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
-  "ruleNotes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
-  "viewVariant": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.string(), getPipelineGraphResponseNodesItemCapabilitiesOneViewVariantDefault),
-  "protectedPinIds": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()))
-}))
+})))
 })),
   "edges": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
@@ -1059,9 +1047,6 @@ export const SavePipelineGraphBody = /*#__PURE__*/ zod.object({
 })))
 })
 
-export const savePipelineGraphResponseNodesItemCapabilitiesOneCanAddPinDefault = false;
-export const savePipelineGraphResponseNodesItemCapabilitiesOneCanRemovePinDefault = false;
-export const savePipelineGraphResponseNodesItemCapabilitiesOneViewVariantDefault = `Standard`;
 export const savePipelineGraphResponseEdgesItemKindDefault = 2;
 
 export const SavePipelineGraphResponse = /*#__PURE__*/ zod.object({
@@ -1127,16 +1112,7 @@ export const SavePipelineGraphResponse = /*#__PURE__*/ zod.object({
   "sizeBytes": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
   "status": /*#__PURE__*/ zod.string(),
   "hashSha256": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
-}))),
-  "capabilities": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.object({
-  "canAddPin": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), savePipelineGraphResponseNodesItemCapabilitiesOneCanAddPinDefault),
-  "canRemovePin": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), savePipelineGraphResponseNodesItemCapabilitiesOneCanRemovePinDefault),
-  "pinAddMode": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
-  "inspectorMode": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
-  "ruleNotes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
-  "viewVariant": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.string(), savePipelineGraphResponseNodesItemCapabilitiesOneViewVariantDefault),
-  "protectedPinIds": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()))
-}))
+})))
 })),
   "edges": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),

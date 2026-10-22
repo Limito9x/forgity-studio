@@ -5,28 +5,16 @@ import { NodeCard } from "../parts/NodeCard";
 import { NodeHeader } from "../parts/NodeHeader";
 import { ExecPinBar } from "../parts/ExecPinBar";
 import { DataPinColumns } from "../parts/DataPinColumns";
-import { useNodePinResolver } from "../hooks/useNodePinResolver";
 import { useSplitPins } from "../hooks/useSplitPins";
 
-export function StructNodeView({ id, data, selected }: NodeProps) {
+export function StructNodeView({ data, selected }: NodeProps) {
   const nodeData = data as unknown as CustomPipelineNodeData;
-  const isPure = nodeData.category?.toLowerCase() === "data / struct" || nodeData.refId === "BreakStruct";
-
-  // Auto-resolve dynamic struct schema from backend if StructType changes
-  useNodePinResolver({
-    nodeId: id,
-    refId: nodeData.refId,
-    configValues: nodeData.configValues,
-    isDynamic: true,
-  });
-
   const { execInputs, execOutputs, dataInputs, dataOutputs, showExecIn } = useSplitPins(
     nodeData.inputs,
-    nodeData.outputs,
-    !isPure
+    nodeData.outputs
   );
 
-  const structName = (nodeData.configValues?.StructType as string) || "Resource";
+  const structName = (nodeData.configValues?.StructType as string) || "Not selected";
 
   return (
     <NodeCard
@@ -57,6 +45,7 @@ export function StructNodeView({ id, data, selected }: NodeProps) {
         dataInputs={dataInputs}
         dataOutputs={dataOutputs}
         configValues={nodeData.configValues}
+        fileAssets={nodeData.fileAssets}
       />
     </NodeCard>
   );

@@ -1,5 +1,15 @@
 # Pipeline Playbook: Custom Nodes & Canvas Graph Sync
 
+## Node definitions và instance pins — cập nhật 22/10/2026
+
+- GetNodePalette trả đầy đủ định nghĩa built-in/custom/subpipeline trong project; isVisibleInPalette quyết định có hiện trên menu. Menu lọc executor ở client, hidden tool vẫn render được trên graph cũ.
+- useNodePalette cache theo project, staleTime Infinity, không refetch khi focus. Mutation definition và thay đổi parameters subpipeline invalidate cache. Query graph/definitions bắt đầu song song; chỉ mount Canvas draft khi cả hai đã có dữ liệu, lỗi definitions có Retry.
+- NodeDefinitionsProvider tra theo source/kind + refId (custom hỗ trợ key hoặc ID). Router, Inspector và Collection đọc trực tiếp definition; không sao chép capabilities/isDynamic vào node data. Refetch cập nhật context mà không remount/reset draft.
+- Graph chứa config và resolved inputs/outputs của từng instance; Graph DTO không có Capabilities/IsDynamic. Palette pins chỉ khởi tạo node mới. Backend resolve config khi đọc graph hoặc gọi resolve-pins; view render instance pins.
+- PipelineNodeRouter chọn Start/Return/FlowControl theo kind, các node khác theo viewVariant. FormatString dùng Standard và vẫn resolve. Collection chỉ bổ sung nút theo capabilities/protectedPinIds. Missing Definition giữ config/pins/edges, không gọi resolver.
+- Resolver được gọi duy nhất tại router cho dynamic tools; Collection/Struct không tự gọi. DataPinColumns dùng chung giữ file Unbound; Standard giữ Missing Script và execution status/error.
+- Kiểm chứng: backend 177 pass/4 skipped; frontend definition/menu tests 3 pass; typecheck/build pass. Chưa nghiệm thu các thao tác UI F5/thêm-xóa/đổi struct/retry. Các phần autosave bên dưới mô tả lịch sử 600ms; cấu hình hiện tại là 1000ms.
+
 > **Phạm vi:** Tài liệu hướng dẫn và kỹ thuật mô tả cốt lõi cách vận hành cho:
 > 1. Vòng đời Custom Script & Node Ingestion (Phân tích, Upload, Executor, Publish).
 > 2. Cấu trúc Đồ thị Pipeline Canvas (Nodes, Edges, Containers/Stages, Parameters).

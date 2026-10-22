@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from "react";
 import type { Node } from "@xyflow/react";
 import { toast } from "sonner";
 import type { NodePaletteItemDto, PinDefinition } from "@/gen/model";
-import type { CustomPipelineNodeData } from "../CustomPipelineNode";
+import type { CustomPipelineNodeData } from "../nodes/types";
 
 interface UseVariableDropHandlerArgs {
   paletteItems: NodePaletteItemDto[];

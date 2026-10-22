@@ -127,7 +127,7 @@ export function ContextMenuPalette({
     []
   );
 
-  // Filtered items (Server already handles scoped executor filtering)
+  // Executor and visibility filtering use the shared definition query cache.
   const filteredItems = useMemo(() => {
     // On root canvas (no stage selected), standalone tools are not allowed; only Stages can be spawned
     if (!targetStage) {

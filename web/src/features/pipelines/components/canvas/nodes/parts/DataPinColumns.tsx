@@ -1,11 +1,12 @@
 import React, { type MouseEvent } from "react";
-import type { PinDefinition } from "@/gen/model";
+import type { PipelineFileAssetDto, PinDefinition } from "@/gen/model";
 import { Plus } from "lucide-react";
 import { PinInputRow, PinOutputRow } from "./PinRow";
 
 export interface DataPinColumnsProps {
   dataInputs: PinDefinition[];
   dataOutputs: PinDefinition[];
+  fileAssets?: Record<string, PipelineFileAssetDto> | null;
   configValues?: Record<string, unknown> | null;
   protectedPinIds?: readonly unknown[] | null;
   canRemovePin?: boolean;
@@ -20,6 +21,7 @@ export function DataPinColumns({
   dataInputs,
   dataOutputs,
   configValues,
+  fileAssets,
   protectedPinIds,
   canRemovePin = false,
   canAddPin = false,
@@ -28,15 +30,11 @@ export function DataPinColumns({
   onAddPin,
   renderInputFooter,
 }: DataPinColumnsProps) {
-  if (dataInputs.length === 0 && dataOutputs.length === 0) {
+  if (dataInputs.length === 0 && dataOutputs.length === 0 && !canAddPin && !renderInputFooter) {
     return null;
   }
 
-  const protectedSet = new Set(
-    protectedPinIds && protectedPinIds.length > 0
-      ? protectedPinIds.map((id) => String(id).toLowerCase())
-      : ["items"]
-  );
+  const protectedSet = new Set(protectedPinIds?.map(String) ?? []);
 
   return (
     <div className="p-3 text-xs">
@@ -46,7 +44,7 @@ export function DataPinColumns({
           {dataInputs.map((pin, idx) => {
             const pinId = pin.id || `in_${idx}`;
             const hasConfig = configValues?.[pinId] !== undefined;
-            const isProtected = protectedSet.has(pinId.toLowerCase());
+            const isProtected = protectedSet.has(pinId);
             const allowRemove = canRemovePin && !isProtected;
 
             return (
@@ -55,6 +53,7 @@ export function DataPinColumns({
                 pin={pin}
                 pinId={pinId}
                 hasConfig={hasConfig}
+                isUnbound={fileAssets?.[pinId]?.status === "Unbound" || (typeof configValues?.[pinId] === "object" && configValues[pinId] !== null && (configValues[pinId] as { status?: string }).status === "unbound")}
                 canRemove={allowRemove}
                 onRemove={onRemovePin}
               />

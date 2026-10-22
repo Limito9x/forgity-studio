@@ -23,4 +23,5 @@ export interface NodePaletteItemDto {
   isDynamic?: boolean;
   /** @nullable */
   capabilities?: NodeCapabilitiesDto | null;
+  isVisibleInPalette?: boolean;
 }

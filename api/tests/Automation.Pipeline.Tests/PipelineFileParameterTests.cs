@@ -362,6 +362,30 @@ public sealed class PipelineFileParameterTests : IDisposable
         public IResolverTool? GetByKey(string key) => null;
     }
 
+    [Fact]
+    public async Task Palette_IncludesHiddenToolsAndProjectDefinitions_RegardlessOfExecutor()
+    {
+        var hidden = Substitute.For<IResolverTool>();
+        hidden.Key.Returns("GetVariable");
+        hidden.Label.Returns("Get variable");
+        hidden.Inputs.Returns(Array.Empty<Automation.Pipeline.Domain.ValueObjects.PinDefinition>());
+        hidden.Outputs.Returns(Array.Empty<Automation.Pipeline.Domain.ValueObjects.PinDefinition>());
+        hidden.IsDynamic.Returns(true);
+        var registry = Substitute.For<IToolRegistry>();
+        registry.GetAll().Returns(new[] { hidden });
+        var handler = new Automation.Pipeline.Features.Nodes.GetNodePaletteHandler(registry, _db);
+        var result = await handler.HandleAsync(new(_pipeline.ProjectId, "blender"), CancellationToken.None);
+        Assert.True(result.IsSuccess);
+        var tool = Assert.Single(result.Value, x => x.Key == "GetVariable");
+        Assert.False(tool.IsVisibleInPalette);
+        Assert.True(tool.IsDynamic);
+        Assert.Equal("Standard", tool.Capabilities!.ViewVariant);
+        Assert.Contains(result.Value, x => x.Key == "file-node" && x.Source == "Custom");
+        Assert.Contains(result.Value, x => x.Key == _pipeline.Id.ToString() && x.Source == "SubPipeline");
+        var other = await handler.HandleAsync(new(Guid.NewGuid()), CancellationToken.None);
+        Assert.DoesNotContain(other.Value, x => x.Source == "Custom" || x.Source == "SubPipeline");
+    }
+
     private sealed class TestDb(DbContextOptions<PipelineDbContext> options) : PipelineDbContext(options)
     {
         protected override void OnModelCreating(ModelBuilder modelBuilder)

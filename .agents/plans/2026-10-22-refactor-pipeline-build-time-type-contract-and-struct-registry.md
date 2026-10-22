@@ -158,6 +158,8 @@ flowchart TD
 
 ## 6. Sổ Tay Ý Tưởng & Backlog Tái Cấu Trúc (Architectural Backlog & Strategy Patterns)
 
+> **Điều chỉnh 22/10/2026:** Xem mục điều chỉnh Phase B đầu [plan chi tiết](2026-10-22-node-strategy-and-field-adapters.md). Palette sẽ trả đủ định nghĩa theo project; menu lọc client, router/inspector tra query cache chung. Capabilities và IsDynamic thuộc definition, không đưa vào Graph DTO. Chờ graph và definitions tải thành công trước khi mount Canvas. Thiết kế sửa đổi chưa implement/nghiệm thu.
+
 > *Mục này ghi chép nhanh các ý tưởng đột phá và các "điểm nóng" (hotspots) code dày cần được chia nhỏ theo mẫu thiết kế Strategy/Factory trong các giai đoạn tiếp theo.*
 
 ### 6.1. Backend-Driven Node Capabilities & Behavior Rules

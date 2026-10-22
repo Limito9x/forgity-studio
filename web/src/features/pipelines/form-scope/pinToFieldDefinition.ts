@@ -4,7 +4,7 @@ import {
   normalizePinType,
   type NormalizedPinType,
 } from "../hooks/usePinCatalogue";
-import { isVariablePin } from "../components/canvas/CustomPipelineNode";
+import { isVariablePin } from "../components/canvas/nodes/types";
 
 export interface PinFieldRule {
   predicate: (pin: PinDefinition, normType: NormalizedPinType, idLower: string) => boolean;

@@ -1,39 +1,25 @@
 import { Boxes } from "lucide-react";
 import type { NodeProps } from "@xyflow/react";
 import type { CustomPipelineNodeData } from "./types";
-import { isExecPin } from "./types";
+import { useSplitPins } from "./hooks/useSplitPins";
+import { useNodeDefinition } from "../NodeDefinitions";
 import { NodeCard } from "./parts/NodeCard";
 import { NodeHeader } from "./parts/NodeHeader";
 import { ExecPinBar } from "./parts/ExecPinBar";
 import { DataPinColumns } from "./parts/DataPinColumns";
-import { useNodePinResolver, useCollectionPinActions } from "./hooks";
+import { useCollectionPinActions } from "./hooks";
 
-export function DynamicToolNodeView({ id, data, selected }: NodeProps) {
+export function CollectionNodeView({ id, data, selected }: NodeProps) {
   const nodeData = data as unknown as CustomPipelineNodeData;
-  const inputs = nodeData.inputs || [];
-  const outputs = nodeData.outputs || [];
-
-  // 1. Data Hook: Syncs pins from Backend POST /api/pipelines/tools/resolve-pins
-  useNodePinResolver({
-    nodeId: id,
-    refId: nodeData.refId,
-    configValues: nodeData.configValues,
-    isDynamic: nodeData.isDynamic,
-  });
-
+  const definition = useNodeDefinition(nodeData.kind, nodeData.refId);
   // 2. UI Actions Hook: Handles [+] and [x] click actions driven by capabilities
   const { canAddPin, canRemovePin, handleAddPin, handleRemovePin } =
     useCollectionPinActions({
       nodeId: id,
-      capabilities: nodeData.capabilities,
+      capabilities: definition?.capabilities,
     });
 
-  const execInputs = inputs.filter(isExecPin);
-  const execOutputs = outputs.filter(isExecPin);
-  const dataInputs = inputs.filter((p) => !isExecPin(p));
-  const dataOutputs = outputs.filter((p) => !isExecPin(p));
-
-  const showExecIn = execInputs.length > 0;
+  const { execInputs, execOutputs, dataInputs, dataOutputs, showExecIn } = useSplitPins(nodeData.inputs, nodeData.outputs);
 
   return (
     <NodeCard
@@ -48,7 +34,7 @@ export function DynamicToolNodeView({ id, data, selected }: NodeProps) {
         headerBgClass="border-purple-500/20 bg-purple-500/10"
         title={nodeData.label}
         subtitle={nodeData.refId}
-        badgeLabel="Dynamic"
+        badgeLabel="Collection"
         badgeVariantClass="border-purple-500/40 text-purple-600 dark:text-purple-400 bg-purple-500/10 font-semibold"
         status={nodeData.executionStatus}
       />
@@ -64,7 +50,8 @@ export function DynamicToolNodeView({ id, data, selected }: NodeProps) {
         dataInputs={dataInputs}
         dataOutputs={dataOutputs}
         configValues={nodeData.configValues}
-        protectedPinIds={nodeData.capabilities?.protectedPinIds}
+        fileAssets={nodeData.fileAssets}
+        protectedPinIds={definition?.capabilities?.protectedPinIds}
         canRemovePin={canRemovePin}
         canAddPin={canAddPin}
         onRemovePin={handleRemovePin}

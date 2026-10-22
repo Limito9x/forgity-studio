@@ -1,4 +1,4 @@
-import type { PinDefinition, PinPrimitiveType, NodeCapabilitiesDto } from "@/gen/model";
+import type { PinDefinition, PinPrimitiveType } from "@/gen/model";
 import type { PipelineFileAssetDto } from "../../../hooks/usePipelineGraph";
 import {
   normalizePinType,
@@ -20,8 +20,6 @@ export interface CustomPipelineNodeData extends Record<string, unknown> {
   executionError?: string | null;
   executionOutputs?: Record<string, any> | null;
   pipelineId?: string;
-  isDynamic?: boolean;
-  capabilities?: NodeCapabilitiesDto | null;
 }
 
 export interface PinTypeVisual {
