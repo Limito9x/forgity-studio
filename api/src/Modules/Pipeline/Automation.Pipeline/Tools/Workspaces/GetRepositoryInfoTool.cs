@@ -1,3 +1,4 @@
+using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Repository.Contracts;
@@ -26,20 +27,18 @@ public class GetRepositoryInfoTool(
             Id = "Runner",
             Label = "Runner",
             PrimitiveType = PinPrimitiveType.EntityRef,
-            EntityTarget = "Runner",
+            StructType = WellKnownStructTypes.Runner,
             Cardinality = PinCardinality.Single,
-            IsRequired = true,
-            Metadata = """{"type": "entity-select", "properties": {"entity": "Runner"}}"""
+            IsRequired = true
         },
         new()
         {
             Id = "Repository",
             Label = "Repository",
             PrimitiveType = PinPrimitiveType.EntityRef,
-            EntityTarget = "Repository",
+            StructType = WellKnownStructTypes.Repository,
             Cardinality = PinCardinality.Single,
-            IsRequired = true,
-            Metadata = """{"type": "entity-select", "properties": {"entity": "Repository"}}"""
+            IsRequired = true
         }
     ];
 
@@ -58,6 +57,7 @@ public class GetRepositoryInfoTool(
             Id = "RepositoryId",
             Label = "Repository ID",
             PrimitiveType = PinPrimitiveType.EntityRef,
+            StructType = WellKnownStructTypes.Repository,
             Cardinality = PinCardinality.Single,
             IsRequired = true
         },

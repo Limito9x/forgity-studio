@@ -1,4 +1,5 @@
 using Automation.Content.Contracts;
+using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Repository.Contracts;
@@ -26,10 +27,9 @@ public class GetResourceContentTool(
             Id = "Resource",
             Label = "Resource",
             PrimitiveType = PinPrimitiveType.EntityRef,
-            EntityTarget = "resource",
+            StructType = WellKnownStructTypes.Resource,
             Cardinality = PinCardinality.Single,
-            IsRequired = true,
-            Metadata = """{"type": "entity-select", "properties": {"entity": "Resource"}}"""
+            IsRequired = true
         }
     ];
 
@@ -40,6 +40,7 @@ public class GetResourceContentTool(
             Id = "ContentId",
             Label = "Content ID",
             PrimitiveType = PinPrimitiveType.EntityRef,
+            StructType = WellKnownStructTypes.ContentItem,
             Cardinality = PinCardinality.Single
         },
         new()

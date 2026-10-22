@@ -16,7 +16,8 @@ import type { NodePaletteItemDto, PinDefinition } from "@/gen/model";
 
 export function isExecPin(pin: PinDefinition): boolean {
     return (
-        pin.kind === 1 ||
+        pin.kind === "Exec" ||
+        (pin.kind as any) === 1 ||
         String(pin.id || "").toLowerCase() === "exec" ||
         String(pin.id || "").toLowerCase() === "exec_in" ||
         String(pin.id || "").toLowerCase() === "exec_out" ||

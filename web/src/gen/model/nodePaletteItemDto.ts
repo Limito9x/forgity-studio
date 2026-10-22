@@ -6,6 +6,7 @@
  * OpenAPI spec version: 1.0.0
  */
 import type { IReadOnlyListOfPinDefinition } from "./iReadOnlyListOfPinDefinition";
+import type { NodeCapabilitiesDto } from "./nodeCapabilitiesDto";
 
 export interface NodePaletteItemDto {
   key: string;
@@ -19,4 +20,7 @@ export interface NodePaletteItemDto {
   id?: string | null;
   /** @nullable */
   description?: string | null;
+  isDynamic?: boolean;
+  /** @nullable */
+  capabilities?: NodeCapabilitiesDto | null;
 }

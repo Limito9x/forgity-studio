@@ -13,6 +13,15 @@ public class MakeStructTool(IEntityStructRegistry structRegistry) : IResolverToo
     public string Label => "Make Struct";
     public string? Category => "Data / Struct";
     public bool IsPure => true;
+    public bool IsDynamic => true;
+
+    public NodeCapabilities Capabilities => new(
+        CanAddPin: false,
+        CanRemovePin: false,
+        InspectorMode: "StructSelector",
+        RuleNotes: "Constructs an entity struct from individual input field pins based on selected Struct Type.",
+        ViewVariant: "Struct"
+    );
 
     public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(
         Dictionary<string, object?>? configValues,
@@ -38,6 +47,7 @@ public class MakeStructTool(IEntityStructRegistry structRegistry) : IResolverToo
                     Cardinality = pin.Cardinality,
                     IsRequired = false,
                     DefaultValue = pin.DefaultValue,
+                    StructType = pin.StructType,
                     Metadata = pin.Metadata
                 });
             }
@@ -96,6 +106,7 @@ public class MakeStructTool(IEntityStructRegistry structRegistry) : IResolverToo
             Label = "Struct",
             Kind = PinKind.Data,
             PrimitiveType = PinPrimitiveType.EntityRef,
+            StructType = "Resource",
             Cardinality = PinCardinality.Single
         }
     ];

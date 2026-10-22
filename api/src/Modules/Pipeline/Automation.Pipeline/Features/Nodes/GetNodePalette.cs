@@ -82,6 +82,7 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
 
             var (pInputs, pOutputs) = FlowPinHelper.WithExecPins(tool);
             var category = tool.Category ?? "Tools";
+            var capabilities = ResolveCapabilities(tool);
             result.Add(new NodePaletteItemDto(
                 tool.Key,
                 tool.Label,
@@ -91,7 +92,9 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
                 pInputs,
                 pOutputs,
                 null,
-                tool.Description
+                tool.Description,
+                tool.IsDynamic,
+                capabilities
             ));
         }
 
@@ -157,7 +160,7 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
                         Kind = PinKind.Data,
                         PrimitiveType = i.Type,
                         Cardinality = i.Cardinality,
-                        Metadata = i.StructType,
+                        StructType = i.StructType,
                         IsRequired = i.IsRequired,
                         DefaultValue = i.DefaultValue
                     }).ToList();
@@ -172,7 +175,7 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
                         Kind = PinKind.Data,
                         PrimitiveType = i.Type,
                         Cardinality = i.Cardinality,
-                        Metadata = i.StructType
+                        StructType = i.StructType
                     }).ToList();
 
                 var (pInputs, pOutputs) = FlowPinHelper.WithExecPins(Constants.PipelineNodeKind.SubPipeline, isPure: false, subInputs, subOutputs);
@@ -222,7 +225,35 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
 
         return Result.Ok<IReadOnlyList<NodePaletteItemDto>>(result);
     }
+
+    public static NodeCapabilitiesDto? ResolveCapabilities(IResolverTool? tool)
+    {
+        if (tool == null) return null;
+
+        var caps = tool.Capabilities ?? (tool.IsDynamic ? new NodeCapabilities(ViewVariant: "Standard") : null);
+        if (caps == null) return null;
+
+        return new NodeCapabilitiesDto(
+            CanAddPin: caps.CanAddPin,
+            CanRemovePin: caps.CanRemovePin,
+            PinAddMode: caps.PinAddMode,
+            InspectorMode: caps.InspectorMode,
+            RuleNotes: caps.RuleNotes,
+            ViewVariant: caps.ViewVariant,
+            ProtectedPinIds: caps.ProtectedPinIds
+        );
+    }
 }
+
+public record NodeCapabilitiesDto(
+    bool CanAddPin = false,
+    bool CanRemovePin = false,
+    string? PinAddMode = null,
+    string? InspectorMode = null,
+    string? RuleNotes = null,
+    string ViewVariant = "Standard",
+    IReadOnlyList<string>? ProtectedPinIds = null
+);
 
 public record NodePaletteItemDto(
     string Key,
@@ -233,5 +264,7 @@ public record NodePaletteItemDto(
     IReadOnlyList<PinDefinition> Inputs,
     IReadOnlyList<PinDefinition> Outputs,
     Guid? Id = null,
-    string? Description = null
+    string? Description = null,
+    bool IsDynamic = false,
+    NodeCapabilitiesDto? Capabilities = null
 );

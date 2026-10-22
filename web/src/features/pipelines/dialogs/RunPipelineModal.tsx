@@ -33,6 +33,8 @@ export interface MissingRuntimeInput {
   pinId: string;
   pinLabel: string;
   primitiveType: any;
+  cardinality?: any;
+  structType?: string | null;
   metadata?: any;
 }
 
@@ -72,16 +74,17 @@ export function RunPipelineModal({
     }
   }, [agents, selectedAgentId]);
 
-  // Derived inputs: strictly rely on unified parameters (kind === 1 or "Input")
+  // Derived inputs: strictly rely on unified parameters (kind === "Input" or 1)
   const pipelineInputs = useMemo(() => {
     return (parameters || [])
-      .filter((p) => p.kind === 1 || (p.kind as unknown) === "Input")
+      .filter((p) => p.kind === "Input" || (p.kind as any) === 1)
       .map((p) => ({
         id: p.id,
         key: p.key,
         label: p.label || p.key,
-        type: typeof p.type === "number" ? p.type : Number(p.type) || 0,
-        cardinality: p.cardinality ? (typeof p.cardinality === "number" ? p.cardinality : Number(p.cardinality) || 0) : 0,
+        type: p.type,
+        cardinality: p.cardinality,
+        structType: p.structType,
         defaultValue: p.defaultValue,
         isRequired: p.isRequired,
       }));
@@ -118,6 +121,8 @@ export function RunPipelineModal({
               pinId: pinId,
               pinLabel: pin.label || pinId,
               primitiveType: pin.primitiveType,
+              cardinality: pin.cardinality,
+              structType: pin.structType,
               metadata: pin.metadata,
             });
           }
@@ -140,6 +145,8 @@ export function RunPipelineModal({
           id: input.pinId,
           label: input.pinLabel,
           primitiveType: input.primitiveType,
+          cardinality: input.cardinality,
+          structType: input.structType,
           isRequired: true,
           metadata: input.metadata,
         },

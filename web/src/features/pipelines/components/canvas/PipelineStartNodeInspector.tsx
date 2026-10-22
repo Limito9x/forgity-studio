@@ -38,7 +38,7 @@ export function PipelineStartNodeInspector({
 }: PipelineStartNodeInspectorProps) {
   const { parameters } = usePipelineFormScope();
   const schemaInputs = useMemo(
-    () => (parameters || []).filter((p) => p.kind === 1 || (p.kind as unknown) === "Input"),
+    () => (parameters || []).filter((p) => p.kind === "Input" || (p.kind as any) === 1),
     [parameters]
   );
   const { data: repositories = [] } = useRepositories(projectId);

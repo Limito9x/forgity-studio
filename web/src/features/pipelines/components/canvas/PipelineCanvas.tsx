@@ -26,6 +26,7 @@ import { DeleteStageConfirmDialog } from "./DeleteStageConfirmDialog";
 import { PipelineFormScopeProvider } from "../../form-scope/PipelineFormScope";
 import { useValidatePipeline } from "../../hooks/usePipelineGraph";
 import { useNodePalette, useCancelPipelineExecution } from "../../hooks/usePipelines";
+import { useGetStructCatalogue } from "@/gen/endpoints/pipelines/pipelines";
 import type { ExtendedPipelineGraphDto } from "../../hooks/usePipelineGraph";
 import {
   usePipelineDraftState,
@@ -56,6 +57,7 @@ const defaultEdgeOptions = {
 export function PipelineCanvas({ projectId, graph }: PipelineCanvasProps) {
   const { screenToFlowPosition, setCenter } = useReactFlow();
   const { data: paletteItems = [] } = useNodePalette(projectId);
+  const { data: structCatalogue = [] } = useGetStructCatalogue({ projectId });
   const [isAutoFollow, setIsAutoFollow] = useState(true);
 
   // 1. Headless Draft State & Auto-save (with Stage Auto-expanding)
@@ -74,6 +76,7 @@ export function PipelineCanvas({ projectId, graph }: PipelineCanvasProps) {
     setEdges: draft.setEdges,
     setNodes: draft.setNodes,
     setIsDirty: draft.setIsDirty,
+    structCatalogue,
   });
 
   // 4. Blackboard Variable Drag & Drop
@@ -148,7 +151,7 @@ export function PipelineCanvas({ projectId, graph }: PipelineCanvasProps) {
       pipelineId: graph.id,
       projectId,
       parameters: draft.parameters,
-      variables: draft.parameters.filter((p) => p.kind === 3 || (p.kind as unknown) === "Variable"),
+      variables: draft.parameters.filter((p) => p.kind === "Variable" || (p.kind as any) === 3),
       edges: draft.edges,
       nodes: draft.nodes,
     }),

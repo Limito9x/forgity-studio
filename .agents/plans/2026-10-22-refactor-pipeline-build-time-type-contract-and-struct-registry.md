@@ -1,7 +1,7 @@
 # Kế Hoạch Kỹ Thuật: Unified Node & Pin Registry, Chuẩn Hóa Type Contract & Tái Cấu Trúc Toàn Diện Build-Time
 
 > **Ngày cập nhật**: 22/10/2026  
-> **Trạng thái**: Đang thực hiện (In Progress - Phase 1 Backend hoàn thành 90%)  
+> **Trạng thái**: Đang thực hiện (In Progress - Phase 1 Backend hoàn thành 100%, sẵn sàng Phase 2 Frontend Canvas)  
 > **Phạm vi**: Toàn diện Build-Time (Canvas Authoring, Dynamic Pin Resolution, Type Contract & Struct Registry)  
 > **Chính sách cốt lõi**: **NO BACKWARD COMPATIBILITY DEBT** (Không giữ code chắp vá fallback legacy, chuẩn hóa sạch 100% từ gốc, C# Backend là Single Source of Truth duy nhất).
 
@@ -102,43 +102,44 @@ flowchart TD
   - Trả về `StructDefinitionDto` kèm `SampleJson` preview.
 - [x] **1.5. Dọn Sạch Tools Core**:
   - `BreakStructTool` và `MakeStructTool` bỏ fallback alias.
-- [ ] **1.6. Endpoint `ResolveToolPins` (`POST /api/pipelines/tools/resolve-pins`)**:
+- [x] **1.6. Endpoint `ResolveToolPins` (`POST /api/pipelines/tools/resolve-pins`)**:
   - Request: `{ toolId: string, configValues: Dictionary<string, object?> }`.
   - Handler: Tra cứu `_toolRegistry.GetTool(toolId)`. Nếu là `IResolverTool resolver` $\rightarrow$ gọi `resolver.ResolvePins(configValues)` $\rightarrow$ trả về `{ inputs, outputs }`. Nếu là static tool $\rightarrow$ trả về `tool.Inputs`, `tool.Outputs`.
-- [ ] **1.7. Bổ sung cờ `IsDynamic` vào Tool DTO / Catalogue**:
+- [x] **1.7. Bổ sung cờ `IsDynamic` vào Tool DTO / Catalogue**:
   - `isDynamic = tool is IResolverTool`.
 
 ---
 
-### Giai Đoạn 2: Frontend Canvas - Pure Smart Renderer & Trừ Khử Hardcode
+### Giai Đoạn 2: Frontend Canvas - Pure Smart Renderer & Trừ Khử Hardcode (Đã hoàn thành)
 
-- [ ] **2.1. Nạp Struct Catalogue vào Canvas**:
+- [x] **2.1. Nạp Struct Catalogue vào Canvas**:
   - Sử dụng hook `useGetStructCatalogue({ projectId })` để cung cấp catalogue vào Canvas Context.
-- [ ] **2.2. Xóa Bỏ Hoàn Toàn Đoán Mò trong `useCanvasConnectionRules.ts`**:
+- [x] **2.2. Xóa Bỏ Hoàn Toàn Đoán Mò trong `useCanvasConnectionRules.ts`**:
   - Đọc trực tiếp `sourcePin.structType` $\rightarrow$ tra cứu trong catalogue $\rightarrow$ bung `structDef.outputPins`. Xóa bỏ 100% `includes("repo")`, `includes("resource")`.
-- [ ] **2.3. Khai Tử File `structPins.ts`**:
+- [x] **2.3. Khai Tử File `structPins.ts`**:
   - Xóa bỏ mảng `BUILTIN_STRUCT_PINS` chép tay. Chuyển `getStructPins` thành hàm đọc từ catalogue.
-- [ ] **2.4. Khai Tử Hardcode Tool Name trong `CustomPipelineNode.tsx`**:
-  - Thay thế cụm `if (rawRefId === "makearray" || rawRefId === "formatstring" || ...)` bằng cờ `nodeData.isDynamic`.
-- [ ] **2.5. Tái Cấu Trúc Hook Sinh Pin Động (`useDynamicPinResolver.ts`)**:
-  - Thay thế `useDynamicPins.ts`.
-  - Lắng nghe sự kiện đổi config của Node $\rightarrow$ Debounce 250ms $\rightarrow$ Gọi `POST /api/pipelines/tools/resolve-pins` $\rightarrow$ Cập nhật `node.data.inputs` & `node.data.outputs`.
+- [x] **2.4. Khai Tử Hardcode Tool Name trong Canvas (Capability-Driven)**:
+  - Backend cung cấp `NodeCapabilitiesDto` (`canAddPin`, `canRemovePin`, `pinAddMode`, `inspectorMode`, `ruleNotes`).
+  - Frontend đọc `capabilities` để render nút `[+ Add Pin]` và Inspector mà không phụ thuộc tên Tool.
+- [x] **2.5. Tái Cấu Trúc Hook Sinh Pin Động**:
+  - Tách đôi sạch sẽ:
+    - `useNodePinResolver.ts`: Lắng nghe config đổi $\rightarrow$ Debounce 250ms $\rightarrow$ Gọi API `resolve-pins` $\rightarrow$ Tự động dọn dẹp dây nối mồ côi (Orphan Edges Pruning).
+    - `useCollectionPinActions.ts`: Xử lý click `+` và `x` theo `capabilities.pinAddMode`.
   - Xóa sạch toàn bộ Regex `/\{([\w\-]+)\}/g` và gán `primitiveType: 0 as any`.
-- [ ] **2.6. Tăng Thời Gian Graph Autosave Debounce**:
+- [x] **2.6. Tăng Thời Gian Graph Autosave Debounce**:
   - Nâng timeout từ `600ms` lên `1000ms` trong `usePipelineDraftState.ts`.
-- [ ] **2.7. Đồng Bộ String Enum & Sample JSON Preview**:
-  - Cập nhật `PipelineParametersPanel.tsx` sang String Enum.
+- [x] **2.7. Đồng Bộ String Enum & Sample JSON Preview**:
+  - Cập nhật `PipelineParametersPanel.tsx`, `VisualPinMapperTab.tsx`, `CreateCustomNodePage.tsx` sang String Enum.
   - Hiển thị khối xem trước `SampleJson` trên `NodeConfigInspector.tsx`.
 
 ---
 
-### Giai Đoạn 3: Kiểm Thử Toàn Diện & Scanner Chống Tái Lập Hardcode
+### Giai Đoạn 3: Kiểm Thử Toàn Diện & Scanner Chống Tái Lập Hardcode (Đang thực hiện)
 
-- [ ] **3.1. Unit Tests Backend**:
-  - Kiểm tra `ResolveToolPins` với `FormatString` (sinh pin theo token `{name}_{lod}`), `BreakStruct` (sinh pin theo `Runner`), `MakeArray` (sinh `[0], [1]`).
-  - Kiểm tra String Enum Serialization (`"EntityRef"` thay vì `4`).
-- [ ] **3.2. Scanner Tests Quét Toàn Bộ Codebase (`NoHardcodeHeuristicsTests.cs`)**:
-  - Quét thư mục Backend & Frontend: không còn chuỗi `is "runner"`, không còn `includes("resource")`, không còn regex phỏng đoán.
+- [x] **3.1. Unit Tests Backend**:
+  - `ResolveToolPinsTests.cs` kiểm tra `ResolveToolPins` với `FormatString`, `BreakStruct`, `MakeArray`. Toàn bộ 168 tests pass 100%.
+- [x] **3.2. Scanner Tests Quét Toàn Bộ Codebase (`NoHardcodeHeuristicsScannerTests.cs`)**:
+  - Đã pass 4/4 scanner tests: File `structPins.ts` không còn mảng tĩnh, connection rules không còn `includes(...)`, các dynamic tools đều có `IsDynamic = true`, và enums serialize ra string enum chuẩn.
 - [ ] **3.3. Kiểm Thử E2E Trên Trình Duyệt**:
   - Thử nghiệm nối dây `BreakStruct` với cả Built-in lẫn Dynamic Form Structs.
   - Thử nghiệm gõ format string trên Canvas xem pin tự sinh và lưu đồ thị ổn định.
@@ -152,3 +153,47 @@ flowchart TD
 3. Không còn bất kỳ file chép tay tĩnh nào (`structPins.ts` biến mất).
 4. Mọi tool C# mới implements `IResolverTool` tự động hoạt động trên Canvas mà không cần sửa 1 dòng code web nào.
 5. Thời gian debounce autosave 1000ms hoạt động êm ái, không còn hiện tượng spam DB.
+
+---
+
+## 6. Sổ Tay Ý Tưởng & Backlog Tái Cấu Trúc (Architectural Backlog & Strategy Patterns)
+
+> *Mục này ghi chép nhanh các ý tưởng đột phá và các "điểm nóng" (hotspots) code dày cần được chia nhỏ theo mẫu thiết kế Strategy/Factory trong các giai đoạn tiếp theo.*
+
+### 6.1. Backend-Driven Node Capabilities & Behavior Rules
+- **Vấn đề**: Frontend hiện phải nhớ tên từng node đặc biệt (`makearray`, `appendstring`, `breakstruct`).
+- **Ý tưởng**: Backend `NodePaletteItemDto` trả về `capabilities`:
+  - `canAddPin: boolean`, `canRemovePin: boolean`.
+  - `pinAddMode`: `"Sequence"` (`Item_1, Item_2`) | `"Alpha"` (`A, B, C`) | `"Pair"` (`Key_n, Value_n`).
+  - `inspectorMode`: `"Default"` | `"StructSelector"` | `"FormatTemplate"` | `"VariableRef"`.
+  - `ruleNotes`: Chú thích hướng dẫn cách dùng và quy tắc hoạt động của node.
+
+### 6.2. Chia Nhỏ "God Component" `CustomPipelineNode.tsx` (Node Strategy & Factory)
+- **Vấn đề**: File `CustomPipelineNode.tsx` quá dày, ôm đồm từ Static Node, Dynamic Node, Capsule, Container đến trạng thái Live Execution.
+- **Ý tưởng**: Áp dụng **Node Factory / Strategy Pattern**:
+  - `StandardToolNode.tsx`: Dành cho các tool xử lý thông thường (chân cố định).
+  - `DynamicCollectionNode.tsx`: Dành cho các node có nút `[ + Add Pin ]` (`MakeArray`, `AppendString`).
+  - `StructNode.tsx`: Dành cho `MakeStruct` / `BreakStruct`.
+  - `Lớp điều phối (Node Router Strategy)`: Đọc `nodeData.kind` hoặc `capabilities` để spawn đúng mẫu component con.
+
+### 6.3. Tái Cấu Trúc `pinToFieldDefinition.ts` (Field Adapter Registry)
+- **Vấn đề**: Hơn 500 dòng code gom chung 10 rules phức tạp với nhiều chuỗi phỏng đoán legacy (`includes("repo")`, `includes("workspace")`).
+- **Ý tưởng**: Tách thành các Field Adapters độc lập đăng ký vào một Registry nhỏ:
+  - `EntityRefFieldAdapter.ts` (tra cứu theo `structType`).
+  - `AssetUploadFieldAdapter.ts` (tra cứu theo `primitiveType === "Asset"`).
+  - `CollectionFieldAdapter.ts` (tra cứu theo `cardinality`).
+  - `PrimitiveFieldAdapter.ts` (chuỗi, số, boolean thông thường).
+
+### 6.4. Tách Rạch Ròi `useDynamicPins.ts` (UI Actions vs Pin Resolver)
+- **Vấn đề**: Hook `useDynamicPins.ts` hiện tại vừa làm nhiệm vụ fetching mạng (`resolveToolPins`), vừa ôm logic click chuột `+` / `x` của mảng `Key_` / `Value_`.
+- **Giải pháp chia tách**:
+  - `useNodePinResolver.ts`: Thuần túy là Data Hook. Lắng nghe `configValues` $\rightarrow$ Debounce 250ms $\rightarrow$ Gọi API `POST /api/pipelines/tools/resolve-pins` $\rightarrow$ Cập nhật `node.data.inputs/outputs`.
+  - `useCollectionPinActions.ts`: Thuần túy là UI Event Hook. Cung cấp 2 hàm `handleAddPin()` và `handleRemovePin(pinId)` cho các Node dạng Collection (`MakeArray`, `MakeMap`, `AppendString`) để thay đổi danh sách `DynamicPins` trong cấu hình khi bấm nút trên Canvas.
+
+### 6.5. Các Quy Tắc Phòng Ngừa Xung Đột & Rủi Ro Kỹ Thuật (Safety Rules)
+- **Cơ chế Dọn Dây Nối Mồ Côi (Orphan Edges Pruning)**:
+  - Khi một chân bị xóa (qua `handleRemovePin`) hoặc khi đổi `structType` khiến danh sách chân thay đổi: Canvas bắt buộc phải tự động filter loại bỏ các Edges đang kết nối vào các `targetHandle` / `sourceHandle` không còn tồn tại, tránh để lại dây mồ côi trong đồ thị.
+- **Đồng Bộ Nhịp Độ Lưu (Debounce Sync Gate)**:
+  - Thời gian resolve chân nối (250ms) phải luôn hoàn tất trước Autosave (1000ms).
+  - Bổ sung cờ `isResolving` để ngăn chặn việc Save đồ thị giữa chừng khi chân nối chưa đồng bộ xong từ Backend.
+

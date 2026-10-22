@@ -89,6 +89,7 @@ export function normalizePinType(rawType: unknown): NormalizedPinType {
       return "Path";
     case "4":
     case "entityref":
+    case "struct":
     case "workspace":
     case "resource":
     case "6":

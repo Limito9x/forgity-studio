@@ -140,26 +140,24 @@ export function PinConfigInspector({
           </Select>
         </div>
 
-        {/* Entity Target for EntityRef */}
+        {/* Struct Type for EntityRef */}
         {normType === "EntityRef" && (
           <div className="space-y-1.5 animate-in fade-in duration-150">
-            <Label className="text-xs font-semibold">Entity Target</Label>
+            <Label className="text-xs font-semibold">Struct Type</Label>
             <Select
-              selectedKey={pin.entityTarget || "Resource"}
+              selectedKey={pin.structType || "Resource"}
               onSelectionChange={(key) =>
-                onUpdatePin({ ...pin, entityTarget: String(key) })
+                onUpdatePin({ ...pin, structType: String(key) })
               }
             >
               <SelectTrigger className="text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem id="Resource">Resource (Files, Models, Textures)</SelectItem>
-                <SelectItem id="Workspace">Workspace (Folder Root)</SelectItem>
-                <SelectItem id="ContentType">Content Type (Dynamic Schema)</SelectItem>
-                <SelectItem id="Agent">Agent (Runner Worker)</SelectItem>
-                <SelectItem id="Tag">Tag / Metadata Group</SelectItem>
-                <SelectItem id="variable">Pipeline Variable (Runtime Store)</SelectItem>
+                <SelectItem id="Resource">Resource</SelectItem>
+                <SelectItem id="Runner">Runner</SelectItem>
+                <SelectItem id="Repository">Repository</SelectItem>
+                <SelectItem id="ContentType">ContentType</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -37,6 +37,8 @@ import type {
   PipelineGraphDto,
   PipelinePackageDto,
   PipelineSummaryDto,
+  ResolveToolPinsCommand,
+  ResolvedToolPinsDto,
   RunPipelineRequest,
   SavePipelineGraphRequest,
   UpdatePipelineRequest,
@@ -1169,6 +1171,80 @@ export function useGetStructCatalogue<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+export const resolveToolPins = (
+  resolveToolPinsCommand: ResolveToolPinsCommand,
+  signal?: AbortSignal,
+) => {
+  return customInstance<ResolvedToolPinsDto>({
+    url: `/api/pipelines/tools/resolve-pins`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: resolveToolPinsCommand,
+    signal,
+  });
+};
+
+export const getResolveToolPinsMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof resolveToolPins>>,
+    TError,
+    { data: ResolveToolPinsCommand },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof resolveToolPins>>,
+  TError,
+  { data: ResolveToolPinsCommand },
+  TContext
+> => {
+  const mutationKey = ["resolveToolPins"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof resolveToolPins>>,
+    { data: ResolveToolPinsCommand }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return resolveToolPins(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResolveToolPinsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resolveToolPins>>
+>;
+export type ResolveToolPinsMutationBody = ResolveToolPinsCommand;
+export type ResolveToolPinsMutationError = void;
+
+export const useResolveToolPins = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof resolveToolPins>>,
+      TError,
+      { data: ResolveToolPinsCommand },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof resolveToolPins>>,
+  TError,
+  { data: ResolveToolPinsCommand },
+  TContext
+> => {
+  return useMutation(getResolveToolPinsMutationOptions(options), queryClient);
+};
 export const updatePipeline = (
   id: string,
   updatePipelineRequest: UpdatePipelineRequest,

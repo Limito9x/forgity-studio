@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Text.Json;
+using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Engine.EntityStore;
@@ -33,9 +34,10 @@ public class GetResourceRelativePathsTool(
             Id = "Resources",
             Label = "Resources",
             PrimitiveType = PinPrimitiveType.EntityRef,
-            EntityTarget = "Resource",
+            StructType = WellKnownStructTypes.Resource,
             Cardinality = PinCardinality.Array,
-            IsRequired = true
+            IsRequired = true,
+            Description = "Batch of Resource entity refs to resolve relative paths for"
         }
     ];
 
@@ -47,7 +49,8 @@ public class GetResourceRelativePathsTool(
             Label = "Relative Paths",
             PrimitiveType = PinPrimitiveType.String,
             Cardinality = PinCardinality.Array,
-            IsRequired = false
+            IsRequired = false,
+            Description = "List of POSIX relative paths within the repository"
         },
         new()
         {
@@ -63,7 +66,9 @@ public class GetResourceRelativePathsTool(
             Label = "Metadata Map",
             PrimitiveType = PinPrimitiveType.String,
             Cardinality = PinCardinality.Map,
-            IsRequired = false
+            IsRequired = false,
+            Description = "Mapping from POSIX relative path to resource metadata/tags as JSON string",
+            SampleJson = "{\n  \"characters/hero.fbx\": {\n    \"triangles\": 14200,\n    \"rig\": \"Humanoid\"\n  }\n}"
         }
     ];
 

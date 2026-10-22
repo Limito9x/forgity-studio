@@ -14,6 +14,16 @@ public class MakeArrayTool : IResolverTool
     public bool IsPure => true;
     public bool IsDynamic => true;
 
+    public NodeCapabilities Capabilities => new(
+        CanAddPin: true,
+        CanRemovePin: true,
+        PinAddMode: "Sequence",
+        InspectorMode: "Default",
+        RuleNotes: "Aggregates individual input elements into a single unified array. Click [+] to append new slots.",
+        ViewVariant: "Collection",
+        ProtectedPinIds: ["Items"]
+    );
+
     public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(
         Dictionary<string, object?>? configValues,
         IPinResolutionContext? context = null

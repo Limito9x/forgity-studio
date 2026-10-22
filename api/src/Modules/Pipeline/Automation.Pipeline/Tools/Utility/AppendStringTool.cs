@@ -13,6 +13,17 @@ public class AppendStringTool : IResolverTool
     public string Label => "Append String";
     public string? Category => "Utility";
     public bool IsPure => true;
+    public bool IsDynamic => true;
+
+    public NodeCapabilities Capabilities => new(
+        CanAddPin: true,
+        CanRemovePin: true,
+        PinAddMode: "Alpha",
+        InspectorMode: "Default",
+        RuleNotes: "Concatenates multiple string tokens sequentially (A, B, C...). Click [+] to append new segments.",
+        ViewVariant: "Collection",
+        ProtectedPinIds: ["A", "B"]
+    );
 
     public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(
         Dictionary<string, object?>? configValues,

@@ -1,3 +1,4 @@
+using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Engine.DataResolver;
@@ -41,6 +42,7 @@ public class GetVariableTool(
                         Kind = PinKind.Data,
                         PrimitiveType = matchedVar.Type,
                         Cardinality = matchedVar.Cardinality,
+                        StructType = matchedVar.StructType,
                         Metadata = matchedVar.StructType,
                         IsRequired = true
                     }
@@ -60,7 +62,7 @@ public class GetVariableTool(
             Id = "VariableName",
             Label = "Variable Name",
             PrimitiveType = PinPrimitiveType.EntityRef,
-            EntityTarget = "variable",
+            StructType = WellKnownStructTypes.Variable,
             Cardinality = PinCardinality.Single,
             IsRequired = true,
             DefaultValue = ""

@@ -29,8 +29,9 @@ export const CustomPipelineNode = memo((props: NodeProps) => {
     return <FlowControlNodeView {...props} />;
   }
 
-  // 3. Dynamic Tool Strategy (Tools with variable dynamic pins: MakeArray, MakeMap, FormatString, AppendString)
+  // 3. Dynamic Tool Strategy (Tools with variable dynamic pins)
   if (
+    nodeData.isDynamic ||
     rawRefId === "makearray" ||
     rawRefId === "makemap" ||
     rawRefId === "appendstring" ||

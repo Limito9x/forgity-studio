@@ -9,4 +9,7 @@ public static class WellKnownStructTypes
     public const string Runner = "Runner";
     public const string Repository = "Repository";
     public const string ContentType = "ContentType";
+    public const string ContentItem = "ContentItem";
+    public const string Content = ContentItem;
+    public const string Variable = "Variable";
 }

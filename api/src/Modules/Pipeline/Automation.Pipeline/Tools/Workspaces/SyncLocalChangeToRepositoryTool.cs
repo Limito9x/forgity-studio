@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Text.Json;
+using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Repository.Contracts;
@@ -30,20 +31,18 @@ public class SyncLocalChangeToRepositoryTool(
                 Id = "Repository",
                 Label = "Target Repository",
                 PrimitiveType = PinPrimitiveType.EntityRef,
-                EntityTarget = "Repository",
+                StructType = WellKnownStructTypes.Repository,
                 Cardinality = PinCardinality.Single,
-                IsRequired = true,
-                Metadata = """{"type": "entity-select", "properties": {"entity": "Repository"}}""",
+                IsRequired = true
             },
             new PinDefinition
             {
                 Id = "Runner",
                 Label = "Target Runner",
                 PrimitiveType = PinPrimitiveType.EntityRef,
-                EntityTarget = "Runner",
+                StructType = WellKnownStructTypes.Runner,
                 Cardinality = PinCardinality.Single,
-                IsRequired = true,
-                Metadata = """{"type": "entity-select", "properties": {"entity": "Runner"}}""",
+                IsRequired = true
             },
             new PinDefinition
             {
@@ -96,16 +95,18 @@ public class SyncLocalChangeToRepositoryTool(
                 Id = "ResourceMap",
                 Label = "Path to Resource Map",
                 PrimitiveType = PinPrimitiveType.EntityRef,
-                EntityTarget = "Resource",
+                StructType = WellKnownStructTypes.Resource,
                 Cardinality = PinCardinality.Map,
                 IsRequired = false,
+                Description = "Mapping from POSIX relative path to created/updated Resource entity ref",
+                SampleJson = "{\n  \"characters/hero.fbx\": {\n    \"$entity\": \"Resource\",\n    \"id\": \"00000000-0000-0000-0000-000000000000\"\n  }\n}"
             },
             new PinDefinition
             {
                 Id = "FirstResource",
                 Label = "First Resource",
                 PrimitiveType = PinPrimitiveType.EntityRef,
-                EntityTarget = "Resource",
+                StructType = WellKnownStructTypes.Resource,
                 Cardinality = PinCardinality.Single,
                 IsRequired = false,
             },
@@ -114,7 +115,7 @@ public class SyncLocalChangeToRepositoryTool(
                 Id = "Resources",
                 Label = "Resources",
                 PrimitiveType = PinPrimitiveType.EntityRef,
-                EntityTarget = "Resource",
+                StructType = WellKnownStructTypes.Resource,
                 Cardinality = PinCardinality.Array,
                 IsRequired = false,
             },

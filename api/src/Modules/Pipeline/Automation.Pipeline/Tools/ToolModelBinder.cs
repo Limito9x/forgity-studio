@@ -103,7 +103,7 @@ public static class ToolModelBinder
                 IsRequired = attr?.IsRequired ?? (Nullable.GetUnderlyingType(prop.PropertyType) == null && prop.PropertyType.IsValueType),
                 DefaultValue = attr?.DefaultValue,
                 Metadata = attr?.Metadata,
-                EntityTarget = attr?.EntityTarget,
+                StructType = attr?.StructType,
                 AllowedExtensions = attr?.AllowedExtensions
             });
         }

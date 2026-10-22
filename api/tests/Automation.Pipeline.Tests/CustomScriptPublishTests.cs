@@ -79,7 +79,7 @@ public sealed class CustomScriptPublishTests : IDisposable
         var old = await _files.AssetLinks.AsNoTracking().SingleAsync();
         var replacement = Item("script", await Asset(), "Renamed") with
         { Inputs = [new() { Id = "exec_in", Kind = PinKind.Exec },
-            new() { Id = "input", EntityTarget = "resource", AllowedExtensions = ".fbx", DefaultValue = 42 }] };
+            new() { Id = "input", StructType = "Resource", AllowedExtensions = ".fbx", DefaultValue = 42 }] };
         var result = await Publish(replacement);
         Assert.Empty(result.Value.Errors);
         Assert.Equal(id, result.Value.Results.Single().Id);
@@ -90,7 +90,7 @@ public sealed class CustomScriptPublishTests : IDisposable
         Assert.Equal("script.py", queried.Value.OriginalFileName);
         Assert.Equal(replacement.ContentHash, queried.Value.ContentHash);
         Assert.Equal(PinKind.Exec, queried.Value.Inputs[0].Kind);
-        Assert.Equal("resource", queried.Value.Inputs[1].EntityTarget);
+        Assert.Equal("Resource", queried.Value.Inputs[1].StructType);
         Assert.Equal(".fbx", queried.Value.Inputs[1].AllowedExtensions);
         Assert.Equal("42", JsonSerializer.Serialize(queried.Value.Inputs[1].DefaultValue));
     }

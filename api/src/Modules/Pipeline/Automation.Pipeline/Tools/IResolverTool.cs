@@ -13,6 +13,7 @@ public interface IResolverTool
     string? Description => null;
     IReadOnlyList<PinDefinition> Inputs { get; }
     IReadOnlyList<PinDefinition> Outputs { get; }
+    NodeCapabilities? Capabilities => null;
 
     (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(
         Dictionary<string, object?>? configValues,
