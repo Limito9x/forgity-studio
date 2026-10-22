@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Automation.Pipeline.Domain.Enums;
 
 namespace Automation.Pipeline.Domain.ValueObjects;
@@ -12,6 +13,14 @@ public record PinDefinition
     public bool IsRequired { get; init; } = true;
     public object? DefaultValue { get; init; } = null;
     public string? Metadata { get; init; } = null;
-    public string? EntityTarget { get; init; } = null;
+    public string? StructType { get; set; } = null;
     public string? AllowedExtensions { get; init; } = null;
+
+    [JsonIgnore]
+    public string? EntityTarget
+    {
+        get => StructType;
+        set => StructType = value;
+    }
 }
+

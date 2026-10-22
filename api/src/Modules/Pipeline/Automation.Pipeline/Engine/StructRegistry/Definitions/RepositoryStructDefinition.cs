@@ -1,3 +1,4 @@
+using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Tools;
@@ -7,8 +8,14 @@ namespace Automation.Pipeline.Engine.StructRegistry.Definitions;
 
 public class RepositoryStructDefinition(IRepositoryApi repositoryApi) : IEntityStructDefinition
 {
-    public virtual string StructType => "Repository";
+    public virtual string StructType => WellKnownStructTypes.Repository;
     public virtual string Label => "Repository";
+
+    public virtual object? SampleJson => new Dictionary<string, object?>
+    {
+        ["RepositoryId"] = "00000000-0000-0000-0000-000000000001",
+        ["RepositoryName"] = "MainAssetsRepository"
+    };
 
     public virtual IReadOnlyList<PinDefinition> OutputPins =>
     [
@@ -17,6 +24,7 @@ public class RepositoryStructDefinition(IRepositoryApi repositoryApi) : IEntityS
             Id = "RepositoryId",
             Label = "Repository ID",
             PrimitiveType = PinPrimitiveType.EntityRef,
+            StructType = WellKnownStructTypes.Repository,
             Cardinality = PinCardinality.Single
         },
         new()

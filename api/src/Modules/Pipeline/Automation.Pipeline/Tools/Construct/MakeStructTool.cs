@@ -62,6 +62,7 @@ public class MakeStructTool(IEntityStructRegistry structRegistry) : IResolverToo
                     Label = sDef.Label,
                     Kind = PinKind.Data,
                     PrimitiveType = PinPrimitiveType.EntityRef,
+                    StructType = structType,
                     Cardinality = PinCardinality.Single,
                     Metadata = structType
                 }

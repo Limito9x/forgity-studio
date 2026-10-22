@@ -1,8 +1,10 @@
+using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Engine.StructRegistry;
 
 namespace Automation.Pipeline.Tools.Deconstruct;
+
 
 /// <summary>
 /// Tool phân rã cấu trúc thực thể đa hình (Generic / Polymorphic Struct Break).
@@ -108,7 +110,7 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
             Id = "HoldingRunnerId",
             Label = "Holding Runner ID",
             PrimitiveType = PinPrimitiveType.EntityRef,
-            EntityTarget = "Runner",
+            StructType = WellKnownStructTypes.Runner,
             Cardinality = PinCardinality.Single
         },
         new()
@@ -116,7 +118,7 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
             Id = "RepositoryId",
             Label = "Repository ID",
             PrimitiveType = PinPrimitiveType.EntityRef,
-            EntityTarget = "Repository",
+            StructType = WellKnownStructTypes.Repository,
             Cardinality = PinCardinality.Single
         },
         new()
@@ -131,6 +133,7 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
             Id = "ContentId",
             Label = "Content ID",
             PrimitiveType = PinPrimitiveType.EntityRef,
+            StructType = WellKnownStructTypes.ContentType,
             Cardinality = PinCardinality.Single
         },
         new()
@@ -161,14 +164,8 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
         ToolExecutionContext context
     )
     {
-        var target = inputs.GetValueOrDefault("Target") ??
-                     inputs.GetValueOrDefault("Target Entity") ??
-                     inputs.GetValueOrDefault("target_entity") ??
-                     inputs.GetValueOrDefault("TargetEntity") ??
-                     inputs.GetValueOrDefault("target") ??
-                     inputs.GetValueOrDefault("Entity") ??
-                     inputs.GetValueOrDefault("entity") ??
-                     inputs.Values.FirstOrDefault();
+        var target = inputs.GetValueOrDefault("Target")
+            ?? (inputs.TryGetValue("target", out var tLower) ? tLower : null);
 
         if (target == null)
         {
@@ -179,16 +176,16 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
 
         // Priority 1: Self-describing $type from EntityRef
         // Priority 2: Inline config / input StructType
-        // Priority 3: Fallback "Resource"
+        // Priority 3: Fallback WellKnownStructTypes.Resource
         var structType = !string.IsNullOrWhiteSpace(detectedType)
             ? detectedType
             : inputs.TryGetValue("StructType", out var stVal) && stVal != null
                 ? stVal.ToString()?.Trim()
-                : "Resource";
+                : WellKnownStructTypes.Resource;
 
         if (string.IsNullOrEmpty(structType))
         {
-            structType = "Resource";
+            structType = WellKnownStructTypes.Resource;
         }
 
         var def = structRegistry.Get(structType);
@@ -201,3 +198,4 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
         return await def.ResolveAsync(targetPayload, context);
     }
 }
+

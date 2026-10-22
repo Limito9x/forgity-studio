@@ -11,6 +11,7 @@ public class DynamicEntityStructDefinition : IEntityStructDefinition
     public string Label { get; }
     public Guid SchemaDefinitionId { get; }
     public IReadOnlyList<PinDefinition> OutputPins { get; }
+    public object? SampleJson { get; }
 
     public DynamicEntityStructDefinition(
         string structType,
@@ -23,7 +24,52 @@ public class DynamicEntityStructDefinition : IEntityStructDefinition
         Label = string.IsNullOrWhiteSpace(label) ? structType : label;
         SchemaDefinitionId = schemaDefinitionId;
         OutputPins = ParsePins(fieldsDoc);
+        SampleJson = GenerateSampleJson(fieldsDoc);
     }
+
+    private static Dictionary<string, object?> GenerateSampleJson(JsonDocument fieldsDoc)
+    {
+        var sample = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        if (fieldsDoc.RootElement.ValueKind != JsonValueKind.Array)
+        {
+            return sample;
+        }
+
+        foreach (var el in fieldsDoc.RootElement.EnumerateArray())
+        {
+            var name = el.TryGetProperty("name", out var nProp) ? nProp.GetString() : null;
+            if (string.IsNullOrWhiteSpace(name)) continue;
+
+            var type = el.TryGetProperty("type", out var tProp) ? tProp.GetString()?.ToLowerInvariant() : "text";
+
+            if (el.TryGetProperty("defaultValue", out var defVal) && defVal.ValueKind != JsonValueKind.Null && defVal.ValueKind != JsonValueKind.Undefined)
+            {
+                sample[name] = defVal.ValueKind switch
+                {
+                    JsonValueKind.String => defVal.GetString(),
+                    JsonValueKind.Number => defVal.TryGetInt64(out var l) ? l : defVal.GetDouble(),
+                    JsonValueKind.True => true,
+                    JsonValueKind.False => false,
+                    _ => defVal.ToString()
+                };
+                continue;
+            }
+
+            sample[name] = type switch
+            {
+                "number" or "numeric" or "integer" => 0,
+                "boolean" or "switch" or "checkbox" => true,
+                "file-upload" or "image" or "asset" => $"Assets/{name}.png",
+                "key-value" or "keyvalue" or "map" => new Dictionary<string, string> { ["sampleKey"] = "sampleValue" },
+                "tags" => new[] { "SampleTag" },
+                "struct" => Guid.NewGuid().ToString(),
+                _ => $"sample_{name}"
+            };
+        }
+
+        return sample;
+    }
+
 
     private static IReadOnlyList<PinDefinition> ParsePins(JsonDocument fieldsDoc)
     {
