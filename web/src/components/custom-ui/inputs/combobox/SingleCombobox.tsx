@@ -15,7 +15,7 @@ export function SingleCombobox<T>({
     className,
 }: SingleComboboxProps<T>) {
     const anchor = useComboboxAnchor();
-    const { items, onSearch, id, getItemValue } = useComboboxContext<T>();
+    const { items, onSearch, id, getItemValue, isLoading, disabled } = useComboboxContext<T>();
 
     const selectedKey = (() => {
         if (value == null) {
@@ -64,9 +64,10 @@ export function SingleCombobox<T>({
             onInputChange={onSearch}
             onChange={handleSelectionChange}
             id={id}
+            isDisabled={disabled || isLoading}
         >
             <div ref={anchor} className={cn("w-full", className)}>
-                <ComboboxInput placeholder={placeholder} showTrigger showClear />
+                <ComboboxInput placeholder={placeholder} showTrigger showClear isLoading={isLoading} disabled={disabled} />
             </div>
 
             <BaseComboboxContent anchor={anchor} />

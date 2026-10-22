@@ -40,6 +40,11 @@ public interface IRepositoryApi
         CancellationToken ct = default
     );
 
+    Task<Result<IReadOnlyList<Guid>>> GetAttachedRunnerIdsAsync(
+        Guid repositoryId,
+        CancellationToken ct = default
+    );
+
     Task<Result<Dictionary<string, Guid>>> ResolveResourceVersionIdsByPathsAsync(
         Guid repositoryId,
         IEnumerable<string> filePaths,
@@ -105,7 +110,10 @@ public record ResourceDto(
     string? FileHash,
     Guid? ContentId,
     string? MetadataJson = null,
-    Guid RepositoryId = default
+    Guid RepositoryId = default,
+    string? FullLocalPath = null,
+    string? MountPath = null,
+    Guid? RunnerId = null
 );
 
 
@@ -136,6 +144,7 @@ public record ResourceLocationInfoDto(
 {
     public Guid? AgentId => RunnerId;
     public string? AgentRootPath => RunnerRootPath;
+    public string? MountPath => RunnerRootPath;
 
     public string? FullLocalPath
     {

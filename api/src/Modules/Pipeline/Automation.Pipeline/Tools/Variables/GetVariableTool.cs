@@ -94,19 +94,19 @@ public class GetVariableTool(
             val = await memoryStore.GetVariableAsync(context.PipelineExecutionId, varName, context.CancellationToken);
         }
 
-        val ??= inputs.GetValueOrDefault("Value") ?? inputs.GetValueOrDefault("value") ?? string.Empty;
+        val ??= inputs.GetValueOrDefault("Value") ?? inputs.GetValueOrDefault("value");
 
         logger?.LogInformation("GetVariableTool: Read variable '{VarName}' for execution {ExecutionId} -> {Value}",
             varName, context.PipelineExecutionId, val != null ? System.Text.Json.JsonSerializer.Serialize(val) : "null");
 
-        var outputs = new Dictionary<string, object>
+        var outputs = new Dictionary<string, object>();
+        if (val != null)
         {
-            ["Value"] = val!
-        };
-
-        if (!string.IsNullOrWhiteSpace(varName) && !outputs.ContainsKey(varName))
-        {
-            outputs[varName] = val!;
+            outputs["Value"] = val;
+            if (!string.IsNullOrWhiteSpace(varName) && !outputs.ContainsKey(varName))
+            {
+                outputs[varName] = val;
+            }
         }
 
         return outputs;

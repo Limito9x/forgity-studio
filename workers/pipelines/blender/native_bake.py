@@ -12,11 +12,31 @@ except ImportError:
     HAS_BPY = False
 
 
-def setup_cycles_engine(resolution: int = 2048, margin: int = 16) -> None:
-    """Tối ưu hóa render engine Cycles cho 1-pass bake siêu tốc."""
+def setup_cycles_engine(resolution: int = 2048, margin: int = 32, flip_normal_y: bool = True) -> Dict[str, Any]:
+    """Tối ưu hóa render engine Cycles cho 1-pass bake siêu tốc, ép Standard Color Space và DirectX Normal."""
     scene = bpy.context.scene
     scene.render.engine = 'CYCLES'
     cycles = scene.cycles
+
+    orig_settings: Dict[str, Any] = {
+        "view_transform": getattr(scene.view_settings, "view_transform", "Standard"),
+        "normal_g": getattr(scene.render.bake, "normal_g", "POS_Y"),
+    }
+
+    # 1. Ép View Transform về Standard để bảo toàn màu PBR nguyên bản
+    try:
+        scene.view_settings.view_transform = 'Standard'
+        scene.view_settings.look = 'None'
+        scene.view_settings.exposure = 0.0
+        scene.view_settings.gamma = 1.0
+    except Exception:
+        pass
+
+    # 2. Cấu hình Normal Y- (DirectX / Unreal Engine format)
+    try:
+        scene.render.bake.normal_g = 'NEG_Y' if flip_normal_y else 'POS_Y'
+    except Exception:
+        pass
 
     # Cấu hình GPU nếu có, tự động fallback an toàn
     prefs = bpy.context.preferences
@@ -53,9 +73,10 @@ def setup_cycles_engine(resolution: int = 2048, margin: int = 16) -> None:
     cycles.transparent_max_bounces = 0
 
     cycles.tile_size = resolution
-    scene.render.bake.margin = margin
+    scene.render.bake.margin = max(int(margin), 32)
     scene.render.bake.margin_type = 'EXTEND'
     scene.render.bake.use_selected_to_active = False
+    return orig_settings
 
 
 def resolve_target_meshes(target_objects: Optional[List[str]] = None) -> List[Any]:

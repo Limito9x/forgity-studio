@@ -106,6 +106,9 @@ public class ExecutionEntityStore(
                     contentType = cSummary.ContentTypeName ?? string.Empty;
                 }
 
+                var fullPath = item.FullLocalPath ?? relPath;
+                var dirPath = Path.GetDirectoryName(fullPath)?.Replace('\\', '/') ?? string.Empty;
+
                 var props = new Dictionary<string, object?>
                 {
                     ["ResourceId"] = item.ResourceId,
@@ -117,6 +120,11 @@ public class ExecutionEntityStore(
                     ["BaseName"] = baseName,
                     ["Extension"] = extension,
                     ["RelativePath"] = relPath,
+                    ["FullPath"] = fullPath,
+                    ["DirectoryPath"] = dirPath,
+                    ["MountPath"] = item.MountPath ?? string.Empty,
+                    ["HoldingRunnerId"] = item.RunnerId?.ToString() ?? string.Empty,
+                    ["RunnerId"] = item.RunnerId?.ToString() ?? string.Empty,
                     ["FileHash"] = item.FileHash ?? string.Empty,
                     ["ContentId"] = item.ContentId?.ToString() ?? string.Empty,
                     ["ContentName"] = contentName,

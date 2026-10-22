@@ -43,13 +43,16 @@ export function BaseCombobox<T>(props: BaseComboboxProps<T>) {
         placeholder = "Select option...",
         onSearch,
         className,
-        id
+        id,
+        disabled,
+        isLoading
     } = props;
 
     return (
         <ComboboxProvider value={{
             items, getItemValue, emptyText,
-            renderOption, placeholder, onSearch, className, id
+            renderOption, placeholder, onSearch, className, id,
+            disabled, isLoading
         }}>
             {/* Sử dụng props.multiple để TypeScript tự động narrow (thu hẹp) type của value và onValueChange */}
             {props.multiple ? (

@@ -18,4 +18,12 @@ public interface IContentApi
         IEnumerable<Guid> contentIds,
         CancellationToken ct = default
     );
+
+    Task<Result<ContentSummaryDto>> GetOrCreateContentItemAsync(
+        Guid projectId,
+        string contentTypeKeyOrName,
+        string contentItemName,
+        bool createIfNotExists,
+        CancellationToken ct = default
+    );
 }

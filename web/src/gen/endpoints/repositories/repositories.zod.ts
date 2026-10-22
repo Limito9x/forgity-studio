@@ -51,6 +51,21 @@ export const GetRepositoriesResponseItem = /*#__PURE__*/ zod.object({
 })
 export const GetRepositoriesResponse = /*#__PURE__*/ zod.array(GetRepositoriesResponseItem)
 
+export const GetProjectWorkstationsQueryParams = /*#__PURE__*/ zod.object({
+  "projectId": /*#__PURE__*/ zod.uuid()
+})
+
+export const GetProjectWorkstationsResponseItem = /*#__PURE__*/ zod.object({
+  "repositoryRunnerId": /*#__PURE__*/ zod.uuid(),
+  "repositoryId": /*#__PURE__*/ zod.uuid(),
+  "repositoryName": /*#__PURE__*/ zod.string(),
+  "runnerId": /*#__PURE__*/ zod.uuid(),
+  "runnerName": /*#__PURE__*/ zod.string(),
+  "rootPath": /*#__PURE__*/ zod.string(),
+  "isRunnerActive": /*#__PURE__*/ zod.boolean()
+})
+export const GetProjectWorkstationsResponse = /*#__PURE__*/ zod.array(GetProjectWorkstationsResponseItem)
+
 export const DeleteRepositoryParams = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid()
 })
@@ -153,6 +168,8 @@ export const GetRepositoryResourcesParams = /*#__PURE__*/ zod.object({
 export const GetRepositoryResourcesQueryParams = /*#__PURE__*/ zod.object({
   "projectId": /*#__PURE__*/ zod.uuid(),
   "workspaceId": /*#__PURE__*/ zod.uuid(),
+  "runnerId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "repositoryRunnerId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
   "page": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
   "pageSize": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
   "filters": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
@@ -186,7 +203,9 @@ export const GetRepositoryResourcesResponse = /*#__PURE__*/ zod.object({
   "isLocked": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), getRepositoryResourcesResponseItemsItemIsLockedDefault),
   "lockedByRunnerId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
   "lockedByRunnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
-  "lockedAt": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.iso.datetime({"offset":true}))
+  "lockedAt": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
+  "holdingRunnerId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "holdingRunnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 }))),
   "totalCount": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
   "page": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),

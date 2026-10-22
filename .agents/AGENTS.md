@@ -130,5 +130,8 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 - [runner-detail-page-and-attached-repositories](file:///d:/FullStack/Automation/.agents/plans/2026-10-18-runner-detail-page-and-attached-repositories.md): Kế hoạch Xây Dựng Trang Chi Tiết Máy Trạm (Runner Detail Page `/runners/:id`) Đẳng Cấp Studio Grade & Hệ Thống Quản Trị Attached Repositories Đa Dự Án.
 - [standardize-pipeline-tools-and-tagmap](file:///d:/FullStack/Automation/.agents/plans/2026-10-19-standardize-pipeline-tools-and-tagmap.md): Kế hoạch Kỹ Thuật Chuẩn Hóa Server Pipeline Tools, Tái Cấu Trúc TagMap Batch-First & Thanh Lọc 23 Zombie Tools.
 - [generic-runner-env-and-remote-control](file:///d:/FullStack/Automation/.agents/plans/2026-10-21-generic-runner-env-and-remote-control.md): Kế hoạch Kỹ Thuật Biến Môi Trường Generic cho Runner ([env]), Quản Trị Từ Xa Phong Cách PaaS & Global CLI (forgity setup).
+- [standardize-draft-resource-and-default-runner](file:///d:/FullStack/Automation/.agents/plans/2026-10-21-standardize-draft-resource-and-default-runner.md): Kế hoạch Kỹ Thuật Chuẩn Hóa Kiến Trúc Draft Resource, Runner Holding & Default Runner Auto-Routing.
+- [stage-delete-confirm-and-assign-content-tool](file:///d:/FullStack/Automation/.agents/plans/2026-10-21-stage-delete-confirm-and-assign-content-tool.md): Kế Hoạch Kỹ Thuật Cảnh Báo Xóa Stage Container & Nâng Cấp Tool Assign Resources To Content (Create If Not Exists).
+- [variable-repair-parameters-edit-and-tool-decluttering](file:///d:/FullStack/Automation/.agents/plans/2026-10-21-variable-repair-parameters-edit-and-tool-decluttering.md): Kế Hoạch Kỹ Thuật Sửa Lỗi Variable, Nâng Cấp Parameters Panel (Default Value & Edit) và Thanh Lọc Tool/Script Tham Số.
 
 

@@ -13,6 +13,14 @@ export type GetRepositoryResourcesParams = {
   /**
    * @nullable
    */
+  runnerId?: string | null;
+  /**
+   * @nullable
+   */
+  repositoryRunnerId?: string | null;
+  /**
+   * @nullable
+   */
   page?: number | null;
   /**
    * @nullable

@@ -84,6 +84,35 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
         },
         new()
         {
+            Id = "FullPath",
+            Label = "Full Path",
+            PrimitiveType = PinPrimitiveType.String,
+            Cardinality = PinCardinality.Single
+        },
+        new()
+        {
+            Id = "DirectoryPath",
+            Label = "Directory Path",
+            PrimitiveType = PinPrimitiveType.String,
+            Cardinality = PinCardinality.Single
+        },
+        new()
+        {
+            Id = "MountPath",
+            Label = "Mount Path",
+            PrimitiveType = PinPrimitiveType.String,
+            Cardinality = PinCardinality.Single
+        },
+        new()
+        {
+            Id = "HoldingRunnerId",
+            Label = "Holding Runner ID",
+            PrimitiveType = PinPrimitiveType.EntityRef,
+            EntityTarget = "Runner",
+            Cardinality = PinCardinality.Single
+        },
+        new()
+        {
             Id = "RepositoryId",
             Label = "Repository ID",
             PrimitiveType = PinPrimitiveType.EntityRef,

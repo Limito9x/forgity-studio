@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Automation.Files.Contracts;
+using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Entities;
 using PipelineEntity = Automation.Pipeline.Domain.Entities.Pipeline;
 using Automation.Pipeline.Domain.Enums;
@@ -135,6 +136,74 @@ public class PinValueResolverTests
 
         res0.Should().Be("Diffuse_0.png");
         res1.Should().Be("Normal_1.png");
+    }
+
+    [Fact]
+    public async Task ResolvePinAsync_FromVariableCapsule_PopulatedInMemoryStore_ShouldReturnValue()
+    {
+        var execId = Guid.NewGuid();
+        var pipeline = CreatePipeline("VariableMemoryPipeline");
+
+        // Variable Capsule Node -> Action Node
+        var varMeta = JsonDocument.Parse("{\"category\": \"Variable\"}");
+        var varConfig = JsonDocument.Parse("{\"key\": \"TargetRunner\", \"VariableName\": \"TargetRunner\"}");
+        var varCapsule = new PipelineNode(Guid.NewGuid(), pipeline.Id, "GetVariable", PipelineNodeKind.Capsule, 0, 0, config: varConfig, metadata: varMeta);
+
+        var actionNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "SyncTool", PipelineNodeKind.Tool, 0, 0);
+
+        pipeline.AddNode(varCapsule);
+        pipeline.AddNode(actionNode);
+
+        // Wire from Variable Capsule to Action Node Runner Pin
+        pipeline.AddEdge(varCapsule.Id, "TargetRunner", actionNode.Id, "Runner");
+
+        _graphProvider.Register(execId, pipeline);
+
+        // Pre-populate variable into memory store (simulating SetVariableTool execution)
+        await _memoryStore.SetVariableAsync(execId, "TargetRunner", "Runner-PC-Fast");
+
+        // Act
+        var resolvedRunner = await _resolver.ResolvePinAsync(execId, actionNode.Id, "Runner");
+
+        // Assert
+        resolvedRunner.Should().Be("Runner-PC-Fast");
+    }
+
+    [Fact]
+    public async Task ResolvePinAsync_FromVariableCapsule_FallbackToDefaultValue_ShouldReturnDefaultValue()
+    {
+        var execId = Guid.NewGuid();
+        var pipeline = CreatePipeline("VariableDefaultPipeline");
+
+        // Declare a variable in pipeline parameters with DefaultValue
+        pipeline.Parameters.Add(new PipelineParameter
+        {
+            Key = "TargetRunner",
+            Label = "Target Runner",
+            Kind = PipelineParameterKind.Variable,
+            Type = PinPrimitiveType.String,
+            DefaultValue = "Runner-Default-HQ"
+        });
+
+        // Variable Capsule Node -> Action Node
+        var varMeta = JsonDocument.Parse("{\"category\": \"Variable\"}");
+        var varConfig = JsonDocument.Parse("{\"key\": \"TargetRunner\", \"VariableName\": \"TargetRunner\"}");
+        var varCapsule = new PipelineNode(Guid.NewGuid(), pipeline.Id, "GetVariable", PipelineNodeKind.Capsule, 0, 0, config: varConfig, metadata: varMeta);
+
+        var actionNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "SyncTool", PipelineNodeKind.Tool, 0, 0);
+
+        pipeline.AddNode(varCapsule);
+        pipeline.AddNode(actionNode);
+
+        // Wire from Variable Capsule to Action Node Runner Pin
+        pipeline.AddEdge(varCapsule.Id, "TargetRunner", actionNode.Id, "Runner");
+
+        _graphProvider.Register(execId, pipeline);
+
+        // Memory store is empty (SetVariable hasn't been called) -> should fallback to parameter DefaultValue
+        var resolvedRunner = await _resolver.ResolvePinAsync(execId, actionNode.Id, "Runner");
+
+        resolvedRunner.Should().Be("Runner-Default-HQ");
     }
 
     // Helpers
