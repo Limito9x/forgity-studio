@@ -1,4 +1,5 @@
 using Automation.Content.Contracts;
+using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Engine.EntityStore;
@@ -13,8 +14,28 @@ public class ResourceStructDefinition(
     IExecutionEntityStore? entityStore = null
 ) : IEntityStructDefinition
 {
-    public string StructType => "Resource";
+    public string StructType => WellKnownStructTypes.Resource;
     public string Label => "Resource";
+
+    public object? SampleJson => new Dictionary<string, object?>
+    {
+        ["ResourceId"] = "00000000-0000-0000-0000-000000000001",
+        ["ResourceVersionId"] = "00000000-0000-0000-0000-000000000002",
+        ["FileName"] = "character_model.fbx",
+        ["BaseName"] = "character_model",
+        ["Extension"] = ".fbx",
+        ["RelativePath"] = "Characters/character_model.fbx",
+        ["FullPath"] = "D:/Project/Assets/Characters/character_model.fbx",
+        ["DirectoryPath"] = "D:/Project/Assets/Characters",
+        ["MountPath"] = "D:/Project/Assets",
+        ["HoldingRunnerId"] = "00000000-0000-0000-0000-000000000005",
+        ["RepositoryId"] = "00000000-0000-0000-0000-000000000003",
+        ["FileHash"] = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        ["ContentId"] = "00000000-0000-0000-0000-000000000004",
+        ["ContentName"] = "Character Model",
+        ["ContentType"] = "3DModel",
+        ["Metadata"] = "{\"vertexCount\": 12500, \"rigged\": true}"
+    };
 
     public IReadOnlyList<PinDefinition> OutputPins =>
         [
@@ -58,7 +79,7 @@ public class ResourceStructDefinition(
                 Id = "RepositoryId",
                 Label = "Repository ID",
                 PrimitiveType = PinPrimitiveType.EntityRef,
-                EntityTarget = "Repository",
+                StructType = WellKnownStructTypes.Repository,
                 Cardinality = PinCardinality.Single,
             },
             new()
@@ -94,7 +115,7 @@ public class ResourceStructDefinition(
                 Id = "HoldingRunnerId",
                 Label = "Holding Runner ID",
                 PrimitiveType = PinPrimitiveType.EntityRef,
-                EntityTarget = "Runner",
+                StructType = WellKnownStructTypes.Runner,
                 Cardinality = PinCardinality.Single,
             },
             new()
@@ -109,6 +130,7 @@ public class ResourceStructDefinition(
                 Id = "ContentId",
                 Label = "Content ID",
                 PrimitiveType = PinPrimitiveType.EntityRef,
+                StructType = WellKnownStructTypes.ContentType,
                 Cardinality = PinCardinality.Single,
             },
             new()

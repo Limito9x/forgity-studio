@@ -38,7 +38,7 @@ public class GetStructCatalogueHandler(IEntityStructRegistry structRegistry)
     {
         var allStructs = structRegistry.GetAll(query.ProjectId);
         var dtos = allStructs
-            .Select(s => new StructDefinitionDto(s.StructType, s.Label, s.OutputPins))
+            .Select(s => new StructDefinitionDto(s.StructType, s.Label, s.OutputPins, s.SampleJson))
             .ToList();
 
         return Task.FromResult(Result.Ok<IReadOnlyList<StructDefinitionDto>>(dtos));
@@ -48,5 +48,7 @@ public class GetStructCatalogueHandler(IEntityStructRegistry structRegistry)
 public record StructDefinitionDto(
     string StructType,
     string Label,
-    IReadOnlyList<PinDefinition> OutputPins
+    IReadOnlyList<PinDefinition> OutputPins,
+    object? SampleJson = null
 );
+
