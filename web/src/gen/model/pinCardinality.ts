@@ -10,7 +10,7 @@ export type PinCardinality =
   (typeof PinCardinality)[keyof typeof PinCardinality];
 
 export const PinCardinality = {
-  NUMBER_0: 0,
-  NUMBER_1: 1,
-  NUMBER_2: 2,
+  Single: "Single",
+  Array: "Array",
+  Map: "Map",
 } as const;

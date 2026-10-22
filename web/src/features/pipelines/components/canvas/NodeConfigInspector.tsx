@@ -28,7 +28,7 @@ import { FormRenderer } from "@/components/dynamic-form/FormRenderer";
 import { pipelineRegistry } from "../../form-scope/pipelineRegistry";
 import { usePipelineFormScope } from "../../form-scope/PipelineFormScope";
 import { pinToFieldDefinition } from "../../form-scope/pinToFieldDefinition";
-import { useGetProjectStructs } from "@/features/structs/hooks/useStructs";
+import { useGetStructCatalogue } from "@/gen/endpoints/pipelines/pipelines";
 
 interface NodeConfigInspectorProps {
   pipelineId?: string;
@@ -52,7 +52,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
   isReadOnly = false,
 }: NodeConfigInspectorProps) {
   const { edges = [], nodes = [], projectId = "" } = usePipelineFormScope();
-  const { data: projectStructs = [] } = useGetProjectStructs(projectId);
+  const { data: structCatalogue = [] } = useGetStructCatalogue({ projectId });
 
   const data = (node?.data as unknown as CustomPipelineNodeData) || {};
   const refIdLower = String(data.refId || "").toLowerCase();
@@ -250,42 +250,66 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
                 </div>
               </div>
             )}
-            {/* BreakStruct / MakeStruct / CastToStruct Special Configuration */}
-            {(refIdLower === "breakstruct" ||
-              refIdLower === "makestruct" ||
-              refIdLower === "casttostruct") && (
-              <div className="rounded-xl border border-sky-500/30 bg-sky-500/5 p-3 space-y-2 shadow-sm">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-sky-600 dark:text-sky-400">
-                  <Box className="h-3.5 w-3.5" />
-                  <span>Struct Type</span>
-                </div>
-                <Select
-                  selectedKey={configValues["StructType"] || "Resource"}
-                  onSelectionChange={(key) => onUpdateConfig(node.id, "StructType", String(key))}
-                  className="w-full"
-                >
-                  <SelectTrigger className="h-8 w-full text-xs font-medium border-sky-500/40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem id="Resource">Resource (File, BaseName, RelativePath, Repository)</SelectItem>
-                    <SelectItem id="Repository">Repository (RootPath, RepositoryId, RepositoryName)</SelectItem>
-                    <SelectItem id="Workspace">Workspace (RootPath, WorkspaceId)</SelectItem>
-                    <SelectItem id="Inspection">Resource Metadata (MainObjects, SkeletonBones)</SelectItem>
-                    <SelectItem id="TaggedAsset">Tagged Asset (AssetName, FilePath, TagMap, PathMap, ResourceTags)</SelectItem>
-                    {projectStructs?.map((s) => (
-                      <SelectItem key={s.id} id={s.name}>
-                        {s.name} ({s.fieldCount} {s.fieldCount === 1 ? "field" : "fields"})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-[10px] text-muted-foreground leading-tight">
-                  Selecting a struct type dynamically updates{" "}
-                  {refIdLower === "makestruct" ? "input" : "output"} pins to match the entity schema.
-                </p>
+            {/* Capability-driven Rule Notes */}
+            {data.capabilities?.ruleNotes && (
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 text-[11px] text-muted-foreground">
+                <span className="font-semibold text-primary block mb-0.5">Note:</span>
+                {data.capabilities.ruleNotes}
               </div>
             )}
+
+            {/* StructSelector: BreakStruct / MakeStruct / CastToStruct Configuration */}
+            {(data.capabilities?.inspectorMode === "StructSelector" ||
+              refIdLower === "breakstruct" ||
+              refIdLower === "makestruct" ||
+              refIdLower === "casttostruct") && (() => {
+              const currentStructType = configValues["StructType"] || "Resource";
+              const selectedStruct = structCatalogue.find(
+                (s) => s.structType?.toLowerCase() === String(currentStructType).toLowerCase()
+              );
+
+              return (
+                <div className="rounded-xl border border-sky-500/30 bg-sky-500/5 p-3 space-y-2.5 shadow-sm">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-sky-600 dark:text-sky-400">
+                    <Box className="h-3.5 w-3.5" />
+                    <span>Struct Type</span>
+                  </div>
+                  <Select
+                    selectedKey={currentStructType}
+                    onSelectionChange={(key) => onUpdateConfig(node.id, "StructType", String(key))}
+                    className="w-full"
+                  >
+                    <SelectTrigger className="h-8 w-full text-xs font-medium border-sky-500/40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {structCatalogue.map((s) => (
+                        <SelectItem key={s.structType} id={s.structType}>
+                          {s.label || s.structType}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground leading-tight">
+                    Selecting a struct type dynamically updates{" "}
+                    {refIdLower === "makestruct" ? "input" : "output"} pins to match the entity schema.
+                  </p>
+
+                  {/* Live Sample JSON Preview */}
+                  {selectedStruct?.sampleJson != null && (
+                    <div className="space-y-1 pt-1 border-t border-sky-500/20">
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                        <span>Sample Structure Preview</span>
+                        <span className="text-[9px] text-sky-500 font-normal">Live Schema</span>
+                      </div>
+                      <pre className="p-2 rounded bg-zinc-950/80 text-emerald-400 font-mono text-[10px] overflow-x-auto max-h-36 border border-zinc-800/80 select-all">
+                        {JSON.stringify(selectedStruct.sampleJson, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Input Properties Section */}
             <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">

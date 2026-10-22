@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Text.Json;
 using Automation.Content.Contracts;
+using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Infrastructure.Persistence;
@@ -30,7 +31,7 @@ public class AssignResourcesToContentTool(
             Id = "ContentType",
             Label = "Content Type",
             PrimitiveType = PinPrimitiveType.EntityRef,
-            EntityTarget = "ContentType",
+            StructType = WellKnownStructTypes.ContentType,
             Cardinality = PinCardinality.Single,
             IsRequired = false
         },
@@ -56,7 +57,7 @@ public class AssignResourcesToContentTool(
             Id = "ContentId",
             Label = "Content ID (Optional)",
             PrimitiveType = PinPrimitiveType.EntityRef,
-            EntityTarget = "content",
+            StructType = WellKnownStructTypes.ContentItem,
             Cardinality = PinCardinality.Single,
             IsRequired = false
         },
@@ -65,7 +66,7 @@ public class AssignResourcesToContentTool(
             Id = "Resources",
             Label = "Resources",
             PrimitiveType = PinPrimitiveType.EntityRef,
-            EntityTarget = "resource",
+            StructType = WellKnownStructTypes.Resource,
             Cardinality = PinCardinality.Array,
             IsRequired = true
         }
@@ -78,7 +79,7 @@ public class AssignResourcesToContentTool(
             Id = "ContentId",
             Label = "Content ID",
             PrimitiveType = PinPrimitiveType.EntityRef,
-            EntityTarget = "content",
+            StructType = WellKnownStructTypes.ContentItem,
             Cardinality = PinCardinality.Single
         },
         new()
@@ -100,7 +101,7 @@ public class AssignResourcesToContentTool(
             Id = "ResourceIds",
             Label = "Resource Ids",
             PrimitiveType = PinPrimitiveType.EntityRef,
-            EntityTarget = "resource",
+            StructType = WellKnownStructTypes.Resource,
             Cardinality = PinCardinality.Array
         },
         new()

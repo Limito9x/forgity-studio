@@ -16,6 +16,15 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
     public string? Category => "Data / Struct";
     public string? Description => "Deconstructs a structured entity (Resource, Version, TaggedAsset, etc.) into its individual property pins.";
     public bool IsPure => true;
+    public bool IsDynamic => true;
+
+    public NodeCapabilities Capabilities => new(
+        CanAddPin: false,
+        CanRemovePin: false,
+        InspectorMode: "StructSelector",
+        RuleNotes: "Deconstructs an entity struct into individual output field pins based on selected Struct Type.",
+        ViewVariant: "Struct"
+    );
 
     public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(
         Dictionary<string, object?>? configValues,
@@ -26,7 +35,20 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
         var registry = context?.StructRegistry ?? structRegistry;
         if (registry?.Get(structType, context?.ProjectId) is { } sDef)
         {
-            return (Inputs, sDef.OutputPins);
+            var resolvedInputs = new List<PinDefinition>
+            {
+                new()
+                {
+                    Id = "Target",
+                    Label = $"Target ({structType})",
+                    PrimitiveType = PinPrimitiveType.EntityRef,
+                    StructType = structType,
+                    Cardinality = PinCardinality.Single,
+                    IsRequired = true
+                },
+                Inputs[1]
+            };
+            return (resolvedInputs, sDef.OutputPins);
         }
 
         return (Inputs, Outputs);
@@ -39,9 +61,9 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
             Id = "Target",
             Label = "Target Entity",
             PrimitiveType = PinPrimitiveType.EntityRef,
+            StructType = "Resource",
             Cardinality = PinCardinality.Single,
-            IsRequired = true,
-            Metadata = """{"type": "entity-select", "properties": {"entity": "Resource"}}"""
+            IsRequired = true
         },
         new()
         {

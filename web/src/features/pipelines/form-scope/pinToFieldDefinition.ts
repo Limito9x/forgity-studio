@@ -19,9 +19,10 @@ export function resolveEntityTargetFromPin(
   pin: PinDefinition,
   configValues: Record<string, any>
 ): string {
-  if (pin.entityTarget) {
-    if (pin.entityTarget.toLowerCase() === "workspace") return "Repository";
-    return pin.entityTarget;
+  const target = pin.structType || (pin as any).entityTarget;
+  if (target) {
+    if (target.toLowerCase() === "workspace") return "Repository";
+    return target;
   }
 
   // Nếu defaultValue là tên một Entity Target đã biết ("Resource", "Repository", "Workspace", v.v.)
@@ -136,10 +137,9 @@ export const PIN_RULES: PinFieldRule[] = [
   },
 
   // 1. Variable Reference pin
-
   {
     predicate: (pin, _, idLower) =>
-      isVariablePin(pin.primitiveType, idLower, pin.entityTarget),
+      isVariablePin(pin.primitiveType, idLower, pin.structType || (pin as any).entityTarget),
 
     create: (pin) => ({
       name: pin.id!,
@@ -179,7 +179,8 @@ export const PIN_RULES: PinFieldRule[] = [
       // Don't treat Entity References as raw string tags
       if (
         normType === "EntityRef" ||
-        Boolean(pin.entityTarget) ||
+        Boolean(pin.structType) ||
+        Boolean((pin as any).entityTarget) ||
         idLower === "entityid" ||
         idLower === "entity" ||
         idLower === "contenttype" ||
@@ -220,7 +221,7 @@ export const PIN_RULES: PinFieldRule[] = [
   // 3.5. Runner Pin → Dedicated Runner Select
   {
     predicate: (pin, _, idLower) => {
-      const entityTarget = (pin.entityTarget || "").toLowerCase();
+      const entityTarget = (pin.structType || (pin as any).entityTarget || "").toLowerCase();
       const labelLower = (pin.label || "").toLowerCase();
       return (
         entityTarget === "runner" ||
@@ -257,7 +258,7 @@ export const PIN_RULES: PinFieldRule[] = [
   // 3.6. Repository Pin → Dedicated Repository Select
   {
     predicate: (pin, _, idLower) => {
-      const entityTarget = (pin.entityTarget || "").toLowerCase();
+      const entityTarget = (pin.structType || (pin as any).entityTarget || "").toLowerCase();
       const labelLower = (pin.label || "").toLowerCase();
       // If it specifically mentions resource, let resource rule handle it
       if (idLower.includes("resource") || labelLower.includes("resource")) {
@@ -307,7 +308,8 @@ export const PIN_RULES: PinFieldRule[] = [
     predicate: (pin, normType, idLower) => {
       if (
         normType === "EntityRef" ||
-        Boolean(pin.entityTarget) ||
+        Boolean(pin.structType) ||
+        Boolean((pin as any).entityTarget) ||
         idLower === "entityid" ||
         idLower === "entity" ||
         idLower === "contenttype" ||
@@ -495,11 +497,11 @@ export function pipelineInputToFieldDefinition(
   const pinDef: PinDefinition = {
     id: input.key,
     label: (input as any).label || (input as any).name || input.key,
-    primitiveType: (typeof input.type === "number" ? input.type : Number(input.type) || 0) as any,
-    cardinality: (input.cardinality ?? 0) as any,
+    primitiveType: input.type as any,
+    cardinality: (input.cardinality ?? "Single") as any,
     isRequired: input.isRequired,
     defaultValue: input.defaultValue,
-    entityTarget: normalizedStructType,
+    structType: normalizedStructType,
   };
   return pinToFieldDefinition(pinDef, configValues);
 }

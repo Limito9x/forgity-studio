@@ -6,26 +6,27 @@ import { NodeCard } from "./parts/NodeCard";
 import { NodeHeader } from "./parts/NodeHeader";
 import { ExecPinBar } from "./parts/ExecPinBar";
 import { PinInputRow, PinOutputRow } from "./parts/PinRow";
-import { useDynamicPins } from "./hooks/useDynamicPins";
+import { useNodePinResolver, useCollectionPinActions } from "./hooks";
 
 export function DynamicToolNodeView({ id, data, selected }: NodeProps) {
   const nodeData = data as unknown as CustomPipelineNodeData;
   const inputs = nodeData.inputs || [];
   const outputs = nodeData.outputs || [];
 
-  const {
-    isAppend,
-    isMakeArray,
-    isMakeMap,
-    canAddDynamicPin,
-    handleAddPin,
-    handleRemovePin,
-  } = useDynamicPins({
+  // 1. Data Hook: Syncs pins from Backend POST /api/pipelines/tools/resolve-pins
+  useNodePinResolver({
     nodeId: id,
     refId: nodeData.refId,
     configValues: nodeData.configValues,
-    inputs,
+    isDynamic: nodeData.isDynamic,
   });
+
+  // 2. UI Actions Hook: Handles [+] and [x] click actions driven by capabilities
+  const { canAddPin, canRemovePin, handleAddPin, handleRemovePin } =
+    useCollectionPinActions({
+      nodeId: id,
+      capabilities: nodeData.capabilities,
+    });
 
   const execInputs = inputs.filter(isExecPin);
   const execOutputs = outputs.filter(isExecPin);
@@ -66,11 +67,8 @@ export function DynamicToolNodeView({ id, data, selected }: NodeProps) {
               {dataInputs.map((pin, idx) => {
                 const pinId = pin.id || `in_${idx}`;
                 const hasConfig = nodeData.configValues?.[pinId] !== undefined;
-
-                const canRemove =
-                  (isAppend && pinId !== "A" && pinId !== "B" && pinId !== "Separator") ||
-                  (isMakeArray && dataInputs.length > 1) ||
-                  (isMakeMap && dataInputs.length > 2);
+                const isDefaultPin = pinId === "A" || pinId === "B" || pinId === "Separator" || pinId === "Items";
+                const canRemove = canRemovePin && !isDefaultPin;
 
                 return (
                   <PinInputRow
@@ -84,15 +82,15 @@ export function DynamicToolNodeView({ id, data, selected }: NodeProps) {
                 );
               })}
 
-              {canAddDynamicPin && (
+              {canAddPin && (
                 <button
                   type="button"
                   onClick={handleAddPin}
                   className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary hover:text-primary/80 bg-primary/10 hover:bg-primary/20 px-2 py-0.5 rounded transition-colors mt-1"
-                  title={isMakeMap ? "Add Pair" : "Add Pin"}
+                  title="Add Pin"
                 >
                   <Plus className="h-3 w-3" />
-                  <span>{isMakeMap ? "Add Pair" : "Add Pin"}</span>
+                  <span>Add Pin</span>
                 </button>
               )}
             </div>

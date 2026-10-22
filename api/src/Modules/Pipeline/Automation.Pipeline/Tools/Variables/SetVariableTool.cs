@@ -1,3 +1,4 @@
+using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Engine.DataResolver;
@@ -17,6 +18,7 @@ public class SetVariableTool(
     public string Label => "Set Variable";
     public string? Category => "Variables";
     public bool IsPure => false;
+    public bool IsDynamic => true;
 
     public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(
         Dictionary<string, object?>? configValues,
@@ -42,7 +44,7 @@ public class SetVariableTool(
                         Id = "VariableName",
                         Label = "Variable Name",
                         PrimitiveType = PinPrimitiveType.EntityRef,
-                        EntityTarget = "variable",
+                        StructType = WellKnownStructTypes.Variable,
                         Cardinality = PinCardinality.Single,
                         IsRequired = true,
                         DefaultValue = varName
@@ -54,6 +56,7 @@ public class SetVariableTool(
                         Kind = PinKind.Data,
                         PrimitiveType = matchedVar.Type,
                         Cardinality = matchedVar.Cardinality,
+                        StructType = matchedVar.StructType,
                         Metadata = matchedVar.StructType,
                         IsRequired = true
                     }
@@ -69,6 +72,7 @@ public class SetVariableTool(
                         Kind = PinKind.Data,
                         PrimitiveType = matchedVar.Type,
                         Cardinality = matchedVar.Cardinality,
+                        StructType = matchedVar.StructType,
                         Metadata = matchedVar.StructType,
                         IsRequired = true
                     }
@@ -89,7 +93,7 @@ public class SetVariableTool(
             Id = "VariableName",
             Label = "Variable Name",
             PrimitiveType = PinPrimitiveType.EntityRef,
-            EntityTarget = "variable",
+            StructType = WellKnownStructTypes.Variable,
             Cardinality = PinCardinality.Single,
             IsRequired = true,
             DefaultValue = ""

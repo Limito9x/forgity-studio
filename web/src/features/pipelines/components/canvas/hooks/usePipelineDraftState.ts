@@ -214,10 +214,10 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
   const syncParametersToNodes = useCallback(
     (currentParams: PipelineParameterDto[]) => {
       const inputParams = currentParams.filter(
-        (p) => p.kind === 1 || (p.kind as unknown) === "Input",
+        (p) => p.kind === "Input" || (p.kind as any) === 1,
       );
       const outputParams = currentParams.filter(
-        (p) => p.kind === 2 || (p.kind as unknown) === "Output",
+        (p) => p.kind === "Output" || (p.kind as any) === 2,
       );
 
       const isEventTrigger =
@@ -574,7 +574,7 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
       } finally {
         setIsSaving(false);
       }
-    }, 600);
+    }, 1000);
 
     return () => clearTimeout(timer);
   }, [nodes, edges, parameters, isDirty, isSaving, graph.id, setNodes]);
@@ -902,6 +902,8 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
           outputs: initialOutputs,
           configValues: {},
           pipelineId: graph.id,
+          isDynamic: item.isDynamic ?? false,
+          capabilities: item.capabilities ?? null,
         } as CustomPipelineNodeData,
       };
 

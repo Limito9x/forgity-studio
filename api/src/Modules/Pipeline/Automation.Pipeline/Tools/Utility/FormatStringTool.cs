@@ -15,6 +15,15 @@ public class FormatStringTool : IResolverTool
     public string? Category => "Utility";
     public string? Description => "Formats text or file paths dynamically by substituting {placeholder} variables with input pin values.";
     public bool IsPure => true;
+    public bool IsDynamic => true;
+
+    public NodeCapabilities Capabilities => new(
+        CanAddPin: false,
+        CanRemovePin: false,
+        InspectorMode: "FormatTemplate",
+        RuleNotes: "Dynamically generates input pins matching formatting tokens like {TokenName} inside the Format template.",
+        ViewVariant: "Standard"
+    );
 
     public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(
         Dictionary<string, object?>? configValues,

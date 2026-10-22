@@ -1,20 +1,19 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useReactFlow } from "@xyflow/react";
 import type { PinDefinition } from "@/gen/model";
+import { resolveToolPins } from "@/gen/endpoints/pipelines/pipelines";
 import { isExecPin } from "../types";
 
 interface UseDynamicPinsOptions {
   nodeId: string;
   refId: string;
   configValues?: Record<string, any>;
-  inputs: PinDefinition[];
 }
 
 export function useDynamicPins({
   nodeId,
   refId,
   configValues,
-  inputs,
 }: UseDynamicPinsOptions) {
   const { setNodes } = useReactFlow();
   const rawRefId = (refId || "").toLowerCase();
@@ -24,60 +23,58 @@ export function useDynamicPins({
   const isMakeMap = rawRefId === "makemap";
   const isFormatString = rawRefId === "formatstring";
 
-  // Auto-sync dynamic pins from Template string for FormatString node
+  // Serialized config cache to prevent duplicate resolve calls
+  const lastResolvedConfigRef = useRef<string>("");
+
+  // Backend-Authoritative Pin Resolver with 250ms debounce
   useEffect(() => {
-    if (!isFormatString) return;
-    const templateStr = String(
-      configValues?.["Template"] ||
-      configValues?.["template"] ||
-      "{folder}/{name}"
-    );
+    const configStr = JSON.stringify(configValues || {});
+    if (configStr === lastResolvedConfigRef.current) return;
 
-    const matches = Array.from(templateStr.matchAll(/\{([\w\-]+)\}/g)).map((m) => m[1]);
-    const requiredSlots = Array.from(new Set(matches)).filter((s) => s.toLowerCase() !== "template");
-
-    const currentInputs: PinDefinition[] = inputs || [];
-    const nonSlotPins = currentInputs.filter((p) => p.id === "Template" || isExecPin(p));
-    const newSlotPins: PinDefinition[] = [];
-    let hasChange = false;
-
-    for (const slot of requiredSlots) {
-      const normSlot = slot.toLowerCase().replace(/[-_]/g, "");
-      const existing = currentInputs.find((p) => (p.id || "").toLowerCase().replace(/[-_]/g, "") === normSlot);
-      if (existing) {
-        newSlotPins.push(existing);
-      } else {
-        hasChange = true;
-        newSlotPins.push({
-          id: slot,
-          label: slot,
-          primitiveType: 0 as any, // String
-          cardinality: 0 as any,
-          isRequired: false,
+    const timer = setTimeout(async () => {
+      try {
+        lastResolvedConfigRef.current = configStr;
+        const result = await resolveToolPins({
+          toolId: refId,
+          configValues: configValues || {},
         });
+
+        const newInputs = (result.inputs as PinDefinition[]) || [];
+        const newOutputs = (result.outputs as PinDefinition[]) || [];
+
+        setNodes((nds) =>
+          nds.map((n) => {
+            if (n.id !== nodeId) return n;
+            const currentInputs = (n.data as any).inputs || [];
+            const currentOutputs = (n.data as any).outputs || [];
+
+            // Quick shallow diff check to avoid unnecessary re-renders
+            const inputsChanged =
+              currentInputs.length !== newInputs.length ||
+              newInputs.some((p, i) => p.id !== currentInputs[i]?.id);
+            const outputsChanged =
+              currentOutputs.length !== newOutputs.length ||
+              newOutputs.some((p, i) => p.id !== currentOutputs[i]?.id);
+
+            if (!inputsChanged && !outputsChanged) return n;
+
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                inputs: newInputs,
+                outputs: newOutputs,
+              },
+            };
+          })
+        );
+      } catch (err) {
+        console.error(`Failed to resolve dynamic pins for tool '${refId}':`, err);
       }
-    }
+    }, 250);
 
-    const currentSlotPins = currentInputs.filter((p) => p.id !== "Template" && !isExecPin(p));
-    if (currentSlotPins.length !== newSlotPins.length) {
-      hasChange = true;
-    }
-
-    if (hasChange) {
-      const updatedInputs = [...nonSlotPins, ...newSlotPins];
-      const dynamicPinIds = updatedInputs.map((p) => p.id || "").filter(Boolean);
-      const currentConfig = configValues || {};
-      const updatedConfig = { ...currentConfig, DynamicPins: dynamicPinIds };
-
-      setNodes((nds) =>
-        nds.map((n) =>
-          n.id === nodeId
-            ? { ...n, data: { ...n.data, inputs: updatedInputs, configValues: updatedConfig } }
-            : n
-        )
-      );
-    }
-  }, [nodeId, isFormatString, configValues, inputs, setNodes]);
+    return () => clearTimeout(timer);
+  }, [nodeId, refId, configValues, setNodes]);
 
   const handleAddPin = useCallback(
     (e: React.MouseEvent) => {
@@ -86,56 +83,31 @@ export function useDynamicPins({
         nds.map((n) => {
           if (n.id !== nodeId) return n;
           const currentInputs: PinDefinition[] = (n.data as any).inputs || [];
-          let updatedInputs = currentInputs;
+          const currentDynamic: string[] = currentInputs
+            .filter((p) => !isExecPin(p) && p.id !== "Separator" && Boolean(p.id))
+            .map((p) => p.id as string);
+
+          let nextDynamicPins = [...currentDynamic];
 
           if (isAppend) {
-            const letterPins = currentInputs.filter((p) => p.id !== "Separator" && p.id !== "exec_in");
-            const nextCharCode = 65 + letterPins.length; // A = 65, B = 66, C = 67...
-            const nextChar = String.fromCharCode(nextCharCode <= 90 ? nextCharCode : 65 + (letterPins.length % 26));
-            const newPinId = letterPins.some((p) => p.id === nextChar) ? `${nextChar}_${letterPins.length}` : nextChar;
-
-            const newPin: PinDefinition = {
-              id: newPinId,
-              label: newPinId,
-              primitiveType: 0 as any, // String
-              cardinality: 0 as any,
-              isRequired: false,
-            };
-
-            updatedInputs = [...currentInputs, newPin];
+            const nextCharCode = 65 + currentDynamic.length;
+            const nextChar = String.fromCharCode(
+              nextCharCode <= 90 ? nextCharCode : 65 + (currentDynamic.length % 26)
+            );
+            const newPinId = currentDynamic.includes(nextChar)
+              ? `${nextChar}_${currentDynamic.length}`
+              : nextChar;
+            nextDynamicPins.push(newPinId);
           } else if (isMakeArray) {
-            const newIndex = currentInputs.length + 1;
-            const newPin: PinDefinition = {
-              id: `Item_${newIndex}`,
-              label: `Item ${newIndex}`,
-              primitiveType: 0 as any,
-              cardinality: 0 as any,
-              isRequired: false,
-            };
-            updatedInputs = [...currentInputs, newPin];
+            const newIndex = currentDynamic.length + 1;
+            nextDynamicPins.push(`Item_${newIndex}`);
           } else if (isMakeMap) {
-            const keyPinsCount = currentInputs.filter((p) => (p.id || "").startsWith("Key_")).length;
-            const nextIdx = keyPinsCount;
-            const newKeyPin: PinDefinition = {
-              id: `Key_${nextIdx}`,
-              label: `Key ${nextIdx}`,
-              primitiveType: 0 as any,
-              cardinality: 0 as any,
-              isRequired: false,
-            };
-            const newValPin: PinDefinition = {
-              id: `Value_${nextIdx}`,
-              label: `Value ${nextIdx}`,
-              primitiveType: 0 as any,
-              cardinality: 0 as any,
-              isRequired: false,
-            };
-            updatedInputs = [...currentInputs, newKeyPin, newValPin];
+            const keyCount = currentDynamic.filter((id) => id?.startsWith("Key_")).length;
+            nextDynamicPins.push(`Key_${keyCount}`, `Value_${keyCount}`);
           }
 
-          const dynamicPinIds = updatedInputs.filter((p) => !isExecPin(p)).map((p) => p.id);
           const currentConfig = (n.data as any).configValues || {};
-          const updatedConfig = { ...currentConfig, DynamicPins: dynamicPinIds };
+          const updatedConfig = { ...currentConfig, DynamicPins: nextDynamicPins };
 
           window.dispatchEvent(
             new CustomEvent("pipeline:update-node-config", {
@@ -147,7 +119,6 @@ export function useDynamicPins({
             ...n,
             data: {
               ...n.data,
-              inputs: updatedInputs,
               configValues: updatedConfig,
             },
           };
@@ -164,21 +135,27 @@ export function useDynamicPins({
         nds.map((n) => {
           if (n.id !== nodeId) return n;
           const currentInputs: PinDefinition[] = (n.data as any).inputs || [];
-          let updatedInputs = currentInputs;
+          const currentDynamic: string[] = currentInputs
+            .filter((p) => !isExecPin(p) && p.id !== "Separator" && Boolean(p.id))
+            .map((p) => p.id as string);
 
+          let nextDynamicPins: string[];
           if (isMakeMap && pinId.startsWith("Key_")) {
             const suffix = pinId.replace("Key_", "");
-            updatedInputs = currentInputs.filter((p) => p.id !== pinId && p.id !== `Value_${suffix}`);
+            nextDynamicPins = currentDynamic.filter(
+              (id) => id !== pinId && id !== `Value_${suffix}`
+            );
           } else if (isMakeMap && pinId.startsWith("Value_")) {
             const suffix = pinId.replace("Value_", "");
-            updatedInputs = currentInputs.filter((p) => p.id !== pinId && p.id !== `Key_${suffix}`);
+            nextDynamicPins = currentDynamic.filter(
+              (id) => id !== pinId && id !== `Key_${suffix}`
+            );
           } else {
-            updatedInputs = currentInputs.filter((p) => p.id !== pinId);
+            nextDynamicPins = currentDynamic.filter((id) => id !== pinId);
           }
 
-          const dynamicPinIds = updatedInputs.filter((p) => !isExecPin(p)).map((p) => p.id);
           const currentConfig = (n.data as any).configValues || {};
-          const updatedConfig = { ...currentConfig, DynamicPins: dynamicPinIds };
+          const updatedConfig = { ...currentConfig, DynamicPins: nextDynamicPins };
 
           window.dispatchEvent(
             new CustomEvent("pipeline:update-node-config", {
@@ -190,7 +167,6 @@ export function useDynamicPins({
             ...n,
             data: {
               ...n.data,
-              inputs: updatedInputs,
               configValues: updatedConfig,
             },
           };

@@ -28,7 +28,8 @@ public class ToolPinAttribute : Attribute
     public bool IsRequired { get; set; } = true;
     public object? DefaultValue { get; set; }
     public string? Metadata { get; set; }
-    public string? EntityTarget { get; set; }
+    public string? StructType { get; set; }
+    public string? Description { get; set; }
     public string? AllowedExtensions { get; set; }
 }
 

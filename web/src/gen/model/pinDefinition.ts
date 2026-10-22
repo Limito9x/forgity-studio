@@ -20,7 +20,10 @@ export interface PinDefinition {
   /** @nullable */
   metadata?: string | null;
   /** @nullable */
-  entityTarget?: string | null;
+  structType?: string | null;
   /** @nullable */
   allowedExtensions?: string | null;
+  /** @nullable */
+  description?: string | null;
+  sampleJson?: unknown;
 }

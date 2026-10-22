@@ -39,8 +39,8 @@ export function VisualPinMapperTab({
     const newPin: PinDefinition = {
       id: `param_${inputs.length + 1}`,
       label: `Param ${inputs.length + 1}`,
-      primitiveType: PinPrimitiveType.NUMBER_0,
-      cardinality: PinCardinality.NUMBER_0,
+      primitiveType: PinPrimitiveType.String,
+      cardinality: PinCardinality.Single,
       isRequired: true,
       defaultValue: null,
     };
@@ -61,8 +61,8 @@ export function VisualPinMapperTab({
     const newPin: PinDefinition = {
       id: `output_${outputs.length + 1}`,
       label: `Output ${outputs.length + 1}`,
-      primitiveType: PinPrimitiveType.NUMBER_0,
-      cardinality: PinCardinality.NUMBER_0,
+      primitiveType: PinPrimitiveType.String,
+      cardinality: PinCardinality.Single,
       isRequired: true,
     };
     const newOutputs = [...outputs, newPin];

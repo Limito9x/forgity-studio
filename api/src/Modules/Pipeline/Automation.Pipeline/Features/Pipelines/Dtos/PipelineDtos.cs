@@ -102,7 +102,8 @@ public record PipelineNodeGraphDto(
     Guid? ParentId = null,
     NodeSize? Size = null,
     Dictionary<string, object?>? Metadata = null,
-    PipelineNodeFileMap? FileAssets = null
+    PipelineNodeFileMap? FileAssets = null,
+    Automation.Pipeline.Features.Nodes.NodeCapabilitiesDto? Capabilities = null
 );
 
 public record PipelineFileAssetDto(

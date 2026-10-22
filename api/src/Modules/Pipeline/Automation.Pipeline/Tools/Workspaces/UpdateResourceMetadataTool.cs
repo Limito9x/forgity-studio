@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Text.Json;
+using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Repository.Contracts;
@@ -29,17 +30,18 @@ public class UpdateResourceMetadataTool(
             PrimitiveType = PinPrimitiveType.String,
             Cardinality = PinCardinality.Map,
             IsRequired = true,
-            Metadata = """{"description": "Map of Resource IDs, URNs, or File Paths to their metadata JSON/objects"}"""
+            Description = "Map of Resource IDs, URNs, or File Paths to their metadata JSON string or dictionary",
+            SampleJson = "{\n  \"characters/hero.fbx\": {\n    \"triangles\": 14200,\n    \"rig\": \"Humanoid\"\n  }\n}"
         },
         new()
         {
             Id = "Repository",
             Label = "Repository",
             PrimitiveType = PinPrimitiveType.EntityRef,
-            EntityTarget = "Workspace",
+            StructType = WellKnownStructTypes.Repository,
             Cardinality = PinCardinality.Single,
             IsRequired = false,
-            Metadata = """{"type": "entity-select", "properties": {"entity": "Workspace"}}"""
+            Description = "Optional target repository reference if resolving by relative paths"
         }
     ];
 

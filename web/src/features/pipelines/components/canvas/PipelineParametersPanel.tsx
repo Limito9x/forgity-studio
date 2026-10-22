@@ -27,7 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { PipelineParameterDto, PipelineParameterKind } from "../../hooks/usePipelineGraph";
 import { usePipelineFormScope } from "../../form-scope/PipelineFormScope";
-import { useGetProjectStructs } from "@/features/structs/hooks/useStructs";
+import { useGetStructCatalogue } from "@/gen/endpoints/pipelines/pipelines";
 import { EntityPinSelect } from "./EntityPinSelect";
 import { toast } from "sonner";
 
@@ -48,19 +48,36 @@ interface PipelineParametersPanelProps {
 }
 
 const TYPE_OPTIONS = [
-  { value: "0", label: "String", color: "text-sky-500 bg-sky-500/10 border-sky-500/30" },
-  { value: "1", label: "Number", color: "text-violet-500 bg-violet-500/10 border-violet-500/30" },
-  { value: "2", label: "Boolean", color: "text-amber-500 bg-amber-500/10 border-amber-500/30" },
-  { value: "3", label: "Path", color: "text-orange-500 bg-orange-500/10 border-orange-500/30" },
-  { value: "4", label: "EntityRef / Struct", color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/30" },
-  { value: "5", label: "Asset", color: "text-pink-500 bg-pink-500/10 border-pink-500/30" },
+  { value: "String", label: "String", color: "text-sky-500 bg-sky-500/10 border-sky-500/30" },
+  { value: "Number", label: "Number", color: "text-violet-500 bg-violet-500/10 border-violet-500/30" },
+  { value: "Boolean", label: "Boolean", color: "text-amber-500 bg-amber-500/10 border-amber-500/30" },
+  { value: "Path", label: "Path", color: "text-orange-500 bg-orange-500/10 border-orange-500/30" },
+  { value: "EntityRef", label: "EntityRef / Struct", color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/30" },
+  { value: "Asset", label: "Asset", color: "text-pink-500 bg-pink-500/10 border-pink-500/30" },
 ];
 
 const CARDINALITY_OPTIONS = [
-  { value: "0", label: "Single" },
-  { value: "1", label: "Array []" },
-  { value: "2", label: "Map {}" },
+  { value: "Single", label: "Single" },
+  { value: "Array", label: "Array []" },
+  { value: "Map", label: "Map {}" },
 ];
+
+function normalizeType(t: any): string {
+  if (t === 0 || t === "0" || t === "String") return "String";
+  if (t === 1 || t === "1" || t === "Number") return "Number";
+  if (t === 2 || t === "2" || t === "Boolean") return "Boolean";
+  if (t === 3 || t === "3" || t === "Path") return "Path";
+  if (t === 4 || t === "4" || t === "EntityRef") return "EntityRef";
+  if (t === 5 || t === "5" || t === "Asset") return "Asset";
+  return String(t || "String");
+}
+
+function normalizeCardinality(c: any): string {
+  if (c === 0 || c === "0" || c === "Single") return "Single";
+  if (c === 1 || c === "1" || c === "Array") return "Array";
+  if (c === 2 || c === "2" || c === "Map") return "Map";
+  return String(c || "Single");
+}
 
 export function PipelineParametersPanel({
   pipelineId: _pipelineId,
@@ -89,13 +106,13 @@ export function PipelineParametersPanel({
   };
 
   const { projectId = "" } = usePipelineFormScope();
-  const { data: projectStructs = [] } = useGetProjectStructs(projectId);
+  const { data: structCatalogue = [] } = useGetStructCatalogue({ projectId });
 
   // Creation form state
   const [isCreating, setIsCreating] = useState(false);
   const [name, setName] = useState("");
-  const [type, setType] = useState("0");
-  const [cardinality, setCardinality] = useState("0");
+  const [type, setType] = useState("String");
+  const [cardinality, setCardinality] = useState("Single");
   const [structType, setStructType] = useState("Resource");
   const [defaultValue, setDefaultValue] = useState<any>("");
   const [description, setDescription] = useState("");
@@ -104,24 +121,24 @@ export function PipelineParametersPanel({
   // Edit form state
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState("");
-  const [editType, setEditType] = useState("0");
-  const [editCardinality, setEditCardinality] = useState("0");
+  const [editType, setEditType] = useState("String");
+  const [editCardinality, setEditCardinality] = useState("Single");
   const [editStructType, setEditStructType] = useState("Resource");
   const [editDefaultValue, setEditDefaultValue] = useState<any>("");
   const [editDescription, setEditDescription] = useState("");
   const [editIsRequired, setEditIsRequired] = useState(false);
 
   // Filter parameters by kind
-  const inputs = parameters.filter((p) => p.kind === 1 || (p.kind as unknown) === "Input");
-  const outputs = parameters.filter((p) => p.kind === 2 || (p.kind as unknown) === "Output");
-  const variables = parameters.filter((p) => p.kind === 3 || (p.kind as unknown) === "Variable");
+  const inputs = parameters.filter((p) => p.kind === "Input" || (p.kind as any) === 1);
+  const outputs = parameters.filter((p) => p.kind === "Output" || (p.kind as any) === 2);
+  const variables = parameters.filter((p) => p.kind === "Variable" || (p.kind as any) === 3);
 
   const startEdit = (param: PipelineParameterDto) => {
     setIsCreating(false);
     setEditingKey(param.key);
     setEditLabel(param.label || param.key);
-    setEditType(String(param.type ?? 0));
-    setEditCardinality(String(param.cardinality ?? 0));
+    setEditType(normalizeType(param.type));
+    setEditCardinality(normalizeCardinality(param.cardinality));
     setEditStructType(param.structType || "Resource");
     setEditDefaultValue(param.defaultValue ?? "");
     setEditDescription(param.description ?? "");
@@ -131,6 +148,8 @@ export function PipelineParametersPanel({
   const cancelEdit = () => {
     setEditingKey(null);
   };
+
+  const isEntityRef = (t: string) => t === "EntityRef" || t === "4";
 
   const handleSaveEdit = () => {
     if (!editingKey) return;
@@ -148,9 +167,9 @@ export function PipelineParametersPanel({
 
     onUpdateParameter(editingKey, {
       label: editLabel.trim() || editingKey,
-      type: Number(editType) as any,
-      cardinality: Number(editCardinality) as any,
-      structType: (editType === "4" || editType === "5") ? editStructType : null,
+      type: editType as any,
+      cardinality: editCardinality as any,
+      structType: isEntityRef(editType) ? editStructType : null,
       defaultValue: finalDefVal,
       description: editDescription.trim() || null,
       isRequired: editIsRequired,
@@ -173,9 +192,9 @@ export function PipelineParametersPanel({
     }
 
     const kindMap: Record<ParameterTab, PipelineParameterKind> = {
-      inputs: 1,
-      outputs: 2,
-      variables: 3,
+      inputs: "Input",
+      outputs: "Output",
+      variables: "Variable",
     };
 
     let finalDefVal: string | null = null;
@@ -190,9 +209,9 @@ export function PipelineParametersPanel({
       key: trimmed,
       label: trimmed,
       kind: kindMap[activeTab],
-      type: Number(type) as any,
-      cardinality: Number(cardinality) as any,
-      structType: (type === "4" || type === "5") ? structType : null,
+      type: type as any,
+      cardinality: cardinality as any,
+      structType: isEntityRef(type) ? structType : null,
       defaultValue: finalDefVal,
       description: description.trim() || null,
       isRequired,
@@ -210,11 +229,12 @@ export function PipelineParametersPanel({
   };
 
   const getTypeStyle = (t: number | string, c?: number | string, sType?: string | null) => {
-    const tStr = String(t);
-    const opt = TYPE_OPTIONS.find((o) => o.value === tStr) || TYPE_OPTIONS[0];
-    const isMap = c === 2 || c === "2" || c === "Map";
-    const isArr = c === 1 || c === "1" || c === "Array";
-    const label = tStr === "4" && sType ? sType : opt.label;
+    const normT = normalizeType(t);
+    const normC = normalizeCardinality(c);
+    const opt = TYPE_OPTIONS.find((o) => o.value === normT) || TYPE_OPTIONS[0];
+    const isMap = normC === "Map";
+    const isArr = normC === "Array";
+    const label = normT === "EntityRef" && sType ? sType : opt.label;
 
     return {
       label: isMap ? `Map<${label}>` : isArr ? `${label}[]` : label,
@@ -230,9 +250,12 @@ export function PipelineParametersPanel({
     onChangeVal: (next: any) => void,
     disabled = false
   ) => {
+    const normT = normalizeType(typeVal);
+    const normC = normalizeCardinality(cardVal);
+
     // 1. EntityRef / Struct
-    if (typeVal === "4") {
-      const isMultiple = cardVal === "1" || cardVal === "Array";
+    if (normT === "EntityRef") {
+      const isMultiple = normC === "Array";
       let parsedVal = currentVal;
       if (isMultiple && typeof currentVal === "string") {
         try {
@@ -269,7 +292,7 @@ export function PipelineParametersPanel({
     }
 
     // 2. Boolean
-    if (typeVal === "2") {
+    if (normT === "Boolean") {
       const boolStr =
         currentVal === true || currentVal === "true"
           ? "true"
@@ -491,7 +514,7 @@ export function PipelineParametersPanel({
                   </div>
                 </div>
 
-                {type === "4" && (
+                {isEntityRef(type) && (
                   <div className="space-y-1">
                     <label className="text-[10px] font-medium text-muted-foreground block">
                       Struct Schema
@@ -505,13 +528,9 @@ export function PipelineParametersPanel({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem id="Runner">Runner</SelectItem>
-                        <SelectItem id="Resource">Resource</SelectItem>
-                        <SelectItem id="Repository">Repository</SelectItem>
-                        <SelectItem id="ContentType">ContentType</SelectItem>
-                        {projectStructs.map((s: any) => (
-                          <SelectItem key={s.name} id={s.name}>
-                            {s.name}
+                        {structCatalogue.map((s) => (
+                          <SelectItem key={s.structType} id={s.structType}>
+                            {s.label || s.structType}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -643,7 +662,7 @@ export function PipelineParametersPanel({
                   </div>
                 </div>
 
-                {editType === "4" && (
+                {isEntityRef(editType) && (
                   <div className="space-y-1">
                     <label className="text-[10px] font-medium text-muted-foreground block">
                       Struct Schema
@@ -657,13 +676,9 @@ export function PipelineParametersPanel({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem id="Runner">Runner</SelectItem>
-                        <SelectItem id="Resource">Resource</SelectItem>
-                        <SelectItem id="Repository">Repository</SelectItem>
-                        <SelectItem id="ContentType">ContentType</SelectItem>
-                        {projectStructs.map((s: any) => (
-                          <SelectItem key={s.name} id={s.name}>
-                            {s.name}
+                        {structCatalogue.map((s) => (
+                          <SelectItem key={s.structType} id={s.structType}>
+                            {s.label || s.structType}
                           </SelectItem>
                         ))}
                       </SelectContent>
