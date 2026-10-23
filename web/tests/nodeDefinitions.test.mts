@@ -29,9 +29,16 @@ test("source separates equal keys; view depends on contract rather than tool nam
   assert.equal(nodeView("Start"), "Start");
 });
 test("stage menus preserve executor scoping", () => {
-  const items = [item("Tool", "Core"), item("Custom", "Script", { executor: "blender" }), item("SubPipeline", "Macro"), item("Return", "Return", { category: "Flow Control" })];
+  const items = [
+    item("Tool", "Core"),
+    item("Custom", "Script", { executor: "blender" }),
+    item("SubPipeline", "Macro", { executor: "builtin" }),
+    item("Return", "Return", { category: "Flow Control", executor: "builtin" })
+  ];
   assert.deepEqual(filterPalette(items, "blender").map(x => x.key), ["Script"]);
   assert.deepEqual(filterPalette(items, "macro").map(x => x.key), ["Macro", "Return"]);
+  // Server / DotNet stage must contain Core tools, NEVER SubPipeline or Return
+  assert.deepEqual(filterPalette(items, "server").map(x => x.key), ["Core"]);
 });
 test("buildSchemaConfigSignature only changes when schemaConfigKeys change", () => {
   const keys = ["StructType"];

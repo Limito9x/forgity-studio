@@ -38,6 +38,8 @@ public sealed class PipelineModule : IModule, IPermissionModule
         services.AddScoped<Engine.Orchestrator.Dispatchers.SubPipelineDispatcher>();
         services.AddScoped<Engine.Orchestrator.IPipelineOrchestrator, Engine.Orchestrator.PipelineOrchestrator>();
         services.AddScoped<IPipelineExecutionEngine, PipelineExecutionEngine>();
+        services.AddScoped<Contracts.NodeContract.INodeContractResolver, Contracts.NodeContract.PipelineNodeContractResolver>();
+        services.AddScoped<Contracts.Validation.IPipelineContractValidator, Contracts.Validation.PipelineContractValidator>();
         services.AddScoped<Features.Pipelines.Services.IPipelineGraphDtoBuilder, Features.Pipelines.Services.PipelineGraphDtoBuilder>();
         services.AddHttpClient();
         services.AddPipelineGrpcServices();

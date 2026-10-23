@@ -5,22 +5,22 @@ namespace Automation.Pipeline.Tools.Utility;
 
 public class GetRelativePathInputs
 {
-    [ToolPin(Id = "RootPath", Label = "Root Path", PrimitiveType = PinPrimitiveType.Path, IsRequired = true)]
+    [ToolPin(Id = "RootPath", Label = "Root Path", PrimitiveType = PinPrimitiveType.String, IsRequired = true)]
     public string RootPath { get; set; } = string.Empty;
 
-    [ToolPin(Id = "FullPath", Label = "Full Path", PrimitiveType = PinPrimitiveType.Path, IsRequired = false, DefaultValue = "")]
+    [ToolPin(Id = "FullPath", Label = "Full Path", PrimitiveType = PinPrimitiveType.String, IsRequired = false, DefaultValue = "")]
     public string FullPath { get; set; } = string.Empty;
 
-    [ToolPin(Id = "FullPaths", Label = "Full Paths", PrimitiveType = PinPrimitiveType.Path, Cardinality = PinCardinality.Array, IsRequired = false)]
+    [ToolPin(Id = "FullPaths", Label = "Full Paths", PrimitiveType = PinPrimitiveType.String, Cardinality = PinCardinality.Array, IsRequired = false)]
     public List<string> FullPaths { get; set; } = [];
 }
 
 public class GetRelativePathOutputs
 {
-    [ToolPin(Id = "RelativePath", Label = "Relative Path", PrimitiveType = PinPrimitiveType.Path, IsRequired = false)]
+    [ToolPin(Id = "RelativePath", Label = "Relative Path", PrimitiveType = PinPrimitiveType.String, IsRequired = false)]
     public string RelativePath { get; set; } = string.Empty;
 
-    [ToolPin(Id = "RelativePaths", Label = "Relative Paths", PrimitiveType = PinPrimitiveType.Path, Cardinality = PinCardinality.Array, IsRequired = false)]
+    [ToolPin(Id = "RelativePaths", Label = "Relative Paths", PrimitiveType = PinPrimitiveType.String, Cardinality = PinCardinality.Array, IsRequired = false)]
     public string[] RelativePaths { get; set; } = [];
 }
 

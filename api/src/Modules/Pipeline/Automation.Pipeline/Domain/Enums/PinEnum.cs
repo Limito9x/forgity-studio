@@ -8,7 +8,6 @@ public enum PinPrimitiveType
     String,
     Number,
     Boolean,
-    Path,
     EntityRef,
     Asset,
 }

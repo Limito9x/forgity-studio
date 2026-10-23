@@ -48,7 +48,7 @@ public class GetRepositoryInfoTool(
         {
             Id = "RootPath",
             Label = "Root Path",
-            PrimitiveType = PinPrimitiveType.Path,
+            PrimitiveType = PinPrimitiveType.String,
             Cardinality = PinCardinality.Single,
             IsRequired = true
         },

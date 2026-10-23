@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
-using Automation.Pipeline.Engine;
+using Automation.Pipeline.Contracts.Validation;
+using Automation.Pipeline.Engine.Models;
 using Automation.Pipeline.Features.Pipelines.Dtos;
 using Automation.Pipeline.Infrastructure.Persistence;
-using Automation.Pipeline.Tools;
 
 namespace Automation.Pipeline.Features.Pipelines;
 
@@ -26,14 +26,12 @@ public class ValidatePipelineEndpoint(IMessageBus bus) : Endpoint<ValidatePipeli
         var result = await bus.InvokeAsync<Result<ValidatePipelineResponse>>(req, ct);
         await this.SendResultAsync(result, ct);
     }
-
 }
 
 [NonTransactional]
 public class ValidatePipelineHandler(
     PipelineDbContext db,
-    Engine.ExecPlanner.IExecPlanner planner,
-    IToolRegistry toolRegistry
+    IPipelineContractValidator contractValidator
 )
 {
     public async Task<Result<ValidatePipelineResponse>> HandleAsync(
@@ -52,22 +50,24 @@ public class ValidatePipelineHandler(
             return Result.Fail<ValidatePipelineResponse>($"Pipeline '{query.PipelineId}' not found.");
         }
 
-        var customDefs = await db.NodeDefinitions
-            .AsNoTracking()
-            .Where(x => x.ProjectId == pipeline.ProjectId)
-            .ToListAsync(ct);
+        var validationResult = await contractValidator.ValidateGraphAsync(pipeline, ct: ct);
 
-        var result = planner.BuildExecPlan(
-            pipeline,
-            customDefs,
-            toolRegistry,
-            query.RuntimeInputs
-        );
+        var unresolvedPins = validationResult.UnresolvedPins
+            .Select(u => new UnresolvedPin(
+                Guid.TryParse(u.NodeId, out var parsedGuid) ? parsedGuid : Guid.Empty,
+                u.NodeLabel,
+                u.PinName,
+                u.PinName,
+                Domain.Enums.PinPrimitiveType.String,
+                "Unresolved required input pin"
+            ))
+            .ToList();
 
         return Result.Ok(new ValidatePipelineResponse(
-            result.IsValid,
-            result.CycleNodeIds,
-            result.UnresolvedPins
+            validationResult.IsValid,
+            validationResult.CycleNodeIds,
+            unresolvedPins,
+            validationResult.Diagnostics
         ));
     }
 }

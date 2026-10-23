@@ -274,7 +274,6 @@ public static class PythonScriptSchemaParser
     private static PinDefinition CreateOutputPin(string outKey, PinCardinality? explicitCardinality = null)
     {
         var lower = outKey.ToLowerInvariant();
-        var isPath = lower.Contains("path") || lower.Contains("file") || lower.Contains("dir");
 
         var cardinality = explicitCardinality ?? lower switch
         {
@@ -291,7 +290,7 @@ public static class PythonScriptSchemaParser
         {
             Id = outKey,
             Label = ToLabel(outKey),
-            PrimitiveType = isPath ? PinPrimitiveType.Path : PinPrimitiveType.String,
+            PrimitiveType = PinPrimitiveType.String,
             Cardinality = cardinality,
             IsRequired = true
         };
@@ -337,18 +336,14 @@ public static class PythonScriptSchemaParser
             _ when type.Contains("int") || type.Contains("float") || type.Contains("number") || (def != null && double.TryParse(def, out _))
                 => (PinPrimitiveType.Number, PinCardinality.Single),
 
-            _ when type.Contains("path") || lowerName.Contains("path") || lowerName.Contains("file") || lowerName.Contains("dir") || lowerName.Contains("folder")
-                => (PinPrimitiveType.Path, PinCardinality.Single),
-
             _ => (PinPrimitiveType.String, PinCardinality.Single)
         };
     }
 
-    private static PinPrimitiveType ResolveListElementPrimitive(string type, string name) =>
+    private static PinPrimitiveType ResolveListElementPrimitive(string type, string _name) =>
         type switch
         {
             _ when type.Contains("int") || type.Contains("float") => PinPrimitiveType.Number,
-            _ when name.Contains("path") || name.Contains("file") => PinPrimitiveType.Path,
             _ => PinPrimitiveType.String
         };
 

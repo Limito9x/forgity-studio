@@ -28,6 +28,22 @@ Snapshot graph + connections + project context → backend validate → diagnost
 - `ValidatePipeline` hiện đọc graph đã lưu và gọi planner, trả `IsValid`, `CycleNodeIds`, `UnresolvedPins`. Muốn cảnh báo đúng draft đang sửa cần thiết kế validation trên snapshot tương ứng; không gắn kết quả DB cũ lên draft mới như đã được kiểm tra.
 - Import cần remap rồi validate trong project đích; không tin trạng thái hợp lệ ở project nguồn. Export template có thể chưa đủ dữ liệu chạy; chính sách chặn Run/Export/Save cần chốt riêng. Không tự xóa pins/config/edges để che lỗi.
 
+### Mental Model: Hợp Đồng Trung Gian (`ResolvedNodeContract`), `Config` vs `Metadata` & Định Danh Node
+
+> Xem chi tiết kiến trúc tại [2026-10-23-contracts-validation-buildtime-runtime-architecture.md](../plans/2026-10-23-contracts-validation-buildtime-runtime-architecture.md).
+
+1. **Bước Chuẩn Hóa Từ Node Thô DB Sang Hợp Đồng Đầy Đủ (`ResolvedNodeContract`)**:
+   - Bản ghi `PipelineNode` trong Database chỉ lưu dữ liệu thô (`Id`, `RefId`, `Kind`, `Config`, `Metadata`).
+   - Thay vì để Build-Time (`PipelineGraphDtoBuilder`), Runtime (`ExecStepFactory`) và Export (`ExportPipelineBundle`) tự viết `switch-case` rời rạc để đoán nghĩa của Node, hệ thống sử dụng **`INodeContractResolver`** kèm **`NodeContractResolutionContext`** (nạp sẵn 1 lần `Parameters`, `CustomDefinitions`, `SubPipelines` để chống $N+1$ query).
+   - Kết quả trả ra là một Map `IReadOnlyDictionary<Guid, ResolvedNodeContract>` nắm giữ toàn bộ các Node trong đồ thị kèm hợp đồng đã phân giải đầy đủ (`Inputs`, `Outputs` đã chạy qua `ResolvePins`, `StructType`, `Executor`, `IsPure`, `IsDefinitionMissing`). Cả **Build-Time**, **Validation**, và **Runtime** đều tra cứu $O(1)$ từ Map này.
+2. **Ranh Giới Giữa `Config` và `Metadata` Trên `PipelineNode`**:
+   - **`Config` (`ConfigValues` — Dữ liệu & Hợp đồng)**: Lưu giá trị đầu vào của các chân Input Pin (khi không nối dây) và các khóa cấu hình Schema (`SchemaConfigKeys` như `StructType`, `Template`, `DynamicPins`). `Config` trực tiếp quyết định hình dáng `Inputs`/`Outputs` động khi resolve và giá trị thực thi khi chạy.
+   - **`Metadata` (UI & Vỏ bọc Stage)**: Lưu thuộc tính hiển thị trên Canvas (ví dụ: tên hiển thị tùy chỉnh của instance node `customLabel`, trạng thái thu gọn, màu sắc) và thông tin cấu hình khung **Stage Container** (`name`, `executorKey`, `targetRunnerId`).
+3. **Hai Tầng Định Danh Node (`Label` Hiển Thị vs `RefId` / `DefinitionLabel` Gốc)**:
+   - Mỗi Node trên Canvas có:
+     - **Định danh khuôn mẫu (`RefId` / `DefinitionLabel`)**: Cho biết Node thuộc loại Tool/Script/SubPipeline nào (ví dụ `BreakStruct`, `FormatString`, hoặc `Key` của Custom Node / Pipeline). Luôn giữ nguyên để hiển thị ở dòng phụ (subtitle/badge) dưới tên node.
+     - **Tên hiển thị của Instance (`Label`)**: Mặc định lấy từ `DefinitionLabel`, nhưng khi người dùng đổi tên riêng cho node trên Canvas (lưu trong `Metadata["label"]`), `Label` sẽ mang tên tùy chỉnh đó trong khi bên dưới vẫn giữ nguyên `RefId` / `DefinitionLabel`.
+
 ## Node definitions và instance pins — hiện tại, cập nhật 23/10/2026
 
 - GetNodePalette trả đầy đủ định nghĩa built-in/custom/subpipeline trong project kèm `Capabilities` (`ViewVariant`, `InspectorMode`, `PinAddMode`, `ProtectedPinIds`, `SchemaConfigKeys`); `isVisibleInPalette` quyết định có hiện trên menu. Menu lọc executor ở client, hidden tool vẫn render được trên graph cũ.
