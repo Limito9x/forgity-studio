@@ -17,13 +17,23 @@ public class CastToStructTool(IEntityStructRegistry structRegistry) : IResolverT
     public string Label => "Cast To Struct";
     public string? Category => "Data / Struct";
     public bool IsPure => true;
+    public bool IsDynamic => true;
+
+    public NodeCapabilities Capabilities => new(
+        CanAddPin: false,
+        CanRemovePin: false,
+        InspectorMode: "StructSelector",
+        RuleNotes: "Coerces a raw map/JSON object into a typed struct and exposes its fields.",
+        ViewVariant: "Struct",
+        SchemaConfigKeys: ["StructType"]
+    );
 
     public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(
         Dictionary<string, object?>? configValues,
         IPinResolutionContext? context = null
     )
     {
-        var structType = configValues?.GetValueOrDefault("StructType")?.ToString();
+        var structType = configValues?.GetValueOrDefault("StructType")?.ToString()?.Trim();
         var registry = context?.StructRegistry ?? structRegistry;
 
         if (!string.IsNullOrWhiteSpace(structType) && registry?.Get(structType, context?.ProjectId) is { } sDef)
@@ -46,7 +56,7 @@ public class CastToStructTool(IEntityStructRegistry structRegistry) : IResolverT
                     Kind = PinKind.Data,
                     PrimitiveType = PinPrimitiveType.String,
                     Cardinality = PinCardinality.Single,
-                    IsRequired = false,
+                    IsRequired = true,
                     DefaultValue = structType
                 }
             };
@@ -59,6 +69,7 @@ public class CastToStructTool(IEntityStructRegistry structRegistry) : IResolverT
                     Label = sDef.Label,
                     Kind = PinKind.Data,
                     PrimitiveType = PinPrimitiveType.EntityRef,
+                    StructType = structType,
                     Cardinality = PinCardinality.Single,
                     Metadata = structType
                 },
@@ -82,6 +93,7 @@ public class CastToStructTool(IEntityStructRegistry structRegistry) : IResolverT
                     Kind = PinKind.Data,
                     PrimitiveType = pin.PrimitiveType,
                     Cardinality = pin.Cardinality,
+                    StructType = pin.StructType,
                     IsRequired = false,
                     Metadata = pin.Metadata
                 });
@@ -109,20 +121,12 @@ public class CastToStructTool(IEntityStructRegistry structRegistry) : IResolverT
             Label = "Struct Type",
             PrimitiveType = PinPrimitiveType.String,
             Cardinality = PinCardinality.Single,
-            IsRequired = false,
-            DefaultValue = "Resource"
+            IsRequired = true
         }
     ];
 
     public IReadOnlyList<PinDefinition> Outputs =>
     [
-        new()
-        {
-            Id = "Result",
-            Label = "Struct",
-            PrimitiveType = PinPrimitiveType.EntityRef,
-            Cardinality = PinCardinality.Single
-        },
         new()
         {
             Id = "IsValid",

@@ -208,7 +208,8 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
             InspectorMode: caps.InspectorMode,
             RuleNotes: caps.RuleNotes,
             ViewVariant: caps.ViewVariant,
-            ProtectedPinIds: caps.ProtectedPinIds
+            ProtectedPinIds: caps.ProtectedPinIds,
+            SchemaConfigKeys: caps.SchemaConfigKeys
         );
     }
 }
@@ -220,7 +221,8 @@ public record NodeCapabilitiesDto(
     string? InspectorMode = null,
     string? RuleNotes = null,
     string ViewVariant = "Standard",
-    IReadOnlyList<string>? ProtectedPinIds = null
+    IReadOnlyList<string>? ProtectedPinIds = null,
+    IReadOnlyList<string>? SchemaConfigKeys = null
 );
 
 public record NodePaletteItemDto(

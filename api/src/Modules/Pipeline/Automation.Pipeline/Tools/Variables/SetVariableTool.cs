@@ -20,6 +20,13 @@ public class SetVariableTool(
     public bool IsPure => false;
     public bool IsDynamic => true;
 
+    public NodeCapabilities Capabilities => new(
+        CanAddPin: false,
+        CanRemovePin: false,
+        ViewVariant: "Standard",
+        SchemaConfigKeys: ["VariableName"]
+    );
+
     public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(
         Dictionary<string, object?>? configValues,
         IPinResolutionContext? context = null

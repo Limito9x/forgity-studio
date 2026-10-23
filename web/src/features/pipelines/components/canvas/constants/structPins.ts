@@ -1,20 +1,4 @@
-import type { PinDefinition, StructDefinitionDto } from "@/gen/model";
-
-/**
- * Tra cứu danh sách pins của một Struct từ Struct Catalogue do Backend cung cấp.
- * Single Source of Truth, không hardcode mảng tĩnh.
- */
-export function getStructPins(
-  structType: string,
-  catalogue?: StructDefinitionDto[]
-): PinDefinition[] {
-  if (!structType || !catalogue || catalogue.length === 0) return [];
-  const normalized = structType.trim().toLowerCase();
-  const found = catalogue.find(
-    (s) => s.structType?.toLowerCase() === normalized
-  );
-  return (found?.outputPins as PinDefinition[]) || [];
-}
+import type { PinDefinition } from "@/gen/model";
 
 /**
  * Standard automatic pins provided by Start node when pipeline is in event trigger mode.

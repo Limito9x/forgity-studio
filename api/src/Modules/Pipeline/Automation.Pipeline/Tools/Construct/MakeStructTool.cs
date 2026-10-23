@@ -20,7 +20,8 @@ public class MakeStructTool(IEntityStructRegistry structRegistry) : IResolverToo
         CanRemovePin: false,
         InspectorMode: "StructSelector",
         RuleNotes: "Constructs an entity struct from individual input field pins based on selected Struct Type.",
-        ViewVariant: "Struct"
+        ViewVariant: "Struct",
+        SchemaConfigKeys: ["StructType"]
     );
 
     public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(
@@ -28,7 +29,7 @@ public class MakeStructTool(IEntityStructRegistry structRegistry) : IResolverToo
         IPinResolutionContext? context = null
     )
     {
-        var structType = configValues?.GetValueOrDefault("StructType")?.ToString();
+        var structType = configValues?.GetValueOrDefault("StructType")?.ToString()?.Trim();
         var registry = context?.StructRegistry ?? structRegistry;
 
         if (!string.IsNullOrWhiteSpace(structType) && registry?.Get(structType, context?.ProjectId) is { } sDef)
@@ -60,7 +61,7 @@ public class MakeStructTool(IEntityStructRegistry structRegistry) : IResolverToo
                 Kind = PinKind.Data,
                 PrimitiveType = PinPrimitiveType.String,
                 Cardinality = PinCardinality.Single,
-                IsRequired = false,
+                IsRequired = true,
                 DefaultValue = structType
             });
 
@@ -93,23 +94,11 @@ public class MakeStructTool(IEntityStructRegistry structRegistry) : IResolverToo
             Kind = PinKind.Data,
             PrimitiveType = PinPrimitiveType.String,
             Cardinality = PinCardinality.Single,
-            IsRequired = false,
-            DefaultValue = "Resource"
+            IsRequired = true
         }
     ];
 
-    public IReadOnlyList<PinDefinition> Outputs =>
-    [
-        new()
-        {
-            Id = "Result",
-            Label = "Struct",
-            Kind = PinKind.Data,
-            PrimitiveType = PinPrimitiveType.EntityRef,
-            StructType = "Resource",
-            Cardinality = PinCardinality.Single
-        }
-    ];
+    public IReadOnlyList<PinDefinition> Outputs => [];
 
     public Task<Dictionary<string, object>> ExecuteAsync(
         Dictionary<string, object> inputs,

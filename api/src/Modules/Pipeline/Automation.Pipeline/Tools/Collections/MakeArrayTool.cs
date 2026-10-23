@@ -21,7 +21,8 @@ public class MakeArrayTool : IResolverTool
         InspectorMode: "Default",
         RuleNotes: "Aggregates individual input elements into a single unified array. Click [+] to append new slots.",
         ViewVariant: "Collection",
-        ProtectedPinIds: ["Items"]
+        ProtectedPinIds: ["Items"],
+        SchemaConfigKeys: ["DynamicPins"]
     );
 
     public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(

@@ -17,6 +17,14 @@ public class GetByPathTool : IResolverTool
     public string Label => "Get By Path";
     public string? Category => "Utility";
     public bool IsPure => true;
+    public bool IsDynamic => true;
+
+    public NodeCapabilities Capabilities => new(
+        CanAddPin: false,
+        CanRemovePin: false,
+        ViewVariant: "Standard",
+        SchemaConfigKeys: ["Path"]
+    );
 
     public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(
         Dictionary<string, object?>? configValues,

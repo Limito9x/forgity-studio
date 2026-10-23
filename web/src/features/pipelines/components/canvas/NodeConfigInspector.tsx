@@ -23,6 +23,7 @@ import {
   FileCode,
   PlayCircle,
   CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FormRenderer } from "@/components/dynamic-form/FormRenderer";
@@ -75,6 +76,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
     labelLower === "on resource created" ||
     labelLower === "on resource version updated";
 
+  const isStructSelector = definition?.capabilities?.inspectorMode === "StructSelector";
 
   const inputs = data.inputs || [];
   const configValues = data.configValues || {};
@@ -118,7 +120,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
     return map;
   }, [node, edges, nodes]);
 
-  // Filter out pure Exec pins (PinKind.Exec = 1, PinKind.Data = 0)
+  // Filter out pure Exec pins (PinKind.Exec = 1, PinKind.Data = 0) and StructType when rendered via StructSelector
   const configurableInputs = useMemo(() => {
     return inputs.filter((p) => {
       const k = p.kind !== undefined ? String(p.kind).toLowerCase() : "";
@@ -131,9 +133,11 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
         idLower === "exec_in" ||
         idLower === "exec_out" ||
         labelLower === "exec";
-      return !isExec;
+      if (isExec) return false;
+      if (isStructSelector && idLower === "structtype") return false;
+      return true;
     });
-  }, [inputs]);
+  }, [inputs, isStructSelector]);
 
   // Split wired vs unwired inputs
   const wiredInputs = useMemo(() => {
@@ -260,15 +264,14 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
               </div>
             )}
 
-            {/* StructSelector: BreakStruct / MakeStruct / CastToStruct Configuration */}
-            {(definition?.capabilities?.inspectorMode === "StructSelector" ||
-              refIdLower === "breakstruct" ||
-              refIdLower === "makestruct" ||
-              refIdLower === "casttostruct") && (() => {
-              const currentStructType = configValues["StructType"] || "Resource";
-              const selectedStruct = structCatalogue.find(
-                (s) => s.structType?.toLowerCase() === String(currentStructType).toLowerCase()
-              );
+            {/* Capability-driven StructSelector Configuration */}
+            {isStructSelector && (() => {
+              const currentStructType = String(configValues["StructType"] || "").trim();
+              const selectedStruct = currentStructType
+                ? structCatalogue.find(
+                    (s) => s.structType?.toLowerCase() === currentStructType.toLowerCase()
+                  )
+                : undefined;
 
               return (
                 <div className="rounded-xl border border-sky-500/30 bg-sky-500/5 p-3 space-y-2.5 shadow-sm">
@@ -277,11 +280,21 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
                     <span>Struct Type</span>
                   </div>
                   <Select
-                    selectedKey={currentStructType}
-                    onSelectionChange={(key) => onUpdateConfig(node.id, "StructType", String(key))}
+                    placeholder="Select a struct type..."
+                    selectedKey={currentStructType || null}
+                    onSelectionChange={(key) => {
+                      if (key != null) {
+                        onUpdateConfig(node.id, "StructType", String(key));
+                      }
+                    }}
                     className="w-full"
                   >
-                    <SelectTrigger className="h-8 w-full text-xs font-medium border-sky-500/40">
+                    <SelectTrigger
+                      className={cn(
+                        "h-8 w-full text-xs font-medium",
+                        currentStructType ? "border-sky-500/40" : "border-amber-500/50"
+                      )}
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -292,10 +305,16 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-[10px] text-muted-foreground leading-tight">
-                    Selecting a struct type dynamically updates{" "}
-                    {refIdLower === "makestruct" ? "input" : "output"} pins to match the entity schema.
-                  </p>
+                  {!currentStructType ? (
+                    <div className="flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-600 dark:text-amber-400">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      <span>Please select a Struct Type to generate node pins.</span>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground leading-tight">
+                      Selecting a struct type dynamically updates node pins to match the entity schema.
+                    </p>
+                  )}
 
                   {/* Live Sample JSON Preview */}
                   {selectedStruct?.sampleJson != null && (

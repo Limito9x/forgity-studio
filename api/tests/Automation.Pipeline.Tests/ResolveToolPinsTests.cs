@@ -84,6 +84,19 @@ public class ResolveToolPinsTests
     }
 
     [Fact]
+    public async Task HandleAsync_BreakStruct_WhenStructTypeUnselected_ShouldReturnOnlyStructTypeInputAndEmptyOutputs()
+    {
+        var command = new ResolveToolPinsCommand("BreakStruct", new Dictionary<string, object?>());
+
+        var result = await _handler.HandleAsync(command, CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        var dto = result.Value;
+        dto.Inputs.Select(p => p.Id).Should().Equal("StructType");
+        dto.Outputs.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task HandleAsync_ShouldReturnFailure_WhenToolNotFound()
     {
         var command = new ResolveToolPinsCommand("NonExistentTool_123");

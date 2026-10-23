@@ -22,7 +22,8 @@ public class AppendStringTool : IResolverTool
         InspectorMode: "Default",
         RuleNotes: "Concatenates multiple string tokens sequentially (A, B, C...). Click [+] to append new segments.",
         ViewVariant: "Collection",
-        ProtectedPinIds: ["A", "B"]
+        ProtectedPinIds: ["A", "B"],
+        SchemaConfigKeys: ["DynamicPins"]
     );
 
     public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(

@@ -10,5 +10,6 @@ public record NodeCapabilities(
     string? InspectorMode = null,
     string? RuleNotes = null,
     string ViewVariant = "Standard",
-    IReadOnlyList<string>? ProtectedPinIds = null
+    IReadOnlyList<string>? ProtectedPinIds = null,
+    IReadOnlyList<string>? SchemaConfigKeys = null
 );

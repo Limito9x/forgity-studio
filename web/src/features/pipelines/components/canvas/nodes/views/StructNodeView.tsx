@@ -1,4 +1,4 @@
-import { Component } from "lucide-react";
+import { AlertTriangle, Component } from "lucide-react";
 import type { NodeProps } from "@xyflow/react";
 import type { CustomPipelineNodeData } from "../types";
 import { NodeCard } from "../parts/NodeCard";
@@ -14,7 +14,9 @@ export function StructNodeView({ data, selected }: NodeProps) {
     nodeData.outputs
   );
 
-  const structName = (nodeData.configValues?.StructType as string) || "Not selected";
+  const selectedStructType = (nodeData.configValues?.StructType as string)?.trim() || "";
+  const isStructSelected = Boolean(selectedStructType);
+  const structName = isStructSelected ? selectedStructType : "Not selected";
 
   return (
     <NodeCard
@@ -40,6 +42,13 @@ export function StructNodeView({ data, selected }: NodeProps) {
         execOutputs={execOutputs}
         execColor="#f59e0b"
       />
+
+      {!isStructSelected && (
+        <div className="mx-3 mt-2.5 mb-1 flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span>Select a Struct Type in Inspector</span>
+        </div>
+      )}
 
       <DataPinColumns
         dataInputs={dataInputs}
