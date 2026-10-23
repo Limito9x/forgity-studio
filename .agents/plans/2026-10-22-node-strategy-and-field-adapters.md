@@ -227,33 +227,16 @@ flowchart TD
 
 ---
 
-### Giai đoạn C: 6.3 - Field Adapter Registry (Frontend)
+### Giai đoạn C: 6.3 - Field Adapter Registry (Frontend) - [x] HOÀN TẤT (23/10/2026)
 
 > **Mục tiêu**: Xóa sổ 509 dòng code spaghetti và toàn bộ logic phỏng đoán chuỗi (`includes("repo")`, `includes("workspace")`) trong `pinToFieldDefinition.ts`.
 
 1. **Khởi Tạo Cấu Trúc Thư Mục `form-scope/field-adapters/`**:
-   - `types.ts`:
-     ```ts
-     export interface PinFieldContext {
-       pin: PinDefinition;
-       primitive: NormalizedPinType;           // "String" | "Number" | "Boolean" | "Path" | "EntityRef" | "Asset"
-       cardinality: "Single" | "Array" | "Map";
-       structType: string | null;              // PascalCase từ backend ("Resource", "Repository", "Runner", "ContentType", "ContentItem", "Variable")
-       hint: PinMetadataHint | null;           // parse metadata một lần duy nhất
-       configValues: Record<string, unknown>;
-     }
-
-     export interface FieldAdapter {
-       id: string;
-       match(ctx: PinFieldContext): boolean;
-       create(ctx: PinFieldContext): FieldDefinition<any>;
-     }
-     ```
-   - `buildPinFieldContext.ts`: Hàm trích xuất context sạch, parse JSON metadata an toàn đúng 1 lần.
+   - `types.ts`, `normalizePinType.ts`, `buildPinFieldContext.ts`: Trích xuất context sạch, parse JSON metadata an toàn đúng 1 lần.
 2. **Triển Khai Các Adapters Chuyên Biệt**:
    - `metadataHintAdapter.ts`: Xử lý metadata có chủ đích (`tag-tree-select`, `select` có options tĩnh).
    - `variableRefAdapter.ts`: Match khi `ctx.structType === "Variable"`. Trả về `pin:variableSelect`.
-   - `entityRefAdapter.ts`: Match khi `ctx.primitive === "EntityRef"`.
+   - `entityRefAdapter.ts`: Match khi `ctx.primitive === "EntityRef"` hoặc có `structType`.
      - `ctx.structType === "Runner"` $\rightarrow$ `pin:runnerSelect`.
      - `ctx.structType === "Repository"` $\rightarrow$ `pin:repositorySelect`.
      - Các trường hợp còn lại (`Resource`, `ContentType`, `ContentItem`...) $\rightarrow$ `pin:entitySelect` kèm `entityTarget: ctx.structType` và `multiple: ctx.cardinality === "Array"`.
@@ -262,17 +245,13 @@ flowchart TD
      - `ctx.cardinality === "Array"` (với primitive types) $\rightarrow$ `tags`.
    - `assetAdapter.ts`: Match khi `ctx.primitive === "Asset"`. Trả về `pin:assetUpload`.
    - `primitiveAdapter.ts`: Match với `Boolean` (`switch`), `Number` (`number`), `Path` (`pin:path`), `String` (`text` hoặc `textarea` nếu multiline hint).
-3. **Facade Siêu Mỏng `pinToFieldDefinition.ts` (~35 dòng)**:
-   - Giữ nguyên chữ ký hàm `pinToFieldDefinition(pin, configValues, overrides)` và `pipelineInputToFieldDefinition(input, configValues)`.
-   - Đơn giản là gọi `buildPinFieldContext(pin, configValues)` $\rightarrow$ duyệt `FIELD_ADAPTERS.find(a => a.match(ctx))` $\rightarrow$ `adapter.create(ctx)`.
-   - **Xóa hoàn toàn**:
-     - Toàn bộ mảng `PIN_RULES` khổng lồ.
-     - Hàm `resolveEntityTargetFromPin`.
-     - Mảng `knownTargets`, `isPlaceholder`.
-     - Mọi câu lệnh `idLower.includes(...)`.
-4. **Làm Sạch Các Vệ Tinh**:
-   - `EntityPinSelect.tsx`: Xóa bỏ đoạn normalize chuỗi `normType.includes("resource")` hoặc `"workspace"`. So khớp trực tiếp `target === "Resource"`, `target === "Repository"`, v.v.
-   - `types.ts`: Sửa `isVariablePin` chỉ kiểm tra `structType === "Variable"`.
+3. **Facade Siêu Mỏng `pinToFieldDefinition.ts` (54 dòng)**:
+   - Gọi `buildPinFieldContext(pin, configValues)` $\rightarrow$ duyệt `FIELD_ADAPTERS.find(a => a.match(ctx))` $\rightarrow$ `adapter.create(ctx)`.
+   - Xóa hoàn toàn: mảng `PIN_RULES`, hàm `resolveEntityTargetFromPin`, `knownTargets`, và mọi câu lệnh `idLower.includes(...)`.
+4. **Làm Sạch & Tách Nhỏ Các Vệ Tinh**:
+   - Tách `ResourceWorkstationSelect.tsx` (bộ chọn 2 bước cho Resource).
+   - Rút gọn `EntityPinSelect.tsx` còn 172 dòng, so khớp trực tiếp PascalCase `target` và bổ sung hỗ trợ `ContentItem` qua `useLookupContentItems`.
+   - Rút gọn `isVariablePin` trong `types.ts` chỉ kiểm tra `structType === "Variable"`.
 
 ---
 

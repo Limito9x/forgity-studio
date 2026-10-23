@@ -50,6 +50,29 @@ public class NoHardcodeHeuristicsScannerTests
     }
 
     [Fact]
+    public void FieldAdapters_MustNotContain_StringHeuristicGuessing()
+    {
+        var currentDir = AppContext.BaseDirectory;
+        var pinToFieldPath = Path.GetFullPath(Path.Combine(currentDir, "../../../../../../web/src/features/pipelines/form-scope/pinToFieldDefinition.ts"));
+        if (File.Exists(pinToFieldPath))
+        {
+            var content = File.ReadAllText(pinToFieldPath);
+            content.Should().NotContain("resolveEntityTargetFromPin", "resolveEntityTargetFromPin must be purged from pinToFieldDefinition.ts");
+            content.Should().NotContain("PIN_RULES", "PIN_RULES monolith must be replaced by FieldAdapter registry");
+            content.Should().NotContain(".includes(\"repo\")", "pinToFieldDefinition must not guess targets from pin name");
+            content.Should().NotContain(".includes(\"workspace\")", "pinToFieldDefinition must not guess targets from pin name");
+        }
+
+        var entityPinSelectPath = Path.GetFullPath(Path.Combine(currentDir, "../../../../../../web/src/features/pipelines/components/canvas/EntityPinSelect.tsx"));
+        if (File.Exists(entityPinSelectPath))
+        {
+            var content = File.ReadAllText(entityPinSelectPath);
+            content.Should().NotContain(".includes(\"resource\")", "EntityPinSelect must match exact struct target, not substring");
+            content.Should().NotContain(".includes(\"workspace\")", "EntityPinSelect must match exact struct target, not substring");
+        }
+    }
+
+    [Fact]
     public void CanvasConnectionRulesTs_MustNotContain_StringHeuristicGuessing()
     {
         var currentDir = AppContext.BaseDirectory;

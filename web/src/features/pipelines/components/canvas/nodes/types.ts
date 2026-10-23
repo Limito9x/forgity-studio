@@ -69,14 +69,8 @@ export function isEntityRefPin(type?: unknown) {
 export function isAssetPin(type?: unknown) {
   return normalizePinType(type) === "Asset";
 }
-export function isVariablePin(type?: unknown, pinId?: string, entityTarget?: string | null) {
-  return (
-    entityTarget === "variable" ||
-    pinId?.toLowerCase() === "variablename" ||
-    pinId?.toLowerCase() === "targetvariable" ||
-    String(type).toLowerCase() === "variable" ||
-    String(type) === "6"
-  );
+export function isVariablePin(structType?: string | null, _pinId?: string, _type?: unknown) {
+  return structType === "Variable";
 }
 
 export function isExecPin(p: PinDefinition): boolean {
