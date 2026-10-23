@@ -1,3 +1,4 @@
+using Automation.Pipeline.Contracts.NodeContract;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Engine.Models;
 using Automation.Pipeline.Tools;
@@ -10,6 +11,7 @@ public interface IExecPlanner
         Domain.Entities.Pipeline pipeline,
         IReadOnlyList<NodeDefinition> customDefinitions,
         IToolRegistry toolRegistry,
-        Dictionary<string, object?>? runtimeInputs = null
+        Dictionary<string, object?>? runtimeInputs = null,
+        IReadOnlyDictionary<Guid, ResolvedNodeContract>? resolvedContracts = null
     );
 }

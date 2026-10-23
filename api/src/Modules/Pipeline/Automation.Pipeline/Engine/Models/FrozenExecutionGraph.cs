@@ -1,9 +1,11 @@
 using System.Text.Json;
 using Automation.Pipeline.Constants;
+using Automation.Pipeline.Contracts.NodeContract;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Engine.Analysis;
+using Automation.Pipeline.Engine.StructRegistry;
 using Automation.Pipeline.Tools;
 
 namespace Automation.Pipeline.Engine.Models;
@@ -20,6 +22,8 @@ public sealed class FrozenExecutionGraph
 
     public IReadOnlyDictionary<Guid, PipelineNode> NodesById { get; init; } =
         new Dictionary<Guid, PipelineNode>();
+    public IReadOnlyDictionary<Guid, ResolvedNodeContract> ContractsByNodeId { get; init; } =
+        new Dictionary<Guid, ResolvedNodeContract>();
     public IReadOnlyDictionary<string, PipelineParameter> ParametersByKey { get; init; } =
         new Dictionary<string, PipelineParameter>(StringComparer.OrdinalIgnoreCase);
     public IReadOnlyList<PipelineEdge> Edges { get; init; } = [];
@@ -58,7 +62,10 @@ public sealed class FrozenExecutionGraph
     public static FrozenExecutionGraph Create(
         Domain.Entities.Pipeline pipeline,
         IToolRegistry toolRegistry,
-        Dictionary<string, object?>? runtimeInputs = null
+        Dictionary<string, object?>? runtimeInputs = null,
+        IReadOnlyDictionary<Guid, ResolvedNodeContract>? resolvedContracts = null,
+        IEntityStructRegistry? structRegistry = null,
+        IReadOnlyList<NodeDefinition>? customDefinitions = null
     )
     {
         var nodesById = pipeline.Nodes.ToDictionary(n => n.Id);
@@ -106,17 +113,38 @@ public sealed class FrozenExecutionGraph
             sourceList.Add(edge);
         }
 
-        // 3. Pre-calculate Pure Nodes & Dynamic Nodes
-        var pureIds = new HashSet<Guid>();
-        foreach (var node in pipeline.Nodes)
+        // 3. Resolve Contracts if not provided
+        if (resolvedContracts == null)
         {
-            if (toolRegistry.Get(node.RefId) is { IsPure: true })
-            {
-                pureIds.Add(node.Id);
-            }
+            var resolver = new PipelineNodeContractResolver(toolRegistry, structRegistry);
+            var customByKey = (customDefinitions ?? [])
+                .Where(x => !string.IsNullOrEmpty(x.Key))
+                .GroupBy(x => x.Key)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+            var customById = (customDefinitions ?? [])
+                .GroupBy(x => x.Id)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var context = new NodeContractResolutionContext(
+                pipeline.Id,
+                pipeline.ProjectId,
+                pipeline.Parameters,
+                customByKey,
+                customById
+            );
+            resolvedContracts = resolver.ResolveAllNodes(pipeline.Nodes, context);
         }
 
-        var dynamicNodes = PipelineGraphAnalyzer.AnalyzeDynamicNodes(pipeline, toolRegistry);
+        // Pre-calculate Pure Nodes & Dynamic Nodes from Resolved Contracts
+        var pureIds = resolvedContracts.Values
+            .Where(c => c.IsPure)
+            .Select(c => c.NodeId)
+            .ToHashSet();
+
+        var dynamicPureIds = resolvedContracts.Values
+            .Where(c => c.IsPure && c.IsDynamic)
+            .Select(c => c.NodeId)
+            .ToHashSet();
 
         // 4. Build Stage-Worker-Runner Bindings (Hỗ trợ Plug over Select)
         var stageBindings = new Dictionary<Guid, StageWorkerBinding>();
@@ -470,6 +498,7 @@ public sealed class FrozenExecutionGraph
             PipelineId = pipeline.Id,
             ProjectId = pipeline.ProjectId,
             NodesById = nodesById,
+            ContractsByNodeId = resolvedContracts,
             ParametersByKey = paramsDict,
             Edges = pipeline.Edges,
             InEdges = inEdges,
@@ -480,7 +509,7 @@ public sealed class FrozenExecutionGraph
             OutEdges = outEdges.ToDictionary(k => k.Key, k => (IReadOnlyList<PipelineEdge>)k.Value),
             StageBindings = stageBindings,
             PureNodeIds = pureIds,
-            DynamicPureNodeIds = dynamicNodes,
+            DynamicPureNodeIds = dynamicPureIds,
             StartNode = startNode,
             ReturnNode = returnNode,
         };

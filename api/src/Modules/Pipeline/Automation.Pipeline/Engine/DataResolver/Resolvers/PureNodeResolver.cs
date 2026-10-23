@@ -87,8 +87,12 @@ public class PureNodeResolver(
             // 2. Resolve all input pins for this Pure Node recursively
             var inputs = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 
-            // 2a. Resolve from declared Tool Inputs
-            foreach (var inPin in tool.Inputs)
+            var declaredInputs = (frozenGraph != null && frozenGraph.ContractsByNodeId.TryGetValue(pureNode.Id, out var contract) && contract.Inputs.Count > 0)
+                ? contract.Inputs
+                : tool.Inputs;
+
+            // 2a. Resolve from declared Contract/Tool Inputs
+            foreach (var inPin in declaredInputs)
             {
                 var pinVal = await pinResolver.ResolvePinAsync(
                     executionId,

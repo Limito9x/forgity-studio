@@ -285,6 +285,7 @@ public class DotNetSegmentDispatcher(
     )
     {
         await stateStore.SetNodeStatusAsync(executionId, nodeId, "failed", ct);
+        await stateStore.SetNodeErrorAsync(executionId, nodeId, error, ct);
 
         if (hubContext != null)
         {

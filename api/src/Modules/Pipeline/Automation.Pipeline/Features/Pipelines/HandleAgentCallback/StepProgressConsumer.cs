@@ -51,6 +51,10 @@ public class StepProgressConsumer(
         try
         {
             await stateStore.SetNodeStatusAsync(executionId, nodeId, message.Status, ct);
+            if (!string.IsNullOrWhiteSpace(message.ErrorMessage))
+            {
+                await stateStore.SetNodeErrorAsync(executionId, nodeId, message.ErrorMessage, ct);
+            }
         }
         catch (Exception ex)
         {

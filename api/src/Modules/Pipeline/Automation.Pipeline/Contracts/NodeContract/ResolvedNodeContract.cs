@@ -20,5 +20,6 @@ public sealed record ResolvedNodeContract(
     IReadOnlyList<PinDefinition> Outputs,
     Dictionary<string, object?>? ConfigValues,
     Dictionary<string, object?>? Metadata,
+    bool IsDynamic = false,
     bool IsDefinitionMissing = false,
     string? MissingReason = null);
