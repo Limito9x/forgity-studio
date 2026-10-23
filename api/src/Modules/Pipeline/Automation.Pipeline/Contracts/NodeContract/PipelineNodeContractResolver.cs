@@ -12,16 +12,28 @@ using Microsoft.EntityFrameworkCore;
 namespace Automation.Pipeline.Contracts.NodeContract;
 
 public class PipelineNodeContractResolver(
-    PipelineDbContext db,
+    PipelineDbContext? db,
     IToolRegistry toolRegistry,
     IEntityStructRegistry structRegistry
 ) : INodeContractResolver
 {
+    public PipelineNodeContractResolver(
+        IToolRegistry toolRegistry,
+        IEntityStructRegistry? structRegistry = null
+    ) : this(null, toolRegistry, structRegistry ?? new EntityStructRegistry([]))
+    {
+    }
+
     public async Task<NodeContractResolutionContext> BuildContextAsync(
         Domain.Entities.Pipeline pipeline,
         CancellationToken ct = default
     )
     {
+        if (db == null)
+        {
+            throw new InvalidOperationException("PipelineDbContext is required to query custom node and subpipeline definitions from database.");
+        }
+
         var customDefs = await db.NodeDefinitions
             .AsNoTracking()
             .Where(x => x.ProjectId == pipeline.ProjectId)
@@ -148,7 +160,8 @@ public class PipelineNodeContractResolver(
                 Inputs: pInputs,
                 Outputs: pOutputs,
                 ConfigValues: configValues,
-                Metadata: metadata
+                Metadata: metadata,
+                IsDynamic: false
             );
         }
 
@@ -189,7 +202,8 @@ public class PipelineNodeContractResolver(
                 Inputs: pInputs,
                 Outputs: pOutputs,
                 ConfigValues: configValues,
-                Metadata: metadata
+                Metadata: metadata,
+                IsDynamic: false
             );
         }
 
@@ -278,6 +292,7 @@ public class PipelineNodeContractResolver(
                 Outputs: mOutputs,
                 ConfigValues: configValues,
                 Metadata: metadata,
+                IsDynamic: false,
                 IsDefinitionMissing: true,
                 MissingReason: $"Referenced SubPipeline '{targetPipelineId}' could not be found."
             );
@@ -307,7 +322,8 @@ public class PipelineNodeContractResolver(
                 Inputs: pInputs,
                 Outputs: pOutputs,
                 ConfigValues: configValues,
-                Metadata: metadata
+                Metadata: metadata,
+                IsDynamic: tool.IsDynamic
             );
         }
 
@@ -342,7 +358,8 @@ public class PipelineNodeContractResolver(
                 Inputs: pInputs,
                 Outputs: pOutputs,
                 ConfigValues: configValues,
-                Metadata: metadata
+                Metadata: metadata,
+                IsDynamic: false
             );
         }
 
@@ -372,7 +389,8 @@ public class PipelineNodeContractResolver(
                 Inputs: [],
                 Outputs: [],
                 ConfigValues: configValues,
-                Metadata: metadata
+                Metadata: metadata,
+                IsDynamic: false
             );
         }
 
@@ -401,7 +419,8 @@ public class PipelineNodeContractResolver(
                 Inputs: [],
                 Outputs: [],
                 ConfigValues: configValues,
-                Metadata: metadata
+                Metadata: metadata,
+                IsDynamic: false
             );
         }
 

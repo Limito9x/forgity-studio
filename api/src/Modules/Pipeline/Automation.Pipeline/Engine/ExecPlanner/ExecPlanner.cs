@@ -1,4 +1,5 @@
 using Automation.Pipeline.Constants;
+using Automation.Pipeline.Contracts.NodeContract;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Engine.Models;
@@ -12,7 +13,8 @@ public class ExecPlanner : IExecPlanner
         Domain.Entities.Pipeline pipeline,
         IReadOnlyList<NodeDefinition> customDefinitions,
         IToolRegistry toolRegistry,
-        Dictionary<string, object?>? runtimeInputs = null
+        Dictionary<string, object?>? runtimeInputs = null,
+        IReadOnlyDictionary<Guid, ResolvedNodeContract>? resolvedContracts = null
     )
     {
         var execEdges = pipeline.Edges
@@ -26,10 +28,22 @@ public class ExecPlanner : IExecPlanner
         var cycleNodeIds = new List<string>();
 
         // 1. Build Frozen Execution Graph (O(1) in-memory lookup & Stage-Worker-Runner Binding with Plug over Select)
-        var graph = FrozenExecutionGraph.Create(pipeline, toolRegistry, runtimeInputs);
+        var graph = FrozenExecutionGraph.Create(
+            pipeline,
+            toolRegistry,
+            runtimeInputs,
+            resolvedContracts,
+            null,
+            customDefinitions
+        );
 
         // 2. Build Exec Steps Lookup via Step Factory
-        var stepsLookup = ExecStepFactory.BuildStepsLookup(pipeline, customDefinitions, toolRegistry);
+        var stepsLookup = ExecStepFactory.BuildStepsLookup(
+            pipeline,
+            customDefinitions,
+            toolRegistry,
+            resolvedContracts: resolvedContracts ?? graph.ContractsByNodeId
+        );
 
         // 3. Discover Entry Point and Trace Scoped Exec Segments
         var segments = BuildScopedExecSegments(pipeline, graph, stepsLookup, execEdges, cycleNodeIds);

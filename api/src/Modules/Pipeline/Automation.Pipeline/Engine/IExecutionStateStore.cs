@@ -16,6 +16,12 @@ public interface IExecutionStateStore
     Task SetNodeStatusAsync(Guid execId, Guid nodeId, string status, CancellationToken ct = default);
     Task<string?> GetNodeStatusAsync(Guid execId, Guid nodeId, CancellationToken ct = default);
 
+    Task SetNodeErrorAsync(Guid execId, Guid nodeId, string? errorMessage, CancellationToken ct = default);
+    Task<string?> GetNodeErrorAsync(Guid execId, Guid nodeId, CancellationToken ct = default);
+
+    Task SetNodeLogAsync(Guid execId, Guid nodeId, string? log, CancellationToken ct = default);
+    Task<string?> GetNodeLogAsync(Guid execId, Guid nodeId, CancellationToken ct = default);
+
     Task<PipelineExecutionState> GetFullStateAsync(Guid execId, CancellationToken ct = default);
     Task SaveFullStateAsync(Guid execId, PipelineExecutionState state, CancellationToken ct = default);
 

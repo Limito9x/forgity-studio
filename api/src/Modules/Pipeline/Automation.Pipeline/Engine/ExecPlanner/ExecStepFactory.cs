@@ -15,12 +15,13 @@ public static class ExecStepFactory
         IReadOnlyList<NodeDefinition> customDefinitions,
         IToolRegistry toolRegistry,
         INodeContractResolver? contractResolver = null,
-        NodeContractResolutionContext? resolutionContext = null
+        NodeContractResolutionContext? resolutionContext = null,
+        IReadOnlyDictionary<Guid, ResolvedNodeContract>? resolvedContracts = null
     )
     {
         // 1. Phân giải thống nhất qua INodeContractResolver nếu có
-        IReadOnlyDictionary<Guid, ResolvedNodeContract>? contracts = null;
-        if (contractResolver != null && resolutionContext != null)
+        IReadOnlyDictionary<Guid, ResolvedNodeContract>? contracts = resolvedContracts;
+        if (contracts == null && contractResolver != null && resolutionContext != null)
         {
             contracts = contractResolver.ResolveAllNodes(pipeline.Nodes, resolutionContext);
         }

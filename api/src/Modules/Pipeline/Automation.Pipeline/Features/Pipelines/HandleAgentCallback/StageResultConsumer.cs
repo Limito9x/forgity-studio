@@ -54,41 +54,9 @@ public class StageResultConsumer(
             return;
         }
 
-        if (!message.Succeeded)
-        {
-            var err = message.ErrorMessage ?? "Agent execution failed with unspecified error.";
-            execution.MarkFailed(err);
-            await db.SaveChangesAsync(ct);
-            logger.LogError("PipelineExecution {ExecutionId} failed during Agent stage {StageId}: {Error}", execution.Id, message.StageExecutionId, err);
-
-            if (hubContext != null)
-            {
-                try
-                {
-                    await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
-                        "PipelineExecutionFinished",
-                        new
-                        {
-                            executionId = execution.Id,
-                            pipelineId = execution.PipelineId,
-                            status = "failed",
-                            errorMessage = err,
-                            finishedAt = DateTimeOffset.UtcNow
-                        },
-                        ct
-                    );
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "Failed to broadcast PipelineExecutionFinished via SignalR for execution {ExecutionId}", execution.Id);
-                }
-            }
-
-            return;
-        }
-
         var state = PipelineExecutionState.FromJsonDocument(execution.ExecutionState);
 
+        // 1. Process all received step results first so their statuses, outputs, errors and logs are recorded
         foreach (var stepResult in message.StepResults)
         {
             if (Guid.TryParse(stepResult.StepExecutionId, out var nodeId))
@@ -100,11 +68,18 @@ public class StageResultConsumer(
                     await memoryStore.SetNodeAllOutputsAsync(execution.Id, nodeId, stepResult.Outputs, scope: null, ct: ct);
                 }
 
-                var outputDoc = JsonDocument.Parse(JsonSerializer.Serialize(stepResult.Outputs ?? new()));
-                JsonDocument? logDoc = null;
+                if (!string.IsNullOrWhiteSpace(stepResult.ErrorMessage) || !stepResult.Succeeded)
+                {
+                    var nodeErr = !string.IsNullOrWhiteSpace(stepResult.ErrorMessage) ? stepResult.ErrorMessage : stepResult.Log;
+                    if (!string.IsNullOrWhiteSpace(nodeErr))
+                    {
+                        await stateStore.SetNodeErrorAsync(execution.Id, nodeId, nodeErr, ct);
+                    }
+                }
+
                 if (!string.IsNullOrWhiteSpace(stepResult.Log))
                 {
-                    try { logDoc = JsonDocument.Parse(JsonSerializer.Serialize(stepResult.Log)); } catch { /* ignore */ }
+                    await stateStore.SetNodeLogAsync(execution.Id, nodeId, stepResult.Log, ct);
                 }
 
                 var statusStr = stepResult.Succeeded ? ExecutionStatus.Succeeded.ToString() : ExecutionStatus.Failed.ToString();
@@ -124,7 +99,7 @@ public class StageResultConsumer(
                                 status = stepResult.Succeeded ? "succeeded" : "failed",
                                 outputs = stepResult.Outputs,
                                 finishedAt = DateTimeOffset.UtcNow,
-                                errorMessage = stepResult.Succeeded ? null : stepResult.Log
+                                errorMessage = stepResult.Succeeded ? null : (!string.IsNullOrWhiteSpace(stepResult.ErrorMessage) ? stepResult.ErrorMessage : stepResult.Log)
                             },
                             ct
                         );
@@ -135,6 +110,51 @@ public class StageResultConsumer(
                     }
                 }
             }
+        }
+
+        // 2. Handle failure if Stage was not successful
+        if (!message.Succeeded)
+        {
+            var err = message.ErrorMessage ?? "Agent execution failed with unspecified error.";
+            JsonDocument? failSnapshot = null;
+            try
+            {
+                failSnapshot = await orchestrator.CaptureExecutionStateSnapshotAsync(execution, ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to capture execution state snapshot on stage failure for {ExecutionId}", execution.Id);
+            }
+
+            execution.MarkFailed(err, failSnapshot);
+            await db.SaveChangesAsync(ct);
+            logger.LogError("PipelineExecution {ExecutionId} failed during Agent stage {StageId}: {Error}", execution.Id, message.StageExecutionId, err);
+
+            if (hubContext != null)
+            {
+                try
+                {
+                    await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
+                        "PipelineExecutionFinished",
+                        new
+                        {
+                            executionId = execution.Id,
+                            pipelineId = execution.PipelineId,
+                            status = "failed",
+                            errorMessage = err,
+                            finishedAt = DateTimeOffset.UtcNow,
+                            executionState = failSnapshot
+                        },
+                        ct
+                    );
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to broadcast PipelineExecutionFinished via SignalR for execution {ExecutionId}", execution.Id);
+                }
+            }
+
+            return;
         }
 
         await stateStore.SaveFullStateAsync(execution.Id, state, ct);

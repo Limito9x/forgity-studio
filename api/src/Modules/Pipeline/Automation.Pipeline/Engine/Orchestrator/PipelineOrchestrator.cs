@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Automation.Pipeline.Constants;
+using Automation.Pipeline.Contracts.NodeContract;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
@@ -29,7 +30,8 @@ public class PipelineOrchestrator(
     IHubContext<PipelineExecutionHub>? hubContext = null,
     ILogger<PipelineOrchestrator>? logger = null,
     DataResolver.IPipelineGraphProvider? graphProvider = null,
-    Engine.EntityStore.IExecutionEntityStore? entityStore = null
+    Engine.EntityStore.IExecutionEntityStore? entityStore = null,
+    INodeContractResolver? contractResolver = null
 ) : IPipelineOrchestrator
 {
     public async Task<Result<PipelineExecution>> ExecuteOrResumeAsync(
@@ -62,7 +64,15 @@ public class PipelineOrchestrator(
             return Result.Ok(execution);
         }
 
-        // 1. Load Custom Node Definitions for this Project
+        // 1. Resolve Node Contracts if resolver is available
+        IReadOnlyDictionary<Guid, ResolvedNodeContract>? resolvedContracts = null;
+        if (contractResolver != null && execution.Pipeline != null)
+        {
+            var resContext = await contractResolver.BuildContextAsync(execution.Pipeline, ct);
+            resolvedContracts = contractResolver.ResolveAllNodes(execution.Pipeline.Nodes, resContext);
+        }
+
+        // Load Custom Node Definitions for this Project
         var customDefs = await db.NodeDefinitions
             .AsNoTracking()
             .Where(x => x.ProjectId == execution.Pipeline.ProjectId)
@@ -174,7 +184,8 @@ public class PipelineOrchestrator(
             execution.Pipeline,
             customDefs,
             toolRegistry,
-            runtimeInputs
+            runtimeInputs,
+            resolvedContracts
         );
 
         if (plan.Graph != null)
@@ -396,9 +407,9 @@ public class PipelineOrchestrator(
         return Result.Ok(execution);
     }
 
-    private async Task<JsonDocument> CaptureExecutionStateSnapshotAsync(
+    public async Task<JsonDocument> CaptureExecutionStateSnapshotAsync(
         PipelineExecution execution,
-        CancellationToken ct
+        CancellationToken ct = default
     )
     {
         var parametersSnapshot = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
@@ -493,15 +504,19 @@ public class PipelineOrchestrator(
             foreach (var node in execution.Pipeline.Nodes)
             {
                 var status = await stateStore.GetNodeStatusAsync(execution.Id, node.Id, ct);
+                var error = await stateStore.GetNodeErrorAsync(execution.Id, node.Id, ct);
+                var log = await stateStore.GetNodeLogAsync(execution.Id, node.Id, ct);
                 var outputs = await stateStore.GetNodeAllOutputsAsync(execution.Id, node.Id, ct);
 
-                if (status != null || outputs.Count > 0)
+                if (status != null || outputs.Count > 0 || error != null)
                 {
                     nodeExecutionsList.Add(new
                     {
                         nodeId = node.Id,
-                        status = status ?? ExecutionStatus.Succeeded.ToString(),
-                        output = outputs.Count > 0 ? outputs : null
+                        status = status ?? (error != null ? ExecutionStatus.Failed.ToString() : ExecutionStatus.Succeeded.ToString()),
+                        errorMessage = error,
+                        output = outputs.Count > 0 ? outputs : null,
+                        log = log
                     });
                 }
 

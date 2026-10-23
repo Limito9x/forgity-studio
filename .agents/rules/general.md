@@ -67,11 +67,13 @@ Khi thực hiện tác vụ, hãy xác định khu vực mã nguồn đang thao 
    - Agent cùng User thống nhất một Master Plan tổng quát lưu tại `.agents/plans/<date>-<topic>.md`.
    - Master Plan phải phân chia rõ ràng các Phase độc lập, có ranh giới và mục tiêu nghiệm thu cụ thể.
 
-2. **Tầng 2 - Lập Implementation Plan Chi Tiết Từng Phase (BẮT BUỘC):**
+2. **Tầng 2 - Đối Chiếu Trước/Sau & Lập Implementation Plan Chi Tiết Từng Phase (BẮT BUỘC):**
    - **Trước khi can thiệp mã nguồn của bất kỳ Phase nào**, Agent **TUYỆT ĐỐI KHÔNG ĐƯỢC tự ý code ngay**.
+   - **Bảng Đối Chiếu Trước & Sau (Before vs After Matrix):** Ở giai đoạn thảo luận chuẩn bị lên Implementation Plan và ngay trong Plan, Agent BẮT BUỘC phải trình bày **Bảng đối chiếu Trước & Sau thực hiện** theo từng hạng mục (chỉ rõ điểm đứt gãy/hạn chế hiện tại `TRƯỚC` và kiến trúc chuẩn hóa `SAU`).
    - Agent BẮT BUỘC phải trình bày một **Implementation Plan chi tiết riêng cho Phase đó** gồm:
+     * Bảng đối chiếu **Trước & Sau (Before vs After)** cho từng hạng mục kiến trúc / luồng dữ liệu.
      * Danh sách file sẽ tạo / sửa đổi kèm đường dẫn tuyệt đối dạng markdown link.
-     * Đặc tả hợp đồng dữ liệu / method / consumer / UI component (Before vs After).
+     * Đặc tả hợp đồng dữ liệu / method / consumer / UI component.
      * Ranh giới đỏ (Redlines), các giả định kiến trúc và xử lý edge cases.
      * Tiêu chí nghiệm thu và các bước kiểm thử (Build / Unit test / Manual verification).
 
@@ -91,4 +93,3 @@ Khi thực hiện tác vụ, hãy xác định khu vực mã nguồn đang thao 
 - **100% Data-Driven & Single Source of Truth:** Mọi thẻ (Card), bảng (Table), dòng dữ liệu, hoặc thông số trên UI PHẢI gắn liền trực tiếp với API DTO, gRPC message, hoặc database entity có thật trong hệ thống. Tuyệt đối không hardcode mock data, số liệu giả để "làm màu" cho giao diện.
 - **Triệt Để Tuân Thủ YAGNI (You Aren't Gonna Need It):** Chỉ cài đặt đúng và đủ các tính năng nằm trong phạm vi của Phase hiện tại. Không suy diễn, không tự ý mở rộng phạm vi ("tiện tay làm thêm"), không nhét các tính năng mà hệ sinh thái chưa sẵn sàng hỗ trợ.
 - **Không Monkey-Patch UI Primitives:** Khi gặp lỗi type hoặc thuộc tính (ví dụ: `title` vs `aria-label`), KHÔNG ĐƯỢC hack, monkey-patch, thêm `any` hoặc nới lỏng props của các component UI dùng chung trong `components/ui/`. Phải giải quyết đúng chuẩn mực ở tầng gọi component (call-site).
-

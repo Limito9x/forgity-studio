@@ -70,7 +70,7 @@ public class PinValueResolver(
 
         // 1. Check Upstream Connections -> Recursive Pull (Wires have highest priority)
         var canonicalTarget = CanonicalPinKey.Normalize(pinKey);
-        var pinDef = FindPinDefinition(node, pinKey);
+        var pinDef = FindPinDefinition(frozenGraph, node, pinKey);
         if (pinDef == null)
         {
             var customInputs = await graphProvider.GetCustomNodeInputsAsync(node, ct);
@@ -302,7 +302,7 @@ public class PinValueResolver(
         // 5. Check Default Value from Pin Definition
         if (resolvedValue == null)
         {
-            pinDef ??= FindPinDefinition(node, pinKey);
+            pinDef ??= FindPinDefinition(frozenGraph, node, pinKey);
             if (pinDef?.DefaultValue != null)
             {
                 resolvedValue = pinDef.DefaultValue;
@@ -322,7 +322,7 @@ public class PinValueResolver(
                         PipelineFileValue.Owner(node.Id, configKey ?? pinDef?.Id ?? pinKey), ct);
             }
 
-            pinDef ??= FindPinDefinition(node, pinKey);
+            pinDef ??= FindPinDefinition(frozenGraph, node, pinKey);
             resolvedValue = PinTypeCoercer.Coerce(resolvedValue, pinDef);
 
             // Memoize resolved value in memory store
@@ -402,16 +402,30 @@ public class PinValueResolver(
             }
         }
 
-        // Add pins from Tool definition if registered
-        var tool = toolRegistry.Get(node.RefId);
-        if (tool != null)
+        // Add pins from resolved Contract or Tool definition
+        if (frozenGraph != null && frozenGraph.ContractsByNodeId.TryGetValue(nodeId, out var contract))
         {
-            foreach (var inPin in tool.Inputs)
+            foreach (var inPin in contract.Inputs)
             {
                 pinKeys.Add(inPin.Id);
                 if (!string.IsNullOrEmpty(inPin.Label))
                 {
                     pinKeys.Add(inPin.Label);
+                }
+            }
+        }
+        else
+        {
+            var tool = toolRegistry.Get(node.RefId);
+            if (tool != null)
+            {
+                foreach (var inPin in tool.Inputs)
+                {
+                    pinKeys.Add(inPin.Id);
+                    if (!string.IsNullOrEmpty(inPin.Label))
+                    {
+                        pinKeys.Add(inPin.Label);
+                    }
                 }
             }
         }
@@ -429,8 +443,21 @@ public class PinValueResolver(
         return result;
     }
 
-    private PinDefinition? FindPinDefinition(PipelineNode node, string pinKey)
+    private PinDefinition? FindPinDefinition(FrozenExecutionGraph? frozenGraph, PipelineNode node, string pinKey)
     {
+        if (frozenGraph != null && frozenGraph.ContractsByNodeId.TryGetValue(node.Id, out var contract))
+        {
+            var contractInput = contract.Inputs.FirstOrDefault(i =>
+                CanonicalPinKey.IsMatching(i.Id, pinKey) ||
+                CanonicalPinKey.IsMatching(i.Label, pinKey));
+
+            if (contractInput != null) return contractInput;
+
+            return contract.Outputs.FirstOrDefault(o =>
+                CanonicalPinKey.IsMatching(o.Id, pinKey) ||
+                CanonicalPinKey.IsMatching(o.Label, pinKey));
+        }
+
         var tool = toolRegistry.Get(node.RefId);
         if (tool == null) return null;
 
