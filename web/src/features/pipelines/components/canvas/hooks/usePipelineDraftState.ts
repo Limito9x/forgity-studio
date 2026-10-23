@@ -23,7 +23,8 @@ import {
   expandStageBoundsIfNeeded,
   expandStageLiveWhileDragging,
 } from "./canvasUtils";
-import { getStructPins, getStartNodeEventTriggerPins } from "../constants/structPins";
+import { getStartNodeEventTriggerPins } from "../constants/structPins";
+import { applyNodeConfigUpdate } from "../../../nodeDefinitions";
 
 export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
   // 1. Initial nodes mapping from DTO (Unified Nodes architecture)
@@ -101,14 +102,7 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
         });
       } else {
         let initialOutputs = n.outputs || [];
-        if (refIdStr === "breakstruct") {
-          const structType = n.configValues?.["StructType"] || "Resource";
-          const dynamicPins = getStructPins(structType);
-          if (dynamicPins.length > 0) {
-            const execOutputs = initialOutputs.filter(isExecPin);
-            initialOutputs = [...execOutputs, ...dynamicPins];
-          }
-        } else if (isStart) {
+        if (isStart) {
           const isEventTrigger =
             graph.triggerType === 1 ||
             graph.triggerType === 2 ||
@@ -116,11 +110,19 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
             (graph.triggerType as unknown) === "OnResourceVersionUpdated";
 
           if (isEventTrigger) {
-            const hasResources = initialOutputs.some((p: any) => p.id === "Resources");
+            const hasResources = initialOutputs.some(
+              (p: any) => p.id === "Resources",
+            );
             if (!hasResources) {
               const execOutputs = initialOutputs.filter(isExecPin);
-              const otherOutputs = initialOutputs.filter((p: any) => !isExecPin(p));
-              initialOutputs = [...execOutputs, ...getStartNodeEventTriggerPins(), ...otherOutputs];
+              const otherOutputs = initialOutputs.filter(
+                (p: any) => !isExecPin(p),
+              );
+              initialOutputs = [
+                ...execOutputs,
+                ...getStartNodeEventTriggerPins(),
+                ...otherOutputs,
+              ];
             }
           }
         }
@@ -159,12 +161,24 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
       let targetHandle = e.targetPin;
 
       const srcLower = (sourceHandle || "").toLowerCase();
-      if (srcLower === "start" || srcLower === "beginexecute" || srcLower === "exec" || srcLower === "execout" || srcLower === "out_exec") {
+      if (
+        srcLower === "start" ||
+        srcLower === "beginexecute" ||
+        srcLower === "exec" ||
+        srcLower === "execout" ||
+        srcLower === "out_exec"
+      ) {
         sourceHandle = "exec_out";
       }
 
       const tgtLower = (targetHandle || "").toLowerCase();
-      if (tgtLower === "exec" || tgtLower === "execin" || tgtLower === "in_exec" || tgtLower === "endexecute" || tgtLower === "return") {
+      if (
+        tgtLower === "exec" ||
+        tgtLower === "execin" ||
+        tgtLower === "in_exec" ||
+        tgtLower === "endexecute" ||
+        tgtLower === "return"
+      ) {
         targetHandle = "exec_in";
       }
 
@@ -258,7 +272,9 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
             }
 
             // Automatic event trigger outputs (Resources[], Repository, Runner)
-            const eventPins = isEventTrigger ? getStartNodeEventTriggerPins() : [];
+            const eventPins = isEventTrigger
+              ? getStartNodeEventTriggerPins()
+              : [];
 
             const paramPins: PinDefinition[] = inputParams.map((p) => ({
               id: p.key,
@@ -273,9 +289,10 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
 
             const nextOutputs = [...systemPins, ...eventPins, ...paramPins];
             const nextLabel = isEventTrigger
-              ? (graph.triggerType === 2 || (graph.triggerType as unknown) === "OnResourceVersionUpdated"
-                  ? "On Resource Version Updated"
-                  : "On Resource Created")
+              ? graph.triggerType === 2 ||
+                (graph.triggerType as unknown) === "OnResourceVersionUpdated"
+                ? "On Resource Version Updated"
+                : "On Resource Created"
               : "Start Pipeline";
 
             const isSame =
@@ -462,7 +479,7 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
   const saveMutationRef = useRef(saveMutation);
   saveMutationRef.current = saveMutation;
 
-  // Auto-save debounce effect (600ms)
+  // Auto-save debounce effect (1000ms)
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
@@ -554,19 +571,33 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
         });
         if (saved.id !== graph.id) return;
         // Apply server-created link PKs without overwriting edits made during this request.
-        setNodes((current) => current.map((n) => {
-          const submitted = saveNodes.find((item) => item.id === n.id);
-          const response = saved.nodes?.find((item) => item.id === n.id);
-          if (n.type !== "pipelineNode" || !submitted || !response) return n;
-          const data = n.data as CustomPipelineNodeData;
-          const config = { ...data.configValues };
-          for (const [key, value] of Object.entries(response.configValues || {})) {
-            if (JSON.stringify(config[key]) === JSON.stringify(submitted.configValues?.[key])) {
-              config[key] = value;
+        setNodes((current) =>
+          current.map((n) => {
+            const submitted = saveNodes.find((item) => item.id === n.id);
+            const response = saved.nodes?.find((item) => item.id === n.id);
+            if (n.type !== "pipelineNode" || !submitted || !response) return n;
+            const data = n.data as CustomPipelineNodeData;
+            const config = { ...data.configValues };
+            for (const [key, value] of Object.entries(
+              response.configValues || {},
+            )) {
+              if (
+                JSON.stringify(config[key]) ===
+                JSON.stringify(submitted.configValues?.[key])
+              ) {
+                config[key] = value;
+              }
             }
-          }
-          return { ...n, data: { ...data, configValues: config, fileAssets: response.fileAssets } };
-        }));
+            return {
+              ...n,
+              data: {
+                ...data,
+                configValues: config,
+                fileAssets: response.fileAssets,
+              },
+            };
+          }),
+        );
       } catch (err: any) {
         console.error("Auto-save pipeline graph failed:", err);
         toast.error(
@@ -670,7 +701,9 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
       setNodes((currentNodes) => {
         const stageNode = currentNodes.find((n) => n.id === stageId);
         const stageName = (stageNode?.data as any)?.name || "Stage Scope";
-        const childCount = currentNodes.filter((n) => n.parentId === stageId).length;
+        const childCount = currentNodes.filter(
+          (n) => n.parentId === stageId,
+        ).length;
 
         setPendingStageDelete({
           stageId,
@@ -755,7 +788,9 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
 
       if (stageToDelete) {
         const stageName = (stageToDelete.data as any)?.name || "Stage Scope";
-        const childCount = nodes.filter((n) => n.parentId === stageToDelete.id).length;
+        const childCount = nodes.filter(
+          (n) => n.parentId === stageToDelete.id,
+        ).length;
 
         return new Promise<boolean>((resolve) => {
           setPendingStageDelete({
@@ -798,50 +833,43 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
     setPendingStageDelete(null);
   }, [pendingStageDelete]);
 
-  // Update Config for an unwired input pin
+  // Update Config for an unwired input pin (clears dependent values when StructType changes)
   const handleUpdateConfig = useCallback(
     (nodeId: string, pinId: string, value: any) => {
+      let didStructTypeChange = false;
       setNodes((nds) =>
         nds.map((n) => {
           if (n.id !== nodeId) return n;
           const nodeData = n.data as any;
-          const currentConfig = nodeData.configValues || {};
-          const updatedConfig = { ...currentConfig, [pinId]: value };
-
-          let nextOutputs = nodeData.outputs;
-          let nextInputs = nodeData.inputs;
-
-          // If BreakStruct struct type is updated, dynamically update output pins
-          if (pinId === "StructType" && String(nodeData.refId || "").toLowerCase() === "breakstruct") {
-            const dynamicPins = getStructPins(String(value));
-            if (dynamicPins.length > 0) {
-              const execOutputs = (nodeData.outputs || []).filter(isExecPin);
-              nextOutputs = [...execOutputs, ...dynamicPins];
-            }
-          }
-          // If MakeStruct struct type is updated, dynamically update input data pins
-          if (pinId === "StructType" && String(nodeData.refId || "").toLowerCase() === "makestruct") {
-            const dynamicPins = getStructPins(String(value));
-            if (dynamicPins.length > 0) {
-              const execInputs = (nodeData.inputs || []).filter(isExecPin);
-              nextInputs = [...execInputs, ...dynamicPins];
-            }
-          }
+          const { configValues: updatedConfig, didChangeStructType } =
+            applyNodeConfigUpdate(nodeData.configValues, pinId, value);
+          didStructTypeChange = didChangeStructType;
 
           return {
             ...n,
             data: {
               ...n.data,
               configValues: updatedConfig,
-              outputs: nextOutputs,
-              inputs: nextInputs,
             },
           };
         }),
       );
+
+      if (didStructTypeChange) {
+        setEdges((eds) =>
+          eds.filter(
+            (e) =>
+              !(
+                e.target === nodeId &&
+                (e.targetHandle === "Target" || e.targetHandle === "target")
+              ),
+          ),
+        );
+      }
+
       setIsDirty(true);
     },
-    [setNodes],
+    [setNodes, setEdges],
   );
 
   // Delete Node from inspector

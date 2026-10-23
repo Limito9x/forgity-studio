@@ -25,6 +25,27 @@ public class NoHardcodeHeuristicsScannerTests
             var content = File.ReadAllText(rootDir);
             content.Should().NotContain("BUILTIN_STRUCT_PINS", "The legacy static BUILTIN_STRUCT_PINS array must be completely purged.");
             content.Should().NotContain("\"StorageProfileId\"", "Specific struct fields must not be hardcoded in frontend constants.");
+            content.Should().NotContain("getStructPins", "The dead getStructPins helper must be completely removed.");
+        }
+    }
+
+    [Fact]
+    public void FrontendCanvasFiles_MustNotContain_GetStructPinsOrStructToolNameFallbacks()
+    {
+        var currentDir = AppContext.BaseDirectory;
+        var draftStatePath = Path.GetFullPath(Path.Combine(currentDir, "../../../../../../web/src/features/pipelines/components/canvas/hooks/usePipelineDraftState.ts"));
+        if (File.Exists(draftStatePath))
+        {
+            var content = File.ReadAllText(draftStatePath);
+            content.Should().NotContain("getStructPins", "usePipelineDraftState must not call getStructPins.");
+        }
+
+        var inspectorPath = Path.GetFullPath(Path.Combine(currentDir, "../../../../../../web/src/features/pipelines/components/canvas/NodeConfigInspector.tsx"));
+        if (File.Exists(inspectorPath))
+        {
+            var content = File.ReadAllText(inspectorPath);
+            content.Should().NotContain("\"breakstruct\"", "NodeConfigInspector must rely on capabilities.inspectorMode, not tool-name fallbacks.");
+            content.Should().NotContain("\"makestruct\"", "NodeConfigInspector must rely on capabilities.inspectorMode, not tool-name fallbacks.");
         }
     }
 

@@ -5,7 +5,6 @@ import type { Connection, Edge, Node } from "@xyflow/react";
 import { toast } from "sonner";
 import { isExecHandle } from "./canvasUtils";
 import { isExecPin } from "../nodes/types";
-import { getStructPins } from "../constants/structPins";
 import type { StructDefinitionDto } from "@/gen/model";
 
 interface UseCanvasConnectionRulesArgs {
@@ -44,7 +43,6 @@ export function useCanvasConnectionRules({
   setEdges,
   setNodes,
   setIsDirty,
-  structCatalogue,
 }: UseCanvasConnectionRulesArgs) {
   // Two-tier Strict Connection Validation
   const isValidConnection = useCallback(
@@ -170,31 +168,25 @@ export function useCanvasConnectionRules({
               (typeof sourcePin?.metadata === "string" ? sourcePin.metadata.trim() : "");
           }
 
-          if (!inferredStructType) {
-            inferredStructType = "Resource";
+          if (inferredStructType) {
+            setNodes((nds) =>
+              nds.map((n) => {
+                if (n.id !== params.target) return n;
+                const nodeData = n.data as any;
+                const currentConfig = nodeData.configValues || {};
+                const { Target: _t, target: _tl, ...restConfig } = currentConfig;
+                const updatedConfig = { ...restConfig, StructType: inferredStructType };
+
+                return {
+                  ...n,
+                  data: {
+                    ...n.data,
+                    configValues: updatedConfig,
+                  },
+                };
+              })
+            );
           }
-
-          const dynamicPins = getStructPins(inferredStructType, structCatalogue);
-
-          setNodes((nds) =>
-            nds.map((n) => {
-              if (n.id !== params.target) return n;
-              const nodeData = n.data as any;
-              const currentConfig = nodeData.configValues || {};
-              const updatedConfig = { ...currentConfig, StructType: inferredStructType };
-              const execOutputs = (nodeData.outputs || []).filter(isExecPin);
-              const nextOutputs = dynamicPins.length > 0 ? [...execOutputs, ...dynamicPins] : nodeData.outputs;
-
-              return {
-                ...n,
-                data: {
-                  ...n.data,
-                  configValues: updatedConfig,
-                  outputs: nextOutputs,
-                },
-              };
-            })
-          );
         }
       }
     },

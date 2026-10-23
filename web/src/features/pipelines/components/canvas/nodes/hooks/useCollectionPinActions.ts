@@ -28,7 +28,7 @@ export function useCollectionPinActions({
           if (n.id !== nodeId) return n;
           const currentInputs: PinDefinition[] = (n.data as any).inputs || [];
           const currentDynamic: string[] = currentInputs
-            .filter((p) => !isExecPin(p) && p.id !== "Separator" && Boolean(p.id))
+            .filter((p) => !isExecPin(p) && Boolean(p.id))
             .map((p) => p.id as string);
 
           const nextDynamicPins = [...currentDynamic];
@@ -82,7 +82,7 @@ export function useCollectionPinActions({
           if (n.id !== nodeId) return n;
           const currentInputs: PinDefinition[] = (n.data as any).inputs || [];
           const currentDynamic: string[] = currentInputs
-            .filter((p) => !isExecPin(p) && p.id !== "Separator" && Boolean(p.id))
+            .filter((p) => !isExecPin(p) && Boolean(p.id))
             .map((p) => p.id as string);
 
           let nextDynamicPins: string[];

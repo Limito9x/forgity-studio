@@ -433,7 +433,8 @@ export const GetNodePaletteResponseItem = /*#__PURE__*/ zod.object({
   "inspectorMode": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "ruleNotes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "viewVariant": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.string(), getNodePaletteResponseCapabilitiesOneViewVariantDefault),
-  "protectedPinIds": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()))
+  "protectedPinIds": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())),
+  "schemaConfigKeys": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()))
 })),
   "isVisibleInPalette": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), getNodePaletteResponseIsVisibleInPaletteDefault)
 })

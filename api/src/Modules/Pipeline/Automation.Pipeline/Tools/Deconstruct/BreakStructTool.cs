@@ -23,7 +23,8 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
         CanRemovePin: false,
         InspectorMode: "StructSelector",
         RuleNotes: "Deconstructs an entity struct into individual output field pins based on selected Struct Type.",
-        ViewVariant: "Struct"
+        ViewVariant: "Struct",
+        SchemaConfigKeys: ["StructType"]
     );
 
     public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(
@@ -31,9 +32,9 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
         IPinResolutionContext? context = null
     )
     {
-        var structType = configValues?.GetValueOrDefault("StructType")?.ToString() ?? "Resource";
+        var structType = configValues?.GetValueOrDefault("StructType")?.ToString()?.Trim();
         var registry = context?.StructRegistry ?? structRegistry;
-        if (registry?.Get(structType, context?.ProjectId) is { } sDef)
+        if (!string.IsNullOrWhiteSpace(structType) && registry?.Get(structType, context?.ProjectId) is { } sDef)
         {
             var resolvedInputs = new List<PinDefinition>
             {
@@ -46,7 +47,15 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
                     Cardinality = PinCardinality.Single,
                     IsRequired = true
                 },
-                Inputs[1]
+                new()
+                {
+                    Id = "StructType",
+                    Label = "Struct Type",
+                    PrimitiveType = PinPrimitiveType.String,
+                    Cardinality = PinCardinality.Single,
+                    IsRequired = true,
+                    DefaultValue = structType
+                }
             };
             return (resolvedInputs, sDef.OutputPins);
         }
@@ -58,128 +67,15 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
     [
         new()
         {
-            Id = "Target",
-            Label = "Target Entity",
-            PrimitiveType = PinPrimitiveType.EntityRef,
-            StructType = "Resource",
-            Cardinality = PinCardinality.Single,
-            IsRequired = true
-        },
-        new()
-        {
             Id = "StructType",
             Label = "Struct Type",
             PrimitiveType = PinPrimitiveType.String,
             Cardinality = PinCardinality.Single,
-            IsRequired = false,
-            DefaultValue = "Resource"
+            IsRequired = true
         }
     ];
 
-    public IReadOnlyList<PinDefinition> Outputs =>
-    [
-        new()
-        {
-            Id = "FileName",
-            Label = "File Name",
-            PrimitiveType = PinPrimitiveType.String,
-            Cardinality = PinCardinality.Single
-        },
-        new()
-        {
-            Id = "BaseName",
-            Label = "Base Name",
-            PrimitiveType = PinPrimitiveType.String,
-            Cardinality = PinCardinality.Single
-        },
-        new()
-        {
-            Id = "Extension",
-            Label = "Extension",
-            PrimitiveType = PinPrimitiveType.String,
-            Cardinality = PinCardinality.Single
-        },
-        new()
-        {
-            Id = "RelativePath",
-            Label = "Relative Path",
-            PrimitiveType = PinPrimitiveType.String,
-            Cardinality = PinCardinality.Single
-        },
-        new()
-        {
-            Id = "FullPath",
-            Label = "Full Path",
-            PrimitiveType = PinPrimitiveType.String,
-            Cardinality = PinCardinality.Single
-        },
-        new()
-        {
-            Id = "DirectoryPath",
-            Label = "Directory Path",
-            PrimitiveType = PinPrimitiveType.String,
-            Cardinality = PinCardinality.Single
-        },
-        new()
-        {
-            Id = "MountPath",
-            Label = "Mount Path",
-            PrimitiveType = PinPrimitiveType.String,
-            Cardinality = PinCardinality.Single
-        },
-        new()
-        {
-            Id = "HoldingRunnerId",
-            Label = "Holding Runner ID",
-            PrimitiveType = PinPrimitiveType.EntityRef,
-            StructType = WellKnownStructTypes.Runner,
-            Cardinality = PinCardinality.Single
-        },
-        new()
-        {
-            Id = "RepositoryId",
-            Label = "Repository ID",
-            PrimitiveType = PinPrimitiveType.EntityRef,
-            StructType = WellKnownStructTypes.Repository,
-            Cardinality = PinCardinality.Single
-        },
-        new()
-        {
-            Id = "FileHash",
-            Label = "File Hash",
-            PrimitiveType = PinPrimitiveType.String,
-            Cardinality = PinCardinality.Single
-        },
-        new()
-        {
-            Id = "ContentId",
-            Label = "Content ID",
-            PrimitiveType = PinPrimitiveType.EntityRef,
-            StructType = WellKnownStructTypes.ContentType,
-            Cardinality = PinCardinality.Single
-        },
-        new()
-        {
-            Id = "ContentName",
-            Label = "Content Name",
-            PrimitiveType = PinPrimitiveType.String,
-            Cardinality = PinCardinality.Single
-        },
-        new()
-        {
-            Id = "ContentType",
-            Label = "Content Type",
-            PrimitiveType = PinPrimitiveType.String,
-            Cardinality = PinCardinality.Single
-        },
-        new()
-        {
-            Id = "Metadata",
-            Label = "Metadata JSON",
-            PrimitiveType = PinPrimitiveType.String,
-            Cardinality = PinCardinality.Single
-        }
-    ];
+    public IReadOnlyList<PinDefinition> Outputs => [];
 
     public async Task<Dictionary<string, object>> ExecuteAsync(
         Dictionary<string, object> inputs,
@@ -220,4 +116,3 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
         return await def.ResolveAsync(targetPayload, context);
     }
 }
-

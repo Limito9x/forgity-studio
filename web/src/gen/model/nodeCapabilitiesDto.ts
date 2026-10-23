@@ -18,4 +18,6 @@ export interface NodeCapabilitiesDto {
   viewVariant?: string;
   /** @nullable */
   protectedPinIds?: unknown[] | null;
+  /** @nullable */
+  schemaConfigKeys?: unknown[] | null;
 }

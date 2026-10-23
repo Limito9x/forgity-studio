@@ -22,7 +22,8 @@ public class FormatStringTool : IResolverTool
         CanRemovePin: false,
         InspectorMode: "FormatTemplate",
         RuleNotes: "Dynamically generates input pins matching formatting tokens like {TokenName} inside the Format template.",
-        ViewVariant: "Standard"
+        ViewVariant: "Standard",
+        SchemaConfigKeys: ["Template"]
     );
 
     public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(

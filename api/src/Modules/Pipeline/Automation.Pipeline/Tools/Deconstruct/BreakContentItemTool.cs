@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Automation.Content.Contracts;
 using Automation.DynamicForms.Contracts;
+using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,14 @@ public class BreakContentItemTool(
     public string Label => "Break Content Item";
     public string? Category => "Content & Struct";
     public bool IsPure => true;
+    public bool IsDynamic => true;
+
+    public NodeCapabilities Capabilities => new(
+        CanAddPin: false,
+        CanRemovePin: false,
+        ViewVariant: "Standard",
+        SchemaConfigKeys: ["DynamicPins"]
+    );
 
     public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(
         Dictionary<string, object?>? configValues,
@@ -76,6 +85,7 @@ public class BreakContentItemTool(
             Id = "Target",
             Label = "Content Item",
             PrimitiveType = PinPrimitiveType.EntityRef,
+            StructType = WellKnownStructTypes.ContentItem,
             Cardinality = PinCardinality.Single,
             IsRequired = true,
             Metadata = """{"type": "entity-select", "properties": {"entity": "ContentItem"}}"""
@@ -89,6 +99,7 @@ public class BreakContentItemTool(
             Id = "Id",
             Label = "Content Item ID",
             PrimitiveType = PinPrimitiveType.EntityRef,
+            StructType = WellKnownStructTypes.ContentItem,
             Cardinality = PinCardinality.Single
         },
         new()

@@ -16,6 +16,17 @@ public class MakeMapTool : IResolverTool
     public bool IsPure => true;
     public bool IsDynamic => true;
 
+    public NodeCapabilities Capabilities => new(
+        CanAddPin: true,
+        CanRemovePin: true,
+        PinAddMode: "Pair",
+        InspectorMode: "Default",
+        RuleNotes: "Constructs a key-value map dictionary. Click [+] to add a new Key/Value pair.",
+        ViewVariant: "Collection",
+        ProtectedPinIds: ["Key_0", "Value_0"],
+        SchemaConfigKeys: ["DynamicPins"]
+    );
+
     public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(
         Dictionary<string, object?>? configValues,
         IPinResolutionContext? context = null

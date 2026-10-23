@@ -9,6 +9,7 @@ using Automation.Pipeline.Tools.Utility;
 using Automation.Pipeline.Tools.Variables;
 using Automation.Pipeline.Tools.Workspaces;
 using Automation.Content.Contracts;
+using Automation.DynamicForms.Contracts;
 using Automation.Repository.Contracts;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -24,14 +25,19 @@ public class PinContractScannerTests
         var mockStructRegistry = Substitute.For<IEntityStructRegistry>();
         var mockWorkspaceApi = Substitute.For<IRepositoryApi>();
         var mockContentApi = Substitute.For<IContentApi>();
+        var mockSchemaApi = Substitute.For<ISchemaApi>();
 
         return
         [
             new FormatStringTool(),
             new MakeArrayTool(),
             new AppendStringTool(),
+            new MakeMapTool(),
+            new GetByPathTool(),
+            new BreakContentItemTool(mockContentApi, mockSchemaApi, NullLogger<BreakContentItemTool>.Instance),
             new BreakStructTool(mockStructRegistry),
             new MakeStructTool(mockStructRegistry),
+            new CastToStructTool(mockStructRegistry),
             new AssignResourcesToContentTool(mockWorkspaceApi, mockContentApi, NullLogger<AssignResourcesToContentTool>.Instance),
             new GetResourceRelativePathsTool(null, NullLogger<GetResourceRelativePathsTool>.Instance),
             new GetResourceContentTool(mockWorkspaceApi, mockContentApi),
@@ -41,6 +47,33 @@ public class PinContractScannerTests
             new SetVariableTool(),
             new GetVariableTool()
         ];
+    }
+
+    [Fact]
+    public void AllDynamicTools_MustDeclareNonEmptySchemaConfigKeys()
+    {
+        var tools = GetAllTestableTools().Where(t => t.IsDynamic);
+
+        foreach (var tool in tools)
+        {
+            tool.Capabilities.Should().NotBeNull($"Dynamic tool '{tool.Key}' must declare Capabilities.");
+            tool.Capabilities!.SchemaConfigKeys.Should().NotBeNullOrEmpty(
+                $"Dynamic tool '{tool.Key}' must declare non-empty Capabilities.SchemaConfigKeys.");
+        }
+    }
+
+    [Fact]
+    public void StructTools_UnselectedState_ShouldNotPreloadDefaultStructPins()
+    {
+        var mockStructRegistry = Substitute.For<IEntityStructRegistry>();
+
+        var breakStruct = new BreakStructTool(mockStructRegistry);
+        breakStruct.Inputs.Select(p => p.Id).Should().Equal("StructType");
+        breakStruct.Outputs.Should().BeEmpty();
+
+        var makeStruct = new MakeStructTool(mockStructRegistry);
+        makeStruct.Inputs.Select(p => p.Id).Should().Equal("StructType");
+        makeStruct.Outputs.Should().BeEmpty();
     }
 
     [Fact]

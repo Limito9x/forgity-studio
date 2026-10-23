@@ -10,6 +10,10 @@ Canvas dùng NodeDefinitionsProvider và query cache theo project; menu lọc vi
 
 **Checkpoint review:** Chưa khép kín nguyên tắc backend-authoritative pins: usePipelineDraftState vẫn có nhánh BreakStruct khi load và xử lý StructType của BreakStruct/MakeStruct. Inspector còn fallback tên tool cho StructSelector; collection actions còn tên Separator. Phase C xử lý field mapping/entity controls, không tự giải quyết ba nhánh này. Cần một phần hoàn thiện pin/inspector riêng trước nghiệm thu toàn bộ Phase B; chưa có xác nhận UI.
 
+**Làm rõ sau rà soát:** Các nhánh draft gọi `getStructPins(structType)` không truyền catalogue nên hiện trả rỗng và không có tác dụng; không phải đang ghi đè pins bằng schema frontend. Resolver còn so sánh số lượng/ID pins thay vì toàn bộ schema và cần xử lý edge theo đúng chiều input/output.
+
+**Lộ trình tiếp nối:** [Node Resolution & Validation Lifecycle](2026-10-22-node-resolution-and-validation-lifecycle.md) tách R1 khép kín phần B, R2 chuẩn hóa khởi tạo/resolve, R3 diagnostics backend + Canvas, R4 tái sử dụng cho import/export. Đây là định hướng chưa triển khai, không mở rộng ngầm Phase C hoặc ghi nhận các kiểm thử tương lai như đã hoàn tất.
+
 ### B0. Một nguồn định nghĩa node dùng chung
 
 - `capabilities` và `isDynamic` thuộc định nghĩa node. Backend registry là nguồn chân lý; frontend dùng một query cache theo project cho router, inspector và menu.
