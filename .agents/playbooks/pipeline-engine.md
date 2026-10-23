@@ -8,6 +8,8 @@
 > 5. Cơ chế Hủy Pipeline tinh gọn (Lightweight Cancellation).
 >
 > **Quy tắc bắt buộc:** Agent phải đọc tài liệu này trước khi can thiệp vào Orchestrator, Dispatchers, Consumers, Worker Runners hoặc Execution State.
+>
+> **Liên kết Hợp đồng (`Contracts & Validation`)**: Runtime (`ExecPlanner` & `ExecStepFactory`) không tự phân giải Pin của Node riêng lẻ mà dùng chung **`INodeContractResolver`** (`ResolvedNodeContract`) và **`IPipelineContractValidator`** với Build-Time Canvas. Xem chi tiết tại [2026-10-23-contracts-validation-buildtime-runtime-architecture.md](../plans/2026-10-23-contracts-validation-buildtime-runtime-architecture.md).
 
 ---
 

@@ -24,16 +24,6 @@ export const primitiveAdapter: FieldAdapter = {
       };
     }
 
-    if (ctx.primitive === "Path") {
-      return {
-        name: ctx.pinId,
-        label: ctx.label,
-        type: "pin:path",
-        defaultValue: ctx.pin.defaultValue ?? "",
-        properties: {},
-      };
-    }
-
     if (ctx.hint?.multiline === true || ctx.hint?.type === "textarea") {
       return {
         name: ctx.pinId,

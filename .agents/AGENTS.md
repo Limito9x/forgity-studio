@@ -140,5 +140,6 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 - [variable-repair-parameters-edit-and-tool-decluttering](file:///d:/FullStack/Automation/.agents/plans/2026-10-21-variable-repair-parameters-edit-and-tool-decluttering.md): Kế Hoạch Kỹ Thuật Sửa Lỗi Variable, Nâng Cấp Parameters Panel (Default Value & Edit) và Thanh Lọc Tool/Script Tham Số.
 - [refactor-pipeline-build-time-type-contract-and-struct-registry](file:///d:/FullStack/Automation/.agents/plans/2026-10-22-refactor-pipeline-build-time-type-contract-and-struct-registry.md): Kế hoạch Tái cấu trúc Toàn diện Build-Time, Chuẩn hóa Type Contract & Struct Registry (No Backward-Compat Debt, Single Source of Truth, Sample JSON Preview & Linter Scanner Tests).
 - [node-strategy-and-field-adapters](file:///d:/FullStack/Automation/.agents/plans/2026-10-22-node-strategy-and-field-adapters.md): Kế hoạch Kỹ Thuật Tái Cấu Trúc Node View Strategy (6.2), Field Adapter Registry (6.3), Chuẩn Hóa Return Node & ContentItem Struct.
+- [contracts-validation-buildtime-runtime-architecture](file:///d:/FullStack/Automation/.agents/plans/2026-10-23-contracts-validation-buildtime-runtime-architecture.md): Kiến Trúc Tổng Thể 3 Phân Khu (`Contracts & Validation` -> `BuildTime` & `Runtime`), Hợp Nhất `INodeContractResolver`, `IPipelineContractValidator` & Tái Cấu Trúc Thư Mục Vật Lý.
 
 

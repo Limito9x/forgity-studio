@@ -1,4 +1,5 @@
 using Automation.Pipeline.Constants;
+using Automation.Pipeline.Contracts.NodeContract;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
@@ -12,9 +13,18 @@ public static class ExecStepFactory
     public static Dictionary<Guid, ExecStep> BuildStepsLookup(
         Domain.Entities.Pipeline pipeline,
         IReadOnlyList<NodeDefinition> customDefinitions,
-        IToolRegistry toolRegistry
+        IToolRegistry toolRegistry,
+        INodeContractResolver? contractResolver = null,
+        NodeContractResolutionContext? resolutionContext = null
     )
     {
+        // 1. Phân giải thống nhất qua INodeContractResolver nếu có
+        IReadOnlyDictionary<Guid, ResolvedNodeContract>? contracts = null;
+        if (contractResolver != null && resolutionContext != null)
+        {
+            contracts = contractResolver.ResolveAllNodes(pipeline.Nodes, resolutionContext);
+        }
+
         var customDefsLookup = customDefinitions
             .GroupBy(x => x.Id.ToString())
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
@@ -54,7 +64,14 @@ public static class ExecStepFactory
             var label = node.RefId;
             var executor = "dotNet";
 
-            if (isStart)
+            if (contracts != null && contracts.TryGetValue(node.Id, out var contract))
+            {
+                inputs = contract.Inputs;
+                outputs = contract.Outputs;
+                label = contract.Label;
+                executor = contract.Executor == "builtin" ? "dotNet" : contract.Executor;
+            }
+            else if (isStart)
             {
                 label = "Start";
                 executor = "dotNet";
@@ -68,6 +85,7 @@ public static class ExecStepFactory
                         Kind = PinKind.Data,
                         PrimitiveType = i.Type,
                         Cardinality = i.Cardinality,
+                        StructType = i.StructType,
                         IsRequired = i.IsRequired,
                         DefaultValue = i.DefaultValue,
                         Metadata = i.StructType

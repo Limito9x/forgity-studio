@@ -48,7 +48,7 @@ public class SyncLocalChangeToRepositoryTool(
             {
                 Id = "RelativePaths",
                 Label = "Relative Paths",
-                PrimitiveType = PinPrimitiveType.Path,
+                PrimitiveType = PinPrimitiveType.String,
                 Cardinality = PinCardinality.Array,
                 IsRequired = true,
             },

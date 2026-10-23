@@ -1,5 +1,5 @@
 export type NormalizedPinType =
-  "String" | "Number" | "Boolean" | "Path" | "EntityRef" | "Asset";
+  "String" | "Number" | "Boolean" | "EntityRef" | "Asset";
 
 /**
  * Normalizes any pin primitive type (number index, uppercase/lowercase string) to NormalizedPinType.
@@ -17,8 +17,6 @@ export function normalizePinType(rawType: unknown): NormalizedPinType {
     case "boolean":
       return "Boolean";
     case "3":
-    case "path":
-      return "Path";
     case "4":
     case "entityref":
     case "struct":
@@ -33,6 +31,7 @@ export function normalizePinType(rawType: unknown): NormalizedPinType {
       return "Asset";
     case "0":
     case "string":
+    case "path":
     default:
       return "String";
   }

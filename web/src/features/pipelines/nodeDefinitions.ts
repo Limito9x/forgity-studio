@@ -23,7 +23,12 @@ export function filterPalette(items: NodePaletteItemDto[], executor?: string) {
     if (!executor) return true;
     const exec = executor.toLowerCase();
     if (exec === "macro") return item.source === "SubPipeline" || item.category === "Flow Control" || item.key === "Return";
-    if (["server", "dotnet", "builtin"].includes(exec)) return item.source === "Tool" || item.source === "BuiltIn" || ["builtin", "dotnet"].includes(item.executor.toLowerCase());
+    if (["server", "dotnet", "builtin"].includes(exec)) {
+      if (item.source === "SubPipeline" || item.key === "Return" || item.category === "Flow Control") {
+        return false;
+      }
+      return item.source === "Tool" || item.source === "BuiltIn" || ["builtin", "dotnet"].includes(item.executor.toLowerCase());
+    }
     return item.executor.toLowerCase() === exec;
   });
 }

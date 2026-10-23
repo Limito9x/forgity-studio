@@ -33,9 +33,8 @@ public class GetPinCatalogueHandler
         new("String", "Text", "Primitive", "#0ea5e9", "text"),
         new("Number", "Number", "Primitive", "#8b5cf6", "number"),
         new("Boolean", "Boolean", "Primitive", "#f59e0b", "boolean"),
-        new("Path", "File Path", "Primitive", "#f97316", "text"),
         new("EntityRef", "Entity Reference", "Entity", "#10b981", "entity-select",
-            ["resource", "workspace", "tag", "tagGroup", "agent", "contentType", "variable"]),
+            ["Resource", "Repository", "Tag", "Runner", "ContentType", "ContentItem", "Variable"]),
         new("Asset", "File Upload", "Asset", "#ec4899", "file-upload"),
     ];
 

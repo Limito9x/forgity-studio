@@ -5,7 +5,6 @@ export type NormalizedPinType =
   | "String"
   | "Number"
   | "Boolean"
-  | "Path"
   | "EntityRef"
   | "Asset";
 
@@ -44,14 +43,6 @@ export const STATIC_PIN_CATALOGUE: Record<NormalizedPinType, PinVisualInfo> = {
     handleColor: "#f59e0b",
     defaultControl: "boolean",
   },
-  Path: {
-    code: "Path",
-    label: "File Path",
-    color: "#f97316",
-    badgeStyle: "bg-orange-500/10 text-orange-400 border-orange-500/30",
-    handleColor: "#f97316",
-    defaultControl: "text",
-  },
   EntityRef: {
     code: "EntityRef",
     label: "Entity Reference",
@@ -85,8 +76,6 @@ export function normalizePinType(rawType: unknown): NormalizedPinType {
     case "boolean":
       return "Boolean";
     case "3":
-    case "path":
-      return "Path";
     case "4":
     case "entityref":
     case "struct":
@@ -101,6 +90,7 @@ export function normalizePinType(rawType: unknown): NormalizedPinType {
       return "Asset";
     case "0":
     case "string":
+    case "path":
     default:
       return "String";
   }

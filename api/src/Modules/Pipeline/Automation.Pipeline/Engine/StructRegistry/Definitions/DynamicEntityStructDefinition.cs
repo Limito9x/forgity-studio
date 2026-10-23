@@ -91,7 +91,7 @@ public class DynamicEntityStructDefinition : IEntityStructDefinition
             {
                 "number" or "numeric" or "integer" => PinPrimitiveType.Number,
                 "boolean" or "switch" or "checkbox" => PinPrimitiveType.Boolean,
-                "file-upload" or "image" or "asset" => PinPrimitiveType.Path,
+                "file-upload" or "image" or "asset" => PinPrimitiveType.String,
                 "struct" => PinPrimitiveType.EntityRef,
                 _ => PinPrimitiveType.String
             };

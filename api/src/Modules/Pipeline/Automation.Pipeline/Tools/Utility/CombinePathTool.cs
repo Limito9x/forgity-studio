@@ -5,7 +5,7 @@ namespace Automation.Pipeline.Tools.Utility;
 
 public class CombinePathInputs
 {
-    [ToolPin(Id = "BasePath", Label = "Base Path", PrimitiveType = PinPrimitiveType.Path, IsRequired = true)]
+    [ToolPin(Id = "BasePath", Label = "Base Path", PrimitiveType = PinPrimitiveType.String, IsRequired = true)]
     public string BasePath { get; set; } = string.Empty;
 
     [ToolPin(Id = "SubFolder", Label = "Sub Folder", PrimitiveType = PinPrimitiveType.String, IsRequired = false, DefaultValue = "")]
@@ -20,7 +20,7 @@ public class CombinePathInputs
 
 public class CombinePathOutputs
 {
-    [ToolPin(Id = "FullPath", Label = "Full Path", PrimitiveType = PinPrimitiveType.Path, IsRequired = true)]
+    [ToolPin(Id = "FullPath", Label = "Full Path", PrimitiveType = PinPrimitiveType.String, IsRequired = true)]
     public string FullPath { get; set; } = string.Empty;
 }
 

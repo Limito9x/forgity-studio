@@ -171,3 +171,32 @@ Khi mã nguồn có logic chuyển đổi kiểu (như `normalizePinType`), nế
 
 - Tách hàm thuần túy `normalizePinType(rawType)` ra một file riêng [normalizePinType.ts](file:///d:/FullStack/Automation/web/src/features/pipelines/form-scope/field-adapters/normalizePinType.ts) không phụ thuộc vào `@/gen/*`.
 - Nhờ đó, bài test [web/tests/pinToFieldDefinition.test.mts](file:///d:/FullStack/Automation/web/tests/pinToFieldDefinition.test.mts) có thể chạy siêu tốc trực tiếp bằng `node --test` (chỉ mất ~200ms) mà không cần bundle hay mock API client.
+
+---
+
+## 6. Two-Tier Architecture: Semantic Adapters vs UI Control Registry
+
+### 💡 Khái niệm & Bối cảnh
+
+Một câu hỏi thường gặp: *"Tại sao có cả `field-adapters/` (trong Pipeline) lẫn `input-registry.ts` + `schema-builder.ts` (trong `components/form/engine/`)? Chúng có trùng lặp không?"*
+
+Câu trả lời là **không trùng lặp** — chúng thuộc **2 tầng trừu tượng khác nhau** và nối tiếp nhau theo mô hình 2 tầng (Two-Tier Pipeline):
+
+```mermaid
+flowchart LR
+    Pin["1. Backend PinDescriptor<br/>(type, structType, metadata)"] --> FA["2. Tầng 1: Field Adapters<br/>(Semantic Domain Layer)"]
+    FA --> FD["FieldDefinition<br/>(type: 'entity_select' | 'file' | 'select'...)"]
+    FD --> SB["3. Tầng 2: Schema Builder & Input Registry<br/>(UI Form Engine Layer)"]
+    SB --> UI["React Component + Zod Schema<br/>(EntitySelectInput, TextInput...)"]
+```
+
+### 🔍 Bảng So Sánh Trách Nhiệm 2 Tầng
+
+| Tiêu chí | Tầng 1: `field-adapters/` (`pinToFieldDefinition`) | Tầng 2: `input-registry.ts` & `schema-builder.ts` |
+| :--- | :--- | :--- |
+| **Phạm vi sử dụng** | Đặc thù cho miền **Pipeline Node Pins** (`web/src/features/pipelines/form-scope/`). | Dùng chung **Toàn ứng dụng** (`web/src/components/form/engine/`). |
+| **Đầu vào (Input)** | `PinDescriptorDto` từ Backend (`type: "entity"`, `structType: "Resource"`, `metadata: "textarea"`, `configValues`). | `FieldDefinition` chuẩn hóa (`type: "entity_select"`, `required: true`, `options: [...]`). |
+| **Nhiệm vụ chính** | Giải nghĩa **Ngữ nghĩa miền Pipeline** (Domain Semantics): Pin này có đang nối dây (`isConnected`) không? Là `Variable` hay `Entity` hay `Array<T>`? Đang chạy trên `Runner` nào? | Giải nghĩa **Kỹ thuật Form UI**: Ánh xạ `field.type` sang **React Component** tương ứng (qua `import.meta.glob` Auto-Scan) và sinh **Zod Validation Rule** (`z.string().min(1)`). |
+| **Đầu ra (Output)** | `FieldDefinition` trung gian (đã làm phẳng mọi khái niệm Pin). | Giao diện Form hoàn chỉnh (`DynamicForm`) kèm cơ chế bắt lỗi React Hook Form. |
+| **Pattern sử dụng** | **Chain of Responsibility + Adapter + Facade** (biến đổi `PinDescriptor` $\rightarrow$ `FieldDefinition`). | **Auto-Scan Plugin Registry** (`input-registry.ts`) + **Builder Pattern** (`schema-builder.ts`). |
+

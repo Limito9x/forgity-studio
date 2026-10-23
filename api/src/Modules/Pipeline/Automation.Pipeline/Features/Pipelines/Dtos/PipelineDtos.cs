@@ -15,7 +15,8 @@ public record ValidatePipelineQuery(
 public record ValidatePipelineResponse(
     bool IsValid,
     IReadOnlyList<string> CycleNodeIds,
-    IReadOnlyList<UnresolvedPin> UnresolvedPins
+    IReadOnlyList<UnresolvedPin> UnresolvedPins,
+    IReadOnlyList<Contracts.Validation.PipelineDiagnostic>? Diagnostics = null
 );
 
 public record RunPipelineRequest(Dictionary<string, object?>? RuntimeInputs = null);
