@@ -70,7 +70,7 @@ export function usePipelineDiagnostics({
       return {
         id: node.id,
         refId: data.refId || node.id,
-        kind: (data.kind as unknown as number) ?? 0,
+        kind: (data.kind as any) || "Tool",
         positionX: node.position.x,
         positionY: node.position.y,
         configValues: data.configValues || {},
@@ -86,7 +86,6 @@ export function usePipelineDiagnostics({
       sourcePin: edge.sourceHandle || "",
       targetNodeId: edge.target,
       targetPin: edge.targetHandle || "",
-      kind: 0,
     }));
 
     return {
