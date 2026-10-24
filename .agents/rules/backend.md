@@ -130,5 +130,15 @@ Quy tắc áp dụng bắt buộc khi xây dựng hoặc sửa đổi mã nguồ
       - Toàn bộ các nhánh rẽ bảo vệ (Guard blocks) và luồng thành công đều phải được kiểm thử tự động.
       - **Lợi ích cốt lõi:** Ngăn chặn triệt để lỗi runtime dịch LINQ sang SQL (như truy vấn trên unmapped computed properties), rò rỉ logic, hoặc hỏng dữ liệu trong DB; chạy nghiệm thu siêu tốc chỉ 1-2 giây qua `dotnet test` trước khi chạy server thật.
 
+21. **Quy Tắc Production-First & Cô Lập Test (No Leaky Test Accommodations):**
+    - **Triết lý cốt lõi:** Mã nguồn tính năng (`api/src/`) BẮT BUỘC phải được viết và tối ưu 100% cho việc chạy trực tiếp trên môi trường production (Direct Runtime). Tuyệt đối không bắt code tính năng phải nhượng bộ hay có cách xử lý lắt léo chỉ để phục vụ cho test.
+    - **Cấm ô nhiễm mã nguồn vì Test (No Test Pollution):**
+      - TUYỆT ĐỐI KHÔNG tạo thêm các public constructor phụ, các tham số nullable giả (như `DbContext? db = null`), hoặc các cờ rẽ nhánh test trong class production chỉ để việc `new` đối tượng trong test được dễ dàng.
+      - *Nguy cơ thực tế:* DI container của .NET (`Microsoft.Extensions.DependencyInjection` / Wolverine) quét các public constructors và rất dễ chọn nhầm constructor thiếu dependencies tại runtime, gây crash hệ thống ở production (điển hình như lỗi `InvalidOperationException: PipelineDbContext is required...`).
+    - **Nguyên tắc xử lý của Test:**
+      - Test BẮT BUỘC phải tự trang bị cơ chế khởi tạo và test fixture riêng biệt (dùng Mocking qua `NSubstitute`, Test Builder, In-Memory DB, hoặc `WebApplicationFactory`).
+      - Nếu một class nghiệp vụ thực sự có kịch bản chạy offline độc lập (như `FrozenExecutionGraph`), bộc lộ qua **Explicit Static Factory Method** (ví dụ `CreateWithoutDatabase(...)`) hoặc constructor `internal` đi kèm `[InternalsVisibleTo]`. Một class dịch vụ DI chỉ được phép có **DUY NHẤT 1 PUBLIC CONSTRUCTOR** với đầy đủ các dependencies cần thiết để chạy production.
+
+
 
 
