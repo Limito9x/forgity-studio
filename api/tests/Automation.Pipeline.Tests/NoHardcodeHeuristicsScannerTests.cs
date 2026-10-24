@@ -46,6 +46,9 @@ public class NoHardcodeHeuristicsScannerTests
             var content = File.ReadAllText(inspectorPath);
             content.Should().NotContain("\"breakstruct\"", "NodeConfigInspector must rely on capabilities.inspectorMode, not tool-name fallbacks.");
             content.Should().NotContain("\"makestruct\"", "NodeConfigInspector must rely on capabilities.inspectorMode, not tool-name fallbacks.");
+            content.Should().NotContain("isPipelineInputNode", "NodeConfigInspector must rely on capabilities.lifecycleBoundary or kind, not hardcoded name matching.");
+            content.Should().NotContain("\"beginexecute\"", "NodeConfigInspector must not check hardcoded action names.");
+            content.Should().NotContain("\"on resource created\"", "NodeConfigInspector must not check hardcoded event labels.");
         }
     }
 

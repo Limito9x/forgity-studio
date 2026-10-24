@@ -1,37 +1,23 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
-  Variable,
-  Plus,
-  Trash2,
-  Pencil,
   ChevronLeft,
   ChevronRight,
-  GripVertical,
+  Plus,
   PlayCircle,
   CheckCircle2,
-  Pill,
-  Zap,
+  Variable,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { PipelineParameterDto, PipelineParameterKind } from "../../hooks/usePipelineGraph";
+import type { PipelineParameterDto } from "../../hooks/usePipelineGraph";
 import { usePipelineFormScope } from "../../form-scope/PipelineFormScope";
 import { useGetStructCatalogue } from "@/gen/endpoints/pipelines/pipelines";
-import { EntityPinSelect } from "./EntityPinSelect";
-import { toast } from "sonner";
+import { ParameterList } from "./parameters/ParameterList";
+import { ParameterEditorForm } from "./parameters/ParameterEditorForm";
+import type { ParameterTab } from "./parameters/types";
 
-export type ParameterTab = "inputs" | "outputs" | "variables";
+export type { ParameterTab };
 
 interface PipelineParametersPanelProps {
   pipelineId?: string;
@@ -39,42 +25,16 @@ interface PipelineParametersPanelProps {
   onAddParameter: (param: PipelineParameterDto) => void;
   onUpdateParameter?: (key: string, param: Partial<PipelineParameterDto>) => void;
   onDeleteParameter: (key: string) => void;
-  onSpawnCapsule: (key: string, kind: "Variable" | "Runner" | "Repository" | "Workspace" | "Context", type: any) => void;
+  onSpawnCapsule: (
+    key: string,
+    kind: "Variable" | "Runner" | "Repository" | "Workspace" | "Context",
+    type: any
+  ) => void;
   onSpawnAction: (toolKey: "SetVariable", varName: string) => void;
   isOpen: boolean;
   onToggle: () => void;
   activeTab?: ParameterTab;
   onTabChange?: (tab: ParameterTab) => void;
-}
-
-const TYPE_OPTIONS = [
-  { value: "String", label: "String", color: "text-sky-500 bg-sky-500/10 border-sky-500/30" },
-  { value: "Number", label: "Number", color: "text-violet-500 bg-violet-500/10 border-violet-500/30" },
-  { value: "Boolean", label: "Boolean", color: "text-amber-500 bg-amber-500/10 border-amber-500/30" },
-  { value: "EntityRef", label: "EntityRef / Struct", color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/30" },
-  { value: "Asset", label: "Asset", color: "text-pink-500 bg-pink-500/10 border-pink-500/30" },
-];
-
-const CARDINALITY_OPTIONS = [
-  { value: "Single", label: "Single" },
-  { value: "Array", label: "Array []" },
-  { value: "Map", label: "Map {}" },
-];
-
-function normalizeType(t: any): string {
-  if (t === 0 || t === "0" || t === "String" || t === "Path") return "String";
-  if (t === 1 || t === "1" || t === "Number") return "Number";
-  if (t === 2 || t === "2" || t === "Boolean") return "Boolean";
-  if (t === 3 || t === "3" || t === 4 || t === "4" || t === "EntityRef") return "EntityRef";
-  if (t === 5 || t === "5" || t === "Asset") return "Asset";
-  return String(t || "String");
-}
-
-function normalizeCardinality(c: any): string {
-  if (c === 0 || c === "0" || c === "Single") return "Single";
-  if (c === 1 || c === "1" || c === "Array") return "Array";
-  if (c === 2 || c === "2" || c === "Map") return "Map";
-  return String(c || "Single");
 }
 
 export function PipelineParametersPanel({
@@ -93,9 +53,15 @@ export function PipelineParametersPanel({
   const [internalTab, setInternalTab] = useState<ParameterTab>("variables");
   const activeTab = controlledTab ?? internalTab;
 
+  const [isCreating, setIsCreating] = useState(false);
+  const [editingParam, setEditingParam] = useState<PipelineParameterDto | null>(null);
+
+  const { projectId = "" } = usePipelineFormScope();
+  const { data: structCatalogue = [] } = useGetStructCatalogue({ projectId });
+
   const setTab = (tab: ParameterTab) => {
     setIsCreating(false);
-    setEditingKey(null);
+    setEditingParam(null);
     if (onTabChange) {
       onTabChange(tab);
     } else {
@@ -103,898 +69,184 @@ export function PipelineParametersPanel({
     }
   };
 
-  const { projectId = "" } = usePipelineFormScope();
-  const { data: structCatalogue = [] } = useGetStructCatalogue({ projectId });
+  const inputs = useMemo(
+    () => parameters.filter((p) => p.kind === "Input" || (p.kind as any) === 1),
+    [parameters]
+  );
+  const outputs = useMemo(
+    () => parameters.filter((p) => p.kind === "Output" || (p.kind as any) === 2),
+    [parameters]
+  );
+  const variables = useMemo(
+    () => parameters.filter((p) => p.kind === "Variable" || (p.kind as any) === 3),
+    [parameters]
+  );
 
-  // Creation form state
-  const [isCreating, setIsCreating] = useState(false);
-  const [name, setName] = useState("");
-  const [type, setType] = useState("String");
-  const [cardinality, setCardinality] = useState("Single");
-  const [structType, setStructType] = useState("Resource");
-  const [defaultValue, setDefaultValue] = useState<any>("");
-  const [description, setDescription] = useState("");
-  const [isRequired, setIsRequired] = useState(false);
-
-  // Edit form state
-  const [editingKey, setEditingKey] = useState<string | null>(null);
-  const [editLabel, setEditLabel] = useState("");
-  const [editType, setEditType] = useState("String");
-  const [editCardinality, setEditCardinality] = useState("Single");
-  const [editStructType, setEditStructType] = useState("Resource");
-  const [editDefaultValue, setEditDefaultValue] = useState<any>("");
-  const [editDescription, setEditDescription] = useState("");
-  const [editIsRequired, setEditIsRequired] = useState(false);
-
-  // Filter parameters by kind
-  const inputs = parameters.filter((p) => p.kind === "Input" || (p.kind as any) === 1);
-  const outputs = parameters.filter((p) => p.kind === "Output" || (p.kind as any) === 2);
-  const variables = parameters.filter((p) => p.kind === "Variable" || (p.kind as any) === 3);
-
-  const startEdit = (param: PipelineParameterDto) => {
-    setIsCreating(false);
-    setEditingKey(param.key);
-    setEditLabel(param.label || param.key);
-    setEditType(normalizeType(param.type));
-    setEditCardinality(normalizeCardinality(param.cardinality));
-    setEditStructType(param.structType || "Resource");
-    setEditDefaultValue(param.defaultValue ?? "");
-    setEditDescription(param.description ?? "");
-    setEditIsRequired(Boolean(param.isRequired));
-  };
-
-  const cancelEdit = () => {
-    setEditingKey(null);
-  };
-
-  const isEntityRef = (t: string) => t === "EntityRef" || t === "4";
-
-  const handleSaveEdit = () => {
-    if (!editingKey) return;
-    if (!onUpdateParameter) {
-      toast.error("Update parameter handler not available.");
-      return;
+  const activeItems = useMemo(() => {
+    switch (activeTab) {
+      case "inputs":
+        return inputs;
+      case "outputs":
+        return outputs;
+      case "variables":
+      default:
+        return variables;
     }
+  }, [activeTab, inputs, outputs, variables]);
 
-    let finalDefVal: string | null = null;
-    if (typeof editDefaultValue === "string") {
-      finalDefVal = editDefaultValue.trim() || null;
-    } else if (editDefaultValue !== null && editDefaultValue !== undefined) {
-      finalDefVal = JSON.stringify(editDefaultValue);
-    }
-
-    onUpdateParameter(editingKey, {
-      label: editLabel.trim() || editingKey,
-      type: editType as any,
-      cardinality: editCardinality as any,
-      structType: isEntityRef(editType) ? editStructType : null,
-      defaultValue: finalDefVal,
-      description: editDescription.trim() || null,
-      isRequired: editIsRequired,
-    });
-
-    toast.success(`Updated ${activeTab.slice(0, -1)} '${editingKey}'`);
-    setEditingKey(null);
-  };
-
-  const handleCreate = () => {
-    const trimmed = name.trim();
-    if (!trimmed) {
-      toast.error("Parameter name is required.");
-      return;
-    }
-
-    if (parameters.some((p) => p.key.toLowerCase() === trimmed.toLowerCase())) {
-      toast.error(`Parameter with key '${trimmed}' already exists.`);
-      return;
-    }
-
-    const kindMap: Record<ParameterTab, PipelineParameterKind> = {
-      inputs: "Input",
-      outputs: "Output",
-      variables: "Variable",
-    };
-
-    let finalDefVal: string | null = null;
-    if (typeof defaultValue === "string") {
-      finalDefVal = defaultValue.trim() || null;
-    } else if (defaultValue !== null && defaultValue !== undefined) {
-      finalDefVal = JSON.stringify(defaultValue);
-    }
-
-    const newParam: PipelineParameterDto = {
-      id: crypto.randomUUID(),
-      key: trimmed,
-      label: trimmed,
-      kind: kindMap[activeTab],
-      type: type as any,
-      cardinality: cardinality as any,
-      structType: isEntityRef(type) ? structType : null,
-      defaultValue: finalDefVal,
-      description: description.trim() || null,
-      isRequired,
-      order: parameters.length + 1,
-      contextData: null,
-    };
-
-    onAddParameter(newParam);
-    toast.success(`Added ${activeTab.slice(0, -1)} '${trimmed}'`);
-    setName("");
-    setDefaultValue("");
-    setDescription("");
-    setIsRequired(false);
-    setIsCreating(false);
-  };
-
-  const getTypeStyle = (t: number | string, c?: number | string, sType?: string | null) => {
-    const normT = normalizeType(t);
-    const normC = normalizeCardinality(c);
-    const opt = TYPE_OPTIONS.find((o) => o.value === normT) || TYPE_OPTIONS[0];
-    const isMap = normC === "Map";
-    const isArr = normC === "Array";
-    const label = normT === "EntityRef" && sType ? sType : opt.label;
-
-    return {
-      label: isMap ? `Map<${label}>` : isArr ? `${label}[]` : label,
-      color: opt.color,
-    };
-  };
-
-  const renderDefaultValueField = (
-    typeVal: string,
-    cardVal: string,
-    structVal: string,
-    currentVal: any,
-    onChangeVal: (next: any) => void,
-    disabled = false
-  ) => {
-    const normT = normalizeType(typeVal);
-    const normC = normalizeCardinality(cardVal);
-
-    // 1. EntityRef / Struct
-    if (normT === "EntityRef") {
-      const isMultiple = normC === "Array";
-      let parsedVal = currentVal;
-      if (isMultiple && typeof currentVal === "string") {
-        try {
-          const parsed = JSON.parse(currentVal);
-          if (Array.isArray(parsed)) parsedVal = parsed;
-        } catch {
-          parsedVal = currentVal ? [currentVal] : [];
-        }
-      }
-
-      return (
-        <div className="space-y-1">
-          <label className="text-[10px] font-medium text-muted-foreground block">
-            Default {structVal} {isMultiple ? "(Array)" : "(Single)"}
-          </label>
-          <EntityPinSelect
-            entityType={structVal}
-            target={structVal}
-            projectId={projectId}
-            value={parsedVal}
-            onChange={(next) => {
-              if (isMultiple) {
-                onChangeVal(Array.isArray(next) ? JSON.stringify(next) : next ? JSON.stringify([next]) : "");
-              } else {
-                onChangeVal(next ? String(next) : "");
-              }
-            }}
-            multiple={isMultiple}
-            disabled={disabled}
-            placeholder={`Select default ${structVal.toLowerCase()}...`}
-          />
-        </div>
-      );
-    }
-
-    // 2. Boolean
-    if (normT === "Boolean") {
-      const boolStr =
-        currentVal === true || currentVal === "true"
-          ? "true"
-          : currentVal === false || currentVal === "false"
-          ? "false"
-          : "";
-      return (
-        <div className="space-y-1">
-          <label className="text-[10px] font-medium text-muted-foreground block">
-            Default Value (Boolean)
-          </label>
-          <Select
-            selectedKey={boolStr}
-            onSelectionChange={(key) => onChangeVal(key ? String(key) : "")}
-            className="w-full"
-            isDisabled={disabled}
-          >
-            <SelectTrigger className="h-7 text-xs w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem id="">(None / Empty)</SelectItem>
-              <SelectItem id="true">True</SelectItem>
-              <SelectItem id="false">False</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      );
-    }
-
-    // 3. String, Number, Path, Asset, etc.
-    return (
-      <div className="space-y-1">
-        <label className="text-[10px] font-medium text-muted-foreground block">
-          Default Value (Optional)
-        </label>
-        <Input
-          value={typeof currentVal === "string" ? currentVal : String(currentVal ?? "")}
-          onChange={(e) => onChangeVal(e.target.value)}
-          placeholder="Default value"
-          className="h-7 text-xs font-mono"
-          disabled={disabled}
-        />
-      </div>
-    );
-  };
+  const existingKeys = useMemo(() => parameters.map((p) => p.key), [parameters]);
 
   return (
-    <aside
+    <div
       className={cn(
-        "absolute left-3 top-16 bottom-3 z-20 flex flex-col transition-all duration-300 ease-in-out",
-        isOpen ? "w-88" : "w-10"
+        "absolute left-4 top-20 bottom-4 z-20 flex transition-all duration-300 pointer-events-auto",
+        isOpen ? "w-80" : "w-10"
       )}
     >
-      <div className="flex h-full flex-col rounded-xl border border-border/80 bg-background/95 backdrop-blur-md shadow-2xl overflow-hidden">
-        {/* Panel Header */}
-        <div className="flex h-11 items-center justify-between border-b border-border/60 px-3 bg-muted/30">
-          <div className="flex items-center gap-2 overflow-hidden">
-            <Variable className="h-4 w-4 shrink-0 text-cyan-500" />
-            {isOpen && (
-              <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground truncate">
-                <span>Parameters</span>
-                <Badge variant="secondary" className="px-1.5 py-0 h-4 text-[10px] font-mono">
-                  {parameters.length}
-                </Badge>
+      <div className="relative flex flex-col h-full w-full rounded-2xl border border-border/80 bg-background/95 backdrop-blur-xl shadow-2xl overflow-hidden">
+        {/* Toggle Collapse Button */}
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={isOpen ? "Collapse parameters panel" : "Expand parameters panel"}
+          className="absolute -right-3 top-6 z-30 flex h-6 w-6 items-center justify-center rounded-full border border-border/80 bg-background shadow-md hover:bg-muted/80 transition-colors"
+        >
+          {isOpen ? <ChevronLeft className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+        </button>
+
+        {isOpen ? (
+          <div className="flex flex-col h-full p-3 gap-3">
+            {/* Header & Tabs */}
+            <div className="flex items-center justify-between border-b pb-2">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setTab("inputs")}
+                  className={cn(
+                    "flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md transition-colors",
+                    activeTab === "inputs"
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <PlayCircle className="h-3.5 w-3.5" />
+                  <span>Inputs</span>
+                  <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 font-mono">
+                    {inputs.length}
+                  </Badge>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTab("outputs")}
+                  className={cn(
+                    "flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md transition-colors",
+                    activeTab === "outputs"
+                      ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>Outputs</span>
+                  <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 font-mono">
+                    {outputs.length}
+                  </Badge>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTab("variables")}
+                  className={cn(
+                    "flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md transition-colors",
+                    activeTab === "variables"
+                      ? "bg-violet-500/10 text-violet-600 dark:text-violet-400"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Variable className="h-3.5 w-3.5" />
+                  <span>Vars</span>
+                  <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 font-mono">
+                    {variables.length}
+                  </Badge>
+                </button>
               </div>
-            )}
-          </div>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
-            onPress={onToggle}
-          >
-            {isOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          </Button>
-        </div>
-
-        {isOpen && (
-          <div className="flex flex-1 flex-col overflow-hidden p-3 gap-3">
-            {/* 3 Tabs Segmented Control */}
-            <div className="grid grid-cols-3 gap-1 p-1 rounded-lg bg-muted/60 text-xs select-none">
-              <button
-                type="button"
-                onClick={() => { setTab("inputs"); setIsCreating(false); }}
-                className={cn(
-                  "flex items-center justify-center gap-1 py-1 rounded-md text-[11px] font-medium transition-all",
-                  activeTab === "inputs"
-                    ? "bg-background text-foreground shadow-sm font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <PlayCircle className="w-3 h-3 text-emerald-500" />
-                <span>In ({inputs.length})</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => { setTab("outputs"); setIsCreating(false); }}
-                className={cn(
-                  "flex items-center justify-center gap-1 py-1 rounded-md text-[11px] font-medium transition-all",
-                  activeTab === "outputs"
-                    ? "bg-background text-foreground shadow-sm font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <CheckCircle2 className="w-3 h-3 text-sky-500" />
-                <span>Out ({outputs.length})</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => { setTab("variables"); setIsCreating(false); }}
-                className={cn(
-                  "flex items-center justify-center gap-1 py-1 rounded-md text-[11px] font-medium transition-all",
-                  activeTab === "variables"
-                    ? "bg-background text-foreground shadow-sm font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Variable className="w-3 h-3 text-violet-500" />
-                <span>Vars ({variables.length})</span>
-              </button>
-            </div>
-
-            {/* Action Bar */}
-
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-medium text-muted-foreground capitalize">
-                {activeTab} Management
-              </span>
-              {!isCreating && !editingKey && (
+              {!isCreating && !editingParam && (
                 <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs gap-1 border-primary/40 bg-primary/5 text-primary hover:bg-primary/10"
-                  onPress={() => { setIsCreating(true); setEditingKey(null); }}
+                  size="icon"
+                  variant="ghost"
+                  className="h-6 w-6 rounded-md hover:bg-muted"
+                  onPress={() => {
+                    setIsCreating(true);
+                    setEditingParam(null);
+                  }}
+                  aria-label={`Add ${activeTab.slice(0, -1)}`}
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  <span>Add {activeTab.slice(0, -1)}</span>
                 </Button>
               )}
             </div>
 
-            {/* Inline Creation Form */}
+            {/* Creation or Edit Form Modal / Inline Section */}
             {isCreating && (
-              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2.5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-primary capitalize">
-                    New {activeTab.slice(0, -1)}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
-                    onPress={() => setIsCreating(false)}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-medium text-muted-foreground block">
-                    Key / Name
-                  </label>
-                  <Input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. TargetList, ExportDir"
-                    className="h-7 text-xs font-mono"
-                    autoFocus
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-medium text-muted-foreground block">
-                      Type
-                    </label>
-                    <Select
-                      selectedKey={type}
-                      onSelectionChange={(key) => key && setType(String(key))}
-                      className="w-full"
-                    >
-                      <SelectTrigger className="h-7 text-xs w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TYPE_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} id={opt.value}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-medium text-muted-foreground block">
-                      Cardinality
-                    </label>
-                    <Select
-                      selectedKey={cardinality}
-                      onSelectionChange={(key) => key && setCardinality(String(key))}
-                      className="w-full"
-                    >
-                      <SelectTrigger className="h-7 text-xs w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CARDINALITY_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} id={opt.value}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {isEntityRef(type) && (
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-medium text-muted-foreground block">
-                      Struct Schema
-                    </label>
-                    <Select
-                      selectedKey={structType}
-                      onSelectionChange={(key) => key && setStructType(String(key))}
-                      className="w-full"
-                    >
-                      <SelectTrigger className="h-7 text-xs w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {structCatalogue.map((s) => (
-                          <SelectItem key={s.structType} id={s.structType}>
-                            {s.label || s.structType}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {activeTab !== "outputs" &&
-                  renderDefaultValueField(type, cardinality, structType, defaultValue, setDefaultValue)}
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-medium text-muted-foreground block">
-                    Description
-                  </label>
-                  <Input
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Short description"
-                    className="h-7 text-xs"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2 pt-0.5">
-                  <Checkbox
-                    isSelected={isRequired}
-                    onChange={setIsRequired}
-                    className="h-3.5 w-3.5"
-                  />
-                  <span className="text-[10px] font-medium text-muted-foreground select-none">
-                    Required parameter
-                  </span>
-                </div>
-
-                <Button
-                  size="sm"
-                  className="w-full h-7 text-xs bg-primary text-primary-foreground font-semibold"
-                  onPress={handleCreate}
-                >
-                  Create
-                </Button>
-              </div>
+              <ParameterEditorForm
+                mode="create"
+                activeTab={activeTab}
+                existingKeys={existingKeys}
+                structCatalogue={structCatalogue}
+                onSaveCreate={(param) => {
+                  onAddParameter(param);
+                  setIsCreating(false);
+                }}
+                onSaveEdit={() => {}}
+                onCancel={() => setIsCreating(false)}
+              />
             )}
 
-            {/* Inline Edit Form */}
-            {editingKey && (
-              <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 space-y-2.5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 overflow-hidden">
-                    <span className="text-xs font-semibold text-amber-500 truncate">
-                      Edit {editingKey}
-                    </span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-5 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
-                    onPress={cancelEdit}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-medium text-muted-foreground block">
-                    Key (Read-only)
-                  </label>
-                  <Input
-                    value={editingKey}
-                    disabled
-                    className="h-7 text-xs font-mono bg-muted/50 cursor-not-allowed opacity-75"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-medium text-muted-foreground block">
-                    Display Label
-                  </label>
-                  <Input
-                    value={editLabel}
-                    onChange={(e) => setEditLabel(e.target.value)}
-                    placeholder="Display label"
-                    className="h-7 text-xs"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-medium text-muted-foreground block">
-                      Type
-                    </label>
-                    <Select
-                      selectedKey={editType}
-                      onSelectionChange={(key) => key && setEditType(String(key))}
-                      className="w-full"
-                    >
-                      <SelectTrigger className="h-7 text-xs w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TYPE_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} id={opt.value}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-medium text-muted-foreground block">
-                      Cardinality
-                    </label>
-                    <Select
-                      selectedKey={editCardinality}
-                      onSelectionChange={(key) => key && setEditCardinality(String(key))}
-                      className="w-full"
-                    >
-                      <SelectTrigger className="h-7 text-xs w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CARDINALITY_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} id={opt.value}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {isEntityRef(editType) && (
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-medium text-muted-foreground block">
-                      Struct Schema
-                    </label>
-                    <Select
-                      selectedKey={editStructType}
-                      onSelectionChange={(key) => key && setEditStructType(String(key))}
-                      className="w-full"
-                    >
-                      <SelectTrigger className="h-7 text-xs w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {structCatalogue.map((s) => (
-                          <SelectItem key={s.structType} id={s.structType}>
-                            {s.label || s.structType}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {activeTab !== "outputs" &&
-                  renderDefaultValueField(
-                    editType,
-                    editCardinality,
-                    editStructType,
-                    editDefaultValue,
-                    setEditDefaultValue
-                  )}
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-medium text-muted-foreground block">
-                    Description
-                  </label>
-                  <Input
-                    value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
-                    placeholder="Short description"
-                    className="h-7 text-xs"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2 pt-0.5">
-                  <Checkbox
-                    isSelected={editIsRequired}
-                    onChange={setEditIsRequired}
-                    className="h-3.5 w-3.5"
-                  />
-                  <span className="text-[10px] font-medium text-muted-foreground select-none">
-                    Required parameter
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 pt-1">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1 h-7 text-xs"
-                    onPress={cancelEdit}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="flex-1 h-7 text-xs bg-amber-600 hover:bg-amber-500 text-white font-semibold"
-                    onPress={handleSaveEdit}
-                  >
-                    Save Changes
-                  </Button>
-                </div>
-              </div>
+            {editingParam && (
+              <ParameterEditorForm
+                mode="edit"
+                activeTab={activeTab}
+                editingParam={editingParam}
+                existingKeys={existingKeys}
+                structCatalogue={structCatalogue}
+                onSaveCreate={() => {}}
+                onSaveEdit={(key, patch) => {
+                  if (onUpdateParameter) {
+                    onUpdateParameter(key, patch);
+                  }
+                  setEditingParam(null);
+                }}
+                onCancel={() => setEditingParam(null)}
+              />
             )}
 
-            {/* Parameters List */}
-            <ScrollArea className="flex-1 pr-2">
-              <div className="space-y-2">
-                {/* 1. INPUTS TAB */}
-                {activeTab === "inputs" && (
-                  <>
-                    {inputs.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground/60 border border-dashed rounded-lg">
-                        <PlayCircle className="h-7 w-7 mb-2 stroke-1 text-emerald-500/50" />
-                        <span className="text-xs font-medium">No inputs declared yet</span>
-                        <span className="text-[10px] text-muted-foreground mt-0.5">
-                          Inputs provide contract values into the Start node.
-                        </span>
-                      </div>
-                    ) : (
-                      inputs.map((param) => {
-                        const style = getTypeStyle(param.type, param.cardinality, param.structType);
-                        return (
-                          <div
-                            key={param.key}
-                            draggable
-                            onDragStart={(e) => {
-                              const payload = {
-                                ...param,
-                                name: param.key,
-                                category: "Input",
-                                kind: "Input",
-                              };
-                              e.dataTransfer.setData("application/pipeline-parameter", JSON.stringify(payload));
-                              e.dataTransfer.setData("application/pipeline-variable", JSON.stringify(payload));
-                              e.dataTransfer.effectAllowed = "copyMove";
-                            }}
-                            className="group relative flex flex-col gap-1.5 rounded-lg border border-border/60 bg-card p-2.5 hover:border-emerald-500/40 hover:shadow-sm transition-all cursor-grab active:cursor-grabbing select-none"
-                          >
-                            <div className="flex items-center justify-between gap-1.5">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0 group-hover:text-muted-foreground" />
-                                <span className="font-mono text-xs font-semibold text-foreground truncate">
-                                  {param.label || param.key}
-                                </span>
-                              </div>
-                              <Badge
-                                variant="outline"
-                                className={cn("text-[9px] px-1.5 py-0 h-4 border font-mono", style.color)}
-                              >
-                                {style.label}
-                              </Badge>
-                            </div>
-                            {param.description && (
-                              <p className="text-[10px] text-muted-foreground line-clamp-2 pl-5">
-                                {param.description}
-                              </p>
-                            )}
-                            <div className="flex items-center justify-between pt-1 border-t border-border/30 pl-5">
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-5 px-1.5 text-[10px] gap-1 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 font-mono"
-                                  onPress={() => onSpawnCapsule?.(param.key, "Input" as any, param.type)}
-                                  aria-label="Spawn Input Capsule getter on canvas"
-                                >
-                                  <span>Capsule</span>
-                                </Button>
-                                <span className="text-[10px] text-muted-foreground/70 font-mono truncate max-w-[90px]">
-                                  Def: {String(param.defaultValue ?? "none")}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-0.5">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-5 w-5 text-muted-foreground hover:text-foreground"
-                                  onPress={() => startEdit(param)}
-                                  aria-label="Edit input parameter"
-                                >
-                                  <Pencil className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-5 w-5 text-muted-foreground hover:text-destructive"
-                                  onPress={() => onDeleteParameter(param.key)}
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </>
-                )}
-
-                {/* 2. OUTPUTS TAB */}
-                {activeTab === "outputs" && (
-                  <>
-                    {outputs.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground/60 border border-dashed rounded-lg">
-                        <CheckCircle2 className="h-7 w-7 mb-2 stroke-1 text-sky-500/50" />
-                        <span className="text-xs font-medium">No outputs declared yet</span>
-                        <span className="text-[10px] text-muted-foreground mt-0.5">
-                          Outputs are collected at the Return node and snapshotted to ExecutionState.
-                        </span>
-                      </div>
-                    ) : (
-                      outputs.map((param) => {
-                        const style = getTypeStyle(param.type, param.cardinality, param.structType);
-                        return (
-                          <div
-                            key={param.key}
-                            className="group relative flex flex-col gap-1.5 rounded-lg border border-border/60 bg-card p-2.5 hover:border-sky-500/40 hover:shadow-sm transition-all"
-                          >
-                            <div className="flex items-center justify-between gap-1.5">
-                              <span className="font-mono text-xs font-semibold text-foreground truncate">
-                                {param.label || param.key}
-                              </span>
-                              <Badge
-                                variant="outline"
-                                className={cn("text-[9px] px-1.5 py-0 h-4 border font-mono", style.color)}
-                              >
-                                {style.label}
-                              </Badge>
-                            </div>
-                            {param.description && (
-                              <p className="text-[10px] text-muted-foreground line-clamp-2">
-                                {param.description}
-                              </p>
-                            )}
-                            <div className="flex items-center justify-end gap-0.5 pt-1 border-t border-border/30">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-5 w-5 text-muted-foreground hover:text-foreground"
-                                onPress={() => startEdit(param)}
-                                aria-label="Edit output parameter"
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-5 w-5 text-muted-foreground hover:text-destructive"
-                                onPress={() => onDeleteParameter(param.key)}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </>
-                )}
-
-                {/* 3. VARIABLES TAB */}
-                {activeTab === "variables" && (
-                  <>
-                    {variables.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground/60 border border-dashed rounded-lg">
-                        <Variable className="h-7 w-7 mb-2 stroke-1 text-violet-500/50" />
-                        <span className="text-xs font-medium">No variables declared</span>
-                        <span className="text-[10px] text-muted-foreground mt-0.5">
-                          Variables form the shared memory blackboard of this pipeline.
-                        </span>
-                      </div>
-                    ) : (
-                      variables.map((param) => {
-                        const style = getTypeStyle(param.type, param.cardinality, param.structType);
-                        return (
-                          <div
-                            key={param.key}
-                            draggable
-                            onDragStart={(e) => {
-                              e.dataTransfer.setData(
-                                "application/pipeline-variable",
-                                JSON.stringify(param)
-                              );
-                              e.dataTransfer.effectAllowed = "copyMove";
-                            }}
-                            className="group relative flex flex-col gap-1.5 rounded-lg border border-border/60 bg-card p-2.5 hover:border-violet-500/40 hover:shadow-sm transition-all cursor-grab active:cursor-grabbing select-none"
-                          >
-                            <div className="flex items-center justify-between gap-1.5">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0 group-hover:text-muted-foreground" />
-                                <span className="font-mono text-xs font-semibold text-foreground truncate">
-                                  {param.label || param.key}
-                                </span>
-                              </div>
-                              <Badge
-                                variant="outline"
-                                className={cn("text-[9px] px-1.5 py-0 h-4 border font-mono", style.color)}
-                              >
-                                {style.label}
-                              </Badge>
-                            </div>
-
-                            {param.description && (
-                              <p className="text-[10px] text-muted-foreground line-clamp-2 pl-5">
-                                {param.description}
-                              </p>
-                            )}
-
-                            {/* Action Buttons: 💊 Capsule Getter | ⚡ Action Setter */}
-                            <div className="flex items-center justify-between pt-1 border-t border-border/30 pl-5">
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-5 px-1.5 text-[10px] gap-1 text-violet-400 hover:text-violet-300 hover:bg-violet-500/10"
-                                  onPress={() => onSpawnCapsule(param.key, "Variable", param.type)}
-                                >
-                                  <Pill className="w-2.5 h-2.5" />
-                                  <span>Get</span>
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-5 px-1.5 text-[10px] gap-1 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10"
-                                  onPress={() => onSpawnAction("SetVariable", param.key)}
-                                >
-                                  <Zap className="w-2.5 h-2.5" />
-                                  <span>Set</span>
-                                </Button>
-                              </div>
-
-                              <div className="flex items-center gap-0.5">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-5 w-5 text-muted-foreground hover:text-foreground"
-                                  onPress={() => startEdit(param)}
-                                  aria-label="Edit variable parameter"
-                                >
-                                  <Pencil className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-5 w-5 text-muted-foreground hover:text-destructive"
-                                  onPress={() => onDeleteParameter(param.key)}
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </>
-                )}
-
-              </div>
-            </ScrollArea>
+            {/* Parameter List */}
+            <ParameterList
+              activeTab={activeTab}
+              items={activeItems}
+              onEdit={(param) => {
+                setIsCreating(false);
+                setEditingParam(param);
+              }}
+              onDelete={onDeleteParameter}
+              onSpawnCapsule={onSpawnCapsule}
+              onSpawnAction={onSpawnAction}
+            />
+          </div>
+        ) : (
+          <div className="flex flex-col items-center py-4 gap-4">
+            <button
+              type="button"
+              onClick={onToggle}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              title="Expand parameters"
+            >
+              <Variable className="h-4 w-4" />
+            </button>
           </div>
         )}
       </div>
-    </aside>
+    </div>
   );
 }
