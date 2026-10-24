@@ -5,6 +5,7 @@ kill-ports.ps1
 *.secret
 *.key
 backup.sql
+scripts/sql/
 
 # Scratch & Local Scripts
 scripts/scratch/
@@ -28,4 +29,4 @@ htmlcov/
 
 # Database Backups
 backups/
-*.dump
+*.dump

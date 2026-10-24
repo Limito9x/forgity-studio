@@ -176,6 +176,7 @@ agent_config.json
 cache/
 runtime/
 scratch/
+pipelines/
 
 # LSP config files
 pyrightconfig.json
