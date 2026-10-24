@@ -168,5 +168,13 @@ public class NodeContractResolverAndValidatorTests
             d.NodeId == orphanNode.Id
         );
     }
-}
 
+    [Fact]
+    public void PipelineNodeContractResolver_MustHaveOnlyOnePublicConstructor_RequiringPipelineDbContext()
+    {
+        var publicCtors = typeof(PipelineNodeContractResolver).GetConstructors();
+        publicCtors.Should().HaveCount(1, "Must have exactly one public constructor.");
+        var ctor = publicCtors[0];
+        ctor.GetParameters().Select(p => p.ParameterType).Should().Contain(typeof(Automation.Pipeline.Infrastructure.Persistence.PipelineDbContext));
+    }
+}

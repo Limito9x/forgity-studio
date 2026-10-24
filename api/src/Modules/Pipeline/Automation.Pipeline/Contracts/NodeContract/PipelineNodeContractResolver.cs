@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
@@ -10,19 +11,16 @@ using Automation.Pipeline.Contracts.Tools;
 using Microsoft.EntityFrameworkCore;
 namespace Automation.Pipeline.Contracts.NodeContract;
 
-[method: ActivatorUtilitiesConstructor]
 public class PipelineNodeContractResolver(
-    PipelineDbContext? db,
+    PipelineDbContext db,
     IToolRegistry toolRegistry,
     IEntityStructRegistry structRegistry
 ) : INodeContractResolver
 {
-    public PipelineNodeContractResolver(
+    public static PipelineNodeContractResolver CreateWithoutDatabase(
         IToolRegistry toolRegistry,
         IEntityStructRegistry? structRegistry = null
-    ) : this(null, toolRegistry, structRegistry ?? new EntityStructRegistry([]))
-    {
-    }
+    ) => new(null!, toolRegistry, structRegistry ?? new EntityStructRegistry([]));
 
     public async Task<NodeContractResolutionContext> BuildContextAsync(
         Domain.Entities.Pipeline pipeline,

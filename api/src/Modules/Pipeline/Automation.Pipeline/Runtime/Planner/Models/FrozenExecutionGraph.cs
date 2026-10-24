@@ -115,7 +115,7 @@ public sealed class FrozenExecutionGraph
         // 3. Resolve Contracts if not provided
         if (resolvedContracts == null)
         {
-            var resolver = new PipelineNodeContractResolver(toolRegistry, structRegistry);
+            var resolver = PipelineNodeContractResolver.CreateWithoutDatabase(toolRegistry, structRegistry);
             var customByKey = (customDefinitions ?? [])
                 .Where(x => !string.IsNullOrEmpty(x.Key))
                 .GroupBy(x => x.Key)
