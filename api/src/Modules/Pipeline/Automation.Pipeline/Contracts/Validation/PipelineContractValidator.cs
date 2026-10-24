@@ -73,15 +73,52 @@ public class PipelineContractValidator(
                 var hasIncomingWire = inEdgesByTarget.ContainsKey(pinKey);
 
                 var hasConfigValue = false;
+                var isUnboundFile = false;
+                string? unboundFileName = null;
+
                 if (contract.ConfigValues != null && contract.ConfigValues.TryGetValue(inputPin.Id, out var val) && val != null)
                 {
-                    if (val is string s) hasConfigValue = !string.IsNullOrWhiteSpace(s);
-                    else hasConfigValue = true;
+                    if (Automation.Pipeline.Runtime.State.PipelineFileValue.TryGetUnbound(val, out var unboundInfo))
+                    {
+                        isUnboundFile = true;
+                        unboundFileName = unboundInfo?.OriginalFileName;
+                        hasConfigValue = false;
+                    }
+                    else if (val is string s)
+                    {
+                        hasConfigValue = !string.IsNullOrWhiteSpace(s);
+                    }
+                    else
+                    {
+                        hasConfigValue = true;
+                    }
                 }
 
                 var hasDefaultValue = inputPin.DefaultValue != null;
 
-                if (!hasIncomingWire && !hasConfigValue && !hasDefaultValue)
+                if (isUnboundFile)
+                {
+                    var msg = $"File '{unboundFileName ?? inputPin.Label}' on pin '{inputPin.Label}' of node '{contract.Label}' is missing from storage (unbound). Please upload a replacement file.";
+                    diagnostics.Add(new PipelineDiagnostic(
+                        PipelineDiagnosticCode.UnresolvedRequiredPin,
+                        inputPin.IsRequired ? PipelineDiagnosticSeverity.Error : PipelineDiagnosticSeverity.Warning,
+                        msg,
+                        NodeId: nodeId,
+                        NodeLabel: contract.Label,
+                        PinId: inputPin.Id
+                    ));
+
+                    if (inputPin.IsRequired)
+                    {
+                        unresolvedPins.Add(new UnresolvedPinError(
+                            nodeId.ToString(),
+                            contract.Label,
+                            inputPin.Id,
+                            inputPin.PrimitiveType.ToString()
+                        ));
+                    }
+                }
+                else if (!hasIncomingWire && !hasConfigValue && !hasDefaultValue)
                 {
                     diagnostics.Add(new PipelineDiagnostic(
                         PipelineDiagnosticCode.UnresolvedRequiredPin,

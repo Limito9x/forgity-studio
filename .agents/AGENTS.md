@@ -134,4 +134,4 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 > - Danh mục toàn bộ 25+ kế hoạch lịch sử đã hoàn thành được lưu trữ tại [plans/README.md](file:///d:/FullStack/Automation/.agents/plans/README.md).
 
 ### Kế hoạch đang thực hiện (Active):
-- [**contracts-validation-buildtime-runtime-architecture (23/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/2026-10-23-contracts-validation-buildtime-runtime-architecture.md): Kiến Trúc Tổng Thể 3 Phân Khu (`Contracts & Validation` -> `BuildTime` & `Runtime`), Hợp Nhất `INodeContractResolver`, `IPipelineContractValidator` & Tái Cấu Trúc Thư Mục Vật Lý.
+- [**topology-aware-resolver-and-trial-readiness (24/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/2026-10-24-topology-aware-resolver-and-trial-readiness.md): Topology-Aware Contract Resolution (Auto-Infer Struct Pin từ Incoming Edge), Xử Lý File Unbound (`BL-005`), Cảnh Báo Trạng Thái Runner Khi Chạy & Làm Sạch DB Cho Trial User.

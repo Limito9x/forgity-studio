@@ -68,7 +68,7 @@ public class PinContractScannerTests
         var mockStructRegistry = Substitute.For<IEntityStructRegistry>();
 
         var breakStruct = new BreakStructTool(mockStructRegistry);
-        breakStruct.Inputs.Select(p => p.Id).Should().Equal("StructType");
+        breakStruct.Inputs.Select(p => p.Id).Should().Equal("Target");
         breakStruct.Outputs.Should().BeEmpty();
 
         var makeStruct = new MakeStructTool(mockStructRegistry);
@@ -88,6 +88,11 @@ public class PinContractScannerTests
             {
                 if (pin.PrimitiveType == PinPrimitiveType.EntityRef)
                 {
+                    if (tool.Key == "BreakStruct" && pin.Id == "Target" && string.IsNullOrWhiteSpace(pin.StructType))
+                    {
+                        continue; // Polymorphic wildcard Target pin waiting for connection or config
+                    }
+
                     pin.StructType.Should().NotBeNullOrWhiteSpace(
                         $"Tool '{tool.Key}' pin '{pin.Id}' is EntityRef but StructType is null or whitespace.");
 

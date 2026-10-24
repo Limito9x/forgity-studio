@@ -10,6 +10,7 @@ public sealed class NodeContractResolutionContext
     public IReadOnlyDictionary<string, NodeDefinition> CustomDefinitionsByKey { get; }
     public IReadOnlyDictionary<Guid, NodeDefinition> CustomDefinitionsById { get; }
     public IReadOnlyDictionary<Guid, Domain.Entities.Pipeline> SubPipelinesById { get; }
+    public IReadOnlyList<PipelineEdge> Edges { get; }
 
     public NodeContractResolutionContext(
         Guid pipelineId,
@@ -17,7 +18,8 @@ public sealed class NodeContractResolutionContext
         IReadOnlyList<PipelineParameter>? parameters = null,
         IReadOnlyDictionary<string, NodeDefinition>? customDefinitionsByKey = null,
         IReadOnlyDictionary<Guid, NodeDefinition>? customDefinitionsById = null,
-        IReadOnlyDictionary<Guid, Domain.Entities.Pipeline>? subPipelinesById = null)
+        IReadOnlyDictionary<Guid, Domain.Entities.Pipeline>? subPipelinesById = null,
+        IReadOnlyList<PipelineEdge>? edges = null)
     {
         PipelineId = pipelineId;
         ProjectId = projectId;
@@ -25,6 +27,6 @@ public sealed class NodeContractResolutionContext
         CustomDefinitionsByKey = customDefinitionsByKey ?? new Dictionary<string, NodeDefinition>(StringComparer.OrdinalIgnoreCase);
         CustomDefinitionsById = customDefinitionsById ?? new Dictionary<Guid, NodeDefinition>();
         SubPipelinesById = subPipelinesById ?? new Dictionary<Guid, Domain.Entities.Pipeline>();
+        Edges = edges ?? [];
     }
 }
-

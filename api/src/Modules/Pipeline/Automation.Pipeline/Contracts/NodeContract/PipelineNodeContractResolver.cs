@@ -64,7 +64,8 @@ public class PipelineNodeContractResolver(
             pipeline.Parameters,
             customByKey,
             customById,
-            projectPipelines
+            projectPipelines,
+            pipeline.Edges.ToList()
         );
     }
 
@@ -78,16 +79,87 @@ public class PipelineNodeContractResolver(
         {
             result[node.Id] = ResolveNode(node, context);
         }
+
+        // Pass 2: Upstream Topology-Aware Struct Inference
+        if (context.Edges.Count > 0)
+        {
+            var maxPasses = Math.Min(nodes.Count, 5);
+            for (var pass = 0; pass < maxPasses; pass++)
+            {
+                var changedAny = false;
+                foreach (var node in nodes)
+                {
+                    if (!result.TryGetValue(node.Id, out var contract)) continue;
+
+                    var isStructConsumer = contract.RefId is "BreakStruct" or "CastToStruct"
+                        || contract.Capabilities?.InspectorMode == "StructSelector";
+
+                    if (!isStructConsumer) continue;
+
+                    var existingStructType = contract.ConfigValues?.GetValueOrDefault("StructType")?.ToString()?.Trim();
+                    if (!string.IsNullOrWhiteSpace(existingStructType)) continue;
+
+                    // Scan incoming edges to target pins (Target or Source)
+                    var inEdges = context.Edges.Where(e => e.TargetPipelineNodeId == node.Id).ToList();
+                    string? inferredStructType = null;
+
+                    foreach (var edge in inEdges)
+                    {
+                        var tgtPin = edge.TargetPin.Trim();
+                        if (!tgtPin.Equals("Target", StringComparison.OrdinalIgnoreCase) &&
+                            !tgtPin.Equals("Source", StringComparison.OrdinalIgnoreCase) &&
+                            !tgtPin.Equals("target", StringComparison.OrdinalIgnoreCase))
+                        {
+                            continue;
+                        }
+
+                        if (!result.TryGetValue(edge.SourcePipelineNodeId, out var srcContract)) continue;
+
+                        var srcPin = srcContract.Outputs.FirstOrDefault(p =>
+                            string.Equals(p.Id, edge.SourcePin, StringComparison.OrdinalIgnoreCase));
+
+                        if (srcPin != null && !string.IsNullOrWhiteSpace(srcPin.StructType))
+                        {
+                            if (structRegistry.Get(srcPin.StructType, context.ProjectId) != null)
+                            {
+                                inferredStructType = srcPin.StructType;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(inferredStructType))
+                    {
+                        var newConfig = contract.ConfigValues != null
+                            ? new Dictionary<string, object?>(contract.ConfigValues)
+                            : new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+                        newConfig["StructType"] = inferredStructType;
+                        result[node.Id] = ResolveNodeInternal(node, context, newConfig);
+                        changedAny = true;
+                    }
+                }
+
+                if (!changedAny) break;
+            }
+        }
+
         return result;
     }
 
     public ResolvedNodeContract ResolveNode(
         PipelineNode node,
         NodeContractResolutionContext context
+    ) => ResolveNodeInternal(node, context, overrideConfigValues: null);
+
+    private ResolvedNodeContract ResolveNodeInternal(
+        PipelineNode node,
+        NodeContractResolutionContext context,
+        Dictionary<string, object?>? overrideConfigValues
     )
     {
-        Dictionary<string, object?>? configValues = null;
-        if (node.Config != null)
+        Dictionary<string, object?>? configValues = overrideConfigValues;
+        if (configValues == null && node.Config != null)
         {
             try
             {

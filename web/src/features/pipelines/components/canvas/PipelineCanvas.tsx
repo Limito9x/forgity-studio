@@ -72,7 +72,7 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
   const [isAutoFollow, setIsAutoFollow] = useState(true);
 
   // 1. Headless Draft State & Auto-save (with Stage Auto-expanding)
-  const draft = usePipelineDraftState(graph);
+  const draft = usePipelineDraftState(graph, structCatalogue);
 
   // 1b. Real-time Diagnostics Scope
   const [isDiagnosticsPanelOpen, setIsDiagnosticsPanelOpen] = useState(false);

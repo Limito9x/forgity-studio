@@ -12,7 +12,7 @@ import {
   PipelineNodeKind,
   useSavePipelineGraph,
 } from "../../../hooks/usePipelineGraph";
-import type { NodePaletteItemDto, PinDefinition } from "@/gen/model";
+import type { NodePaletteItemDto, PinDefinition, StructDefinitionDto } from "@/gen/model";
 import type { CustomPipelineNodeData } from "../nodes/types";
 import { isExecPin } from "../nodes/types";
 import type { CapsuleNodeData } from "../CapsuleNode";
@@ -26,7 +26,7 @@ import {
 import { getStartNodeEventTriggerPins } from "../constants/structPins";
 import { applyNodeConfigUpdate } from "../../../nodeDefinitions";
 
-export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
+export function usePipelineDraftState(graph: ExtendedPipelineGraphDto, structCatalogue?: StructDefinitionDto[]) {
   // 1. Initial nodes mapping from DTO (Unified Nodes architecture)
   const initialNodes: Node[] = useMemo(() => {
     const rawNodes = (graph.nodes || []) as any[];
@@ -588,12 +588,18 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
                 config[key] = value;
               }
             }
+            if (response.configValues?.StructType && !config.StructType) {
+              config.StructType = response.configValues.StructType;
+            }
+
             return {
               ...n,
               data: {
                 ...data,
                 configValues: config,
                 fileAssets: response.fileAssets,
+                inputs: (response.inputs as PinDefinition[]) ?? data.inputs,
+                outputs: (response.outputs as PinDefinition[]) ?? data.outputs,
               },
             };
           }),
@@ -845,11 +851,34 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto) {
             applyNodeConfigUpdate(nodeData.configValues, pinId, value);
           didStructTypeChange = didChangeStructType;
 
+          let nextInputs = nodeData.inputs;
+          let nextOutputs = nodeData.outputs;
+
+          if (didChangeStructType && value && structCatalogue) {
+            const sDef = structCatalogue.find(
+              (s) => s.structType?.toLowerCase() === String(value).trim().toLowerCase()
+            );
+            if (sDef) {
+              nextInputs = [
+                {
+                  id: "Target",
+                  label: `Target (${sDef.structType})`,
+                  primitiveType: "EntityRef",
+                  structType: sDef.structType,
+                  isRequired: true,
+                },
+              ];
+              nextOutputs = (sDef.outputPins as PinDefinition[]) || [];
+            }
+          }
+
           return {
             ...n,
             data: {
               ...n.data,
               configValues: updatedConfig,
+              inputs: nextInputs,
+              outputs: nextOutputs,
             },
           };
         }),

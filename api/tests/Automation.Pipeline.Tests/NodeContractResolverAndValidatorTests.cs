@@ -1,3 +1,4 @@
+using Automation.Pipeline.Contracts.Tools.Deconstruct;
 using Automation.Pipeline.Contracts.NodeContract;
 using Automation.Pipeline.Contracts.Validation;
 using Automation.Pipeline.Constants;
@@ -176,5 +177,130 @@ public class NodeContractResolverAndValidatorTests
         publicCtors.Should().HaveCount(1, "Must have exactly one public constructor.");
         var ctor = publicCtors[0];
         ctor.GetParameters().Select(p => p.ParameterType).Should().Contain(typeof(Automation.Pipeline.Infrastructure.Persistence.PipelineDbContext));
+    }
+    [Fact]
+    public void TopologyAwareStructInference_ShouldAutoInferStructTypeAndOutputPins_FromIncomingWire()
+    {
+        var pipelineId = Guid.NewGuid();
+        var projectId = Guid.NewGuid();
+
+        var parameters = new List<PipelineParameter>
+        {
+            new()
+            {
+                Key = "DazResource",
+                Label = "Daz Resource",
+                Kind = PipelineParameterKind.Input,
+                Type = PinPrimitiveType.EntityRef,
+                Cardinality = PinCardinality.Single,
+                StructType = "Resource",
+                IsRequired = true
+            }
+        };
+
+        var startNode = new PipelineNode(Guid.NewGuid(), pipelineId, "Start", PipelineNodeKind.Start, 0, 0);
+        var breakStructNode = new PipelineNode(Guid.NewGuid(), pipelineId, "BreakStruct", PipelineNodeKind.Tool, 300, 0);
+
+        var edge = new PipelineEdge(
+            pipelineId,
+            startNode.Id,
+            "DazResource",
+            breakStructNode.Id,
+            "Target"
+        );
+
+        var mockStructDef = Substitute.For<IEntityStructDefinition>();
+        mockStructDef.StructType.Returns("Resource");
+        mockStructDef.OutputPins.Returns(new List<PinDefinition>
+        {
+            new() { Id = "Id", Label = "Resource Id", PrimitiveType = PinPrimitiveType.String },
+            new() { Id = "Name", Label = "Resource Name", PrimitiveType = PinPrimitiveType.String },
+            new() { Id = "Path", Label = "Resource Path", PrimitiveType = PinPrimitiveType.String }
+        });
+
+        _structRegistry.Get("Resource", Arg.Any<Guid?>()).Returns(mockStructDef);
+        _structRegistry.Get("Resource").Returns(mockStructDef);
+        _toolRegistry.Get("BreakStruct").Returns(new BreakStructTool(_structRegistry));
+
+        var resolver = PipelineNodeContractResolver.CreateWithoutDatabase(_toolRegistry, _structRegistry);
+        var context = new NodeContractResolutionContext(
+            pipelineId,
+            projectId,
+            parameters,
+            edges: new List<PipelineEdge> { edge }
+        );
+
+        var contracts = resolver.ResolveAllNodes(new List<PipelineNode> { startNode, breakStructNode }, context);
+
+        contracts.Should().ContainKey(breakStructNode.Id);
+        var breakContract = contracts[breakStructNode.Id];
+
+        breakContract.ConfigValues.Should().NotBeNull();
+        breakContract.ConfigValues!["StructType"]?.ToString().Should().Be("Resource");
+        breakContract.Inputs.Should().Contain(p => p.Id == "Target" && p.StructType == "Resource");
+        breakContract.Outputs.Should().Contain(p => p.Id == "Id" && p.PrimitiveType == PinPrimitiveType.String);
+        breakContract.Outputs.Should().Contain(p => p.Id == "Name" && p.PrimitiveType == PinPrimitiveType.String);
+        breakContract.Outputs.Should().Contain(p => p.Id == "Path" && p.PrimitiveType == PinPrimitiveType.String);
+    }
+
+    [Fact]
+    public async Task Validator_WhenFilePinIsUnbound_ShouldReportErrorDiagnostic()
+    {
+        var pipeline = new Domain.Entities.Pipeline(Guid.NewGuid(), "Unbound Test");
+        var node = new PipelineNode(Guid.NewGuid(), pipeline.Id, "ImportTool", PipelineNodeKind.Tool, 0, 0);
+        pipeline.AddNode(node);
+
+        var validator = new PipelineContractValidator(
+            Substitute.For<INodeContractResolver>(),
+            _structRegistry
+        );
+
+        var contract = new ResolvedNodeContract(
+            NodeId: node.Id,
+            RefId: "ImportTool",
+            Kind: PipelineNodeKind.Tool,
+            Label: "Import Tool",
+            DefinitionLabel: "Import Tool",
+            Category: "Tools",
+            Executor: "builtin",
+            IsPure: false,
+            IsFlowControl: false,
+            SubPipelineId: null,
+            NodeDefinitionId: null,
+            Inputs: new List<PinDefinition>
+            {
+                new()
+                {
+                    Id = "InputFile",
+                    Label = "Input Preset File",
+                    PrimitiveType = PinPrimitiveType.Asset,
+                    IsRequired = true
+                }
+            },
+            Outputs: [],
+            ConfigValues: new Dictionary<string, object?>
+            {
+                ["InputFile"] = new Dictionary<string, object?>
+                {
+                    ["status"] = "unbound",
+                    ["originalFileName"] = "missing_character.fbx"
+                }
+            },
+            Metadata: null
+        );
+
+        var prebuiltContracts = new Dictionary<Guid, ResolvedNodeContract> { [node.Id] = contract };
+        var prebuiltContext = new NodeContractResolutionContext(pipeline.Id, pipeline.ProjectId);
+
+        var result = await validator.ValidateGraphAsync(pipeline, prebuiltContext, prebuiltContracts);
+
+        result.IsValid.Should().BeFalse();
+        result.Diagnostics.Should().Contain(d =>
+            d.Code == PipelineDiagnosticCode.UnresolvedRequiredPin &&
+            d.Severity == PipelineDiagnosticSeverity.Error &&
+            d.PinId == "InputFile" &&
+            d.Message.Contains("missing_character.fbx") &&
+            d.Message.Contains("unbound")
+        );
     }
 }
