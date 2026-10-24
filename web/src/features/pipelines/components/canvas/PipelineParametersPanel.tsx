@@ -1,14 +1,12 @@
 import { useState, useMemo } from "react";
 import {
-  ChevronLeft,
-  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   PlayCircle,
   CheckCircle2,
   Variable,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { PipelineParameterDto } from "../../hooks/usePipelineGraph";
 import { usePipelineFormScope } from "../../form-scope/PipelineFormScope";
@@ -100,91 +98,118 @@ export function PipelineParametersPanel({
     <div
       className={cn(
         "absolute left-4 top-20 bottom-4 z-20 flex transition-all duration-300 pointer-events-auto",
-        isOpen ? "w-80" : "w-10"
+        isOpen ? "w-[350px]" : "w-11"
       )}
     >
       <div className="relative flex flex-col h-full w-full rounded-2xl border border-border/80 bg-background/95 backdrop-blur-xl shadow-2xl overflow-hidden">
-        {/* Toggle Collapse Button */}
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-label={isOpen ? "Collapse parameters panel" : "Expand parameters panel"}
-          className="absolute -right-3 top-6 z-30 flex h-6 w-6 items-center justify-center rounded-full border border-border/80 bg-background shadow-md hover:bg-muted/80 transition-colors"
-        >
-          {isOpen ? <ChevronLeft className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-        </button>
-
         {isOpen ? (
           <div className="flex flex-col h-full p-3 gap-3">
-            {/* Header & Tabs */}
-            <div className="flex items-center justify-between border-b pb-2">
-              <div className="flex items-center gap-1.5">
+            {/* Clean Integrated Header: Tabs + Actions */}
+            <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
+              {/* Segmented Pill Tabs */}
+              <div className="flex items-center gap-0.5 bg-muted/40 p-0.5 rounded-lg border border-border/40">
                 <button
                   type="button"
                   onClick={() => setTab("inputs")}
                   className={cn(
-                    "flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md transition-colors",
+                    "flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md transition-all",
                     activeTab === "inputs"
-                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      ? "bg-background text-emerald-600 dark:text-emerald-400 shadow-xs font-semibold"
                       : "text-muted-foreground hover:text-foreground"
                   )}
+                  title="Pipeline Inputs"
                 >
-                  <PlayCircle className="h-3.5 w-3.5" />
+                  <PlayCircle className="h-3.5 w-3.5 text-emerald-500" />
                   <span>Inputs</span>
-                  <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 font-mono">
+                  <span
+                    className={cn(
+                      "text-[10px] font-mono px-1 py-0 rounded",
+                      activeTab === "inputs"
+                        ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold"
+                        : "text-muted-foreground/80"
+                    )}
+                  >
                     {inputs.length}
-                  </Badge>
+                  </span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setTab("outputs")}
                   className={cn(
-                    "flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md transition-colors",
+                    "flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md transition-all",
                     activeTab === "outputs"
-                      ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
+                      ? "bg-background text-sky-600 dark:text-sky-400 shadow-xs font-semibold"
                       : "text-muted-foreground hover:text-foreground"
                   )}
+                  title="Pipeline Outputs"
                 >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <CheckCircle2 className="h-3.5 w-3.5 text-sky-500" />
                   <span>Outputs</span>
-                  <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 font-mono">
+                  <span
+                    className={cn(
+                      "text-[10px] font-mono px-1 py-0 rounded",
+                      activeTab === "outputs"
+                        ? "bg-sky-500/15 text-sky-600 dark:text-sky-400 font-bold"
+                        : "text-muted-foreground/80"
+                    )}
+                  >
                     {outputs.length}
-                  </Badge>
+                  </span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setTab("variables")}
                   className={cn(
-                    "flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md transition-colors",
+                    "flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-md transition-all",
                     activeTab === "variables"
-                      ? "bg-violet-500/10 text-violet-600 dark:text-violet-400"
+                      ? "bg-background text-violet-600 dark:text-violet-400 shadow-xs font-semibold"
                       : "text-muted-foreground hover:text-foreground"
                   )}
+                  title="Pipeline Variables"
                 >
-                  <Variable className="h-3.5 w-3.5" />
+                  <Variable className="h-3.5 w-3.5 text-violet-500" />
                   <span>Vars</span>
-                  <Badge variant="secondary" className="text-[9px] px-1 py-0 h-3.5 font-mono">
+                  <span
+                    className={cn(
+                      "text-[10px] font-mono px-1 py-0 rounded",
+                      activeTab === "variables"
+                        ? "bg-violet-500/15 text-violet-600 dark:text-violet-400 font-bold"
+                        : "text-muted-foreground/80"
+                    )}
+                  >
                     {variables.length}
-                  </Badge>
+                  </span>
                 </button>
               </div>
 
-              {!isCreating && !editingParam && (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-6 w-6 rounded-md hover:bg-muted"
-                  onPress={() => {
-                    setIsCreating(true);
-                    setEditingParam(null);
-                  }}
-                  aria-label={`Add ${activeTab.slice(0, -1)}`}
+              {/* Action Buttons: Add + Collapse */}
+              <div className="flex items-center gap-1 ml-1.5 shrink-0">
+                {!isCreating && !editingParam && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreating(true);
+                      setEditingParam(null);
+                    }}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+                    title={`Add new ${activeTab === "variables" ? "variable" : activeTab === "inputs" ? "input" : "output"}`}
+                    aria-label={`Add ${activeTab.slice(0, -1)}`}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={onToggle}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+                  title="Collapse panel"
+                  aria-label="Collapse parameters panel"
                 >
-                  <Plus className="h-3.5 w-3.5" />
-                </Button>
-              )}
+                  <PanelLeftClose className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             {/* Creation or Edit Form Modal / Inline Section */}
@@ -235,14 +260,70 @@ export function PipelineParametersPanel({
             />
           </div>
         ) : (
-          <div className="flex flex-col items-center py-4 gap-4">
+          /* Sleek Collapsed Strip */
+          <div className="flex flex-col items-center py-3 gap-2 h-full">
             <button
               type="button"
               onClick={onToggle}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-              title="Expand parameters"
+              className="flex h-8 w-8 items-center justify-center rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+              title="Expand parameters panel"
+              aria-label="Expand parameters panel"
             >
-              <Variable className="h-4 w-4" />
+              <PanelLeftOpen className="h-4 w-4" />
+            </button>
+
+            <div className="w-5 h-px bg-border/60 my-0.5" />
+
+            {/* Quick-select Tab Icons with Notification Dot/Badge */}
+            <button
+              type="button"
+              onClick={() => {
+                setTab("inputs");
+                if (!isOpen) onToggle();
+              }}
+              className="relative flex h-8 w-8 items-center justify-center rounded-xl text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 transition-colors"
+              title={`Inputs (${inputs.length})`}
+            >
+              <PlayCircle className="h-4 w-4 text-emerald-500" />
+              {inputs.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-emerald-500 text-[8px] font-mono font-bold text-white px-0.5">
+                  {inputs.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setTab("outputs");
+                if (!isOpen) onToggle();
+              }}
+              className="relative flex h-8 w-8 items-center justify-center rounded-xl text-muted-foreground hover:text-sky-500 hover:bg-sky-500/10 transition-colors"
+              title={`Outputs (${outputs.length})`}
+            >
+              <CheckCircle2 className="h-4 w-4 text-sky-500" />
+              {outputs.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-sky-500 text-[8px] font-mono font-bold text-white px-0.5">
+                  {outputs.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setTab("variables");
+                if (!isOpen) onToggle();
+              }}
+              className="relative flex h-8 w-8 items-center justify-center rounded-xl text-muted-foreground hover:text-violet-500 hover:bg-violet-500/10 transition-colors"
+              title={`Variables (${variables.length})`}
+            >
+              <Variable className="h-4 w-4 text-violet-500" />
+              {variables.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-violet-500 text-[8px] font-mono font-bold text-white px-0.5">
+                  {variables.length}
+                </span>
+              )}
             </button>
           </div>
         )}
