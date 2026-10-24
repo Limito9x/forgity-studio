@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { cn } from "@/lib/utils";
 import type { Node, Edge } from "@xyflow/react";
 import { useForm } from "react-hook-form";
 import { useGetRunners } from "@/gen/endpoints/runners/runners";
@@ -10,11 +11,21 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import {
   Play,
   Loader2,
   AlertCircle,
   Sparkles,
+  Server,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -73,6 +84,31 @@ export function RunPipelineModal({
       setSelectedAgentId(active?.id || agents[0].id);
     }
   }, [agents, selectedAgentId]);
+
+  const requiresExternalRunner = useMemo(() => {
+    return nodes.some((n: any) => {
+      if (n.type === "scopeContainer") {
+        const executor = n.data?.executorKey || n.data?.executor;
+        return executor && !["builtin", "dotnet", "system"].includes(String(executor).toLowerCase());
+      }
+      const executor = n.data?.executor;
+      return executor && !["builtin", "dotnet", "system"].includes(String(executor).toLowerCase());
+    });
+  }, [nodes]);
+
+  const selectedAgent = useMemo(() => {
+    return (agents || []).find((a: any) => a.id === selectedAgentId);
+  }, [agents, selectedAgentId]);
+
+  const isSelectedAgentOnline = useMemo(() => {
+    if (!selectedAgent) return false;
+    return Boolean(
+      (selectedAgent as any).isOnline ||
+      (selectedAgent as any).isActive ||
+      (selectedAgent as any).status === "Active" ||
+      (selectedAgent as any).status === 1
+    );
+  }, [selectedAgent]);
 
   // Derived inputs: strictly rely on unified parameters (kind === "Input" or 1)
   const pipelineInputs = useMemo(() => {
@@ -295,6 +331,82 @@ export function RunPipelineModal({
       <PipelineFormScopeProvider value={{ projectId: projectId || "", pipelineId }}>
         <form onSubmit={handleRun} className="space-y-4">
           <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+            {/* 0. Target Runner Machine Section (Shown when pipeline requires DCC runners) */}
+            {requiresExternalRunner && (
+              <div className="rounded-xl border border-border/80 bg-muted/20 p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+                    <Server className="h-4 w-4 text-primary" />
+                    <span>Target Runner Machine</span>
+                  </div>
+                  {selectedAgent && (
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[10px] px-2 py-0.5 font-medium gap-1.5",
+                        isSelectedAgentOnline
+                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                          : "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "h-1.5 w-1.5 rounded-full",
+                          isSelectedAgentOnline ? "bg-emerald-500" : "bg-amber-500"
+                        )}
+                      />
+                      {isSelectedAgentOnline ? "Online" : "Offline"}
+                    </Badge>
+                  )}
+                </div>
+
+                <Select
+                  placeholder="Select target runner..."
+                  selectedKey={selectedAgentId || null}
+                  onSelectionChange={(key) => setSelectedAgentId(String(key))}
+                  className="w-full"
+                >
+                  <SelectTrigger className="h-8 text-xs font-medium">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {agents.map((a: any) => {
+                      const isOnline = Boolean(
+                        a.isOnline || a.isActive || a.status === "Active" || a.status === 1
+                      );
+                      return (
+                        <SelectItem key={a.id} id={a.id} textValue={a.name || a.id}>
+                          <div className="flex items-center justify-between w-full gap-2">
+                            <span>{a.name || a.id}</span>
+                            <span
+                              className={cn(
+                                "text-[10px] font-mono",
+                                isOnline ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                              )}
+                            >
+                              {isOnline ? "Online" : "Offline"}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+
+                {!isSelectedAgentOnline && (
+                  <div className="flex items-start gap-2.5 p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-amber-900 dark:text-amber-200">
+                    <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <p className="font-semibold text-[11px]">Runner is currently Offline</p>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        This pipeline requires external DCC execution (e.g. Blender/Unreal). The task will wait in queue until the runner daemon is started.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* 1. Pipeline Start Inputs Section (From Unified Parameters) */}
             {pipelineInputs.length > 0 ? (
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 space-y-3">

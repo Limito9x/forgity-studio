@@ -45,15 +45,6 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
                     StructType = structType,
                     Cardinality = PinCardinality.Single,
                     IsRequired = true
-                },
-                new()
-                {
-                    Id = "StructType",
-                    Label = "Struct Type",
-                    PrimitiveType = PinPrimitiveType.String,
-                    Cardinality = PinCardinality.Single,
-                    IsRequired = true,
-                    DefaultValue = structType
                 }
             };
             return (resolvedInputs, sDef.OutputPins);
@@ -66,9 +57,10 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
     [
         new()
         {
-            Id = "StructType",
-            Label = "Struct Type",
-            PrimitiveType = PinPrimitiveType.String,
+            Id = "Target",
+            Label = "Target",
+            PrimitiveType = PinPrimitiveType.EntityRef,
+            StructType = null,
             Cardinality = PinCardinality.Single,
             IsRequired = true
         }

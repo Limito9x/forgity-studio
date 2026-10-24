@@ -43,6 +43,7 @@ export function useCanvasConnectionRules({
   setEdges,
   setNodes,
   setIsDirty,
+  structCatalogue,
 }: UseCanvasConnectionRulesArgs) {
   // Two-tier Strict Connection Validation
   const isValidConnection = useCallback(
@@ -169,6 +170,10 @@ export function useCanvasConnectionRules({
           }
 
           if (inferredStructType) {
+            const sDef = structCatalogue?.find(
+              (s: StructDefinitionDto) => s.structType?.toLowerCase() === inferredStructType.toLowerCase()
+            );
+
             setNodes((nds) =>
               nds.map((n) => {
                 if (n.id !== params.target) return n;
@@ -177,11 +182,26 @@ export function useCanvasConnectionRules({
                 const { Target: _t, target: _tl, ...restConfig } = currentConfig;
                 const updatedConfig = { ...restConfig, StructType: inferredStructType };
 
+                const nextInputs = sDef
+                  ? [
+                      {
+                        id: "Target",
+                        label: `Target (${sDef.structType})`,
+                        primitiveType: "EntityRef",
+                        structType: sDef.structType,
+                        isRequired: true,
+                      },
+                    ]
+                  : nodeData.inputs;
+                const nextOutputs = sDef?.outputPins || nodeData.outputs;
+
                 return {
                   ...n,
                   data: {
                     ...n.data,
                     configValues: updatedConfig,
+                    inputs: nextInputs,
+                    outputs: nextOutputs,
                   },
                 };
               })
