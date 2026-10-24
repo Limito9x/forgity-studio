@@ -50,7 +50,7 @@ public sealed class PipelineFileParameterTests : IDisposable
                 new() { Id = "EntityId", PrimitiveType = PinPrimitiveType.EntityRef }], Outputs = []
         });
         _db.SaveChanges();
-        _builder = new(_db, new EmptyTools(), Substitute.For<IEntityStructRegistry>(), _assets);
+        _builder = PipelineGraphDtoBuilder.Create(_db, new EmptyTools(), Substitute.For<IEntityStructRegistry>(), _assets);
         _assets.CreateLinkAsync(Arg.Any<AssetLinkRequestItem>(), Arg.Any<AssetLinkOwner>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {

@@ -24,11 +24,13 @@ import {
   PlayCircle,
   CheckCircle2,
   AlertTriangle,
+  AlertCircle,
+  ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FormRenderer } from "@/components/dynamic-form/FormRenderer";
 import { pipelineRegistry } from "../../form-scope/pipelineRegistry";
-import { usePipelineFormScope } from "../../form-scope/PipelineFormScope";
+import { usePipelineFormScope, useNodeDiagnostics } from "../../form-scope/PipelineFormScope";
 import { pinToFieldDefinition } from "../../form-scope/pinToFieldDefinition";
 import { useGetStructCatalogue } from "@/gen/endpoints/pipelines/pipelines";
 
@@ -55,6 +57,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
 }: NodeConfigInspectorProps) {
   const { edges = [], nodes = [], projectId = "" } = usePipelineFormScope();
   const { data: structCatalogue = [] } = useGetStructCatalogue({ projectId });
+  const { nodeDiagnostics, errorCount, warningCount, hasErrors, getPinDiagnostics } = useNodeDiagnostics(node?.id);
 
   const data = (node?.data as unknown as CustomPipelineNodeData) || {};
   const definition = useNodeDefinition(data.kind, data.refId);
@@ -242,6 +245,71 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
           />
         ) : (
           <div className="space-y-4">
+            {/* Build-Time Diagnostics Warning & Error Panel */}
+            {nodeDiagnostics.length > 0 && (
+              <div
+                className={cn(
+                  "rounded-xl border p-3 space-y-2 shadow-sm animate-in fade-in",
+                  hasErrors
+                    ? "border-destructive/40 bg-destructive/5"
+                    : "border-amber-500/40 bg-amber-500/5"
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <div
+                    className={cn(
+                      "flex items-center gap-1.5 text-xs font-semibold",
+                      hasErrors ? "text-destructive" : "text-amber-600 dark:text-amber-400"
+                    )}
+                  >
+                    <ShieldAlert className="h-4 w-4" />
+                    <span>Node Validation Issues</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] font-mono">
+                    {errorCount > 0 && (
+                      <span className="text-destructive font-semibold">{errorCount} error(s)</span>
+                    )}
+                    {errorCount > 0 && warningCount > 0 && <span>•</span>}
+                    {warningCount > 0 && (
+                      <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                        {warningCount} warning(s)
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 pt-1 border-t border-border/50">
+                  {nodeDiagnostics.map((diag, idx) => (
+                    <div
+                      key={idx}
+                      className={cn(
+                        "rounded-lg p-2 text-xs flex items-start gap-2",
+                        diag.severity === "Error"
+                          ? "bg-destructive/10 text-destructive border border-destructive/20"
+                          : "bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20"
+                      )}
+                    >
+                      {diag.severity === "Error" ? (
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        {diag.pinId && (
+                          <span className="block font-mono text-[10px] font-semibold opacity-80 uppercase">
+                            Pin: {diag.pinId}
+                          </span>
+                        )}
+                        <p className="leading-snug break-words text-[11px] font-medium">
+                          {diag.message}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Live / Persisted Execution Outputs */}
             {data.executionOutputs && Object.keys(data.executionOutputs).length > 0 && (
               <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-1.5 shadow-sm">
@@ -353,12 +421,19 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
                     {wiredInputs.map((pin) => {
                       const pinId = pin.id || "";
                       const wiredInfo = wiredInputPinIds.get(pinId);
+                      const pinDiags = getPinDiagnostics(pinId);
+                      const hasPinError = pinDiags.some((d) => d.severity === "Error");
                       const visual = getPinVisual(pin.primitiveType);
 
                       return (
                         <div
                           key={pinId}
-                          className="rounded-lg border border-sky-500/30 bg-sky-500/5 dark:bg-sky-500/10 p-3 space-y-1.5"
+                          className={cn(
+                          "rounded-lg p-3 space-y-1.5",
+                          hasPinError
+                            ? "border border-destructive/40 bg-destructive/5"
+                            : "border border-sky-500/30 bg-sky-500/5 dark:bg-sky-500/10"
+                        )}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-xs font-semibold text-foreground truncate">

@@ -1,9 +1,12 @@
 import { type ReactNode } from "react";
+import { useNodeId } from "@xyflow/react";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, AlertCircle, AlertTriangle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useNodeDiagnostics } from "@/features/pipelines/form-scope/PipelineFormScope";
 
 interface NodeHeaderProps {
+  nodeId?: string;
   icon: ReactNode;
   iconBgClass?: string;
   headerBgClass?: string;
@@ -15,6 +18,7 @@ interface NodeHeaderProps {
 }
 
 export function NodeHeader({
+  nodeId: explicitNodeId,
   icon,
   iconBgClass = "bg-purple-500/15 text-purple-500",
   headerBgClass = "border-border/70 bg-muted/50",
@@ -24,6 +28,14 @@ export function NodeHeader({
   badgeVariantClass,
   status = "idle",
 }: NodeHeaderProps) {
+  const contextNodeId = useNodeId();
+  const effectiveNodeId = explicitNodeId || contextNodeId || undefined;
+  const { nodeDiagnostics, errorCount, warningCount, hasErrors, hasWarnings } =
+    useNodeDiagnostics(effectiveNodeId);
+
+  const isIdle = status === "idle";
+  const diagnosticTooltip = nodeDiagnostics.map((d) => `• [${d.severity}] ${d.message}`).join("\n");
+
   return (
     <div
       className={cn(
@@ -59,9 +71,33 @@ export function NodeHeader({
             {badgeLabel}
           </Badge>
         )}
+
+        {/* Runtime Execution Status */}
         {status === "running" && <Loader2 className="h-3.5 w-3.5 text-amber-500 animate-spin" />}
         {status === "succeeded" && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
         {status === "failed" && <AlertCircle className="h-3.5 w-3.5 text-destructive" />}
+
+        {/* Build-Time Diagnostics Indicators (when idle) */}
+        {isIdle && hasErrors && (
+          <Badge
+            variant="destructive"
+            className="h-5 px-1.5 gap-1 text-[9px] font-mono font-semibold"
+            title={diagnosticTooltip}
+          >
+            <AlertCircle className="h-3 w-3" />
+            <span>{errorCount}</span>
+          </Badge>
+        )}
+        {isIdle && !hasErrors && hasWarnings && (
+          <Badge
+            variant="outline"
+            className="h-5 px-1.5 gap-1 text-[9px] font-mono font-semibold border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
+            title={diagnosticTooltip}
+          >
+            <AlertTriangle className="h-3 w-3" />
+            <span>{warningCount}</span>
+          </Badge>
+        )}
       </div>
     </div>
   );

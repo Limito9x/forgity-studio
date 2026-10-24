@@ -13,7 +13,6 @@ export const PinPrimitiveType = {
   String: "String",
   Number: "Number",
   Boolean: "Boolean",
-  Path: "Path",
   EntityRef: "EntityRef",
   Asset: "Asset",
 } as const;

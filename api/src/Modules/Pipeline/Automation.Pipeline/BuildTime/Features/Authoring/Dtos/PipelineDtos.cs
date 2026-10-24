@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Automation.Pipeline.Constants;
+using Automation.Pipeline.Contracts.Validation;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
@@ -147,7 +148,8 @@ public record PipelineGraphDto(
     IReadOnlyList<PipelineEdgeGraphDto> Edges,
     IReadOnlyList<PipelineParameterDto> Parameters,
     JsonDocument? TriggerConfig = null,
-    IReadOnlyList<PipelineFileSyncResultDto>? FileResults = null
+    IReadOnlyList<PipelineFileSyncResultDto>? FileResults = null,
+    IReadOnlyList<PipelineDiagnostic>? Diagnostics = null
 );
 
 public record PipelineFileSyncResultDto(

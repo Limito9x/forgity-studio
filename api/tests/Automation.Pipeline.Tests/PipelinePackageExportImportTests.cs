@@ -91,7 +91,7 @@ public sealed class PipelinePackageExportImportTests : IDisposable
         _contractValidator = new PipelineContractValidator(contractResolver, _structRegistry);
         _transientFactory = new TransientPipelineGraphFactory(_db);
 
-        _builder = new PipelineGraphDtoBuilder(_db, _toolRegistry, _structRegistry, _assets);
+        _builder = PipelineGraphDtoBuilder.Create(_db, _toolRegistry, _structRegistry, _assets);
         _projects.GetProjectStorageProfileIdAsync(_projectId, Arg.Any<CancellationToken>())
             .Returns(Guid.NewGuid());
         _assets.GetFilesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())

@@ -12,4 +12,6 @@ export interface ValidatePipelineResponse {
   isValid: boolean;
   cycleNodeIds: IReadOnlyListOfString;
   unresolvedPins: IReadOnlyListOfUnresolvedPin;
+  /** @nullable */
+  diagnostics?: unknown[] | null;
 }

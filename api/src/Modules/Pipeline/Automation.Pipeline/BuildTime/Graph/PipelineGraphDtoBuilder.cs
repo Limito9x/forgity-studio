@@ -1,6 +1,8 @@
+using Microsoft.Extensions.DependencyInjection;
 using Automation.Files.Contracts;
 using System.Text.Json;
 using Automation.Pipeline.Contracts.NodeContract;
+using Automation.Pipeline.Contracts.Validation;
 using Automation.Pipeline.Infrastructure.Persistence;
 using Automation.Pipeline.Contracts.StructRegistry;
 using Automation.Pipeline.Contracts.Tools;
@@ -17,24 +19,30 @@ public class PipelineGraphDtoBuilder : IPipelineGraphDtoBuilder
 {
     private readonly INodeContractResolver _contractResolver;
     private readonly IAssetApi _assetApi;
+    private readonly IPipelineContractValidator? _contractValidator;
 
+    [ActivatorUtilitiesConstructor]
     public PipelineGraphDtoBuilder(
         INodeContractResolver contractResolver,
-        IAssetApi assetApi
+        IAssetApi assetApi,
+        IPipelineContractValidator? contractValidator = null
     )
     {
         _contractResolver = contractResolver;
         _assetApi = assetApi;
+        _contractValidator = contractValidator;
     }
 
-    public PipelineGraphDtoBuilder(
+    public static PipelineGraphDtoBuilder Create(
         PipelineDbContext? db,
         IToolRegistry toolRegistry,
         IEntityStructRegistry structRegistry,
         IAssetApi assetApi
-    ) : this(new PipelineNodeContractResolver(db!, toolRegistry, structRegistry), assetApi)
-    {
-    }
+    ) => new(
+        new PipelineNodeContractResolver(db!, toolRegistry, structRegistry),
+        assetApi,
+        new PipelineContractValidator(new PipelineNodeContractResolver(db!, toolRegistry, structRegistry), structRegistry)
+    );
 
     public async Task<PipelineGraphDto> BuildDtoAsync(
         Domain.Entities.Pipeline pipeline,
@@ -93,6 +101,13 @@ public class PipelineGraphDtoBuilder : IPipelineGraphDtoBuilder
             p.ContextData
         )).ToList();
 
+        IReadOnlyList<PipelineDiagnostic>? diagnostics = null;
+        if (_contractValidator != null)
+        {
+            var valResult = await _contractValidator.ValidateGraphAsync(pipeline, context, contracts, ct);
+            diagnostics = valResult.Diagnostics;
+        }
+
         var graph = new PipelineGraphDto(
             pipeline.Id,
             pipeline.ProjectId,
@@ -101,7 +116,8 @@ public class PipelineGraphDtoBuilder : IPipelineGraphDtoBuilder
             nodeDtos,
             edgeDtos,
             parameterDtos,
-            pipeline.TriggerConfig
+            pipeline.TriggerConfig,
+            Diagnostics: diagnostics
         );
         return hydrateFiles ? await HydrateFilesAsync(graph, ct) : graph;
     }
