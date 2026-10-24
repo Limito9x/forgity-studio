@@ -3,8 +3,8 @@ using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
 using PipelineEntity = Automation.Pipeline.Domain.Entities.Pipeline;
 using Automation.Pipeline.Domain.ValueObjects;
-using Automation.Pipeline.Engine.ExecPlanner;
-using Automation.Pipeline.Tools;
+using Automation.Pipeline.Runtime.Planner;
+using Automation.Pipeline.Contracts.Tools;
 using FluentAssertions;
 using Xunit;
 
@@ -289,7 +289,7 @@ public class ExecPlannerTests
 
         binding.ConfiguredRunnerId.Should().Be(staticRunnerA);
         binding.EffectiveRunnerId.Should().Be(dynamicRunnerB);
-        binding.BindingSource.Should().Be(Automation.Pipeline.Engine.Models.StageBindingSource.DataWire);
+        binding.BindingSource.Should().Be(Automation.Pipeline.Runtime.Planner.Models.StageBindingSource.DataWire);
         binding.TargetQueueName.Should().Be($"stage_tasks.{dynamicRunnerB}");
 
         // Segment tương ứng cũng phải mang runner B được chỉ định từ dây cắm

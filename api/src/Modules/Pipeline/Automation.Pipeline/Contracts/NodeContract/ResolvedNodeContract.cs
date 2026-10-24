@@ -1,7 +1,6 @@
 using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
-
 namespace Automation.Pipeline.Contracts.NodeContract;
 
 public sealed record ResolvedNodeContract(

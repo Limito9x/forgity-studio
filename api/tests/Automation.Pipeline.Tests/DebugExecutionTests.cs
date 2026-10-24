@@ -2,13 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Automation.Content.Contracts;
-using Automation.Pipeline.Engine;
-using Automation.Pipeline.Engine.DataResolver;
-using Automation.Pipeline.Engine.Models;
+using Automation.Pipeline.Runtime.DataResolver;
+using Automation.Pipeline.Runtime.Planner.Models;
 using Automation.Pipeline.Extensions;
 using Automation.Pipeline.Infrastructure.Persistence;
 using Automation.Pipeline.Infrastructure.Redis;
-using Automation.Pipeline.Tools;
+using Automation.Pipeline.Contracts.Tools;
 using Automation.Repository.Contracts;
 using Automation.Repository.Contracts.Extensions;
 using Microsoft.EntityFrameworkCore;
@@ -86,18 +85,18 @@ public class DebugExecutionTests(ITestOutputHelper output)
         services.AddSingleton<IConfiguration>(configuration);
         services.AddPipelineTools();
         services.AddSingleton<IExecutionStateStore, RedisExecutionStateStore>();
-        services.AddSingleton<Engine.DataResolver.IExecutionMemoryStore, RedisExecutionMemoryStore>();
+        services.AddSingleton<IExecutionMemoryStore, RedisExecutionMemoryStore>();
         services.AddScoped<IRepositoryApi>(_ => Substitute.For<IRepositoryApi>());
         services.AddScoped<IContentApi>(_ => Substitute.For<IContentApi>());
         services.AddScoped<Automation.DynamicForms.Contracts.ISchemaApi>(_ => Substitute.For<Automation.DynamicForms.Contracts.ISchemaApi>());
         services.AddScoped<Automation.Tag.Contracts.ITagApi>(_ => Substitute.For<Automation.Tag.Contracts.ITagApi>());
         services.AddScoped<Automation.Files.Contracts.IAssetApi>(_ => Substitute.For<Automation.Files.Contracts.IAssetApi>());
-        services.AddScoped<Engine.EntityStore.IExecutionEntityStore, Engine.EntityStore.ExecutionEntityStore>();
-        services.AddScoped<Engine.ExecPlanner.IExecPlanner, Engine.ExecPlanner.ExecPlanner>();
-        services.AddScoped<Engine.DataResolver.IPipelineGraphProvider, Engine.DataResolver.PipelineGraphProvider>();
-        services.AddScoped<Engine.DataResolver.Resolvers.PureNodeResolver>();
-        services.AddScoped<Engine.DataResolver.Resolvers.AssetResolver>();
-        services.AddScoped<Engine.DataResolver.IPinValueResolver, Engine.DataResolver.PinValueResolver>();
+        services.AddScoped<IExecutionEntityStore, ExecutionEntityStore>();
+        services.AddScoped<IExecPlanner, ExecPlanner>();
+        services.AddScoped<IPipelineGraphProvider, PipelineGraphProvider>();
+        services.AddScoped<PureNodeResolver>();
+        services.AddScoped<AssetResolver>();
+        services.AddScoped<IPinValueResolver, PinValueResolver>();
 
         var sp = services.BuildServiceProvider();
         var db = sp.GetRequiredService<PipelineDbContext>();
@@ -114,7 +113,7 @@ public class DebugExecutionTests(ITestOutputHelper output)
             .Include(p => p.Edges)
             .FirstAsync(p => p.Id == pipelineId);
 
-        var frozen = Engine.Models.FrozenExecutionGraph.Create(pipe, toolRegistry);
+        var frozen = FrozenExecutionGraph.Create(pipe, toolRegistry);
         graphProvider.RegisterFrozenGraph(executionId, frozen);
 
         var setVarNodeId = Guid.Parse("e30051b8-4586-4caa-8357-d2cf0d4a6584");
@@ -147,12 +146,12 @@ public class DebugExecutionTests(ITestOutputHelper output)
         services.AddScoped<Automation.Tag.Contracts.ITagApi>(_ => Substitute.For<Automation.Tag.Contracts.ITagApi>());
         services.AddScoped<Automation.Files.Contracts.IAssetApi>(_ => Substitute.For<Automation.Files.Contracts.IAssetApi>());
         services.AddPipelineTools();
-        services.AddScoped<Engine.ExecPlanner.IExecPlanner, Engine.ExecPlanner.ExecPlanner>();
+        services.AddScoped<IExecPlanner, ExecPlanner>();
 
         var sp = services.BuildServiceProvider();
         var db = sp.GetRequiredService<PipelineDbContext>();
         var toolRegistry = sp.GetRequiredService<IToolRegistry>();
-        var planner = sp.GetRequiredService<Engine.ExecPlanner.IExecPlanner>();
+        var planner = sp.GetRequiredService<IExecPlanner>();
 
         var pipelineId = Guid.Parse("01a0fc7d-a26c-7255-bb83-10cc4d10adc3");
         var pipe = await db.Pipelines

@@ -6,7 +6,7 @@ using Automation.Files.Infrastructure.Persistence;
 using Automation.Files.Infrastructure.Storage;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
-using Automation.Pipeline.Features.Nodes;
+using Automation.Pipeline.BuildTime.Features.CustomNodes;
 using Automation.Pipeline.Infrastructure.Persistence;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -225,7 +225,7 @@ public sealed class CustomScriptPublishTests : IDisposable
     {
         await Publish(Item("script", await Asset()));
         var replacement = await Asset();
-        _bus.PublishAsync(Arg.Any<Automation.Pipeline.Features.Nodes.Events.NodeDefinitionPinsChangedEvent>())
+        _bus.PublishAsync(Arg.Any<Automation.Pipeline.BuildTime.Features.CustomNodes.Events.NodeDefinitionPinsChangedEvent>())
             .Returns(_ => throw new InvalidOperationException("Outbox failed."));
         var result = await Publish(Item("script", replacement, "Changed"), Item("new", await Asset()));
         Assert.Equal("script.py", Assert.Single(result.Value.Errors).FileName);

@@ -1,0 +1,191 @@
+using System.Text.Json;
+using Automation.Pipeline.Constants;
+using Automation.Pipeline.Domain.Entities;
+using Automation.Pipeline.Domain.Enums;
+using Automation.Pipeline.Domain.ValueObjects;
+using Automation.Pipeline.Runtime.Planner.Models;
+namespace Automation.Pipeline.BuildTime.Features.Authoring.Dtos;
+
+public record ValidatePipelineQuery(
+    Guid PipelineId,
+    Dictionary<string, object?>? RuntimeInputs = null,
+    List<SavePipelineNodeItem>? Nodes = null,
+    List<SavePipelineEdgeItem>? Edges = null,
+    List<PipelineParameter>? Parameters = null
+);
+
+public record ValidatePipelineResponse(
+    bool IsValid,
+    IReadOnlyList<string> CycleNodeIds,
+    IReadOnlyList<UnresolvedPin> UnresolvedPins,
+    IReadOnlyList<Contracts.Validation.PipelineDiagnostic>? Diagnostics = null
+);
+
+public record RunPipelineRequest(Dictionary<string, object?>? RuntimeInputs = null);
+
+public record RunPipelineCommand(
+    Guid PipelineId,
+    Dictionary<string, object?>? RuntimeInputs = null,
+    bool IsEventTrigger = false
+);
+
+public record TriggerPipelineExecutionMessage(
+    Guid ExecutionId,
+    Dictionary<string, object?>? RuntimeInputs = null
+);
+
+public record PipelineExecutionDto(
+    Guid Id,
+    Guid PipelineId,
+    ExecutionStatus Status,
+    DateTimeOffset? StartedAt,
+    DateTimeOffset? FinishedAt,
+    string? ErrorMessage,
+    int NextNodeIndex,
+    string? CurrentBatchId,
+    JsonDocument? ExecutionState
+);
+
+public record NodeExecutionDto(
+    Guid Id,
+    Guid PipelineExecutionId,
+    Guid PipelineNodeId,
+    ExecutionStatus Status,
+    DateTimeOffset? StartedAt,
+    DateTimeOffset? FinishedAt,
+    string? ErrorMessage,
+    JsonDocument? Output,
+    JsonDocument? Log
+);
+
+public record PipelineSummaryDto(
+    Guid Id,
+    Guid ProjectId,
+    string Name,
+    PipelineTriggerType TriggerType,
+    int NodeCount,
+    int EdgeCount,
+    DateTimeOffset CreatedAt,
+    JsonDocument? TriggerConfig = null,
+    DateTimeOffset? DeletedAt = null
+);
+
+public record PipelineParameterDto(
+    Guid Id,
+    string Key,
+    string Label,
+    PipelineParameterKind Kind,
+    PinPrimitiveType Type,
+    PinCardinality Cardinality,
+    string? StructType,
+    bool IsRequired,
+    string? DefaultValue,
+    string? Description,
+    int Order,
+    Dictionary<string, object?>? ContextData
+);
+
+public class PipelineNodeFileMap : Dictionary<string, PipelineFileAssetDto>
+{
+    public PipelineNodeFileMap() : base() { }
+    public PipelineNodeFileMap(IDictionary<string, PipelineFileAssetDto> dictionary) : base(dictionary) { }
+}
+
+public record PipelineNodeGraphDto(
+    Guid Id,
+    string RefId,
+    PipelineNodeKind Kind,
+    string Label,
+    string? Category,
+    string? Executor,
+    NodePosition Position,
+    IReadOnlyList<PinDefinition> Inputs,
+    IReadOnlyList<PinDefinition> Outputs,
+    Dictionary<string, object?>? ConfigValues,
+    Guid? ParentId = null,
+    NodeSize? Size = null,
+    Dictionary<string, object?>? Metadata = null,
+    PipelineNodeFileMap? FileAssets = null
+);
+
+public record PipelineFileAssetDto(
+    Guid? AssetLinkId,
+    Guid? AssetId,
+    string? OriginalName,
+    string? ContentType,
+    long? SizeBytes,
+    string Status,
+    string? HashSha256 = null
+);
+
+public record PipelineEdgeGraphDto(
+    Guid Id,
+    Guid SourceNodeId,
+    string SourcePin,
+    Guid TargetNodeId,
+    string TargetPin,
+    EdgeKind Kind = EdgeKind.Data
+);
+
+public record UpdatePipelineTriggerRequest(
+    PipelineTriggerType TriggerType,
+    JsonDocument? TriggerConfig = null
+);
+
+public record UpdatePipelineTriggerCommand(
+    Guid PipelineId,
+    PipelineTriggerType TriggerType,
+    JsonDocument? TriggerConfig = null
+);
+
+public record PipelineGraphDto(
+    Guid Id,
+    Guid ProjectId,
+    string Name,
+    PipelineTriggerType TriggerType,
+    IReadOnlyList<PipelineNodeGraphDto> Nodes,
+    IReadOnlyList<PipelineEdgeGraphDto> Edges,
+    IReadOnlyList<PipelineParameterDto> Parameters,
+    JsonDocument? TriggerConfig = null,
+    IReadOnlyList<PipelineFileSyncResultDto>? FileResults = null
+);
+
+public record PipelineFileSyncResultDto(
+    Guid NodeId,
+    string PinId,
+    Guid? AssetLinkId,
+    string? ErrorCode = null,
+    string? ErrorMessage = null
+)
+{
+    public bool IsSuccess => ErrorCode is null;
+}
+
+public record SavePipelineNodeItem(
+    Guid? Id,
+    string RefId,
+    PipelineNodeKind Kind,
+    float PositionX,
+    float PositionY,
+    Dictionary<string, object?>? ConfigValues,
+    Guid? ParentId = null,
+    float? Width = null,
+    float? Height = null,
+    Dictionary<string, object?>? Metadata = null,
+    NodePosition? Position = null
+);
+
+public record SavePipelineEdgeItem(
+    Guid? Id,
+    Guid SourceNodeId,
+    string SourcePin,
+    Guid TargetNodeId,
+    string TargetPin
+);
+
+public record SavePipelineGraphCommand(
+    Guid PipelineId,
+    List<SavePipelineNodeItem> Nodes,
+    List<SavePipelineEdgeItem> Edges,
+    List<PipelineParameter>? Parameters = null
+);

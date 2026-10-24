@@ -1,6 +1,5 @@
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.ValueObjects;
-
 namespace Automation.Pipeline.Contracts.NodeContract;
 
 public sealed class NodeContractResolutionContext

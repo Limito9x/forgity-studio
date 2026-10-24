@@ -1,6 +1,6 @@
-using Automation.Pipeline.Tools;
-using Automation.Pipeline.Tools.Collections;
-using Automation.Pipeline.Tools.Utility;
+using Automation.Pipeline.Contracts.Tools;
+using Automation.Pipeline.Contracts.Tools.Collections;
+using Automation.Pipeline.Contracts.Tools.Utility;
 using FluentAssertions;
 using Xunit;
 

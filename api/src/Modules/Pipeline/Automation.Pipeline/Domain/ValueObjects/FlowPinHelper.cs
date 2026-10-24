@@ -1,7 +1,7 @@
 using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
-using Automation.Pipeline.Tools;
+using Automation.Pipeline.Contracts.Tools;
 
 namespace Automation.Pipeline.Domain.ValueObjects;
 

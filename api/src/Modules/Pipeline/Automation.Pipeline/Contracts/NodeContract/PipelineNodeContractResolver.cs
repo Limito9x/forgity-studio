@@ -3,12 +3,10 @@ using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
-using Automation.Pipeline.Engine;
-using Automation.Pipeline.Engine.StructRegistry;
+using Automation.Pipeline.Contracts.StructRegistry;
 using Automation.Pipeline.Infrastructure.Persistence;
-using Automation.Pipeline.Tools;
+using Automation.Pipeline.Contracts.Tools;
 using Microsoft.EntityFrameworkCore;
-
 namespace Automation.Pipeline.Contracts.NodeContract;
 
 public class PipelineNodeContractResolver(

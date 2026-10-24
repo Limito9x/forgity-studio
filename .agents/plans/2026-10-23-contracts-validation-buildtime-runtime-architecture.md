@@ -115,6 +115,9 @@ flowchart TD
 - Hiển thị huy hiệu Warning/Error trực quan trên từng Node/Pin trên Canvas và trong `NodeConfigInspector`.
 - Áp dụng `IPipelineContractValidator` cho luồng kiểm tra sau Import Bundle vào Project đích.
 
-### Khâu 3: Tái Cấu Trúc Vật Lý Thư Mục (`Contracts/`, `BuildTime/`, `Runtime/`)
+### Khâu 3: Tái Cấu Trúc Vật Lý Thư Mục (`Contracts/`, `BuildTime/`, `Runtime/`) (✅ ĐÃ HOÀN TẤT 24/10/2026)
 
-- Di chuyển các file theo đúng **Mục 3 (Bản Đồ Đối Chiếu Tái Cấu Trúc Thư Mục)** và cập nhật namespaces gọn gàng khi toàn bộ logic Hợp đồng & Validation ở Khâu 1–2 đã khóa chặt bằng bộ Unit Tests.
+- Di chuyển toàn bộ các file theo đúng **Mục 3 (Bản Đồ Đối Chiếu Tái Cấu Trúc Thư Mục)** bằng `git mv` để bảo toàn git history.
+- Cập nhật namespaces và usings chuẩn hóa cho cả 3 phân khu (`Automation.Pipeline.Contracts.*`, `Automation.Pipeline.BuildTime.*`, `Automation.Pipeline.Runtime.*`).
+- Bổ sung `GlobalUsings.cs` chuẩn hóa cho `Automation.Pipeline` và `Automation.Pipeline.Tests`.
+- Toàn bộ 191 unit tests của Pipeline, 46 tests Files, 20 tests DynamicForms và TypeScript Frontend pass 100%.

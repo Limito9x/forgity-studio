@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using Automation.Pipeline.Engine;
-using Automation.Pipeline.Engine.Models;
+using Automation.Pipeline.Runtime.Planner.Models;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 

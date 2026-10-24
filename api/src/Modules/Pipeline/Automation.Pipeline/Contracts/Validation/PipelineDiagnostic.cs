@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-
 namespace Automation.Pipeline.Contracts.Validation;
 
 [JsonConverter(typeof(JsonStringEnumConverter))]

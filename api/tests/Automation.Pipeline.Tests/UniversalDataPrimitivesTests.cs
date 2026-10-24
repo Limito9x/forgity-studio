@@ -1,13 +1,13 @@
 using System.Text.Json;
 using Automation.Pipeline.Domain.Enums;
-using Automation.Pipeline.Engine.StructRegistry;
-using Automation.Pipeline.Engine.StructRegistry.Definitions;
-using Automation.Pipeline.Tools;
-using Automation.Pipeline.Tools.Construct;
-using Automation.Pipeline.Tools.Utility;
-using Automation.Pipeline.Engine.DataResolver;
+using Automation.Pipeline.Contracts.StructRegistry;
+using Automation.Pipeline.Contracts.StructRegistry.Definitions;
+using Automation.Pipeline.Contracts.Tools;
+using Automation.Pipeline.Contracts.Tools.Construct;
+using Automation.Pipeline.Contracts.Tools.Utility;
+using Automation.Pipeline.Runtime.DataResolver;
 using Automation.Pipeline.Hubs;
-using Automation.Pipeline.Tools.Variables;
+using Automation.Pipeline.Contracts.Tools.Variables;
 using FluentAssertions;
 using NSubstitute;
 using Xunit;
@@ -289,7 +289,7 @@ public class UniversalDataPrimitivesTests
         var resolutionCtx = new PinResolutionContext(registry, projectId, declaredParameters);
 
         // 1. GetVariableTool
-        var getVarTool = new Automation.Pipeline.Tools.Variables.GetVariableTool();
+        var getVarTool = new Automation.Pipeline.Contracts.Tools.Variables.GetVariableTool();
         var getConfig = new Dictionary<string, object?> { ["VariableName"] = "ResolvedSlotsMap" };
         var (_, getOutputs) = getVarTool.ResolvePins(getConfig, resolutionCtx);
 
@@ -299,7 +299,7 @@ public class UniversalDataPrimitivesTests
         getValuePin.Metadata.Should().Be("SlotBinding");
 
         // 2. SetVariableTool
-        var setVarTool = new Automation.Pipeline.Tools.Variables.SetVariableTool();
+        var setVarTool = new Automation.Pipeline.Contracts.Tools.Variables.SetVariableTool();
 
         // Check static declaration
         setVarTool.Inputs.Should().Contain(p => p.Kind == PinKind.Exec && p.Id == "exec_in");
