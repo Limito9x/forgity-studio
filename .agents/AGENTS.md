@@ -41,7 +41,22 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 
 ---
 
-## 3. Chỉ Mục Cẩm Nang Vận Hành Cốt Lõi (Core Operational Playbooks - MANDATORY)
+## 3. Chỉ Mục Quyết Định Kiến Trúc (Architecture Decision Records - ADR)
+
+> **QUY TẮC BẢO TOÀN KIẾN TRÚC:** Trước khi đề xuất thay đổi lớn về mặt thiết kế hoặc cấu trúc hệ thống, Agent **BẮT BUỘC** phải đọc các ADR tương ứng dưới đây để hiểu rõ bối cảnh lịch sử, những lỗ hổng đã gặp phải trong quá khứ và các đánh đổi (trade-offs) đã được thống nhất. Tuyệt đối không tự ý refactor ngược lại các quyết sách này.
+
+| Mã ADR | Tiêu đề quyết định | Đường dẫn tài liệu | Tóm tắt lý do & quyết sách cốt lõi |
+| :--- | :--- | :--- | :--- |
+| **Index** | **Toàn bộ ADRs** | [docs/adr/README.md](file:///d:/FullStack/Automation/docs/adr/README.md) | Thư mục trung tâm và quy chuẩn các Quyết định Kiến trúc. |
+| **ADR-001** | **Modular Monolith** | [docs/adr/ADR-001-modular-monolith-architecture.md](file:///d:/FullStack/Automation/docs/adr/ADR-001-modular-monolith-architecture.md) | Phân tách module độc lập theo Bounded Context, giao tiếp qua Contracts API & Wolverine In-Process Bus, DB Schema cô lập hoàn toàn. |
+| **ADR-002** | **Pragmatic Single-File VSA** | [docs/adr/ADR-002-pragmatic-single-file-vsa.md](file:///d:/FullStack/Automation/docs/adr/ADR-002-pragmatic-single-file-vsa.md) | Xóa bỏ bùng nổ thư mục 4 tầng của Clean Architecture; gom Command, Validator, Endpoint, Handler vào 1 file phẳng; POCO Entity + Mapster. |
+| **ADR-003** | **CAS Deduplication & Zero-Byte Linking** | [docs/adr/ADR-003-cas-deduplication-and-zero-byte-linking.md](file:///d:/FullStack/Automation/docs/adr/ADR-003-cas-deduplication-and-zero-byte-linking.md) | Tách rời nhị phân vật lý (Asset - SHA-256) và tham chiếu logic (AssetLink); Presigned upload 2 pha; Piped streaming 8MB chunk không tốn RAM. |
+| **ADR-004** | **Unified Node Contract Resolver (SSOT)** | [docs/adr/ADR-004-unified-node-contract-resolver.md](file:///d:/FullStack/Automation/docs/adr/ADR-004-unified-node-contract-resolver.md) | Hợp nhất 4 nơi tự tính toán chân pin về một cổng `INodeContractResolver` duy nhất; sửa lỗi StructType; loại bỏ Type Path; O(1) runtime pin lookup. |
+| **ADR-005** | **Transient Graph Ingestion & Structural Gate** | [docs/adr/ADR-005-transient-graph-ingestion-and-structural-gate.md](file:///d:/FullStack/Automation/docs/adr/ADR-005-transient-graph-ingestion-and-structural-gate.md) | Dựng đồ thị in-memory qua `TransientPipelineGraphFactory`; ranh giới chặn cứng lỗi cấu trúc và cảnh báo cấu hình dạng Draft; HTTP 422 preflight run gate. |
+
+---
+
+## 4. Chỉ Mục Cẩm Nang Vận Hành Cốt Lõi (Core Operational Playbooks - MANDATORY)
 
 > **QUY TẮC SỐNG:** Trước khi can thiệp vào bất kỳ module/feature nào, Agent **BẮT BUỘC** phải đọc Playbook tương ứng dưới đây để nắm trọn vẹn luồng dữ liệu (Data Lifecycle) từ A đến Z. Sau khi sửa đổi code, Agent **BẮT BUỘC** phải cập nhật lại Playbook để tài liệu luôn phản ánh đúng 100% thực tế.
 
@@ -55,13 +70,13 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 
 ---
 
-## 4. Chỉ Mục Tài Liệu Kiến Trúc Tham Khảo (Architecture Reference Index)
+## 5. Chỉ Mục Tài Liệu Kiến Trúc Tham Khảo (Architecture Reference Index)
 
 | Phạm vi       | Đường dẫn tài liệu                                                                                                             | Mô tả nội dung                                                        |
 | :------------ | :----------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------- |
 | **Tổng quan** | [docs/architecture/system_overview.md](file:///d:/FullStack/Automation/docs/architecture/system_overview.md)                   | Kiến trúc tổng thể liên thông Web <-> API <-> Workers.                |
 | **Backend**   | [docs/backend/ARCHITECTURE.md](file:///d:/FullStack/Automation/docs/backend/ARCHITECTURE.md)                                   | Triết lý kiến trúc Modular Monolith & VSA của Backend.                |
-| **Backend**   | [docs/backend/ADR_PRAGMATIC_SINGLE_FILE_VSA.md](file:///d:/FullStack/Automation/docs/backend/ADR_PRAGMATIC_SINGLE_FILE_VSA.md) | Quyết định kiến trúc: Pragmatic Single-File VSA & Mapster-First POCO. |
+| **Backend**   | [docs/adr/ADR-002-pragmatic-single-file-vsa.md](file:///d:/FullStack/Automation/docs/adr/ADR-002-pragmatic-single-file-vsa.md) | Quyết định kiến trúc: Pragmatic Single-File VSA & Mapster-First POCO. |
 | **Backend**   | [docs/backend/FILES_STORAGE_ARCHITECTURE.md](file:///d:/FullStack/Automation/docs/backend/FILES_STORAGE_ARCHITECTURE.md)       | Kiến trúc Hệ thống Lưu trữ & Vòng đời Tệp (Multi-storage, Zero-byte Copy, Piped Streaming). |
 | **Backend**   | [docs/backend/PIPELINE_ENGINE_ARCHITECTURE.md](file:///d:/FullStack/Automation/docs/backend/PIPELINE_ENGINE_ARCHITECTURE.md)   | Thiết kế Pipeline Engine, DAG, Stages, Steps trong Backend.           |
 | **Backend**   | [docs/backend/PIPELINE_PIN_SYSTEM.md](file:///d:/FullStack/Automation/docs/backend/PIPELINE_PIN_SYSTEM.md)                     | Hệ thống Pin, Data Types, Dynamic Forms của Pipeline.                 |
@@ -78,7 +93,7 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 
 ---
 
-## 5. Chỉ Mục Kỹ Năng Tự Động Hóa (Skills Index)
+## 6. Chỉ Mục Kỹ Năng Tự Động Hóa (Skills Index)
 
 ### Kỹ Năng Backend (`api/`)
 
@@ -104,42 +119,19 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 
 ---
 
-## 6. Workflows
+## 7. Workflows
 
 - [build-dotnet](file:///d:/FullStack/Automation/.agents/workflows/build-dotnet.md): Quy trình build và kiểm tra Backend .NET.
 - [suggest-fix-template](file:///d:/FullStack/Automation/.agents/workflows/suggest-fix-template.md): Mẫu đề xuất sửa lỗi tự động.
 
 ---
 
-## 7. Kế Hoạch Kỹ Thuật (Plans)
+## 8. Kế Hoạch Kỹ Thuật (Engineering Plans)
 
-> **LƯU Ý:** Toàn bộ Kế hoạch kỹ thuật BẮT BUỘC lưu trữ tập trung tại `.agents/plans/`. Tuyệt đối không tạo file kế hoạch ngoài thư mục này.
+> **QUY TẮC LƯU TRỮ & TRA CỨU:**
+> - Toàn bộ Kế hoạch kỹ thuật **BẮT BUỘC** lưu trữ tập trung tại `.agents/plans/`. Tuyệt đối không tạo file kế hoạch ngoài thư mục này.
+> - **Sổ bộ Tồn đọng & Định hướng (Backlog)**: [plans/BACKLOG.md](file:///d:/FullStack/Automation/.agents/plans/BACKLOG.md).
+> - Danh mục toàn bộ 25+ kế hoạch lịch sử đã hoàn thành được lưu trữ tại [plans/README.md](file:///d:/FullStack/Automation/.agents/plans/README.md).
 
-- [refactor-repository-trigger-deprecate-platform](file:///d:/FullStack/Automation/.agents/plans/2026-10-02-refactor-repository-trigger-deprecate-platform.md): Kế hoạch loại bỏ module Platform, chuẩn hóa Repository Trigger, batch Resource list & bổ sung RunnerId.
-- [daz-to-blender-unreal-pipeline-upgrade](file:///d:/FullStack/Automation/.agents/plans/2026-10-03-daz-to-blender-unreal-pipeline-upgrade.md): Kế hoạch nâng cấp Pipeline DAZ -> Blender -> Unreal Engine (Queue Isolation, AI Tagging, Lightweight Native Bake).
-- [deploy-readiness-batch-first](file:///d:/FullStack/Automation/.agents/plans/2026-10-06-deploy-readiness-batch-first.md): Kế hoạch chuẩn bị triển khai & tối ưu xử lý hàng loạt Batch-First.
-- [unreal-batch-first-refactor](file:///d:/FullStack/Automation/.agents/plans/unreal-batch-first-refactor.md): Kế hoạch tái cấu trúc Unreal Engine Subprocess sang cơ chế Batch-First.
-- [pipeline-file-draft-sync](file:///d:/FullStack/Automation/.agents/plans/2026-10-08-pipeline-file-draft-sync.md): Kế hoạch đồng bộ file parameter trong cấu hình node của Pipeline Canvas.
-- [pipeline-export-import-bundle](file:///d:/FullStack/Automation/.agents/plans/2026-10-08-pipeline-export-import-bundle.md): Kế hoạch xuất nhập Pipeline dạng Unified Package Bundle hỗ trợ Batch, giải quyết phụ thuộc đệ quy SubPipeline, Content Types & Custom Scripts.
-- [pipeline-soft-delete-archive](file:///d:/FullStack/Automation/.agents/plans/2026-10-08-pipeline-soft-delete-archive.md): Kế hoạch Soft Delete (Archive), Partial Unique Index chống trùng tên trong đống Active, và bảo vệ toàn vẹn Node, Edge và Execution history.
-- [fix-pipeline-import-export-and-exec-edges](file:///d:/FullStack/Automation/.agents/plans/2026-10-09-fix-pipeline-import-export-and-exec-edges.md): Kế hoạch hoàn thiện Import/Export Custom Node Library (Asset storage link & Key remapping) và khắc phục triệt để lỗi không nối được dây Exec trên Canvas.
-- [refactor-resource-lifecycle-draft-publish](file:///d:/FullStack/Automation/.agents/plans/2026-10-11-refactor-resource-lifecycle-draft-publish.md): Kế hoạch Tái cấu trúc Vòng đời Resource (Local Register / Draft vs Publish In-place), Cơ chế Smart Collaborative Lock bảo vệ tệp 3D và Tầng lưu trữ Studio Storage Profile.
-- [phase-3-3-publish-pipeline-e2e](file:///d:/FullStack/Automation/.agents/plans/2026-10-12-phase-3-3-publish-pipeline-e2e.md): Kế hoạch kỹ thuật chi tiết Phase 3.3 - Luồng Publish End-to-End từ Web <-> API <-> Runner Daemon, Streaming Upload S3/MinIO & Download Asset.
-- [deploy-hardening-runner-security-storage-bundle](file:///d:/FullStack/Automation/.agents/plans/2026-10-12-deploy-hardening-runner-security-storage-bundle.md): Kế hoạch Chuẩn bị Triển khai (Deploy Hardening) - Bảo mật Dynamic RabbitMQ Runner, Độc lập Storage Profile Import/Export Bundle & Chuẩn hóa Runner Packaging / Versioning.
-- [batch-cross-storage-asset-migration](file:///d:/FullStack/Automation/.agents/plans/2026-10-13-batch-cross-storage-asset-migration.md): Kế hoạch Kỹ thuật Di chuyển Dữ liệu Lưu trữ Hàng loạt (Batch Cross-Storage Asset Migration) - Piped Streaming Zero-Disk Buffer, Deduplication SHA-256 & Background Job Progress Pipeline.
-- [investigate-pipeline-realtime-tracking-desync](file:///d:/FullStack/Automation/.agents/plans/2026-10-16-investigate-pipeline-realtime-tracking-desync.md): Kế hoạch Khắc phục Triệt để Luồng Đồng bộ Tiến độ Pipeline Real-time (Web Canvas <-> SignalR <-> RabbitMQ <-> Runner).
-- [trial-user-readiness-backlog](file:///d:/FullStack/Automation/.agents/plans/2026-10-17-trial-user-readiness-backlog.md): Kế hoạch Chuẩn Bị Toàn Diện Cho Trial User (Branding, Bulk Beta Onboarding, Node Tools Tinh Gọn, Landing Page & Growth Strategy).
-- [rust-runner-daemon-migration](file:///d:/FullStack/Automation/.agents/plans/2026-10-18-rust-runner-daemon-migration.md): Kế hoạch Kỹ Thuật Xây Dựng Rust Runner Daemon Siêu Nhẹ (Forgity Runner Native, Single Binary, <15MB RAM, Windows Job Object Process Isolation).
-- [runner-detach-and-cancel-execution](file:///d:/FullStack/Automation/.agents/plans/2026-10-18-runner-detach-and-cancel-execution.md): Kế hoạch Kỹ Thuật Bổ sung Cancel Pipeline Execution trên Canvas và Triển khai Cơ chế Detach Runner 2 Cấp độ (Repository & Studio).
-- [refactor-runner-software-settings-dialog](file:///d:/FullStack/Automation/.agents/plans/2026-10-18-refactor-runner-software-settings-dialog.md): Kế hoạch Tinh Giản & Tối Ưu Triệt Để Giao Diện Cấu Hình Runner Software (Compact Rows, Auto-Save on Select, Xóa Bỏ Headless Flags Ảo).
-- [runner-detail-page-and-attached-repositories](file:///d:/FullStack/Automation/.agents/plans/2026-10-18-runner-detail-page-and-attached-repositories.md): Kế hoạch Xây Dựng Trang Chi Tiết Máy Trạm (Runner Detail Page `/runners/:id`) Đẳng Cấp Studio Grade & Hệ Thống Quản Trị Attached Repositories Đa Dự Án.
-- [standardize-pipeline-tools-and-tagmap](file:///d:/FullStack/Automation/.agents/plans/2026-10-19-standardize-pipeline-tools-and-tagmap.md): Kế hoạch Kỹ Thuật Chuẩn Hóa Server Pipeline Tools, Tái Cấu Trúc TagMap Batch-First & Thanh Lọc 23 Zombie Tools.
-- [generic-runner-env-and-remote-control](file:///d:/FullStack/Automation/.agents/plans/2026-10-21-generic-runner-env-and-remote-control.md): Kế hoạch Kỹ Thuật Biến Môi Trường Generic cho Runner ([env]), Quản Trị Từ Xa Phong Cách PaaS & Global CLI (forgity setup).
-- [standardize-draft-resource-and-default-runner](file:///d:/FullStack/Automation/.agents/plans/2026-10-21-standardize-draft-resource-and-default-runner.md): Kế hoạch Kỹ Thuật Chuẩn Hóa Kiến Trúc Draft Resource, Runner Holding & Default Runner Auto-Routing.
-- [stage-delete-confirm-and-assign-content-tool](file:///d:/FullStack/Automation/.agents/plans/2026-10-21-stage-delete-confirm-and-assign-content-tool.md): Kế Hoạch Kỹ Thuật Cảnh Báo Xóa Stage Container & Nâng Cấp Tool Assign Resources To Content (Create If Not Exists).
-- [variable-repair-parameters-edit-and-tool-decluttering](file:///d:/FullStack/Automation/.agents/plans/2026-10-21-variable-repair-parameters-edit-and-tool-decluttering.md): Kế Hoạch Kỹ Thuật Sửa Lỗi Variable, Nâng Cấp Parameters Panel (Default Value & Edit) và Thanh Lọc Tool/Script Tham Số.
-- [refactor-pipeline-build-time-type-contract-and-struct-registry](file:///d:/FullStack/Automation/.agents/plans/2026-10-22-refactor-pipeline-build-time-type-contract-and-struct-registry.md): Kế hoạch Tái cấu trúc Toàn diện Build-Time, Chuẩn hóa Type Contract & Struct Registry (No Backward-Compat Debt, Single Source of Truth, Sample JSON Preview & Linter Scanner Tests).
-- [node-strategy-and-field-adapters](file:///d:/FullStack/Automation/.agents/plans/2026-10-22-node-strategy-and-field-adapters.md): Kế hoạch Kỹ Thuật Tái Cấu Trúc Node View Strategy (6.2), Field Adapter Registry (6.3), Chuẩn Hóa Return Node & ContentItem Struct.
-- [contracts-validation-buildtime-runtime-architecture](file:///d:/FullStack/Automation/.agents/plans/2026-10-23-contracts-validation-buildtime-runtime-architecture.md): Kiến Trúc Tổng Thể 3 Phân Khu (`Contracts & Validation` -> `BuildTime` & `Runtime`), Hợp Nhất `INodeContractResolver`, `IPipelineContractValidator` & Tái Cấu Trúc Thư Mục Vật Lý.
-
-
+### Kế hoạch đang thực hiện (Active):
+- [**contracts-validation-buildtime-runtime-architecture (23/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/2026-10-23-contracts-validation-buildtime-runtime-architecture.md): Kiến Trúc Tổng Thể 3 Phân Khu (`Contracts & Validation` -> `BuildTime` & `Runtime`), Hợp Nhất `INodeContractResolver`, `IPipelineContractValidator` & Tái Cấu Trúc Thư Mục Vật Lý.

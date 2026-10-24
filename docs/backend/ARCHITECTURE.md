@@ -5,6 +5,7 @@ Tài liệu này đúc kết toàn bộ bộ khung kiến trúc, các quy ước
 ---
 
 ## 1. Modular Monolith & Ranh Giới Module (Module Boundaries)
+*(Chi tiết xem tại [ADR-001: Modular Monolith Architecture](file:///d:/FullStack/Automation/docs/adr/ADR-001-modular-monolith-architecture.md))*
 
 Dự án áp dụng **Modular Monolith** trên nền tảng .NET 10:
 
@@ -20,7 +21,7 @@ Dự án áp dụng **Modular Monolith** trên nền tảng .NET 10:
 ---
 
 ## 2. Kiến Trúc Lát Cắt Dọc Thực Dụng (Pragmatic Single-File VSA)
-*(Chi tiết xem tại [ADR-005: Pragmatic Single-File VSA](file:///d:/FullStack/Automation/docs/backend/ADR_PRAGMATIC_SINGLE_FILE_VSA.md))*
+*(Chi tiết xem tại [ADR-002: Pragmatic Single-File VSA](file:///d:/FullStack/Automation/docs/adr/ADR-002-pragmatic-single-file-vsa.md))*
 
 Mọi tính năng được tổ chức theo chiều dọc gói gọn trong **1 FILE C# DUY NHẤT** tại `Features/<FeatureGroup>/<FeatureName>.cs` (không tạo thư mục con lồng nhau):
 - **Command / Query Record:** Khai báo dữ liệu đầu vào.
