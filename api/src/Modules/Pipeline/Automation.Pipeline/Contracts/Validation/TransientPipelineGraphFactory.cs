@@ -4,11 +4,8 @@ using Automation.Pipeline.Contracts.NodeContract;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
-using Automation.Pipeline.Engine;
-using Automation.Pipeline.Features.Pipelines.Dtos;
 using Automation.Pipeline.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-
 namespace Automation.Pipeline.Contracts.Validation;
 
 public sealed record TransientPackagePipelineItem(

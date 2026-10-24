@@ -1,5 +1,4 @@
 using Automation.Pipeline.Contracts.NodeContract;
-
 namespace Automation.Pipeline.Contracts.Validation;
 
 public interface IPipelineContractValidator

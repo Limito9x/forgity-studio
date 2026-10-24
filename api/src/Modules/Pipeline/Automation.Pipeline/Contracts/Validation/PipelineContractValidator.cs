@@ -3,8 +3,7 @@ using Automation.Pipeline.Contracts.NodeContract;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
-using Automation.Pipeline.Engine.StructRegistry;
-
+using Automation.Pipeline.Contracts.StructRegistry;
 namespace Automation.Pipeline.Contracts.Validation;
 
 public class PipelineContractValidator(

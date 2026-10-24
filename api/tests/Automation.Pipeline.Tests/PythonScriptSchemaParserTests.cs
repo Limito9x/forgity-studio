@@ -1,5 +1,5 @@
 using Automation.Pipeline.Domain.Enums;
-using Automation.Pipeline.Engine.Parsers;
+using Automation.Pipeline.BuildTime.Parsers;
 using FluentAssertions;
 using Xunit;
 

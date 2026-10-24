@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Automation.Pipeline.Domain.Enums;
-using Automation.Pipeline.Tools;
-using Automation.Pipeline.Tools.Attributes;
+using Automation.Pipeline.Contracts.Tools;
+using Automation.Pipeline.Contracts.Tools.Attributes;
 using FluentAssertions;
 using Xunit;
 

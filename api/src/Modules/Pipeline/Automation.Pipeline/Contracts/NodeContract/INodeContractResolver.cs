@@ -1,5 +1,4 @@
 using Automation.Pipeline.Domain.Entities;
-
 namespace Automation.Pipeline.Contracts.NodeContract;
 
 public interface INodeContractResolver

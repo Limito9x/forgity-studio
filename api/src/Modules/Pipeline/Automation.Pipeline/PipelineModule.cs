@@ -1,8 +1,19 @@
-using Automation.Pipeline.Engine;
-using Automation.Pipeline.Engine.Messages;
+using Automation.Pipeline.BuildTime.Features.Authoring.Dtos;
+using Automation.Pipeline.BuildTime.Graph;
+using Automation.Pipeline.Contracts.NodeContract;
+using Automation.Pipeline.Contracts.Validation;
 using Automation.Pipeline.Extensions;
 using Automation.Pipeline.Infrastructure.Persistence;
 using Automation.Pipeline.Infrastructure.Redis;
+using Automation.Pipeline.Runtime.DataResolver;
+using Automation.Pipeline.Runtime.DataResolver.Resolvers;
+using Automation.Pipeline.Runtime.Orchestrator;
+using Automation.Pipeline.Runtime.Orchestrator.Dispatchers;
+using Automation.Pipeline.Runtime.Orchestrator.Enrichers;
+using Automation.Pipeline.Runtime.Planner;
+using Automation.Pipeline.Runtime.State;
+using Automation.Pipeline.Runtime.State.EntityStore;
+using Automation.Pipeline.Runtime.State.Messages;
 using Automation.SharedKernel.Abstractions.Modules;
 using Automation.SharedKernel.Extensions.Modules;
 using Microsoft.Extensions.Configuration;
@@ -24,23 +35,23 @@ public sealed class PipelineModule : IModule, IPermissionModule
         services.AddPipelineAssetSlots();
 
         services.AddSingleton<IExecutionStateStore, RedisExecutionStateStore>();
-        services.AddSingleton<Engine.DataResolver.IExecutionMemoryStore, RedisExecutionMemoryStore>();
-        services.AddScoped<Engine.EntityStore.IExecutionEntityStore, Engine.EntityStore.ExecutionEntityStore>();
-        services.AddScoped<Engine.ExecPlanner.IExecPlanner, Engine.ExecPlanner.ExecPlanner>();
-        services.AddScoped<Engine.DataResolver.IPipelineGraphProvider, Engine.DataResolver.PipelineGraphProvider>();
-        services.AddScoped<Engine.DataResolver.Resolvers.PureNodeResolver>();
-        services.AddScoped<Engine.DataResolver.Resolvers.AssetResolver>();
-        services.AddScoped<Engine.DataResolver.IPinValueResolver, Engine.DataResolver.PinValueResolver>();
-        services.AddScoped<Engine.Orchestrator.Dispatchers.DotNetSegmentDispatcher>();
-        services.AddScoped<Engine.Orchestrator.Dispatchers.RunnerSegmentDispatcher>();
-        services.AddSingleton<Engine.Orchestrator.Enrichers.IExecutorEnvironmentEnricher, Engine.Orchestrator.Enrichers.UnrealEnvironmentEnricher>();
-        services.AddScoped<Engine.Orchestrator.Dispatchers.SubPipelineDispatcher>();
-        services.AddScoped<Engine.Orchestrator.IPipelineOrchestrator, Engine.Orchestrator.PipelineOrchestrator>();
+        services.AddSingleton<IExecutionMemoryStore, RedisExecutionMemoryStore>();
+        services.AddScoped<IExecutionEntityStore, ExecutionEntityStore>();
+        services.AddScoped<IExecPlanner, ExecPlanner>();
+        services.AddScoped<IPipelineGraphProvider, PipelineGraphProvider>();
+        services.AddScoped<PureNodeResolver>();
+        services.AddScoped<AssetResolver>();
+        services.AddScoped<IPinValueResolver, PinValueResolver>();
+        services.AddScoped<DotNetSegmentDispatcher>();
+        services.AddScoped<RunnerSegmentDispatcher>();
+        services.AddSingleton<IExecutorEnvironmentEnricher, UnrealEnvironmentEnricher>();
+        services.AddScoped<SubPipelineDispatcher>();
+        services.AddScoped<IPipelineOrchestrator, PipelineOrchestrator>();
         services.AddScoped<IPipelineExecutionEngine, PipelineExecutionEngine>();
-        services.AddScoped<Contracts.NodeContract.INodeContractResolver, Contracts.NodeContract.PipelineNodeContractResolver>();
-        services.AddScoped<Contracts.Validation.IPipelineContractValidator, Contracts.Validation.PipelineContractValidator>();
-        services.AddScoped<Contracts.Validation.ITransientPipelineGraphFactory, Contracts.Validation.TransientPipelineGraphFactory>();
-        services.AddScoped<Features.Pipelines.Services.IPipelineGraphDtoBuilder, Features.Pipelines.Services.PipelineGraphDtoBuilder>();
+        services.AddScoped<INodeContractResolver, PipelineNodeContractResolver>();
+        services.AddScoped<IPipelineContractValidator, PipelineContractValidator>();
+        services.AddScoped<ITransientPipelineGraphFactory, TransientPipelineGraphFactory>();
+        services.AddScoped<IPipelineGraphDtoBuilder, PipelineGraphDtoBuilder>();
         services.AddHttpClient();
         services.AddPipelineGrpcServices();
     }
@@ -60,7 +71,7 @@ public sealed class PipelineModule : IModule, IPermissionModule
                .DefaultIncomingMessage<StepProgressMessage>();
 
         // 4. Route pipeline executions to dedicated durable local queue
-        options.PublishMessage<Features.Pipelines.Dtos.TriggerPipelineExecutionMessage>()
+        options.PublishMessage<TriggerPipelineExecutionMessage>()
                .ToLocalQueue("pipeline-executions");
 
         options.LocalQueue("pipeline-executions")

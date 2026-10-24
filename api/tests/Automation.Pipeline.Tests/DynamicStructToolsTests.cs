@@ -1,10 +1,10 @@
 using System.Text.Json;
 using Automation.Pipeline.Domain.Enums;
-using Automation.Pipeline.Engine.StructRegistry;
-using Automation.Pipeline.Engine.StructRegistry.Definitions;
-using Automation.Pipeline.Tools;
-using Automation.Pipeline.Tools.Construct;
-using Automation.Pipeline.Tools.Deconstruct;
+using Automation.Pipeline.Contracts.StructRegistry;
+using Automation.Pipeline.Contracts.StructRegistry.Definitions;
+using Automation.Pipeline.Contracts.Tools;
+using Automation.Pipeline.Contracts.Tools.Construct;
+using Automation.Pipeline.Contracts.Tools.Deconstruct;
 using Automation.Pipeline.Constants;
 using Automation.Runner.Contracts;
 using FluentAssertions;
