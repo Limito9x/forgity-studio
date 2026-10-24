@@ -18,6 +18,7 @@ import { CapsuleNode } from "./CapsuleNode";
 import { ContextMenuPalette } from "./ContextMenuPalette";
 import { NodeConfigInspector } from "./NodeConfigInspector";
 import { CanvasToolbar } from "./CanvasToolbar";
+import { CanvasDiagnosticsPanel } from "./CanvasDiagnosticsPanel";
 import { PipelineParametersPanel, type ParameterTab } from "./PipelineParametersPanel";
 import { VariableDropMenu } from "./VariableDropMenu";
 import { RunPipelineModal } from "../../dialogs/RunPipelineModal";
@@ -25,7 +26,6 @@ import { LiveExecutionDrawer } from "./LiveExecutionDrawer";
 import { ExecutionStatusBanner } from "./ExecutionStatusBanner";
 import { DeleteStageConfirmDialog } from "./DeleteStageConfirmDialog";
 import { PipelineFormScopeProvider } from "../../form-scope/PipelineFormScope";
-import { useValidatePipeline } from "../../hooks/usePipelineGraph";
 import { useNodePalette, useCancelPipelineExecution } from "../../hooks/usePipelines";
 import { useGetStructCatalogue } from "@/gen/endpoints/pipelines/pipelines";
 import type { ExtendedPipelineGraphDto } from "../../hooks/usePipelineGraph";
@@ -35,6 +35,7 @@ import {
   useCanvasConnectionRules,
   useVariableDropHandler,
   useCanvasContextMenu,
+  usePipelineDiagnostics,
 } from "./hooks";
 
 interface PipelineCanvasProps {
@@ -72,6 +73,36 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
 
   // 1. Headless Draft State & Auto-save (with Stage Auto-expanding)
   const draft = usePipelineDraftState(graph);
+
+  // 1b. Real-time Diagnostics Scope
+  const [isDiagnosticsPanelOpen, setIsDiagnosticsPanelOpen] = useState(false);
+  const diagnosticsScope = usePipelineDiagnostics({
+    graph,
+    nodes: draft.nodes,
+    edges: draft.edges,
+    parameters: draft.parameters,
+    isDirty: draft.isDirty,
+    lastSavedDiagnostics: null,
+  });
+
+  const handleFocusNode = (nodeId: string) => {
+    const targetNode = draft.nodes.find((n) => n.id === nodeId);
+    if (!targetNode) return;
+
+    let posX = targetNode.position.x;
+    let posY = targetNode.position.y;
+    if (targetNode.parentId) {
+      const parent = draft.nodes.find((n) => n.id === targetNode.parentId);
+      if (parent) {
+        posX += parent.position.x;
+        posY += parent.position.y;
+      }
+    }
+    const width = (targetNode.measured?.width ?? targetNode.width ?? 240) as number;
+    const height = (targetNode.measured?.height ?? targetNode.height ?? 120) as number;
+    setCenter(posX + width / 2, posY + height / 2, { zoom: 1.2, duration: 500 });
+    draft.setSelectedNodeId(nodeId);
+  };
 
   // 2. Real-time Live Execution Tracking & SignalR
   const live = usePipelineLiveTracking({
@@ -124,26 +155,8 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
 
   // Run modal state & Validation
   const [isRunModalOpen, setIsRunModalOpen] = useState(false);
-  const validateMutation = useValidatePipeline(graph.id);
 
-  const handleValidate = async () => {
-    try {
-      const res = await validateMutation.mutateAsync({ runtimeInputs: {} });
-      if (res.isValid) {
-        toast.success("Pipeline graph is valid with no unresolved dependencies.");
-      } else {
-        if (res.cycleNodeIds && res.cycleNodeIds.length > 0) {
-          toast.error(`Pipeline contains a cycle involving nodes: ${res.cycleNodeIds.join(", ")}`);
-        } else if (res.unresolvedPins && res.unresolvedPins.length > 0) {
-          toast.error(
-            `Unresolved required pins: ${res.unresolvedPins.map((p) => p.pinLabel || p.pinKey).join(", ")}`
-          );
-        }
-      }
-    } catch (err: any) {
-      toast.error(err?.message || "Validation failed");
-    }
-  };
+
 
   const cancelMutation = useCancelPipelineExecution(graph.id);
   const handleCancelExecution = async () => {
@@ -164,8 +177,9 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
       variables: draft.parameters.filter((p) => p.kind === "Variable" || (p.kind as any) === 3),
       edges: draft.edges,
       nodes: draft.nodes,
+      diagnosticsScope,
     }),
-    [graph.id, projectId, draft.parameters, draft.edges, draft.nodes]
+    [graph.id, projectId, draft.parameters, draft.edges, draft.nodes, diagnosticsScope]
   );
 
   // Canvas Lock status: Locked when executing or inspecting an execution
@@ -210,8 +224,14 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
             live.setDrawerDefaultTab("history");
             live.setIsDrawerOpen(true);
           }}
-          onValidate={handleValidate}
-          isValidating={validateMutation.isPending}
+          onValidate={diagnosticsScope.validateDraft}
+          isValidating={diagnosticsScope.isValidating}
+          validationStatus={diagnosticsScope.validationStatus}
+          errorCount={diagnosticsScope.errorCount}
+          warningCount={diagnosticsScope.warningCount}
+          isStale={diagnosticsScope.isStale}
+          isDiagnosticsPanelOpen={isDiagnosticsPanelOpen}
+          onToggleDiagnosticsPanel={() => setIsDiagnosticsPanelOpen((prev) => !prev)}
           isExecuting={live.isExecutionRunning}
           isAutoFollow={isAutoFollow}
           onToggleAutoFollow={() => setIsAutoFollow((prev) => !prev)}
@@ -338,6 +358,21 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
               activeTab={paramTab}
               onTabChange={setParamTab}
             />
+
+            {/* Floating Graph Diagnostics Panel */}
+            {isDiagnosticsPanelOpen && (
+              <CanvasDiagnosticsPanel
+                diagnostics={diagnosticsScope.diagnostics}
+                errorCount={diagnosticsScope.errorCount}
+                warningCount={diagnosticsScope.warningCount}
+                validationStatus={diagnosticsScope.validationStatus}
+                isStale={diagnosticsScope.isStale}
+                isValidating={diagnosticsScope.isValidating}
+                onRevalidate={diagnosticsScope.validateDraft}
+                onFocusNode={handleFocusNode}
+                onClose={() => setIsDiagnosticsPanelOpen(false)}
+              />
+            )}
 
             {/* Live Execution Run & History Drawer */}
             {live.isDrawerOpen && (

@@ -110,10 +110,10 @@ flowchart TD
        - `PIN_TYPE_MISMATCH` (`Error`): Dây nối giữa 2 chân lệch `PrimitiveType` hoặc lệch `StructType` (ví dụ nối `Runner` vào `Resource`).
        - `GRAPH_CYCLE_DETECTED` (`Error`): Chu trình lặp vô tận trên đồ thị.
 
-### Khâu 2: Nối Diagnostics lên Giao diện Canvas & Luồng Export/Import (R3 UI + R4)
+### Khâu 2: Nối Diagnostics lên Giao diện Canvas & Luồng Export/Import (R3 UI + R4) (✅ ĐÃ HOÀN TẤT 24/10/2026)
 
-- Hiển thị huy hiệu Warning/Error trực quan trên từng Node/Pin trên Canvas và trong `NodeConfigInspector`.
-- Áp dụng `IPipelineContractValidator` cho luồng kiểm tra sau Import Bundle vào Project đích.
+- Hiển thị huy hiệu Warning/Error trực quan trên từng Node/Pin trên Canvas (`NodeCard`, `NodeHeader`, `PinRow`), trong `NodeConfigInspector` và bảng `CanvasDiagnosticsPanel` có click-to-focus.
+- Áp dụng `IPipelineContractValidator` cho luồng kiểm tra sau Import Bundle vào Project đích, luồng `PipelineGraphDtoBuilder`, và `ValidatePipeline` trên bản nháp (`ITransientPipelineGraphFactory`).
 
 ### Khâu 3: Tái Cấu Trúc Vật Lý Thư Mục (`Contracts/`, `BuildTime/`, `Runtime/`) (✅ ĐÃ HOÀN TẤT 24/10/2026)
 

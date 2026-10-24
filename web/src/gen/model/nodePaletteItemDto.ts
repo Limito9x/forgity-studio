@@ -20,7 +20,7 @@ export interface NodePaletteItemDto {
   id?: string | null;
   /** @nullable */
   description?: string | null;
-  isDynamic?: boolean;
+  hasDynamicPins?: boolean;
   /** @nullable */
   capabilities?: NodeCapabilitiesDto | null;
   isVisibleInPalette?: boolean;

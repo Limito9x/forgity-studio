@@ -2,7 +2,7 @@
 
 ## Mental model: definition → instance → resolve → validate
 
-> Cập nhật 23/10/2026. Phần **hiện tại** bên dưới mô tả checkpoint sau khi hoàn tất **Phase B + R1 + R2**. Phần **định hướng (R3/R4)** liên kết với [Node Resolution & Validation Lifecycle](../plans/2026-10-22-node-resolution-and-validation-lifecycle.md).
+> Cập nhật 24/10/2026. Hệ thống đã hoàn tất toàn bộ chuỗi **Phase B + R1 + R2 + R3 (Canvas Diagnostics UI) + R4 (Package Validation)**. Xem thêm chi tiết tại [Node Resolution & Validation Lifecycle](../plans/2026-10-22-node-resolution-and-validation-lifecycle.md) và [BL-001 Plan](../plans/2026-10-24-bl-001-canvas-inspector-diagnostics-ui.md).
 
 ### Luồng resolve hiện tại (Sau R1 + R2)
 

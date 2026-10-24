@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useReactFlow } from "@xyflow/react";
-import type { PinDefinition } from "@/gen/model";
 import { resolveToolPins } from "@/gen/endpoints/pipelines/pipelines";
-import { arePinListsEqual, buildSchemaConfigSignature } from "../../../../nodeDefinitions";
+import type { PinDefinition } from "@/gen/model";
+import {
+  arePinListsEqual,
+  buildSchemaConfigSignature,
+} from "../../../../nodeDefinitions";
 
 interface UseNodePinResolverOptions {
   nodeId: string;
@@ -14,9 +17,9 @@ interface UseNodePinResolverOptions {
 }
 
 /**
- * Pure Data Hook: Synchronizes dynamic node pins with Backend C# Source of Truth.
- * Listens and debounces only on schema-affecting config keys (`schemaSignature`),
- * compares the full pin schema, and prunes orphan edges directionally.
+ * Automatically calls `POST /api/pipelines/tools/resolve-pins` when a node's
+ * schema-affecting configuration changes. Updates the React Flow node's `inputs`
+ * and `outputs`, and prunes edges connecting to dynamic pins that were removed.
  */
 export function useNodePinResolver({
   nodeId,
@@ -28,12 +31,12 @@ export function useNodePinResolver({
 }: UseNodePinResolverOptions) {
   const { setNodes, setEdges } = useReactFlow();
   const lastResolvedSignatureRef = useRef<string>("");
-  const latestConfigRef = useRef<Record<string, unknown> | undefined>(configValues);
+  const latestConfigRef = useRef(configValues);
   latestConfigRef.current = configValues;
 
-  const schemaSignature = useMemo(
-    () => buildSchemaConfigSignature(configValues, schemaConfigKeys),
-    [configValues, schemaConfigKeys]
+  const schemaSignature = buildSchemaConfigSignature(
+    configValues,
+    schemaConfigKeys
   );
 
   useEffect(() => {
@@ -49,17 +52,15 @@ export function useNodePinResolver({
             configValues: latestConfigRef.current || {},
             projectId: projectId || undefined,
           },
-          { signal: controller.signal }
+          controller.signal
         );
 
         lastResolvedSignatureRef.current = schemaSignature;
 
-        if (!result.data.isSuccess || !result.data.value) {
-          return;
-        }
+        if (!result) return;
 
-        const newInputs = (result.data.value.inputs ?? []) as PinDefinition[];
-        const newOutputs = (result.data.value.outputs ?? []) as PinDefinition[];
+        const newInputs = (result.inputs ?? []) as PinDefinition[];
+        const newOutputs = (result.outputs ?? []) as PinDefinition[];
 
         setNodes((nds) =>
           nds.map((node) => {
@@ -87,10 +88,10 @@ export function useNodePinResolver({
         );
 
         const validPinKeys = new Set<string>([
-          ...newInputs.map((p) => p.id.toLowerCase()),
-          ...newInputs.map((p) => p.label.toLowerCase()),
-          ...newOutputs.map((p) => p.id.toLowerCase()),
-          ...newOutputs.map((p) => p.label.toLowerCase()),
+          ...newInputs.map((p) => p.id?.toLowerCase()).filter(Boolean) as string[],
+          ...newInputs.map((p) => p.label?.toLowerCase()).filter(Boolean) as string[],
+          ...newOutputs.map((p) => p.id?.toLowerCase()).filter(Boolean) as string[],
+          ...newOutputs.map((p) => p.label?.toLowerCase()).filter(Boolean) as string[],
           "exec_in",
           "exec_out",
           "exec",
