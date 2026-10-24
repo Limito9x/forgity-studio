@@ -15,7 +15,7 @@ public class FormatStringTool : IResolverTool
     public string? Category => "Utility";
     public string? Description => "Formats text or file paths dynamically by substituting {placeholder} variables with input pin values.";
     public bool IsPure => true;
-    public bool IsDynamic => true;
+    public bool HasDynamicPins => true;
 
     public NodeCapabilities Capabilities => new(
         CanAddPin: false,

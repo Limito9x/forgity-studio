@@ -54,7 +54,7 @@ public sealed class FrozenExecutionGraph
 
     // Các pure node IDs được tính toán sẵn
     public HashSet<Guid> PureNodeIds { get; init; } = [];
-    public HashSet<Guid> DynamicPureNodeIds { get; init; } = [];
+    public HashSet<Guid> VolatilePureNodeIds { get; init; } = [];
 
     public PipelineNode? StartNode { get; init; }
     public PipelineNode? ReturnNode { get; init; }
@@ -141,10 +141,29 @@ public sealed class FrozenExecutionGraph
             .Select(c => c.NodeId)
             .ToHashSet();
 
-        var dynamicPureIds = resolvedContracts.Values
-            .Where(c => c.IsPure && c.IsDynamic)
+        var volatilePureIds = resolvedContracts.Values
+            .Where(c => c.IsPure && c.IsVolatile)
             .Select(c => c.NodeId)
             .ToHashSet();
+
+        // Forward Volatility Tainting: If an upstream node is Volatile, any downstream Pure node is also tainted
+        if (volatilePureIds.Count > 0 && pipeline.Edges != null)
+        {
+            bool hasChanged = true;
+            while (hasChanged)
+            {
+                hasChanged = false;
+                foreach (var edge in pipeline.Edges)
+                {
+                    if (volatilePureIds.Contains(edge.SourcePipelineNodeId) &&
+                        pureIds.Contains(edge.TargetPipelineNodeId) &&
+                        volatilePureIds.Add(edge.TargetPipelineNodeId))
+                    {
+                        hasChanged = true;
+                    }
+                }
+            }
+        }
 
         // 4. Build Stage-Worker-Runner Bindings (Hỗ trợ Plug over Select)
         var stageBindings = new Dictionary<Guid, StageWorkerBinding>();
@@ -509,7 +528,7 @@ public sealed class FrozenExecutionGraph
             OutEdges = outEdges.ToDictionary(k => k.Key, k => (IReadOnlyList<PipelineEdge>)k.Value),
             StageBindings = stageBindings,
             PureNodeIds = pureIds,
-            DynamicPureNodeIds = dynamicPureIds,
+            VolatilePureNodeIds = volatilePureIds,
             StartNode = startNode,
             ReturnNode = returnNode,
         };

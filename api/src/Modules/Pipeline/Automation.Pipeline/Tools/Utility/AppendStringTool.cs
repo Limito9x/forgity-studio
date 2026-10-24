@@ -13,7 +13,7 @@ public class AppendStringTool : IResolverTool
     public string Label => "Append String";
     public string? Category => "Utility";
     public bool IsPure => true;
-    public bool IsDynamic => true;
+    public bool HasDynamicPins => true;
 
     public NodeCapabilities Capabilities => new(
         CanAddPin: true,

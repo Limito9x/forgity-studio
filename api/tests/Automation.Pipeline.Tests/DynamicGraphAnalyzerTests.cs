@@ -22,7 +22,8 @@ public class DynamicGraphAnalyzerTests
         public string Key => "StaticPureTool";
         public string Label => "Static Pure Tool";
         public bool IsPure => true;
-        public bool IsDynamic => false;
+        public bool HasDynamicPins => false;
+        public bool IsVolatile => false;
         public IReadOnlyList<PinDefinition> Inputs =>
         [
             new() { Id = "InText", Label = "In Text", PrimitiveType = PinPrimitiveType.String }
@@ -97,12 +98,12 @@ public class DynamicGraphAnalyzerTests
         pipeline.AddEdge(getVarNode.Id, "Value", taintedNode.Id, "InText");
 
         // Action
-        var dynamicNodes = PipelineGraphAnalyzer.AnalyzeDynamicNodes(pipeline, registry);
+        var volatileNodes = PipelineGraphAnalyzer.AnalyzeVolatileNodes(pipeline, registry);
 
         // Assert
-        dynamicNodes.Should().Contain(getVarNode.Id, "GetVariableTool is directly dynamic");
-        dynamicNodes.Should().Contain(taintedNode.Id, "taintedNode receives data from dynamic node");
-        dynamicNodes.Should().NotContain(independentNode.Id, "independentNode has no connection to dynamic node");
+        volatileNodes.Should().Contain(getVarNode.Id, "GetVariableTool is directly volatile");
+        volatileNodes.Should().Contain(taintedNode.Id, "taintedNode receives data from volatile node");
+        volatileNodes.Should().NotContain(independentNode.Id, "independentNode has no connection to volatile node");
     }
 
     [Fact]

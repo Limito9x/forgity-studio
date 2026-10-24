@@ -17,7 +17,7 @@ public class CastToStructTool(IEntityStructRegistry structRegistry) : IResolverT
     public string Label => "Cast To Struct";
     public string? Category => "Data / Struct";
     public bool IsPure => true;
-    public bool IsDynamic => true;
+    public bool HasDynamicPins => true;
 
     public NodeCapabilities Capabilities => new(
         CanAddPin: false,

@@ -18,7 +18,7 @@ public class SetVariableTool(
     public string Label => "Set Variable";
     public string? Category => "Variables";
     public bool IsPure => false;
-    public bool IsDynamic => true;
+    public bool HasDynamicPins => true;
 
     public NodeCapabilities Capabilities => new(
         CanAddPin: false,

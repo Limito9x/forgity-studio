@@ -216,54 +216,6 @@ public class ExecPlannerTests
         plan.GetAllSteps().Any(s => s.NodeId == breakStructNode.Id).Should().BeFalse();
     }
 
-    [Fact]
-    public void BuildExecPlan_WithForEachLoop_ShouldConstructBodyPlanAndContinuation()
-    {
-        // Setup Pipeline: Root Start -> Macro Stage (ForEach -> loop_body -> ProcessStep (blender); ForEach -> completed -> NotifyStep (dotNet))
-        var pipeline = CreatePipeline("ForEachPipeline");
-        var macroStage = CreateContainer(pipeline.Id, "Macro Stage", "dotNet", null, 0, 0);
-        pipeline.AddNode(macroStage);
-
-        var startNode = CreateNode(pipeline.Id, "Start", "Start");
-        var forEachNode = CreateNode(pipeline.Id, "ForEach", "FlowControl", macroStage.Id);
-        var processNode = CreateNode(pipeline.Id, "custom_process", "Tool", macroStage.Id);
-        var notifyNode = CreateNode(pipeline.Id, "custom_notify", "Tool", macroStage.Id);
-
-        pipeline.AddNode(startNode);
-        pipeline.AddNode(forEachNode);
-        pipeline.AddNode(processNode);
-        pipeline.AddNode(notifyNode);
-
-        pipeline.AddEdge(forEachNode.Id, "loop_body", processNode.Id, "exec_in");
-        pipeline.AddEdge(forEachNode.Id, "completed", notifyNode.Id, "exec_in");
-
-        var customDefs = new List<NodeDefinition>
-        {
-            new(pipeline.ProjectId, "Process", "custom_process", "Process", "blender", [], []),
-            new(pipeline.ProjectId, "Notify", "custom_notify", "Notify", "dotNet", [], []),
-        };
-
-        var plan = _planner.BuildExecPlan(pipeline, customDefs, _toolRegistry);
-
-        plan.IsValid.Should().BeTrue();
-        plan.Segments.Should().HaveCount(3);
-
-        // Segment 1: Start (dotNet)
-        plan.Segments[0].Executor.Should().Be("dotNet");
-        plan.Segments[0].Steps[0].NodeId.Should().Be(startNode.Id);
-
-        // Segment 2: ForEach (FlowControl)
-        var fcSegment = plan.Segments[1];
-        fcSegment.IsFlowControl.Should().BeTrue();
-        fcSegment.Steps[0].NodeId.Should().Be(forEachNode.Id);
-        fcSegment.BodyPlan.Should().NotBeNull();
-        fcSegment.BodyPlan!.Segments.Should().HaveCount(1);
-        fcSegment.BodyPlan.Segments[0].Steps[0].NodeId.Should().Be(processNode.Id);
-
-        // Segment 3: Continuation (Notify)
-        plan.Segments[2].Executor.Should().Be("dotNet");
-        plan.Segments[2].Steps[0].NodeId.Should().Be(notifyNode.Id);
-    }
 
     [Fact]
     public void BuildExecPlan_WhenIntraStageCycleExists_ShouldDetectCycle()
@@ -363,7 +315,6 @@ public class ExecPlannerTests
         private readonly List<IResolverTool> _tools =
         [
             new FakeTool("BreakStruct", "Break Struct", isPure: true),
-            new FakeTool("ForEach", "For Each", isPure: false, category: "Flow Control"),
         ];
 
         public IReadOnlyList<IResolverTool> GetAll() => _tools;

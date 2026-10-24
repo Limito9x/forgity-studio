@@ -24,7 +24,6 @@ public class PipelineOrchestrator(
     IExecutionStateStore stateStore,
     DotNetSegmentDispatcher dotNetDispatcher,
     RunnerSegmentDispatcher runnerDispatcher,
-    ForEachDispatcher forEachDispatcher,
     SubPipelineDispatcher subPipelineDispatcher,
     IToolRegistry? toolRegistry = null,
     IHubContext<PipelineExecutionHub>? hubContext = null,
@@ -276,29 +275,7 @@ public class PipelineOrchestrator(
             logger.LogInformation("Processing ExecSegment #{Index} [{Executor}] (Steps: {Count})",
                 segIdx, segment.Executor, segment.Steps.Count);
 
-            if (segment.IsFlowControl)
-            {
-                var fcRes = await forEachDispatcher.DispatchAsync(execution, segment, rootScope, this, ct);
-                if (fcRes.IsFailed)
-                {
-                    var err = fcRes.Errors.FirstOrDefault()?.Message ?? "FlowControl execution failed";
-                    var failSnapshot = await CaptureExecutionStateSnapshotAsync(execution, ct);
-                    execution.MarkFailed(err, failSnapshot);
-                    await db.SaveChangesAsync(ct);
-
-                    if (hubContext != null)
-                    {
-                        await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
-                            "PipelineExecutionFinished",
-                            new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = err, executionState = failSnapshot },
-                            ct
-                        );
-                    }
-
-                    return Result.Fail<PipelineExecution>(fcRes.Errors);
-                }
-            }
-            else if (segment.IsSubPipeline)
+            if (segment.IsSubPipeline)
             {
                 var subRes = await subPipelineDispatcher.DispatchAsync(execution, segment, rootScope, this, ct);
                 if (subRes.IsFailed)

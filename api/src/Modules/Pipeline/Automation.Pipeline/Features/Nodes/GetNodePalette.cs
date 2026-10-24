@@ -89,7 +89,7 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
                 pOutputs,
                 null,
                 tool.Description,
-                tool.IsDynamic,
+                tool.HasDynamicPins,
                 capabilities,
                 IsVisibleInPalette: !HiddenToolKeys.Contains(tool.Key)
             ));
@@ -198,7 +198,7 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
     {
         if (tool == null) return null;
 
-        var caps = tool.Capabilities ?? (tool.IsDynamic ? new NodeCapabilities(ViewVariant: "Standard") : null);
+        var caps = tool.Capabilities ?? (tool.HasDynamicPins ? new NodeCapabilities(ViewVariant: "Standard") : null);
         if (caps == null) return null;
 
         return new NodeCapabilitiesDto(
@@ -235,7 +235,7 @@ public record NodePaletteItemDto(
     IReadOnlyList<PinDefinition> Outputs,
     Guid? Id = null,
     string? Description = null,
-    bool IsDynamic = false,
+    bool HasDynamicPins = false,
     NodeCapabilitiesDto? Capabilities = null,
     bool IsVisibleInPalette = true
 );

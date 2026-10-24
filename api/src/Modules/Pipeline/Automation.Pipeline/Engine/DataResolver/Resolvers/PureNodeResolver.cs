@@ -49,27 +49,27 @@ public class PureNodeResolver(
             }
 
             var frozenGraph = graphProvider.GetFrozenGraph(executionId);
-            bool isDynamic = false;
+            bool isVolatile = false;
 
             if (frozenGraph != null)
             {
-                isDynamic = frozenGraph.DynamicPureNodeIds.Contains(pureNode.Id);
+                isVolatile = frozenGraph.VolatilePureNodeIds.Contains(pureNode.Id);
             }
             else
             {
                 var pipeline = await graphProvider.GetPipelineByIdAsync(pureNode.PipelineId, ct);
                 if (pipeline != null)
                 {
-                    var dynamicNodes = Analysis.PipelineGraphAnalyzer.AnalyzeDynamicNodes(
+                    var volatileNodes = Analysis.PipelineGraphAnalyzer.AnalyzeVolatileNodes(
                         pipeline,
                         toolRegistry
                     );
-                    isDynamic = dynamicNodes.Contains(pureNode.Id);
+                    isVolatile = volatileNodes.Contains(pureNode.Id);
                 }
             }
 
             // 1. Check cache (Memoization) - only for static pure nodes
-            if (!isDynamic)
+            if (!isVolatile)
             {
                 var cached = await memoryStore.GetNodePinValueAsync(
                     executionId,
@@ -144,11 +144,11 @@ public class PureNodeResolver(
             }
 
             logger.LogInformation(
-                "Executing Pure Node [{ToolLabel}] ({NodeId}) on-demand for pin [{PinKey}] (IsDynamic: {IsDynamic})",
+                "Executing Pure Node [{ToolLabel}] ({NodeId}) on-demand for pin [{PinKey}] (IsVolatile: {IsVolatile})",
                 tool.Label,
                 pureNode.Id,
                 requestedPinKey,
-                isDynamic
+                isVolatile
             );
 
             // 3. Execute Pure Tool with correct ProjectId and Runner/Agent
@@ -183,7 +183,7 @@ public class PureNodeResolver(
 
             // 4. Save all outputs to memory store for this scope (Memoization) - only for static pure nodes
             var outputsDict = outputs.ToDictionary(k => k.Key, v => (object?)v.Value);
-            if (!isDynamic)
+            if (!isVolatile)
             {
                 await memoryStore.SetNodeAllOutputsAsync(
                     executionId,

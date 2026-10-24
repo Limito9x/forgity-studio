@@ -8,7 +8,8 @@ public interface IResolverTool
     string Label { get; }
     IReadOnlyList<string> Aliases => [];
     bool IsPure => false;
-    bool IsDynamic => false;
+    bool HasDynamicPins => false;
+    bool IsVolatile => false;
     string? Category => null;
     string? Description => null;
     IReadOnlyList<PinDefinition> Inputs { get; }

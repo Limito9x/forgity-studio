@@ -89,7 +89,8 @@ public class RuntimeContractAndExecutionStateTests : IDisposable
             Outputs: [new PinDefinition { Id = "Struct", Kind = PinKind.Data, PrimitiveType = PinPrimitiveType.EntityRef, StructType = "MyStruct" }],
             ConfigValues: null,
             Metadata: null,
-            IsDynamic: true
+            HasDynamicPins: true,
+            IsVolatile: true
         );
 
         var contractsMap = new Dictionary<Guid, ResolvedNodeContract>
@@ -109,7 +110,7 @@ public class RuntimeContractAndExecutionStateTests : IDisposable
         graph.ContractsByNodeId.Should().ContainKey(pureNode.Id);
         graph.ContractsByNodeId[pureNode.Id].Inputs.Should().HaveCount(2);
         graph.PureNodeIds.Should().Contain(pureNode.Id);
-        graph.DynamicPureNodeIds.Should().Contain(pureNode.Id);
+        graph.VolatilePureNodeIds.Should().Contain(pureNode.Id);
     }
 
     [Fact]

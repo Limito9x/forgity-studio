@@ -14,7 +14,7 @@ public class MakeMapTool : IResolverTool
     public string Label => "Make Map";
     public string? Category => "Collections";
     public bool IsPure => true;
-    public bool IsDynamic => true;
+    public bool HasDynamicPins => true;
 
     public NodeCapabilities Capabilities => new(
         CanAddPin: true,

@@ -15,7 +15,8 @@ public abstract class BaseResolverTool<TInput, TOutput> : IResolverTool
     public abstract string Label { get; }
     public virtual IReadOnlyList<string> Aliases => [];
     public virtual bool IsPure => false;
-    public virtual bool IsDynamic => false;
+    public virtual bool HasDynamicPins => false;
+    public virtual bool IsVolatile => false;
     public virtual string? Category => null;
     public virtual string? Description => null;
 

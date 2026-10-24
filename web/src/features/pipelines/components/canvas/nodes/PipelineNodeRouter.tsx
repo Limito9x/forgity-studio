@@ -1,22 +1,14 @@
-import { nodeView } from "../../../nodeDefinitions";
-import { memo, type ComponentType } from "react";
+import { memo } from "react";
 import type { NodeProps } from "@xyflow/react";
-import type { CustomPipelineNodeData } from "./types";
-import { useNodeDefinition } from "../NodeDefinitions";
-import { usePipelineFormScope } from "../../../form-scope/PipelineFormScope";
+import { nodeView, views } from "./views";
+import { useNodeDefinition } from "@/features/pipelines/hooks/useNodeDefinition";
+import { usePipelineFormScope } from "@/features/pipelines/components/canvas/PipelineFormContext";
 import { useNodePinResolver } from "./hooks/useNodePinResolver";
+import type { CustomPipelineNodeData } from "./types";
 import { StartPipelineNodeView } from "./StartPipelineNodeView";
-import { ReturnNodeView } from "./views/ReturnNodeView";
-import { StructNodeView } from "./views/StructNodeView";
+import { ReturnNodeView } from "./ReturnNodeView";
 import { FlowControlNodeView } from "./FlowControlNodeView";
-import { CollectionNodeView } from "./CollectionNodeView";
 import { StandardToolNodeView } from "./StandardToolNodeView";
-
-const views: Record<string, ComponentType<NodeProps>> = {
-  Standard: StandardToolNodeView,
-  Collection: CollectionNodeView,
-  Struct: StructNodeView,
-};
 
 export const PipelineNodeRouter = memo((props: NodeProps) => {
   const data = props.data as CustomPipelineNodeData;
@@ -29,7 +21,7 @@ export const PipelineNodeRouter = memo((props: NodeProps) => {
     projectId,
     configValues: data.configValues,
     schemaConfigKeys: definition?.capabilities?.schemaConfigKeys,
-    isDynamic: data.kind === "Tool" && definition?.isDynamic === true,
+    hasDynamicPins: data.kind === "Tool" && ((definition as any)?.hasDynamicPins ?? definition?.isDynamic) === true,
   });
 
   const view = nodeView(data.kind, definition);

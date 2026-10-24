@@ -12,7 +12,7 @@ public class MakeArrayTool : IResolverTool
     public string? Category => "Collections";
     public string? Description => "Aggregates individual input pin elements or arrays into a single unified array collection.";
     public bool IsPure => true;
-    public bool IsDynamic => true;
+    public bool HasDynamicPins => true;
 
     public NodeCapabilities Capabilities => new(
         CanAddPin: true,
