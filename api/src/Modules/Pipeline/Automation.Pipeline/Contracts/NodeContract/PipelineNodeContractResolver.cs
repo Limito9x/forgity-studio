@@ -139,8 +139,7 @@ public class PipelineNodeContractResolver(
                     Cardinality = i.Cardinality,
                     StructType = i.StructType,
                     IsRequired = i.IsRequired,
-                    DefaultValue = i.DefaultValue,
-                    Metadata = i.StructType
+                    DefaultValue = i.DefaultValue
                 }));
 
             var (pInputs, pOutputs) = FlowPinHelper.WithExecPins(PipelineNodeKind.Start, isPure: false, [], startOutputs);
@@ -161,7 +160,8 @@ public class PipelineNodeContractResolver(
                 Outputs: pOutputs,
                 ConfigValues: configValues,
                 Metadata: metadata,
-                IsDynamic: false
+                HasDynamicPins: false,
+                IsVolatile: false
             );
         }
 
@@ -181,8 +181,7 @@ public class PipelineNodeContractResolver(
                     Cardinality = i.Cardinality,
                     StructType = i.StructType,
                     IsRequired = false,
-                    DefaultValue = null,
-                    Metadata = i.StructType
+                    DefaultValue = null
                 }).ToList();
 
             var (pInputs, pOutputs) = FlowPinHelper.WithExecPins(PipelineNodeKind.Return, isPure: false, returnInputs, []);
@@ -203,7 +202,8 @@ public class PipelineNodeContractResolver(
                 Outputs: pOutputs,
                 ConfigValues: configValues,
                 Metadata: metadata,
-                IsDynamic: false
+                HasDynamicPins: false,
+                IsVolatile: false
             );
         }
 
@@ -235,8 +235,7 @@ public class PipelineNodeContractResolver(
                         Cardinality = i.Cardinality,
                         StructType = i.StructType,
                         IsRequired = i.IsRequired,
-                        DefaultValue = i.DefaultValue,
-                        Metadata = i.StructType
+                        DefaultValue = i.DefaultValue
                     }).ToList();
 
                 var subOutputs = targetPipeline.Parameters
@@ -249,8 +248,7 @@ public class PipelineNodeContractResolver(
                         Kind = PinKind.Data,
                         PrimitiveType = i.Type,
                         Cardinality = i.Cardinality,
-                        StructType = i.StructType,
-                        Metadata = i.StructType
+                        StructType = i.StructType
                     }).ToList();
 
                 var (pInputs, pOutputs) = FlowPinHelper.WithExecPins(PipelineNodeKind.SubPipeline, isPure: false, subInputs, subOutputs);
@@ -292,7 +290,8 @@ public class PipelineNodeContractResolver(
                 Outputs: mOutputs,
                 ConfigValues: configValues,
                 Metadata: metadata,
-                IsDynamic: false,
+                HasDynamicPins: false,
+                IsVolatile: false,
                 IsDefinitionMissing: true,
                 MissingReason: $"Referenced SubPipeline '{targetPipelineId}' could not be found."
             );
@@ -306,6 +305,7 @@ public class PipelineNodeContractResolver(
             var (pInputs, pOutputs) = FlowPinHelper.WithExecPinsResolved(tool, configValues, ctx);
 
             var isFlowControl = string.Equals(tool.Category, "Flow Control", StringComparison.OrdinalIgnoreCase);
+            var toolCaps = tool.Capabilities ?? (tool.HasDynamicPins ? new NodeCapabilities(ViewVariant: "Standard") : null);
 
             return new ResolvedNodeContract(
                 NodeId: node.Id,
@@ -323,7 +323,9 @@ public class PipelineNodeContractResolver(
                 Outputs: pOutputs,
                 ConfigValues: configValues,
                 Metadata: metadata,
-                IsDynamic: tool.IsDynamic
+                Capabilities: toolCaps,
+                HasDynamicPins: tool.HasDynamicPins,
+                IsVolatile: tool.IsVolatile
             );
         }
 
@@ -359,7 +361,9 @@ public class PipelineNodeContractResolver(
                 Outputs: pOutputs,
                 ConfigValues: configValues,
                 Metadata: metadata,
-                IsDynamic: false
+                Capabilities: null,
+                HasDynamicPins: false,
+                IsVolatile: false
             );
         }
 
@@ -374,6 +378,19 @@ public class PipelineNodeContractResolver(
                            ?? metadata?.GetValueOrDefault("executor")?.ToString()
                            ?? "dotNet";
 
+            var containerInputs = new List<PinDefinition>
+            {
+                new()
+                {
+                    Id = "runner",
+                    Label = "Target Runner",
+                    Kind = PinKind.Data,
+                    PrimitiveType = PinPrimitiveType.EntityRef,
+                    StructType = WellKnownStructTypes.Runner,
+                    IsRequired = false
+                }
+            };
+
             return new ResolvedNodeContract(
                 NodeId: node.Id,
                 RefId: node.RefId,
@@ -386,16 +403,17 @@ public class PipelineNodeContractResolver(
                 IsFlowControl: false,
                 SubPipelineId: null,
                 NodeDefinitionId: null,
-                Inputs: [],
+                Inputs: containerInputs,
                 Outputs: [],
                 ConfigValues: configValues,
                 Metadata: metadata,
-                IsDynamic: false
+                HasDynamicPins: false,
+                IsVolatile: false
             );
         }
 
         // 7. CAPSULE / VARIABLE
-        if (node.Kind == PipelineNodeKind.Capsule ||
+        if (node.Kind is PipelineNodeKind.Capsule or PipelineNodeKind.Variable ||
             string.Equals(node.RefId, "Capsule", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(node.RefId, "GetVariable", StringComparison.OrdinalIgnoreCase))
         {
@@ -404,11 +422,40 @@ public class PipelineNodeContractResolver(
                          ?? node.RefId;
             var category = metadata?.GetValueOrDefault("category")?.ToString() ?? "Variable";
 
+            PinDefinition outputPin;
+            var param = context.Parameters.FirstOrDefault(p =>
+                string.Equals(p.Key, varKey, StringComparison.OrdinalIgnoreCase));
+            if (param != null)
+            {
+                outputPin = new PinDefinition
+                {
+                    Id = param.Key,
+                    Label = param.Label,
+                    Kind = PinKind.Data,
+                    PrimitiveType = param.Type,
+                    Cardinality = param.Cardinality,
+                    StructType = param.StructType,
+                    IsRequired = false,
+                    DefaultValue = param.DefaultValue
+                };
+            }
+            else
+            {
+                outputPin = new PinDefinition
+                {
+                    Id = varKey,
+                    Label = varKey,
+                    Kind = PinKind.Data,
+                    PrimitiveType = PinPrimitiveType.String,
+                    IsRequired = false
+                };
+            }
+
             return new ResolvedNodeContract(
                 NodeId: node.Id,
                 RefId: node.RefId,
-                Kind: PipelineNodeKind.Capsule,
-                Label: !string.IsNullOrWhiteSpace(customLabel) ? customLabel : varKey,
+                Kind: node.Kind == PipelineNodeKind.Variable ? PipelineNodeKind.Variable : PipelineNodeKind.Capsule,
+                Label: !string.IsNullOrWhiteSpace(customLabel) ? customLabel : (param?.Label ?? varKey),
                 DefinitionLabel: varKey,
                 Category: category,
                 Executor: "builtin",
@@ -417,10 +464,11 @@ public class PipelineNodeContractResolver(
                 SubPipelineId: null,
                 NodeDefinitionId: null,
                 Inputs: [],
-                Outputs: [],
+                Outputs: [outputPin],
                 ConfigValues: configValues,
                 Metadata: metadata,
-                IsDynamic: false
+                HasDynamicPins: false,
+                IsVolatile: true
             );
         }
 
@@ -449,4 +497,3 @@ public class PipelineNodeContractResolver(
         );
     }
 }
-

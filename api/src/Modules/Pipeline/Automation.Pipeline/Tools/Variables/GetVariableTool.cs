@@ -15,7 +15,8 @@ public class GetVariableTool(
     public string Label => "Get Variable";
     public string? Category => "Variables";
     public bool IsPure => true;
-    public bool IsDynamic => true;
+    public bool HasDynamicPins => false;
+    public bool IsVolatile => true;
 
     public NodeCapabilities Capabilities => new(
         CanAddPin: false,

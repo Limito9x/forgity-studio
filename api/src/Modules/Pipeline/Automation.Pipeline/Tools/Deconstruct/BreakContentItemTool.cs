@@ -22,7 +22,7 @@ public class BreakContentItemTool(
     public string Label => "Break Content Item";
     public string? Category => "Content & Struct";
     public bool IsPure => true;
-    public bool IsDynamic => true;
+    public bool HasDynamicPins => true;
 
     public NodeCapabilities Capabilities => new(
         CanAddPin: false,

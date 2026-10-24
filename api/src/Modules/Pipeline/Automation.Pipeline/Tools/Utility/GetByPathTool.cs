@@ -17,7 +17,7 @@ public class GetByPathTool : IResolverTool
     public string Label => "Get By Path";
     public string? Category => "Utility";
     public bool IsPure => true;
-    public bool IsDynamic => true;
+    public bool HasDynamicPins => true;
 
     public NodeCapabilities Capabilities => new(
         CanAddPin: false,

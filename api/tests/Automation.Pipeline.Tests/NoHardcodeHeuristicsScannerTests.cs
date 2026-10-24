@@ -87,7 +87,7 @@ public class NoHardcodeHeuristicsScannerTests
     }
 
     [Fact]
-    public void DynamicTools_MustAllDeclare_IsDynamicTrue()
+    public void DynamicPinTools_MustAllDeclare_HasDynamicPinsTrue()
     {
         var mockRegistry = NSubstitute.Substitute.For<IEntityStructRegistry>();
         var tools = new IResolverTool[]
@@ -101,7 +101,7 @@ public class NoHardcodeHeuristicsScannerTests
 
         foreach (var tool in tools)
         {
-            tool.IsDynamic.Should().BeTrue($"Tool '{tool.Key}' must declare IsDynamic = true.");
+            tool.HasDynamicPins.Should().BeTrue($"Tool '{tool.Key}' must declare HasDynamicPins = true.");
         }
     }
 

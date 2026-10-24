@@ -10,7 +10,7 @@ interface UseNodePinResolverOptions {
   projectId?: string;
   configValues?: Record<string, unknown>;
   schemaConfigKeys?: readonly unknown[] | null;
-  isDynamic?: boolean;
+  hasDynamicPins?: boolean;
 }
 
 /**
@@ -24,7 +24,7 @@ export function useNodePinResolver({
   projectId,
   configValues,
   schemaConfigKeys,
-  isDynamic = true,
+  hasDynamicPins = true,
 }: UseNodePinResolverOptions) {
   const { setNodes, setEdges } = useReactFlow();
   const lastResolvedSignatureRef = useRef<string>("");
@@ -37,7 +37,7 @@ export function useNodePinResolver({
   );
 
   useEffect(() => {
-    if (!isDynamic || !refId) return;
+    if (!hasDynamicPins || !refId) return;
     if (schemaSignature === lastResolvedSignatureRef.current) return;
 
     const controller = new AbortController();
@@ -49,31 +49,36 @@ export function useNodePinResolver({
             configValues: latestConfigRef.current || {},
             projectId: projectId || undefined,
           },
-          controller.signal
+          { signal: controller.signal }
         );
 
-        if (controller.signal.aborted) return;
         lastResolvedSignatureRef.current = schemaSignature;
 
-        const newInputs = (result.inputs as PinDefinition[]) || [];
-        const newOutputs = (result.outputs as PinDefinition[]) || [];
+        if (!result.data.isSuccess || !result.data.value) {
+          return;
+        }
 
-        // 1. Update Node Inputs & Outputs using full schema comparison
+        const newInputs = (result.data.value.inputs ?? []) as PinDefinition[];
+        const newOutputs = (result.data.value.outputs ?? []) as PinDefinition[];
+
         setNodes((nds) =>
-          nds.map((n) => {
-            if (n.id !== nodeId) return n;
-            const currentInputs = (n.data as any).inputs || [];
-            const currentOutputs = (n.data as any).outputs || [];
+          nds.map((node) => {
+            if (node.id !== nodeId) return node;
 
-            const inputsChanged = !arePinListsEqual(currentInputs, newInputs);
-            const outputsChanged = !arePinListsEqual(currentOutputs, newOutputs);
+            const curInputs = (node.data?.inputs as PinDefinition[] | undefined) ?? [];
+            const curOutputs = (node.data?.outputs as PinDefinition[] | undefined) ?? [];
 
-            if (!inputsChanged && !outputsChanged) return n;
+            if (
+              arePinListsEqual(curInputs, newInputs) &&
+              arePinListsEqual(curOutputs, newOutputs)
+            ) {
+              return node;
+            }
 
             return {
-              ...n,
+              ...node,
               data: {
-                ...n.data,
+                ...node.data,
                 inputs: newInputs,
                 outputs: newOutputs,
               },
@@ -81,37 +86,29 @@ export function useNodePinResolver({
           })
         );
 
-        // 2. Directional Orphan Edge Pruning (inputs vs outputs separated)
-        const validInputPinIds = new Set<string>(
-          newInputs.map((p) => p.id!).filter(Boolean)
-        );
-        const validOutputPinIds = new Set<string>(
-          newOutputs.map((p) => p.id!).filter(Boolean)
-        );
+        const validPinKeys = new Set<string>([
+          ...newInputs.map((p) => p.id.toLowerCase()),
+          ...newInputs.map((p) => p.label.toLowerCase()),
+          ...newOutputs.map((p) => p.id.toLowerCase()),
+          ...newOutputs.map((p) => p.label.toLowerCase()),
+          "exec_in",
+          "exec_out",
+          "exec",
+        ]);
 
-        setEdges((edges) =>
-          edges.filter((e) => {
-            if (
-              e.target === nodeId &&
-              e.targetHandle &&
-              !validInputPinIds.has(e.targetHandle)
-            ) {
-              return false;
+        setEdges((eds) =>
+          eds.filter((edge) => {
+            if (edge.source === nodeId) {
+              return validPinKeys.has(edge.sourceHandle?.toLowerCase() ?? "");
             }
-            if (
-              e.source === nodeId &&
-              e.sourceHandle &&
-              !validOutputPinIds.has(e.sourceHandle)
-            ) {
-              return false;
+            if (edge.target === nodeId) {
+              return validPinKeys.has(edge.targetHandle?.toLowerCase() ?? "");
             }
             return true;
           })
         );
-      } catch (err: any) {
-        if (controller.signal.aborted || err?.name === "CanceledError" || err?.name === "AbortError") {
-          return;
-        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "CanceledError") return;
         console.error(`Failed to resolve dynamic pins for tool '${refId}':`, err);
       }
     }, 300);
@@ -120,5 +117,5 @@ export function useNodePinResolver({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [nodeId, refId, projectId, schemaSignature, isDynamic, setNodes, setEdges]);
+  }, [nodeId, refId, projectId, schemaSignature, hasDynamicPins, setNodes, setEdges]);
 }

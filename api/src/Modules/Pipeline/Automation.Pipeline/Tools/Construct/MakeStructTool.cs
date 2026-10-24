@@ -13,7 +13,7 @@ public class MakeStructTool(IEntityStructRegistry structRegistry) : IResolverToo
     public string Label => "Make Struct";
     public string? Category => "Data / Struct";
     public bool IsPure => true;
-    public bool IsDynamic => true;
+    public bool HasDynamicPins => true;
 
     public NodeCapabilities Capabilities => new(
         CanAddPin: false,

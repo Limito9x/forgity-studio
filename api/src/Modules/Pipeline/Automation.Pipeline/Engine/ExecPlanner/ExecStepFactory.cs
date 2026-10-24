@@ -44,18 +44,18 @@ public static class ExecStepFactory
                 continue;
             }
 
-            var isStart = node.Kind == PipelineNodeKind.Start ||
+            ResolvedNodeContract? contract = null;
+            contracts?.TryGetValue(node.Id, out contract);
+
+            var isStart = (contract != null && contract.Kind == PipelineNodeKind.Start) ||
+                          node.Kind == PipelineNodeKind.Start ||
                           string.Equals(node.RefId, "Start", StringComparison.OrdinalIgnoreCase) ||
                           string.Equals(node.RefId, "BeginExecute", StringComparison.OrdinalIgnoreCase);
 
-            var isFlowControl = node.Kind == PipelineNodeKind.FlowControl ||
-                                (toolRegistry.Get(node.RefId) is { } t && string.Equals(t.Category, "Flow Control", StringComparison.OrdinalIgnoreCase));
-
-            var tool = toolRegistry.Get(node.RefId);
-            var isPure = tool is { IsPure: true };
+            var isPure = contract?.IsPure ?? (toolRegistry.Get(node.RefId) is { IsPure: true });
 
             // Pure nodes are excluded from ExecPlan (resolved on-demand via pull)
-            if (isPure && !isStart && !isFlowControl)
+            if (isPure && !isStart)
             {
                 continue;
             }
@@ -64,20 +64,23 @@ public static class ExecStepFactory
             IReadOnlyList<PinDefinition> outputs = [];
             var label = node.RefId;
             var executor = "dotNet";
+            var nodeKind = contract?.Kind ?? node.Kind;
 
-            if (contracts != null && contracts.TryGetValue(node.Id, out var contract))
+            if (contract != null)
             {
                 inputs = contract.Inputs;
                 outputs = contract.Outputs;
                 label = contract.Label;
                 executor = contract.Executor == "builtin" ? "dotNet" : contract.Executor;
+                nodeKind = contract.Kind;
             }
             else if (isStart)
             {
                 label = "Start";
                 executor = "dotNet";
+                nodeKind = PipelineNodeKind.Start;
                 outputs = pipeline.Parameters
-                    .Where(p => p.Kind == Domain.Enums.PipelineParameterKind.Input)
+                    .Where(p => p.Kind == PipelineParameterKind.Input)
                     .OrderBy(i => i.Order)
                     .Select(i => new PinDefinition
                     {
@@ -88,16 +91,16 @@ public static class ExecStepFactory
                         Cardinality = i.Cardinality,
                         StructType = i.StructType,
                         IsRequired = i.IsRequired,
-                        DefaultValue = i.DefaultValue,
-                        Metadata = i.StructType
+                        DefaultValue = i.DefaultValue
                     }).ToList();
             }
-            else if (tool != null)
+            else if (toolRegistry.Get(node.RefId) is { } tool)
             {
                 inputs = tool.Inputs;
                 outputs = tool.Outputs;
                 label = !string.IsNullOrWhiteSpace(tool.Label) ? tool.Label : tool.Key;
                 executor = "dotNet";
+                nodeKind = PipelineNodeKind.Tool;
             }
             else
             {
@@ -114,6 +117,7 @@ public static class ExecStepFactory
                     outputs = def.Outputs;
                     label = !string.IsNullOrEmpty(def.Label) ? def.Label : def.Name;
                     executor = !string.IsNullOrEmpty(def.Executor) ? def.Executor : "blender";
+                    nodeKind = PipelineNodeKind.Custom;
                 }
             }
 
@@ -121,18 +125,6 @@ public static class ExecStepFactory
                 .Where(e => e.TargetPipelineNodeId == node.Id)
                 .Select(e => new IncomingPinConnection(e.TargetPin, e.SourcePipelineNodeId, e.SourcePin))
                 .ToList();
-
-            var isReturn = node.Kind == PipelineNodeKind.Return ||
-                           string.Equals(node.RefId, "Return", StringComparison.OrdinalIgnoreCase);
-
-            var isSubPipeline = node.Kind == PipelineNodeKind.SubPipeline;
-
-            var nodeKind = isStart ? PipelineNodeKind.Start :
-                           isReturn ? PipelineNodeKind.Return :
-                           isSubPipeline ? PipelineNodeKind.SubPipeline :
-                           isFlowControl ? PipelineNodeKind.FlowControl :
-                           tool != null ? PipelineNodeKind.Tool :
-                           node.Kind;
 
             stepsLookup[node.Id] = new ExecStep
             {

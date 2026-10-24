@@ -77,7 +77,6 @@ public class PipelineOrchestratorTests
         var subPipelineDispatcher = new SubPipelineDispatcher(_db, pinResolver, _memoryStore, _stateStore, NullLogger<SubPipelineDispatcher>.Instance);
         var dotNetDispatcher = new DotNetSegmentDispatcher(_db, _toolRegistry, pinResolver, _memoryStore, _stateStore, subPipelineDispatcher, NullLogger<DotNetSegmentDispatcher>.Instance);
         var runnerDispatcher = new RunnerSegmentDispatcher(_messageBus, _runnerApi, _assetApi, config, NullLogger<RunnerSegmentDispatcher>.Instance);
-        var forEachDispatcher = new ForEachDispatcher(_db, pinResolver, _memoryStore, _stateStore, dotNetDispatcher, NullLogger<ForEachDispatcher>.Instance);
 
         _orchestrator = new PipelineOrchestrator(
             _db,
@@ -86,7 +85,6 @@ public class PipelineOrchestratorTests
             _stateStore,
             dotNetDispatcher,
             runnerDispatcher,
-            forEachDispatcher,
             subPipelineDispatcher,
             _toolRegistry,
             null,
@@ -125,56 +123,6 @@ public class PipelineOrchestratorTests
         outputVal.Should().Be("User_Appended_Avatar");
     }
 
-    [Fact]
-    public async Task ExecuteOrResumeAsync_WithForEach_ShouldIterateAndAggregateYields()
-    {
-        var pipeline = new PipelineEntity(Guid.NewGuid(), "ForEachPipeline");
-        var macroStage = CreateContainer(pipeline.Id, "Macro Stage", "dotNet", null, 0, 0);
-        pipeline.AddNode(macroStage);
-
-        var startNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "Start", "Start", 0, 0);
-
-        var forEachConfig = JsonDocument.Parse("{\"Collection\": [\"Mesh_A\", \"Mesh_B\"]}");
-        var forEachNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "ForEach", "FlowControl", 0, 0, forEachConfig, macroStage.Id);
-
-        // Body action: takes Item from scope and outputs formatted name
-        var bodyActionNode = new PipelineNode(Guid.NewGuid(), pipeline.Id, "FormatItemAction", "Tool", 0, 0, null, macroStage.Id);
-
-        pipeline.AddNode(startNode);
-        pipeline.AddNode(forEachNode);
-        pipeline.AddNode(bodyActionNode);
-
-        pipeline.AddEdge(forEachNode.Id, "loop_body", bodyActionNode.Id, "exec_in");
-
-        // BodyAction.Result -> ForEach.YieldValue
-        pipeline.AddEdge(bodyActionNode.Id, "Result", forEachNode.Id, "YieldValue");
-
-        _db.Pipelines.Add(pipeline);
-
-        var execution = new PipelineExecution(pipeline.Id);
-        _db.PipelineExecutions.Add(execution);
-        await _db.SaveChangesAsync();
-
-        var result = await _orchestrator.ExecuteOrResumeAsync(execution.Id);
-
-        result.IsSuccess.Should().BeTrue();
-        execution.Status.Should().Be(ExecutionStatus.Succeeded);
-
-        // Verify ResultArray and ResultMap in Memory Store
-        var rawResultArray = await _memoryStore.GetNodePinValueAsync(execution.Id, forEachNode.Id, "ResultArray");
-        rawResultArray.Should().NotBeNull();
-
-        var rawResult = await _memoryStore.GetNodePinValueAsync(execution.Id, forEachNode.Id, "ResultMap");
-        rawResult.Should().NotBeNull();
-        var resultMap = rawResult is string jsonStr
-            ? JsonSerializer.Deserialize<Dictionary<string, object?>>(jsonStr)
-            : rawResult as Dictionary<string, object?>;
-
-        resultMap.Should().NotBeNull();
-        resultMap!.Should().HaveCount(2);
-        resultMap["0"]?.ToString().Should().Be("Formatted_Mesh_A");
-        resultMap["1"]?.ToString().Should().Be("Formatted_Mesh_B");
-    }
 
     [Fact]
     public async Task ExecuteOrResumeAsync_WithAgentNode_ShouldPublishMessageAndMarkWaitingForRunner()
@@ -356,7 +304,6 @@ public class PipelineOrchestratorTests
         [
             new FakeAppendActionTool(),
             new FakeFormatItemTool(),
-            new FakeForEachTool()
         ];
 
         public IReadOnlyList<IResolverTool> GetAll() => _tools;
@@ -403,18 +350,6 @@ public class PipelineOrchestratorTests
         }
     }
 
-    private class FakeForEachTool : IResolverTool
-    {
-        public string Key => "ForEach";
-        public string Label => "For Each";
-        public string? Category => "Flow Control";
-        public bool IsPure => false;
-        public IReadOnlyList<PinDefinition> Inputs => [new() { Id = "Collection", PrimitiveType = PinPrimitiveType.String, Cardinality = PinCardinality.Array }];
-        public IReadOnlyList<PinDefinition> Outputs => [new() { Id = "ResultMap", PrimitiveType = PinPrimitiveType.String, Cardinality = PinCardinality.Map }];
-
-        public Task<Dictionary<string, object>> ExecuteAsync(Dictionary<string, object> inputs, ToolExecutionContext context)
-            => Task.FromResult(new Dictionary<string, object>());
-    }
 
     private static PipelineNode CreateContainer(Guid pipelineId, string name, string executor = "dotNet", Guid? runnerId = null, float x = 0, float y = 0)
     {

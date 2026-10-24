@@ -52,7 +52,7 @@ public class PinContractScannerTests
     [Fact]
     public void AllDynamicTools_MustDeclareNonEmptySchemaConfigKeys()
     {
-        var tools = GetAllTestableTools().Where(t => t.IsDynamic);
+        var tools = GetAllTestableTools().Where(t => t.HasDynamicPins);
 
         foreach (var tool in tools)
         {

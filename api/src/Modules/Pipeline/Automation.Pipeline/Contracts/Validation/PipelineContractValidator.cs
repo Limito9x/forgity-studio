@@ -50,7 +50,9 @@ public class PipelineContractValidator(
             }
 
             // 1a. Kiểm tra Struct nodes đã chọn StructType chưa
-            if (contract.RefId is "BreakStruct" or "MakeStruct" or "CastToStruct")
+            if (contract.Capabilities?.InspectorMode == "StructSelector" ||
+                contract.Capabilities?.ViewVariant == "Struct" ||
+                contract.RefId is "BreakStruct" or "MakeStruct" or "CastToStruct")
             {
                 var structType = contract.ConfigValues?.GetValueOrDefault("StructType")?.ToString();
                 if (string.IsNullOrWhiteSpace(structType) || structRegistry.Get(structType) == null)
@@ -177,9 +179,13 @@ public class PipelineContractValidator(
             // Kiểm tra tương thích kiểu dữ liệu (Data Pins)
             if (srcPin.Kind == PinKind.Data)
             {
+                var allowsFlexibleCardinality =
+                    tgtContract.Capabilities?.ViewVariant == "Collection" ||
+                    tgtContract.Capabilities?.InspectorMode == "FormatTemplate" ||
+                    tgtContract.RefId is "MakeArray" or "FormatString" or "GetArrayItem";
+
                 // Kiểm tra Cardinality
-                if (srcPin.Cardinality != tgtPin.Cardinality &&
-                    tgtContract.RefId is not ("MakeArray" or "FormatString" or "GetArrayItem"))
+                if (srcPin.Cardinality != tgtPin.Cardinality && !allowsFlexibleCardinality)
                 {
                     diagnostics.Add(new PipelineDiagnostic(
                         PipelineDiagnosticCode.IncompatiblePinType,
@@ -190,9 +196,12 @@ public class PipelineContractValidator(
                     continue;
                 }
 
+                var allowsFlexibleType =
+                    tgtContract.Capabilities?.InspectorMode == "FormatTemplate" ||
+                    tgtContract.RefId is "FormatString" or "GetByPath";
+
                 // Kiểm tra Primitive Type
-                if (srcPin.PrimitiveType != tgtPin.PrimitiveType &&
-                    tgtContract.RefId is not ("FormatString" or "GetByPath"))
+                if (srcPin.PrimitiveType != tgtPin.PrimitiveType && !allowsFlexibleType)
                 {
                     diagnostics.Add(new PipelineDiagnostic(
                         PipelineDiagnosticCode.IncompatiblePinType,
@@ -328,4 +337,3 @@ public class PipelineContractValidator(
         return false;
     }
 }
-

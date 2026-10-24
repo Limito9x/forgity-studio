@@ -170,21 +170,6 @@ public class DebugExecutionTests(ITestOutputHelper output)
             {
                 output.WriteLine($"   Step: {st.Label} ({st.NodeId}) [RefId: {st.RefId}, Kind: {st.Kind}]");
             }
-            if (seg.BodyPlan != null)
-            {
-                output.WriteLine($"   --> BODY PLAN ({seg.BodyPlan.Segments.Count} segments):");
-                for (int j = 0; j < seg.BodyPlan.Segments.Count; j++)
-                {
-                    var bSeg = seg.BodyPlan.Segments[j];
-                    output.WriteLine($"       [Body Seg #{j}] Executor: {bSeg.Executor} | Stage: {bSeg.StageName}");
-                    foreach (var bSt in bSeg.Steps)
-                    {
-                        output.WriteLine($"          Body Step: {bSt.Label} ({bSt.NodeId})");
-                    }
-                }
             }
         }
     }
-}
-
-

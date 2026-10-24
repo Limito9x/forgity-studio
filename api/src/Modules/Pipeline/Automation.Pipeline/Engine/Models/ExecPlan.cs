@@ -18,14 +18,6 @@ public class ExecPlan
                 yield return step;
             }
 
-            if (segment.BodyPlan != null)
-            {
-                foreach (var step in segment.BodyPlan.GetAllSteps())
-                {
-                    yield return step;
-                }
-            }
-
             if (segment.ContinuationPlan != null)
             {
                 foreach (var step in segment.ContinuationPlan.GetAllSteps())

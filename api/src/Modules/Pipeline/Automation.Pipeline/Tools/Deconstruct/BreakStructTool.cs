@@ -16,7 +16,7 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
     public string? Category => "Data / Struct";
     public string? Description => "Deconstructs a structured entity (Resource, Version, TaggedAsset, etc.) into its individual property pins.";
     public bool IsPure => true;
-    public bool IsDynamic => true;
+    public bool HasDynamicPins => true;
 
     public NodeCapabilities Capabilities => new(
         CanAddPin: false,

@@ -34,7 +34,6 @@ public sealed class PipelineModule : IModule, IPermissionModule
         services.AddScoped<Engine.Orchestrator.Dispatchers.DotNetSegmentDispatcher>();
         services.AddScoped<Engine.Orchestrator.Dispatchers.RunnerSegmentDispatcher>();
         services.AddSingleton<Engine.Orchestrator.Enrichers.IExecutorEnvironmentEnricher, Engine.Orchestrator.Enrichers.UnrealEnvironmentEnricher>();
-        services.AddScoped<Engine.Orchestrator.Dispatchers.ForEachDispatcher>();
         services.AddScoped<Engine.Orchestrator.Dispatchers.SubPipelineDispatcher>();
         services.AddScoped<Engine.Orchestrator.IPipelineOrchestrator, Engine.Orchestrator.PipelineOrchestrator>();
         services.AddScoped<IPipelineExecutionEngine, PipelineExecutionEngine>();

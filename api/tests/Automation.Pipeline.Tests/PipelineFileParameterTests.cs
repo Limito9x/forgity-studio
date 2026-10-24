@@ -370,7 +370,7 @@ public sealed class PipelineFileParameterTests : IDisposable
         hidden.Label.Returns("Get variable");
         hidden.Inputs.Returns(Array.Empty<Automation.Pipeline.Domain.ValueObjects.PinDefinition>());
         hidden.Outputs.Returns(Array.Empty<Automation.Pipeline.Domain.ValueObjects.PinDefinition>());
-        hidden.IsDynamic.Returns(true);
+        hidden.HasDynamicPins.Returns(true);
         var registry = Substitute.For<IToolRegistry>();
         registry.GetAll().Returns(new[] { hidden });
         var handler = new Automation.Pipeline.Features.Nodes.GetNodePaletteHandler(registry, _db);
@@ -378,7 +378,7 @@ public sealed class PipelineFileParameterTests : IDisposable
         Assert.True(result.IsSuccess);
         var tool = Assert.Single(result.Value, x => x.Key == "GetVariable");
         Assert.False(tool.IsVisibleInPalette);
-        Assert.True(tool.IsDynamic);
+        Assert.True(tool.HasDynamicPins);
         Assert.Equal("Standard", tool.Capabilities!.ViewVariant);
         Assert.Contains(result.Value, x => x.Key == "file-node" && x.Source == "Custom");
         Assert.Contains(result.Value, x => x.Key == _pipeline.Id.ToString() && x.Source == "SubPipeline");

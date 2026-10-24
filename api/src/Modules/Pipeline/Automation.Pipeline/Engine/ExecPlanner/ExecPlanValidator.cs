@@ -14,19 +14,7 @@ public static class ExecPlanValidator
     {
         var unresolvedPins = new List<UnresolvedPin>();
 
-        IEnumerable<ExecStep> Flatten(IEnumerable<ExecSegment> segs)
-        {
-            foreach (var seg in segs)
-            {
-                foreach (var step in seg.Steps) yield return step;
-                if (seg.BodyPlan != null)
-                {
-                    foreach (var s in Flatten(seg.BodyPlan.Segments)) yield return s;
-                }
-            }
-        }
-
-        foreach (var step in Flatten(segments))
+        foreach (var step in segments.SelectMany(s => s.Steps))
         {
             foreach (var pin in step.InputPins)
             {
@@ -46,14 +34,7 @@ public static class ExecPlanValidator
                      runtimeInputs.ContainsKey(pin.Label) ||
                      runtimeInputs.ContainsKey($"{step.NodeId}:{pin.Id}"));
 
-                var isScopeImplicit = string.Equals(pin.Id, "Item", StringComparison.OrdinalIgnoreCase) ||
-                                      string.Equals(pin.Id, "Index", StringComparison.OrdinalIgnoreCase) ||
-                                      string.Equals(pin.Id, "Key", StringComparison.OrdinalIgnoreCase) ||
-                                      string.Equals(pin.Id, "Value", StringComparison.OrdinalIgnoreCase) ||
-                                      string.Equals(pin.Id, "YieldValue", StringComparison.OrdinalIgnoreCase) ||
-                                      string.Equals(pin.Id, "YieldKey", StringComparison.OrdinalIgnoreCase);
-
-                if (!isConnected && !hasInlineValue && !hasDefaultValue && !hasRuntimeInput && !isScopeImplicit && pin.IsRequired)
+                if (!isConnected && !hasInlineValue && !hasDefaultValue && !hasRuntimeInput && pin.IsRequired)
                 {
                     unresolvedPins.Add(new UnresolvedPin(
                         step.NodeId,

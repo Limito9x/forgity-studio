@@ -19,8 +19,6 @@ public class ExecPlanner : IExecPlanner
     {
         var execEdges = pipeline.Edges
             .Where(e => e.Kind == EdgeKind.Exec ||
-                        IsLoopBodyPin(e.SourcePin) ||
-                        IsCompletedPin(e.SourcePin) ||
                         (!string.IsNullOrWhiteSpace(e.SourcePin) && IsExecOutPin(e.SourcePin)) ||
                         (!string.IsNullOrWhiteSpace(e.TargetPin) && IsExecInPin(e.TargetPin)))
             .ToList();
@@ -184,19 +182,11 @@ public class ExecPlanner : IExecPlanner
             segments.AddRange(stageSegments);
         }
 
-        // Loại bỏ các node đã được bao hàm trong BodyPlan của FlowControl (tránh chạy trùng lặp ở root)
-        var coveredByBodyPlan = segments
-            .Where(s => s.BodyPlan != null)
-            .SelectMany(s => s.BodyPlan!.GetAllSteps())
-            .Select(s => s.NodeId)
-            .ToHashSet();
-
         // 3b. Trace root action steps (if pipeline has nodes outside containers)
         var rootActionSteps = stepsLookup.Values
             .Where(s => s.StageId == null &&
                         s.Kind != PipelineNodeKind.Start &&
-                        s.Kind != PipelineNodeKind.Return &&
-                        !coveredByBodyPlan.Contains(s.NodeId))
+                        s.Kind != PipelineNodeKind.Return)
             .ToDictionary(s => s.NodeId);
 
         if (rootActionSteps.Count > 0)
@@ -372,74 +362,7 @@ public class ExecPlanner : IExecPlanner
 
             recursionStack.Add(cId);
 
-            var isFlowControl = step.Kind == PipelineNodeKind.FlowControl;
-            var isSubPipeline = step.Kind == PipelineNodeKind.SubPipeline;
-
-            if (isFlowControl)
-            {
-                if (currentSegment != null && currentSegment.Steps.Count > 0)
-                {
-                    segments.Add(currentSegment);
-                    currentSegment = null;
-                }
-
-                var fcSegment = new ExecSegment(
-                    "dotNet",
-                    isFlowControl: true,
-                    stageId: container.Id,
-                    stageName: containerName
-                )
-                {
-                    Steps = [step]
-                };
-
-                // Tìm loopBodyEdge trên toàn cục (để hỗ trợ nối ra node bên ngoài như SetVariable)
-                var availableEdges = allExecEdges ?? intraExecEdges;
-                var loopBodyEdge = availableEdges.FirstOrDefault(e =>
-                    e.SourcePipelineNodeId == cId &&
-                    IsLoopBodyPin(e.SourcePin));
-
-                if (loopBodyEdge != null)
-                {
-                    var bodyVisited = new HashSet<Guid>(visited);
-                    var bodyStack = new HashSet<Guid>(recursionStack);
-
-                    var allSteps = allStepsLookup ?? containerStepsLookup;
-                    var targetStepNode = allSteps.TryGetValue(loopBodyEdge.TargetPipelineNodeId, out var ts) ? ts : null;
-                    var bodyContainer = container;
-                    if (targetStepNode != null && targetStepNode.StageId != container.Id)
-                    {
-                        bodyContainer = graph.NodesById.TryGetValue(targetStepNode.StageId ?? Guid.Empty, out var bc)
-                            ? bc
-                            : new PipelineNode(Guid.Empty, container.PipelineId, "RootScope", PipelineNodeKind.Container, 0, 0);
-                    }
-
-                    var bodySegments = TraceIntraContainerChain(
-                        bodyContainer,
-                        graph,
-                        loopBodyEdge.TargetPipelineNodeId,
-                        allSteps,
-                        availableEdges,
-                        bodyVisited,
-                        bodyStack,
-                        cycleNodeIds,
-                        allSteps,
-                        availableEdges
-                    );
-                    fcSegment.BodyPlan = new ExecPlan { Segments = bodySegments };
-                }
-
-                segments.Add(fcSegment);
-
-                var completedEdge = intraExecEdges.FirstOrDefault(e =>
-                    e.SourcePipelineNodeId == cId &&
-                    IsCompletedPin(e.SourcePin));
-
-                recursionStack.Remove(cId);
-                currentNodeId = completedEdge?.TargetPipelineNodeId;
-                continue;
-            }
-
+var isSubPipeline = step.Kind == PipelineNodeKind.SubPipeline;
             if (isSubPipeline)
             {
                 if (currentSegment != null && currentSegment.Steps.Count > 0)
@@ -509,21 +432,7 @@ public class ExecPlanner : IExecPlanner
         return segments;
     }
 
-    private static bool IsLoopBodyPin(string? pin)
-    {
-        if (string.IsNullOrWhiteSpace(pin)) return false;
-        var norm = pin.Replace(" ", "").Replace("_", "").Replace("-", "").ToLowerInvariant();
-        return norm is "loopbody" or "body" or "loop";
-    }
-
-    private static bool IsCompletedPin(string? pin)
-    {
-        if (string.IsNullOrWhiteSpace(pin)) return false;
-        var norm = pin.Replace(" ", "").Replace("_", "").Replace("-", "").ToLowerInvariant();
-        return norm is "completed" or "done" or "complete";
-    }
-
-    private static bool IsExecOutPin(string? pin)
+private static bool IsExecOutPin(string? pin)
     {
         if (string.IsNullOrWhiteSpace(pin)) return true;
         var norm = pin.Replace(" ", "").Replace("_", "").Replace("-", "").ToLowerInvariant();

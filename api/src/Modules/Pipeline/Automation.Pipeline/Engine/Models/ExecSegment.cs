@@ -10,7 +10,6 @@ public class ExecSegment
     public List<ExecStep> Steps { get; init; } = [];
     public bool IsFlowControl { get; init; }
     public bool IsSubPipeline { get; init; }
-    public ExecPlan? BodyPlan { get; set; }
     public ExecPlan? ContinuationPlan { get; set; }
 
     public ExecSegment() { }
