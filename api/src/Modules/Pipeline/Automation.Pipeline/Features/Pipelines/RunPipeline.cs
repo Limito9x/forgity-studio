@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Automation.Files.Contracts;
+using Automation.Pipeline.Contracts.Validation;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Engine;
@@ -46,6 +47,7 @@ public class RunPipelineEndpoint(IMessageBus bus)
                         error = "UNRESOLVED_PINS",
                         message = unresolvedError.Message,
                         unresolvedPins = unresolvedError.UnresolvedPins,
+                        diagnostics = unresolvedError.Diagnostics
                     },
                     cancellationToken: ct
                 );
@@ -58,7 +60,12 @@ public class RunPipelineEndpoint(IMessageBus bus)
 }
 
 [NonTransactional]
-public class RunPipelineHandler(PipelineDbContext db, IMessageBus bus, IAssetApi assetApi)
+public class RunPipelineHandler(
+    PipelineDbContext db,
+    IMessageBus bus,
+    IAssetApi assetApi,
+    IPipelineContractValidator contractValidator
+)
 {
     public async Task<Result<PipelineExecutionDto>> HandleAsync(
         RunPipelineCommand command,
@@ -67,6 +74,8 @@ public class RunPipelineHandler(PipelineDbContext db, IMessageBus bus, IAssetApi
     {
         var pipeline = await db
             .Pipelines
+            .Include(p => p.Nodes)
+            .Include(p => p.Edges)
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == command.PipelineId, ct);
 
@@ -116,7 +125,31 @@ public class RunPipelineHandler(PipelineDbContext db, IMessageBus bus, IAssetApi
             );
         }
 
-        // 2. Create Execution record and pre-save initial RuntimeInputs in ExecutionState
+        // 2. Preflight Graph Validation: Chặn đứng nếu đồ thị đang dính lỗi Error hợp đồng
+        var validationResult = await contractValidator.ValidateGraphAsync(pipeline, ct: ct);
+        if (!validationResult.IsValid)
+        {
+            var unresolvedPins = validationResult.UnresolvedPins
+                .Select(u => new UnresolvedPin(
+                    Guid.TryParse(u.NodeId, out var g) ? g : Guid.Empty,
+                    u.NodeLabel,
+                    u.PinName,
+                    u.PinName,
+                    PinPrimitiveType.String,
+                    "Unresolved required input pin"
+                ))
+                .ToList();
+
+            var firstError = validationResult.Diagnostics
+                .FirstOrDefault(d => d.Severity == PipelineDiagnosticSeverity.Error)?.Message
+                ?? "Pipeline graph validation failed.";
+
+            return Result.Fail<PipelineExecutionDto>(
+                new UnresolvedPinsError(firstError, unresolvedPins, validationResult.Diagnostics)
+            );
+        }
+
+        // 3. Create Execution record and pre-save initial RuntimeInputs in ExecutionState
         var execution = new PipelineExecution(pipeline.Id);
 
         var initialState = new Automation.Pipeline.Engine.Models.PipelineExecutionState();
@@ -144,7 +177,7 @@ public class RunPipelineHandler(PipelineDbContext db, IMessageBus bus, IAssetApi
             );
         }
 
-        // 3. Publish message to Wolverine durable background queue
+        // 4. Publish message to Wolverine durable background queue
         await bus.PublishAsync(
             new TriggerPipelineExecutionMessage(execution.Id, command.RuntimeInputs)
         );
@@ -162,99 +195,5 @@ public class RunPipelineHandler(PipelineDbContext db, IMessageBus bus, IAssetApi
         );
 
         return Result.Ok(dto);
-    }
-}
-
-[NonTransactional]
-public class TriggerPipelineExecutionHandler(
-    IPipelineExecutionEngine executionEngine,
-    PipelineDbContext db,
-    IHubContext<PipelineExecutionHub> hubContext,
-    ILogger<TriggerPipelineExecutionHandler> logger
-)
-{
-    public async Task HandleAsync(TriggerPipelineExecutionMessage message, CancellationToken ct)
-    {
-        logger.LogInformation(
-            "Processing TriggerPipelineExecutionMessage for execution {ExecutionId}",
-            message.ExecutionId
-        );
-
-        try
-        {
-            var execResult = await executionEngine.ExecuteOrResumeAsync(
-                message.ExecutionId,
-                message.RuntimeInputs,
-                ct
-            );
-            if (execResult.IsFailed)
-            {
-                var errMsg = string.Join("; ", execResult.Errors.Select(e => e.Message));
-                logger.LogWarning(
-                    "Pipeline execution {ExecutionId} completed with failure: {Error}",
-                    message.ExecutionId,
-                    errMsg
-                );
-                await HandleExecutionFailureAsync(message.ExecutionId, errMsg, ct);
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(
-                ex,
-                "Unexpected background error while executing pipeline {ExecutionId}",
-                message.ExecutionId
-            );
-            await HandleExecutionFailureAsync(message.ExecutionId, ex.Message, ct);
-        }
-    }
-
-    private async Task HandleExecutionFailureAsync(
-        Guid executionId,
-        string errorMessage,
-        CancellationToken _
-    )
-    {
-        try
-        {
-            var exec = await db.PipelineExecutions.FirstOrDefaultAsync(
-                x => x.Id == executionId,
-                CancellationToken.None
-            );
-            if (
-                exec != null
-                && exec.Status != ExecutionStatus.Failed
-                && exec.Status != ExecutionStatus.Succeeded
-            )
-            {
-                var failSnapshot = exec.ExecutionState ?? JsonDocument.Parse("{}");
-                exec.MarkFailed(errorMessage, failSnapshot);
-                await db.SaveChangesAsync(CancellationToken.None);
-
-                await hubContext
-                    .Clients.Group($"pipeline_{exec.PipelineId}")
-                    .SendAsync(
-                        "PipelineExecutionFinished",
-                        new
-                        {
-                            executionId = exec.Id,
-                            pipelineId = exec.PipelineId,
-                            status = (int)exec.Status,
-                            finishedAt = exec.FinishedAt,
-                            errorMessage,
-                            executionState = failSnapshot,
-                        },
-                        CancellationToken.None
-                    );
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(
-                ex,
-                "Failed to persist error state for execution {ExecutionId}",
-                executionId
-            );
-        }
     }
 }

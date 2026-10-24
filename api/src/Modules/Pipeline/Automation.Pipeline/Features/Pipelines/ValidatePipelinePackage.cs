@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
 using Automation.Pipeline.Constants;
+using Automation.Pipeline.Contracts.Validation;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Features.Pipelines.Dtos;
 using Automation.Pipeline.Infrastructure.Persistence;
@@ -28,7 +29,9 @@ public class ValidatePipelinePackageEndpoint(IMessageBus bus) : Endpoint<Validat
 
 [NonTransactional]
 public class ValidatePipelinePackageHandler(
-    PipelineDbContext db
+    PipelineDbContext db,
+    ITransientPipelineGraphFactory transientFactory,
+    IPipelineContractValidator contractValidator
 )
 {
     public async Task<Result<ValidatePipelinePackageResponseDto>> HandleAsync(
@@ -68,48 +71,69 @@ public class ValidatePipelinePackageHandler(
             validationErrors.Add($"Package has duplicate bundle IDs: {string.Join(", ", duplicateBundleIds)}");
         }
 
-        // Check name conflicts with existing pipelines in target Project
-        var existingNames = await db.Pipelines
-            .AsNoTracking()
-            .Where(p => p.ProjectId == query.ProjectId)
-            .Select(p => p.Name)
-            .ToListAsync(ct);
+        // Dựng Pipeline tạm thời để kiểm tra hợp đồng và chẩn đoán cấu trúc đồ thị
+        TransientPackageBuildResult? buildResult = null;
+        Dictionary<string, TransientPackagePipelineItem> buildItemByBundleId = [];
 
-        var existingNamesSet = new HashSet<string>(existingNames, StringComparer.OrdinalIgnoreCase);
+        if (pipelines.Count > 0)
+        {
+            buildResult = await transientFactory.BuildFromPackageAsync(query.ProjectId, package, ct: ct);
+            buildItemByBundleId = buildResult.Items.ToDictionary(x => x.SourceDto.BundleId, StringComparer.OrdinalIgnoreCase);
+        }
 
         var pipelinePreviews = new List<PipelinePackageItemPreviewDto>();
+        var validationWarnings = new List<string>();
+
         foreach (var p in pipelines)
         {
-            var hasConflict = existingNamesSet.Contains(p.Name.Trim());
-            var suggestedName = p.Name.Trim();
-
-            if (hasConflict)
-            {
-                var counter = 1;
-                while (existingNamesSet.Contains(suggestedName))
-                {
-                    suggestedName = $"{p.Name.Trim()} (Imported{(counter > 1 ? $" {counter}" : "")})";
-                    counter++;
-                }
-            }
-
             var nodeCount = p.Graph?.Nodes?.Count ?? 0;
             var edgeCount = p.Graph?.Edges?.Count ?? 0;
 
-            pipelinePreviews.Add(new PipelinePackageItemPreviewDto(
-                BundleId: p.BundleId,
-                Name: p.Name,
-                IsRoot: p.IsRoot,
-                ImportOrder: p.ImportOrder,
-                DependsOn: p.DependsOn ?? [],
-                NodeCount: nodeCount,
-                EdgeCount: edgeCount,
-                HasNameConflict: hasConflict,
-                SuggestedName: suggestedName
-            ));
-        }
+            if (buildItemByBundleId.TryGetValue(p.BundleId, out var item))
+            {
+                var valResult = await contractValidator.ValidateGraphAsync(item.Pipeline, item.Context, ct: ct);
+                var nodesById = item.Pipeline.Nodes.ToDictionary(n => n.Id);
 
-        var validationWarnings = new List<string>();
+                foreach (var diag in valResult.Diagnostics)
+                {
+                    if (transientFactory.IsStructuralImportBlocker(diag, nodesById))
+                    {
+                        validationErrors.Add($"Pipeline '{p.Name}': {diag.Message}");
+                    }
+                    else if (diag.Severity == PipelineDiagnosticSeverity.Error)
+                    {
+                        validationWarnings.Add($"Pipeline '{p.Name}': {diag.Message}");
+                    }
+                }
+
+                pipelinePreviews.Add(new PipelinePackageItemPreviewDto(
+                    BundleId: p.BundleId,
+                    Name: p.Name,
+                    IsRoot: p.IsRoot,
+                    ImportOrder: p.ImportOrder,
+                    DependsOn: p.DependsOn ?? [],
+                    NodeCount: nodeCount,
+                    EdgeCount: edgeCount,
+                    HasNameConflict: item.HasNameConflict,
+                    SuggestedName: item.ResolvedName,
+                    Diagnostics: valResult.Diagnostics
+                ));
+            }
+            else
+            {
+                pipelinePreviews.Add(new PipelinePackageItemPreviewDto(
+                    BundleId: p.BundleId,
+                    Name: p.Name,
+                    IsRoot: p.IsRoot,
+                    ImportOrder: p.ImportOrder,
+                    DependsOn: p.DependsOn ?? [],
+                    NodeCount: nodeCount,
+                    EdgeCount: edgeCount,
+                    HasNameConflict: false,
+                    SuggestedName: p.Name.Trim()
+                ));
+            }
+        }
 
         // Check Custom Script dependencies
         var scriptPreviews = new List<PipelineScriptDependencyPreviewDto>();
