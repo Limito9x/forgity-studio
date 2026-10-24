@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
 using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Entities;
@@ -9,6 +10,7 @@ using Automation.Pipeline.Contracts.Tools;
 using Microsoft.EntityFrameworkCore;
 namespace Automation.Pipeline.Contracts.NodeContract;
 
+[method: ActivatorUtilitiesConstructor]
 public class PipelineNodeContractResolver(
     PipelineDbContext? db,
     IToolRegistry toolRegistry,
