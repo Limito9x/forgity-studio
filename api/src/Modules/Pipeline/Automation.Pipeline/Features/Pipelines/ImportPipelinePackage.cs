@@ -4,13 +4,13 @@ using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
 using Automation.Files.Contracts;
 using Automation.Pipeline.Constants;
+using Automation.Pipeline.Contracts.Validation;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Engine;
 using Automation.Pipeline.Features.Pipelines.Dtos;
 using Automation.Pipeline.Infrastructure.Persistence;
-
 using Automation.Studio.Contracts;
 
 namespace Automation.Pipeline.Features.Pipelines;
@@ -40,6 +40,8 @@ public class ImportPipelinePackageHandler(
     IAssetApi assetApi,
     IHttpClientFactory httpClientFactory,
     ILogger<ImportPipelinePackageHandler> logger,
+    ITransientPipelineGraphFactory transientFactory,
+    IPipelineContractValidator contractValidator,
     IProjectsApi? projectsApi = null
 )
 {
@@ -201,128 +203,56 @@ public class ImportPipelinePackageHandler(
             }
         }
 
-        // 2. Prepare Maps and Topological Sequence
-        var tempToRealPipelineMap = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+        // 2. Dựng các thực thể Pipeline và kiểm tra cấu trúc đồ thị qua TransientPipelineGraphFactory
+        var buildResult = await transientFactory.BuildFromPackageAsync(
+            request.ProjectId,
+            package,
+            request.NamePrefix,
+            ct
+        );
+
+        // Kiểm tra xem có bất kỳ lỗi cấu trúc nghiêm trọng nào chặn Import không
+        foreach (var item in buildResult.Items)
+        {
+            var valResult = await contractValidator.ValidateGraphAsync(item.Pipeline, item.Context, ct: ct);
+            var nodesById = item.Pipeline.Nodes.ToDictionary(n => n.Id);
+            var structuralError = valResult.Diagnostics.FirstOrDefault(d => transientFactory.IsStructuralImportBlocker(d, nodesById));
+            if (structuralError != null)
+            {
+                return Result.Fail<ImportPipelinePackageResponseDto>(
+                    $"Cannot import package: Pipeline '{item.Pipeline.Name}' has a structural error: {structuralError.Message}"
+                );
+            }
+        }
+
+        // 3. Clone / Resolve File Links và thêm các Pipelines vào Database
         var importedSummaries = new List<ImportedPipelineSummaryDto>();
 
-        // Sort by ImportOrder (Leaf-first) so child subpipelines exist before parent pipelines
-        var orderedPipelines = package.Pipelines.OrderBy(p => p.ImportOrder).ToList();
-
-        // Query existing pipeline names in this project to resolve potential conflicts
-        var existingNames = await db.Pipelines
-            .AsNoTracking()
-            .Where(p => p.ProjectId == request.ProjectId)
-            .Select(p => p.Name)
-            .ToListAsync(ct);
-
-        var usedNames = new HashSet<string>(existingNames, StringComparer.OrdinalIgnoreCase);
-
-        // 3. Create Pipelines in topological order
-        foreach (var pItem in orderedPipelines)
+        foreach (var item in buildResult.Items)
         {
-            var newPipelineId = IdGenerator.NewId();
-            tempToRealPipelineMap[pItem.BundleId] = newPipelineId;
+            var nodesByTempId = item.Pipeline.Nodes.ToDictionary(n => item.NodeIdToTempIdMap[n.Id]);
 
-            // Resolve name with prefix if provided, avoiding duplicate collisions
-            var baseName = string.IsNullOrWhiteSpace(request.NamePrefix)
-                ? pItem.Name.Trim()
-                : $"{request.NamePrefix.Trim()} {pItem.Name.Trim()}".Trim();
-
-            var candidateName = baseName;
-            var counter = 1;
-            while (!usedNames.Add(candidateName))
+            foreach (var n in item.SourceDto.Graph?.Nodes ?? [])
             {
-                candidateName = $"{baseName} (Imported{(counter > 1 ? $" {counter}" : "")})";
-                counter++;
-            }
+                if (!nodesByTempId.TryGetValue(n.TempId, out var nodeEntity)) continue;
 
-            var pipeline = new Domain.Entities.Pipeline(
-                request.ProjectId,
-                candidateName,
-                pItem.TriggerType,
-                pItem.TriggerConfig
-            );
-            pipeline.Id = newPipelineId;
-
-            // Copy Parameters
-            if (pItem.Parameters != null && pItem.Parameters.Count > 0)
-            {
-                pipeline.Parameters = pItem.Parameters.Select(p => new PipelineParameter
-                {
-                    Id = Guid.NewGuid(),
-                    Key = p.Key,
-                    Label = p.Label,
-                    Kind = p.Kind,
-                    Type = p.Type,
-                    Cardinality = p.Cardinality,
-                    StructType = p.StructType,
-                    IsRequired = p.IsRequired,
-                    DefaultValue = p.DefaultValue,
-                    Description = p.Description,
-                    Order = p.Order,
-                    ContextData = p.ContextData
-                }).ToList();
-            }
-
-            // Map and add Nodes
-            var nodeMapForCurrentPipeline = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var n in pItem.Graph?.Nodes ?? [])
-            {
-                var newNodeId = IdGenerator.NewId();
-                nodeMapForCurrentPipeline[n.TempId] = newNodeId;
-
-                var refId = n.RefId;
                 var configValues = n.ConfigValues != null
                     ? new Dictionary<string, object?>(n.ConfigValues)
                     : new Dictionary<string, object?>();
 
-                // Remap SubPipeline references
-                if (n.Kind == PipelineNodeKind.SubPipeline)
-                {
-                    var targetBundleId = n.RefPipelineBundleId;
-                    if (string.IsNullOrWhiteSpace(targetBundleId) &&
-                        configValues.TryGetValue("pipelineBundleId", out var bVal))
-                    {
-                        targetBundleId = bVal?.ToString();
-                    }
+                var configChanged = false;
 
-                    if (!string.IsNullOrWhiteSpace(targetBundleId) &&
-                        tempToRealPipelineMap.TryGetValue(targetBundleId, out var realChildId))
-                    {
-                        refId = realChildId.ToString();
-                        configValues["pipelineId"] = realChildId;
-                    }
-                }
-                var nodeMetadata = n.Metadata != null ? new Dictionary<string, object?>(n.Metadata) : new Dictionary<string, object?>();
-
-                if (n.Kind == PipelineNodeKind.Custom)
-                {
-                    // Luôn giữ đúng chính xác Key của Custom Script làm RefId (human-readable, không dùng GUID)
-                    refId = !string.IsNullOrWhiteSpace(n.CustomScriptKey)
-                        ? n.CustomScriptKey
-                        : n.RefId;
-
-                    // Nếu script không có trong customNodeKeyToId và cũng không có trong Project -> đánh dấu unresolvedScript
-                    if (!customNodeKeyToId.ContainsKey(refId) &&
-                        !await db.NodeDefinitions.AnyAsync(x => x.ProjectId == request.ProjectId && x.Key == refId, ct))
-                    {
-                        nodeMetadata["unresolvedScript"] = true;
-                    }
-                }
-
-                // Remap and clone File Parameters for newNodeId (Preserve as Unbound if not resolvable)
                 foreach (var (k, v) in configValues.ToList())
                 {
                     if (PipelineFileValue.TryGetLinkId(v, out var fileLinkId))
                     {
-                        var owner = PipelineFileValue.Owner(newNodeId, k);
+                        var owner = PipelineFileValue.Owner(nodeEntity.Id, k);
                         var cloneResult = await assetApi.ResolveOrCloneLinkAsync(fileLinkId, owner, ct);
                         if (cloneResult.IsSuccess)
                         {
                             var finalLinkId = cloneResult.Value.AssetLinkId;
 
-                            // Nếu target Project có cấu hình Storage Profile riêng (BYOS), tự động di chuyển Asset sang storage đích
+                            // Nếu target Project có cấu hình Storage Profile riêng (BYOS), di chuyển Asset sang storage đích
                             if (targetStorageProfileId.HasValue)
                             {
                                 var migrateResult = await assetApi.MigrateAssetsStorageAsync(
@@ -350,6 +280,7 @@ public class ImportPipelinePackageHandler(
                             }
 
                             configValues[k] = new PipelineFileParameter(finalLinkId);
+                            configChanged = true;
                         }
                         else
                         {
@@ -358,7 +289,7 @@ public class ImportPipelinePackageHandler(
                             logger.LogInformation(
                                 "Could not resolve asset link {LinkId} for imported node {NodeId} slot {SlotKey}. Preserving as Unbound Pin.",
                                 fileLinkId,
-                                newNodeId,
+                                nodeEntity.Id,
                                 k
                             );
                             configValues[k] = new
@@ -369,109 +300,36 @@ public class ImportPipelinePackageHandler(
                                 sizeBytes = pinMeta?.SizeBytes,
                                 contentType = pinMeta?.ContentType
                             };
-                        }
-                    }
-                    else if (PipelineFileValue.TryGetUnbound(v, out var unboundInfo) && unboundInfo != null)
-                    {
-                        configValues[k] = new
-                        {
-                            status = "unbound",
-                            originalFileName = unboundInfo.OriginalFileName,
-                            hashSha256 = unboundInfo.HashSha256,
-                            sizeBytes = unboundInfo.SizeBytes,
-                            contentType = unboundInfo.ContentType
-                        };
-                    }
-                }
-
-                // Đảm bảo các pin trong n.FilePins chưa có trong configValues cũng được đưa vào dưới dạng Unbound
-                if (n.FilePins != null)
-                {
-                    foreach (var (k, pinMeta) in n.FilePins)
-                    {
-                        if (!configValues.ContainsKey(k) || configValues[k] == null)
-                        {
-                            configValues[k] = new
-                            {
-                                status = "unbound",
-                                originalFileName = pinMeta.OriginalFileName,
-                                hashSha256 = pinMeta.HashSha256,
-                                sizeBytes = pinMeta.SizeBytes,
-                                contentType = pinMeta.ContentType
-                            };
+                            configChanged = true;
                         }
                     }
                 }
 
-                JsonDocument? configDoc = null;
-                if (configValues.Count > 0)
+                if (configChanged)
                 {
-                    configDoc = JsonDocument.Parse(JsonSerializer.Serialize(configValues));
+                    nodeEntity.UpdateConfig(JsonSerializer.SerializeToDocument(configValues));
                 }
-
-                JsonDocument? metadataDoc = null;
-                if (nodeMetadata.Count > 0)
-                {
-                    metadataDoc = JsonDocument.Parse(JsonSerializer.Serialize(nodeMetadata));
-                }
-
-                var nodeEntity = new PipelineNode(
-                    id: newNodeId,
-                    pipelineId: newPipelineId,
-                    refId: refId,
-                    kind: n.Kind,
-                    positionX: n.Position.X,
-                    positionY: n.Position.Y,
-                    config: configDoc,
-                    parentId: null,
-                    size: n.Size,
-                    metadata: metadataDoc
-                );
-
-                pipeline.AddNode(nodeEntity);
-                db.PipelineNodes.Add(nodeEntity);
             }
 
-            // Remap ParentId for container nodes
-            foreach (var n in pItem.Graph?.Nodes ?? [])
+            db.Pipelines.Add(item.Pipeline);
+            foreach (var node in item.Pipeline.Nodes)
             {
-                if (!string.IsNullOrWhiteSpace(n.ParentTempId) &&
-                    nodeMapForCurrentPipeline.TryGetValue(n.ParentTempId, out var parentNodeId))
-                {
-                    var currentRealNodeId = nodeMapForCurrentPipeline[n.TempId];
-                    var nodeEntity = pipeline.Nodes.FirstOrDefault(x => x.Id == currentRealNodeId);
-                    if (nodeEntity != null)
-                    {
-                        nodeEntity.ParentId = parentNodeId;
-                    }
-                }
+                db.PipelineNodes.Add(node);
             }
-
-            // Map and add Edges
-            foreach (var edge in pItem.Graph?.Edges ?? [])
+            foreach (var edge in item.Pipeline.Edges)
             {
-                if (nodeMapForCurrentPipeline.TryGetValue(edge.SourceNodeTempId, out var realSourceNodeId) &&
-                    nodeMapForCurrentPipeline.TryGetValue(edge.TargetNodeTempId, out var realTargetNodeId))
-                {
-                    var edgeEntity = pipeline.AddEdge(
-                        sourcePipelineNodeId: realSourceNodeId,
-                        sourcePin: edge.SourcePin,
-                        targetPipelineNodeId: realTargetNodeId,
-                        targetPin: edge.TargetPin,
-                        id: IdGenerator.NewId(),
-                        kind: edge.Kind
-                    );
-                    db.PipelineEdges.Add(edgeEntity);
-                }
+                db.PipelineEdges.Add(edge);
             }
 
-            db.Pipelines.Add(pipeline);
+            var postImportVal = await contractValidator.ValidateGraphAsync(item.Pipeline, item.Context, ct: ct);
 
             importedSummaries.Add(new ImportedPipelineSummaryDto(
-                BundleId: pItem.BundleId,
-                PipelineId: newPipelineId,
-                Name: candidateName,
-                IsRoot: pItem.IsRoot
+                BundleId: item.SourceDto.BundleId,
+                PipelineId: item.Pipeline.Id,
+                Name: item.ResolvedName,
+                IsRoot: item.SourceDto.IsRoot,
+                IsValid: postImportVal.IsValid,
+                Diagnostics: postImportVal.Diagnostics
             ));
         }
 

@@ -135,7 +135,8 @@ public record PipelinePackageItemPreviewDto(
     int NodeCount,
     int EdgeCount,
     bool HasNameConflict,
-    string SuggestedName
+    string SuggestedName,
+    IReadOnlyList<Contracts.Validation.PipelineDiagnostic>? Diagnostics = null
 );
 
 public record PipelineScriptDependencyPreviewDto(
@@ -172,5 +173,7 @@ public record ImportedPipelineSummaryDto(
     string BundleId,
     Guid PipelineId,
     string Name,
-    bool IsRoot
+    bool IsRoot,
+    bool IsValid = true,
+    IReadOnlyList<Contracts.Validation.PipelineDiagnostic>? Diagnostics = null
 );

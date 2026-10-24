@@ -9,7 +9,10 @@ namespace Automation.Pipeline.Features.Pipelines.Dtos;
 
 public record ValidatePipelineQuery(
     Guid PipelineId,
-    Dictionary<string, object?>? RuntimeInputs = null
+    Dictionary<string, object?>? RuntimeInputs = null,
+    List<SavePipelineNodeItem>? Nodes = null,
+    List<SavePipelineEdgeItem>? Edges = null,
+    List<PipelineParameter>? Parameters = null
 );
 
 public record ValidatePipelineResponse(
