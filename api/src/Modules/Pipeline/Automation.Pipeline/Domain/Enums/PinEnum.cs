@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Automation.Pipeline.Domain.Enums;
 
-[JsonConverter(typeof(JsonStringEnumConverter))]
+[JsonConverter(typeof(PinPrimitiveTypeJsonConverter))]
 public enum PinPrimitiveType
 {
     String,
@@ -19,4 +19,3 @@ public enum PinCardinality
     Array,
     Map,
 }
-
