@@ -301,11 +301,16 @@ export function useRepositoryResourceTable({
             item.latestVersionStatus === undefined ||
             item.latestVersionStatus === null;
 
+          const isSameRunnerLock =
+            Boolean(item.isLocked) &&
+            Boolean(item.holdingRunnerName) &&
+            (!item.lockedByRunnerName || item.holdingRunnerName === item.lockedByRunnerName);
+
           return (
             <div className="flex items-center gap-1.5 flex-wrap">
               <Link
                 to={nav.urls.resourceDetail(item.id, repositoryId)}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-muted hover:bg-primary/15 hover:text-primary text-xs font-mono font-medium text-foreground transition-colors"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-muted hover:bg-primary/15 hover:text-primary text-xs font-mono font-medium text-foreground transition-colors shrink-0"
               >
                 <GitBranch className="size-3 text-muted-foreground" />
                 v{item.latestVersionNo ?? (count && count > 0 ? count : 1)}
@@ -313,11 +318,24 @@ export function useRepositoryResourceTable({
               {isDraft ? (
                 <Badge
                   variant="outline"
-                  className="text-amber-500 border-amber-500/30 bg-amber-500/10 text-[10px] px-1.5 py-0 h-4 gap-1 font-medium font-mono"
-                  title={item.holdingRunnerName ? `Draft on ${item.holdingRunnerName}` : "Local Draft"}
+                  className="text-amber-500 border-amber-500/30 bg-amber-500/10 text-[10px] px-1.5 py-0 h-4 gap-1 font-medium font-mono max-w-[200px]"
+                  title={
+                    item.holdingRunnerName
+                      ? `Draft on ${item.holdingRunnerName}${item.isLocked ? " (Locked)" : ""}`
+                      : "Local Draft"
+                  }
                 >
-                  <Cpu className="size-2.5 shrink-0" />
-                  Draft {item.holdingRunnerName ? `@ ${item.holdingRunnerName}` : ""}
+                  {item.isLocked ? (
+                    <Lock className="size-2.5 shrink-0" />
+                  ) : (
+                    <Cpu className="size-2.5 shrink-0" />
+                  )}
+                  <span>Draft</span>
+                  {item.holdingRunnerName && (
+                    <span className="truncate">
+                      @ {item.holdingRunnerName}
+                    </span>
+                  )}
                 </Badge>
               ) : (
                 <Badge
@@ -327,14 +345,16 @@ export function useRepositoryResourceTable({
                   Published
                 </Badge>
               )}
-              {item.isLocked && (
+              {item.isLocked && !isSameRunnerLock && (
                 <Badge
                   variant="outline"
-                  className="text-rose-500 border-rose-500/30 bg-rose-500/10 text-[10px] px-1 py-0 h-4 gap-0.5 font-mono"
+                  className="text-rose-500 border-rose-500/30 bg-rose-500/10 text-[10px] px-1 py-0 h-4 gap-0.5 font-mono max-w-[160px]"
                   title={item.lockedByRunnerName ? `Locked by ${item.lockedByRunnerName}` : "Locked by Runner"}
                 >
-                  <Lock className="size-2.5" />
-                  {item.lockedByRunnerName || "Locked"}
+                  <Lock className="size-2.5 shrink-0" />
+                  <span className="truncate">
+                    {item.lockedByRunnerName ? `Locked: ${item.lockedByRunnerName}` : "Locked"}
+                  </span>
                 </Badge>
               )}
             </div>

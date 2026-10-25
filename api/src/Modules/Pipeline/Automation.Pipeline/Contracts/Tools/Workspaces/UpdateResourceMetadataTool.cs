@@ -3,11 +3,12 @@ using System.Text.Json;
 using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
+using Automation.Pipeline.Runtime.State.EntityStore;
 using Automation.Repository.Contracts;
 namespace Automation.Pipeline.Contracts.Tools.Workspaces;
 
 /// <summary>
-/// Tool batch cập nhật metadata cho nhiều ResourceVersion cùng lúc thông qua Map (Key: Resource ID / File Path -> Value: Metadata).
+/// Tool batch cập nhật metadata cho nhiều ResourceVersion cùng lúc thông qua Map (Key: Resource ID / File Path / Full Path -> Value: Metadata).
 /// </summary>
 public class UpdateResourceMetadataTool(
     IRepositoryApi workspaceApi,
@@ -31,6 +32,16 @@ public class UpdateResourceMetadataTool(
             IsRequired = true,
             Description = "Map of Resource IDs, URNs, or File Paths to their metadata JSON string or dictionary",
             SampleJson = "{\n  \"characters/hero.fbx\": {\n    \"triangles\": 14200,\n    \"rig\": \"Humanoid\"\n  }\n}"
+        },
+        new()
+        {
+            Id = "Workstation",
+            Label = "Workstation",
+            PrimitiveType = PinPrimitiveType.EntityRef,
+            StructType = WellKnownStructTypes.Workstation,
+            Cardinality = PinCardinality.Single,
+            IsRequired = false,
+            Description = "Target workstation to resolve root path and repository reference"
         },
         new()
         {
@@ -89,7 +100,8 @@ public class UpdateResourceMetadataTool(
         {
             foreach (var (k, v) in inputs)
             {
-                if (string.Equals(k, "Repository", StringComparison.OrdinalIgnoreCase)) continue;
+                if (string.Equals(k, "Repository", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(k, "Workstation", StringComparison.OrdinalIgnoreCase)) continue;
                 if (v is IDictionary || v is JsonElement { ValueKind: JsonValueKind.Object })
                 {
                     rawMap = v;
@@ -104,32 +116,56 @@ public class UpdateResourceMetadataTool(
             throw new ArgumentException("MetadataMap is required and cannot be empty for UpdateResourceMetadataTool.");
         }
 
-        // 2. Resolve optional Repository ID for path resolution
+        // 2. Resolve Workstation and Repository ID for path resolution
         Guid? repoId = null;
-        var rawRepo = inputs.GetValueOrDefault("Repository") ?? inputs.GetValueOrDefault("Workspace");
-        if (rawRepo != null)
+        string? rootPath = null;
+
+        var rawWs = inputs.GetValueOrDefault("Workstation") ?? inputs.GetValueOrDefault("WorkstationId");
+        if (rawWs != null)
         {
-            var (_, parsedRepoId, isRepoValid) = EntityRefHelper.Parse(rawRepo);
-            if (isRepoValid && parsedRepoId != Guid.Empty)
+            var (_, wsId, isWsValid) = EntityRefHelper.Parse(rawWs);
+            if (isWsValid && wsId != Guid.Empty)
             {
-                repoId = parsedRepoId;
+                var wsResult = await workspaceApi.GetWorkstationByIdAsync(wsId, ct);
+                if (wsResult.IsSuccess && wsResult.Value != null)
+                {
+                    repoId = wsResult.Value.RepositoryId;
+                    rootPath = wsResult.Value.RootPath;
+                }
             }
         }
 
-        // 3. Pre-resolve path keys if repoId is available
+        if (!repoId.HasValue)
+        {
+            var rawRepo = inputs.GetValueOrDefault("Repository") ?? inputs.GetValueOrDefault("Workspace");
+            if (rawRepo != null)
+            {
+                var (_, parsedRepoId, isRepoValid) = EntityRefHelper.Parse(rawRepo);
+                if (isRepoValid && parsedRepoId != Guid.Empty)
+                {
+                    repoId = parsedRepoId;
+                }
+            }
+        }
+
+        // 3. Pre-resolve path keys if repoId is available (normalizing FullPaths to RelativePaths if rootPath is known)
         var pathKeys = new List<string>();
+        var keyToCleanPathMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var key in metadataMap.Keys)
         {
             if (TryExtractGuid(key) == null)
             {
-                pathKeys.Add(key);
+                var cleanPath = NormalizePathKey(key, rootPath);
+                pathKeys.Add(cleanPath);
+                keyToCleanPathMap[key] = cleanPath;
             }
         }
 
         Dictionary<string, Guid>? resolvedPaths = null;
         if (pathKeys.Count > 0 && repoId.HasValue)
         {
-            var resolveRes = await workspaceApi.ResolveResourceVersionIdsByPathsAsync(repoId.Value, pathKeys, ct);
+            var resolveRes = await workspaceApi.ResolveResourceVersionIdsByPathsAsync(repoId.Value, pathKeys.Distinct(StringComparer.OrdinalIgnoreCase), ct);
             if (resolveRes.IsSuccess)
             {
                 resolvedPaths = resolveRes.Value;
@@ -142,9 +178,13 @@ public class UpdateResourceMetadataTool(
         {
             var targetGuid = TryExtractGuid(resourceKey);
 
-            if (targetGuid == null && resolvedPaths != null && resolvedPaths.TryGetValue(resourceKey, out var pGuid))
+            if (targetGuid == null && resolvedPaths != null)
             {
-                targetGuid = pGuid;
+                var cleanPath = keyToCleanPathMap.GetValueOrDefault(resourceKey) ?? resourceKey;
+                if (resolvedPaths.TryGetValue(cleanPath, out var pGuid) || resolvedPaths.TryGetValue(resourceKey, out pGuid))
+                {
+                    targetGuid = pGuid;
+                }
             }
 
             if (targetGuid == null || targetGuid == Guid.Empty)
@@ -194,28 +234,37 @@ public class UpdateResourceMetadataTool(
         };
     }
 
-    private static Guid? TryExtractGuid(string key)
+    private static string NormalizePathKey(string key, string? rootPath)
     {
-        var targetGuid = EntityRefHelper.ExtractRefId(key);
-        if (targetGuid != null && targetGuid != Guid.Empty) return targetGuid;
-
-        var cleanKey = key.Trim();
-        var lastColon = cleanKey.LastIndexOf(':');
-        var candidate = lastColon >= 0 ? cleanKey[(lastColon + 1)..].Trim() : cleanKey;
-        if (Guid.TryParse(candidate, out var parsedGuid) && parsedGuid != Guid.Empty)
+        var k = key.Trim().Replace('\\', '/');
+        if (!string.IsNullOrWhiteSpace(rootPath))
         {
-            return parsedGuid;
+            var cleanRoot = rootPath.Trim().Replace('\\', '/').TrimEnd('/');
+            if (k.StartsWith(cleanRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                k = k.Substring(cleanRoot.Length);
+            }
+            else if (Path.IsPathRooted(k) || (k.Length > 2 && k[1] == ':'))
+            {
+                try
+                {
+                    k = Path.GetRelativePath(cleanRoot, k).Replace('\\', '/');
+                }
+                catch
+                {
+                    // Fallback
+                }
+            }
         }
-
-        return null;
+        return k.TrimStart('/');
     }
 
-    private static Dictionary<string, object?> ExtractMap(object? source)
+    private static Dictionary<string, object?> ExtractMap(object? raw)
     {
         var result = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        if (source == null) return result;
+        if (raw == null) return result;
 
-        if (source is IDictionary dict)
+        if (raw is IDictionary dict)
         {
             foreach (DictionaryEntry entry in dict)
             {
@@ -227,79 +276,74 @@ public class UpdateResourceMetadataTool(
             return result;
         }
 
-        if (source is JsonElement jsonElem && jsonElem.ValueKind == JsonValueKind.Object)
+        if (raw is JsonElement jsonElem && jsonElem.ValueKind == JsonValueKind.Object)
         {
             foreach (var prop in jsonElem.EnumerateObject())
             {
-                result[prop.Name] = prop.Value.ValueKind switch
-                {
-                    JsonValueKind.String => prop.Value.GetString(),
-                    JsonValueKind.Number => prop.Value.TryGetInt64(out var l) ? l : prop.Value.GetDouble(),
-                    JsonValueKind.True => true,
-                    JsonValueKind.False => false,
-                    JsonValueKind.Null => null,
-                    _ => prop.Value.Clone()
-                };
+                result[prop.Name] = prop.Value;
             }
             return result;
         }
 
-        if (source is string jsonStr && jsonStr.TrimStart().StartsWith('{'))
+        if (raw is string str && !string.IsNullOrWhiteSpace(str))
         {
             try
             {
-                using var doc = JsonDocument.Parse(jsonStr);
+                using var doc = JsonDocument.Parse(str);
                 if (doc.RootElement.ValueKind == JsonValueKind.Object)
                 {
-                    return ExtractMap(doc.RootElement);
+                    foreach (var prop in doc.RootElement.EnumerateObject())
+                    {
+                        result[prop.Name] = prop.Value.Clone();
+                    }
                 }
             }
             catch
             {
-                // ignored
+                // Not valid JSON object
             }
         }
 
         return result;
     }
 
-    private static JsonDocument ParseToJsonDocument(object? metaVal, string debugKey)
+    private static Guid? TryExtractGuid(string key)
+    {
+        if (Guid.TryParse(key, out var guid))
+        {
+            return guid;
+        }
+
+        var (type, parsedId, isValid) = EntityRefHelper.Parse(key);
+        if (isValid && parsedId != Guid.Empty)
+        {
+            return parsedId;
+        }
+
+        return null;
+    }
+
+    private static JsonDocument ParseToJsonDocument(object? metaVal, string resourceKey)
     {
         if (metaVal == null)
         {
             return JsonDocument.Parse("{}");
         }
 
-        if (metaVal is JsonDocument jDoc)
+        if (metaVal is JsonDocument doc)
         {
-            if (jDoc.RootElement.ValueKind == JsonValueKind.String)
-            {
-                var s = jDoc.RootElement.GetString();
-                if (!string.IsNullOrWhiteSpace(s) && (s.TrimStart().StartsWith('{') || s.TrimStart().StartsWith('[')))
-                {
-                    try { return JsonDocument.Parse(s); } catch { }
-                }
-            }
-            return jDoc;
+            return doc;
         }
 
-        if (metaVal is JsonElement jElem)
+        if (metaVal is JsonElement elem)
         {
-            if (jElem.ValueKind == JsonValueKind.String)
-            {
-                var s = jElem.GetString();
-                if (!string.IsNullOrWhiteSpace(s) && (s.TrimStart().StartsWith('{') || s.TrimStart().StartsWith('[')))
-                {
-                    try { return JsonDocument.Parse(s); } catch { }
-                }
-            }
-            return JsonDocument.Parse(jElem.GetRawText());
+            return JsonDocument.Parse(elem.GetRawText());
         }
 
-        if (metaVal is string str)
+        if (metaVal is string jsonStr)
         {
-            var trimmed = str.Trim();
-            if (trimmed.StartsWith('{') || trimmed.StartsWith('['))
+            var trimmed = jsonStr.Trim();
+            if (trimmed.StartsWith("{") || trimmed.StartsWith("["))
             {
                 try
                 {
@@ -307,15 +351,23 @@ public class UpdateResourceMetadataTool(
                 }
                 catch (JsonException ex)
                 {
-                    throw new ArgumentException($"Invalid JSON in Metadata for '{debugKey}': {ex.Message}");
+                    throw new ArgumentException(
+                        $"Metadata for key '{resourceKey}' is an invalid JSON string: {ex.Message}", ex);
                 }
             }
 
-            var wrapped = JsonSerializer.Serialize(new { raw_text = str });
-            return JsonDocument.Parse(wrapped);
+            return JsonDocument.Parse(JsonSerializer.Serialize(new { value = jsonStr }));
         }
 
-        var serialized = JsonSerializer.Serialize(metaVal);
-        return JsonDocument.Parse(serialized);
+        try
+        {
+            var serialized = JsonSerializer.Serialize(metaVal);
+            return JsonDocument.Parse(serialized);
+        }
+        catch (Exception ex)
+        {
+            throw new ArgumentException(
+                $"Cannot serialize metadata value for key '{resourceKey}' into JSON: {ex.Message}", ex);
+        }
     }
 }

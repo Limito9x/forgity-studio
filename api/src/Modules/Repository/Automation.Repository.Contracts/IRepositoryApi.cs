@@ -94,6 +94,16 @@ public interface IRepositoryApi
         CancellationToken ct = default
     );
 
+    Task<Result<WorkstationDto>> GetWorkstationByIdAsync(
+        Guid workstationId,
+        CancellationToken ct = default
+    );
+
+    Task<Result<IReadOnlyList<ResourceDto>>> QueryResourcesAsync(
+        ResourceQueryFilter filter,
+        CancellationToken ct = default
+    );
+
     Task<Result<string>> GetWorkspaceRootPathAsync(
         Guid workspaceId,
         Guid runnerId,
@@ -163,3 +173,27 @@ public record ResourceLocationInfoDto(
         }
     }
 }
+
+public record WorkstationDto(
+    Guid WorkstationId,
+    Guid RepositoryId,
+    string RepositoryName,
+    Guid RunnerId,
+    string RunnerName,
+    string RootPath,
+    bool IsRunnerActive = true
+)
+{
+    public Guid RepositoryRunnerId => WorkstationId;
+}
+
+
+public record ResourceQueryFilter(
+    Guid? RepositoryId = null,
+    Guid? RepositoryRunnerId = null,
+    Guid? RunnerId = null,
+    string? Extension = null,
+    string? Keyword = null,
+    IReadOnlyList<string>? TagPaths = null,
+    int Limit = 100
+);

@@ -292,7 +292,7 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
               onDrop={isLocked ? undefined : dnd.onDrop}
               fitView
               fitViewOptions={{ padding: 0.2 }}
-              onlyRenderVisibleElements={true}
+              onlyRenderVisibleElements={false}
               proOptions={{ hideAttribution: true }}
               className="bg-dot-grid"
             >

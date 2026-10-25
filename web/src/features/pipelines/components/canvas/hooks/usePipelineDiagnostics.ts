@@ -66,6 +66,50 @@ export function usePipelineDiagnostics({
   // Helper to build draft snapshot payload matching backend expected format
   const buildDraftSnapshot = useCallback(() => {
     const nodeItems = nodes.map((node) => {
+      if (node.type === "scopeContainer") {
+        const stageData = (node.data ?? {}) as any;
+        return {
+          id: node.id,
+          refId: "ScopeContainer",
+          kind: "Container",
+          parentId: null,
+          positionX: node.position.x,
+          positionY: node.position.y,
+          width: typeof node.style?.width === "number" ? node.style.width : 520,
+          height: typeof node.style?.height === "number" ? node.style.height : 380,
+          configValues: {},
+          metadata: {
+            name: stageData.name,
+            kind: stageData.kind,
+            executorKey: stageData.executorKey || "blender",
+            targetRunnerId: stageData.targetRunnerId || null,
+          },
+        };
+      }
+
+      if (node.type === "capsuleNode") {
+        const cData = (node.data ?? {}) as any;
+        return {
+          id: node.id,
+          refId: cData.refId || "Capsule",
+          kind: "Capsule",
+          parentId: null,
+          positionX: node.position.x,
+          positionY: node.position.y,
+          configValues: {
+            VariableName: cData.key,
+            key: cData.key,
+            type: cData.pinType,
+            cardinality: cData.cardinality,
+            structType: cData.structType,
+            description: cData.description,
+          },
+          metadata: {
+            category: cData.category,
+          },
+        };
+      }
+
       const data = (node.data ?? {}) as CustomPipelineNodeData;
       return {
         id: node.id,
@@ -75,7 +119,8 @@ export function usePipelineDiagnostics({
         positionY: node.position.y,
         configValues: data.configValues || {},
         parentId: node.parentId || null,
-        size: node.style ? { width: Number(node.style.width) || 0, height: Number(node.style.height) || 0 } : null,
+        width: node.style ? Number(node.style.width) || undefined : undefined,
+        height: node.style ? Number(node.style.height) || undefined : undefined,
         metadata: data.metadata || null,
       };
     });

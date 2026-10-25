@@ -194,3 +194,100 @@ public class RunPipelineHandler(
         return Result.Ok(dto);
     }
 }
+
+[NonTransactional]
+public class TriggerPipelineExecutionHandler(
+    IPipelineOrchestrator orchestrator,
+    PipelineDbContext db,
+    ILogger<TriggerPipelineExecutionHandler> logger,
+    IHubContext<PipelineExecutionHub>? hubContext = null
+)
+{
+    public async Task HandleAsync(TriggerPipelineExecutionMessage message, CancellationToken ct)
+    {
+        logger.LogInformation(
+            "Processing TriggerPipelineExecutionMessage for execution {ExecutionId}",
+            message.ExecutionId
+        );
+
+        try
+        {
+            var execResult = await orchestrator.ExecuteOrResumeAsync(
+                message.ExecutionId,
+                message.RuntimeInputs,
+                ct
+            );
+            if (execResult.IsFailed)
+            {
+                var errMsg = string.Join("; ", execResult.Errors.Select(e => e.Message));
+                logger.LogWarning(
+                    "Pipeline execution {ExecutionId} completed with failure: {Error}",
+                    message.ExecutionId,
+                    errMsg
+                );
+                await HandleExecutionFailureAsync(message.ExecutionId, errMsg, ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "Unexpected background error while executing pipeline {ExecutionId}",
+                message.ExecutionId
+            );
+            await HandleExecutionFailureAsync(message.ExecutionId, ex.Message, ct);
+        }
+    }
+
+    private async Task HandleExecutionFailureAsync(
+        Guid executionId,
+        string errorMessage,
+        CancellationToken _
+    )
+    {
+        try
+        {
+            var exec = await db.PipelineExecutions.FirstOrDefaultAsync(
+                x => x.Id == executionId,
+                CancellationToken.None
+            );
+            if (
+                exec != null
+                && exec.Status != ExecutionStatus.Failed
+                && exec.Status != ExecutionStatus.Succeeded
+            )
+            {
+                var failSnapshot = exec.ExecutionState ?? JsonDocument.Parse("{}");
+                exec.MarkFailed(errorMessage, failSnapshot);
+                await db.SaveChangesAsync(CancellationToken.None);
+
+                if (hubContext != null)
+                {
+                    await hubContext
+                        .Clients.Group($"pipeline_{exec.PipelineId}")
+                        .SendAsync(
+                            "PipelineExecutionFinished",
+                            new
+                            {
+                                executionId = exec.Id,
+                                pipelineId = exec.PipelineId,
+                                status = (int)exec.Status,
+                                finishedAt = exec.FinishedAt,
+                                errorMessage,
+                                executionState = failSnapshot,
+                            },
+                            CancellationToken.None
+                        );
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "Failed to persist error state for execution {ExecutionId}",
+                executionId
+            );
+        }
+    }
+}

@@ -3,6 +3,7 @@ import type { EntityPickerProps } from "./types";
 import { ResourcePicker } from "./pickers/ResourcePicker";
 import { RunnerPicker } from "./pickers/RunnerPicker";
 import { RepositoryPicker } from "./pickers/RepositoryPicker";
+import { WorkstationPicker } from "./pickers/WorkstationPicker";
 import { TagPicker } from "./pickers/TagPicker";
 import { ContentTypePicker } from "./pickers/ContentTypePicker";
 import { ContentItemPicker } from "./pickers/ContentItemPicker";
@@ -12,6 +13,7 @@ export const ENTITY_PICKER_REGISTRY: Record<string, ComponentType<EntityPickerPr
   Resource: ResourcePicker,
   Runner: RunnerPicker,
   Repository: RepositoryPicker,
+  Workstation: WorkstationPicker,
   Tag: TagPicker,
   ContentType: ContentTypePicker,
   ContentItem: ContentItemPicker,
@@ -21,4 +23,3 @@ export function getEntityPicker(entityType: string): ComponentType<EntityPickerP
   const normalizedKey = (entityType || "").trim();
   return ENTITY_PICKER_REGISTRY[normalizedKey] ?? GenericEntityPicker;
 }
-

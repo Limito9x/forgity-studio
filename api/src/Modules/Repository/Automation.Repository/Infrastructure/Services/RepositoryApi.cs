@@ -15,6 +15,7 @@ public class RepositoryApi(
     RepositoryDbContext db,
     IMessageBus bus,
     ITagApi tagApi,
+    Automation.Runner.Contracts.IRunnerApi? runnerApi = null,
     ILogger<RepositoryApi>? logger = null
 ) : IRepositoryApi
 {
@@ -686,6 +687,129 @@ public class RepositoryApi(
             var runnerId = holdingLocation?.RepositoryRunner?.RunnerId;
             var fullLocalPath = !string.IsNullOrEmpty(runnerRootPath) && !string.IsNullOrEmpty(item.RelativePath)
                 ? Path.Combine(runnerRootPath, item.RelativePath).Replace('\\', '/')
+                : null;
+
+            result.Add(new ResourceDto(
+                item.Id,
+                versionId,
+                item.DisplayName,
+                item.Extension,
+                item.RelativePath,
+                fileHash,
+                item.ContentId,
+                metaJson,
+                item.RepositoryId,
+                fullLocalPath,
+                runnerRootPath,
+                runnerId
+            ));
+        }
+
+        return Result.Ok<IReadOnlyList<ResourceDto>>(result);
+    }
+    public async Task<Result<WorkstationDto>> GetWorkstationByIdAsync(
+        Guid workstationId,
+        CancellationToken ct = default
+    )
+    {
+        var repoRunner = await db.RepositoryRunners
+            .AsNoTracking()
+            .Include(rr => rr.Repository)
+            .FirstOrDefaultAsync(rr => rr.Id == workstationId, ct);
+
+        if (repoRunner == null)
+        {
+            return Result.Fail<WorkstationDto>($"Workstation '{workstationId}' not found.");
+        }
+
+        string runnerName = repoRunner.RunnerId.ToString();
+        bool isRunnerActive = true;
+
+        if (runnerApi != null)
+        {
+            var runnerMapResult = await runnerApi.GetAgentsMapByIdsAsync([repoRunner.RunnerId], ct);
+            if (runnerMapResult.IsSuccess && runnerMapResult.Value != null && runnerMapResult.Value.TryGetValue(repoRunner.RunnerId, out var runnerDto))
+            {
+                runnerName = runnerDto.Name ?? runnerDto.MachineKey ?? runnerName;
+                isRunnerActive = runnerDto.IsOnline || runnerDto.IsActive;
+            }
+        }
+
+        return Result.Ok(new WorkstationDto(
+            repoRunner.Id,
+            repoRunner.RepositoryId,
+            repoRunner.Repository?.Name ?? string.Empty,
+            repoRunner.RunnerId,
+            runnerName,
+            repoRunner.RootPath,
+            isRunnerActive
+        ));
+    }
+    public async Task<Result<IReadOnlyList<ResourceDto>>> QueryResourcesAsync(
+        ResourceQueryFilter filter,
+        CancellationToken ct = default
+    )
+    {
+        var q = db.ResourceItems.AsNoTracking()
+            .Include(r => r.Versions)
+                .ThenInclude(v => v.Locations)
+                    .ThenInclude(l => l.RepositoryRunner)
+            .AsQueryable();
+
+        if (filter.RepositoryId.HasValue && filter.RepositoryId.Value != Guid.Empty)
+        {
+            q = q.Where(r => r.RepositoryId == filter.RepositoryId.Value);
+        }
+
+        if (filter.RepositoryRunnerId.HasValue && filter.RepositoryRunnerId.Value != Guid.Empty)
+        {
+            q = q.Where(r => r.Versions.Any(v =>
+                v.Locations.Any(l => l.RepositoryRunnerId == filter.RepositoryRunnerId.Value)));
+        }
+        else if (filter.RunnerId.HasValue && filter.RunnerId.Value != Guid.Empty)
+        {
+            q = q.Where(r => r.Versions.Any(v =>
+                v.Locations.Any(l => l.RepositoryRunner.RunnerId == filter.RunnerId.Value)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Extension))
+        {
+            var ext = filter.Extension.Trim();
+            if (!ext.StartsWith('.')) ext = "." + ext;
+            q = q.Where(r => EF.Functions.ILike(r.Extension, ext) || EF.Functions.ILike(r.DisplayName, $"%{ext}"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Keyword))
+        {
+            var kw = filter.Keyword.Trim();
+            q = q.Where(r => EF.Functions.ILike(r.DisplayName, $"%{kw}%") || EF.Functions.ILike(r.RelativePath, $"%{kw}%"));
+        }
+
+        var limit = filter.Limit > 0 ? filter.Limit : 100;
+        var items = await q
+            .OrderByDescending(r => r.CreatedAt)
+            .Take(limit)
+            .ToListAsync(ct);
+
+        var result = new List<ResourceDto>();
+        foreach (var item in items)
+        {
+            var latestVersion = item.Versions.OrderByDescending(v => v.VersionNo).FirstOrDefault();
+            var versionId = latestVersion?.Id ?? Guid.Empty;
+            var fileHash = latestVersion?.FileHash;
+            var metaJson = latestVersion?.Metadata?.RootElement.GetRawText();
+
+            // Ưu tiên location của RepositoryRunnerId được chỉ định
+            var holdingLocation = latestVersion?.Locations
+                .OrderByDescending(l => filter.RepositoryRunnerId.HasValue && l.RepositoryRunnerId == filter.RepositoryRunnerId.Value)
+                .ThenByDescending(l => l.IsOrigin)
+                .ThenByDescending(l => l.DiscoveredAt)
+                .FirstOrDefault();
+
+            var runnerRootPath = holdingLocation?.RepositoryRunner?.RootPath;
+            var runnerId = holdingLocation?.RepositoryRunner?.RunnerId;
+            var fullLocalPath = !string.IsNullOrEmpty(runnerRootPath) && !string.IsNullOrEmpty(item.RelativePath)
+                ? Path.Combine(runnerRootPath, item.RelativePath.TrimStart('/', '\\')).Replace('\\', '/')
                 : null;
 
             result.Add(new ResourceDto(

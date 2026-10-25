@@ -42,8 +42,7 @@ def main(
     output_path: str,
     target_objects: Optional[List[str]] = None,
     preset_path: str = "",
-    source_manifest: Optional[Dict[str, Any]] = None,
-    root_folder: str = ""
+    source_manifest: Optional[Dict[str, Any]] = None
 ) -> dict:
     """
     Export specified scene objects to FBX format (single-file, unified mode).
@@ -52,18 +51,17 @@ def main(
     source_manifest is Map from inspect_unified_mesh.manifest (1 combo -> 1 FBX).
 
     Args:
-        output_path: Absolute or relative destination path for the .fbx file.
+        output_path: Absolute destination path for the .fbx file.
         target_objects: List of object names to filter for export, e.g. ["Body_GND"]. Empty = all.
         preset_path: Optional path to FBX export preset script.
         source_manifest: Manifest dict from inspect_unified_mesh, e.g. {"asset_name": ..., "objects": {...}}.
-        root_folder: Optional repository mount root path used to compute exact relative path for metadata keys.
 
     Returns:
         {
             "exported_fbx_path": str,
             "objects_count": int,
             "file_size": int,
-            "metadata_update_map": {rel_fbx: metadata_json},  # 1 entry, feeds UpdateResourceMetadataTool.MetadataMap
+            "metadata_update_map": {full_fbx_path: metadata_json},
             "exported_files": [str]
         }
     """
@@ -135,19 +133,6 @@ def main(
         try:
             meta_json = json.dumps(enriched, indent=2, ensure_ascii=False)
             metadata_update_map[clean_output] = meta_json
-
-            # If root_folder is provided, compute exact relative path as primary key
-            if root_folder:
-                try:
-                    norm_root = root_folder.replace("\\", "/").rstrip("/")
-                    if os.path.isabs(clean_output):
-                        rel_path = os.path.relpath(clean_output, norm_root).replace("\\", "/").strip("/")
-                        if rel_path and not rel_path.startswith(".."):
-                            metadata_update_map[rel_path] = meta_json
-                            print(f"[export_fbx] Computed relative path key from root_folder: '{rel_path}'", flush=True)
-                except Exception as rel_err:
-                    print(f"[export_fbx] Warning: failed to compute relative path: {rel_err}", flush=True)
-
             if file_name != clean_output and file_name not in metadata_update_map:
                 metadata_update_map[file_name] = meta_json
             print(f"[export_fbx] Built metadata_update_map with keys: {list(metadata_update_map.keys())}", flush=True)

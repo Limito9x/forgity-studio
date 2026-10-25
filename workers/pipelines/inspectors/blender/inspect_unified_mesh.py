@@ -65,16 +65,9 @@ def extract_material_textures(mat: Any, blend_dir: str = "") -> List[str]:
             if not abs_path:
                 continue
 
-            rel_path = abs_path
-            if blend_dir and os.path.isabs(abs_path):
-                try:
-                    rel_path = os.path.relpath(abs_path, blend_dir).replace("\\", "/")
-                except ValueError:
-                    rel_path = abs_path
-
-            if rel_path not in seen_paths:
-                seen_paths.add(rel_path)
-                textures.append(rel_path)
+            if abs_path not in seen_paths:
+                seen_paths.add(abs_path)
+                textures.append(abs_path)
 
     return textures
 

@@ -61,50 +61,64 @@ class BatchClassificationResult(BaseModel):
 # 2. API Key Resolver (Generic Runner Environment)
 # ==============================================================================
 
+def is_valid_key(val: str) -> bool:
+    if not val:
+        return False
+    v = val.strip().lower()
+    if len(v) < 15:
+        return False
+    if v in {"123456", "12345678", "none", "null", "gemini", "openai"}:
+        return False
+    return True
+
+
 def resolve_api_key(explicit_key: str = "", provider: str = "gemini") -> str:
     """
-    Resolve API key for AI provider following standard precedence:
-    1. Explicit function argument (**kwargs)
-    2. OS Environment variable (injected automatically by Forgity Runner from runner.toml [env])
-       - GEMINI_API_KEY (for Gemini)
-       - OPENAI_API_KEY (for OpenAI)
-    3. Standalone fallback: parse [env] table directly from runner.toml (%LOCALAPPDATA% or CWD)
+    Resolve API key for AI provider strictly verifying validity:
+    1. First priority: runner.toml [env] (always fresh from disk)
+    2. Explicit key (if valid format and not mock string)
+    3. OS Environment variables (validated)
     """
-    if explicit_key and explicit_key.strip():
-        return explicit_key.strip()
+    provider_clean = (provider or "gemini").strip().upper()
+    target_env_var = f"{provider_clean}_API_KEY"
 
-    target_env_var = "GEMINI_API_KEY" if provider.lower() == "gemini" else "OPENAI_API_KEY"
-
-    # 1. Standard OS Environment Variable (Primary source in Runner subprocess)
-    env_val = os.environ.get(target_env_var, "").strip()
-    if env_val:
-        return env_val
-
-    # Secondary check for generic OPENAI_API_KEY if primary was not found
-    if not env_val and target_env_var != "OPENAI_API_KEY":
-        env_val = os.environ.get("OPENAI_API_KEY", "").strip()
-        if env_val:
-            return env_val
-
-    # 2. Standalone fallback: Read runner.toml [env] if executing outside of runner daemon
+    # 1. Read runner.toml directly from disk
     config_paths = [
+        r"D:\FullStack\Automation\runner\runner.toml",
         os.path.expandvars(r"%LOCALAPPDATA%\Forgity\runner.toml"),
         os.path.abspath("runner.toml"),
+        os.path.join(os.getcwd(), "runner.toml"),
     ]
     for p in config_paths:
         if os.path.isfile(p):
             try:
                 import tomllib
                 with open(p, "rb") as f:
-                    data = tomllib.load(f)
-                    env_table = data.get("env", {})
-                    key = env_table.get(target_env_var, "").strip() or env_table.get("OPENAI_API_KEY", "").strip()
-                    if key:
-                        return key
+                    cfg = tomllib.load(f)
+                    env_table = cfg.get("env", {})
+                    for candidate in [
+                        env_table.get(target_env_var),
+                        env_table.get("GEMINI_API_KEY"),
+                        env_table.get("AI_API_KEY"),
+                        env_table.get("LLM_API_KEY"),
+                    ]:
+                        if candidate and is_valid_key(str(candidate)):
+                            return str(candidate).strip()
             except Exception:
                 pass
 
+    # 2. Check explicit key
+    if explicit_key and is_valid_key(explicit_key):
+        return explicit_key.strip()
+
+    # 3. Check OS Environment variable
+    for env_var in [target_env_var, "GEMINI_API_KEY", "AI_API_KEY", "LLM_API_KEY", "GOOGLE_API_KEY"]:
+        env_val = os.environ.get(env_var, "").strip()
+        if is_valid_key(env_val):
+            return env_val
+
     return ""
+
 
 
 # ==============================================================================
@@ -113,8 +127,8 @@ def resolve_api_key(explicit_key: str = "", provider: str = "gemini") -> str:
 
 def main(
     raw_manifest: Union[Dict[str, Any], str],
-    folder_path: str = "",
     contracts: Optional[Union[Dict[str, Any], str]] = None,
+    cloth_map: Optional[Union[Dict[str, str], str]] = None,
     provider: str = "gemini",
     model: str = "gemini-2.5-flash",
     **kwargs
@@ -122,10 +136,23 @@ def main(
     """
     AI-powered Material Manifest Classifier for Unreal Engine 5 Batch Ingestion.
     Sends raw JSON tree directly to LLM for zero-brittle semantic parsing.
+    Supports inheriting or passing cloth_map to enrich manifest for Unreal Appearance DataTable.
     """
     start_time = time.time()
     api_key = kwargs.get("api_key", "")
     endpoint = kwargs.get("endpoint", "")
+    folder_path = kwargs.get("folder_path", "")
+
+    # Parse cloth_map if provided
+    resolved_cloth_map: Dict[str, str] = {}
+    if cloth_map:
+        if isinstance(cloth_map, str) and cloth_map.strip().startswith("{"):
+            try:
+                resolved_cloth_map = json.loads(cloth_map)
+            except Exception:
+                pass
+        elif isinstance(cloth_map, dict):
+            resolved_cloth_map = cloth_map
 
     # 1. Parse raw_manifest to Python object if string
     if isinstance(raw_manifest, str):
@@ -170,16 +197,20 @@ def main(
                 contract_summary[c_name] = list(t_params.keys()) if isinstance(t_params, dict) else []
 
     # 3. Setup AI Client
+    if not HAS_OPENAI:
+        raise RuntimeError(
+            "[classify_material_manifest] Missing required Python package 'openai'. "
+            "Please install it using 'pip install openai'."
+        )
+
     resolved_key = resolve_api_key(api_key, provider)
     is_local_ollama = provider.lower() == "ollama" or "11434" in endpoint
 
     if not resolved_key and not is_local_ollama:
-        print("[classify_material_manifest] [ERROR] No API key available for AI classification.", flush=True)
-        return {"manifest": {}, "objects_map": {}, "object_count": 0, "summary": "No API key"}
-
-    if not HAS_OPENAI:
-        print("[classify_material_manifest] [ERROR] 'openai' package not installed.", flush=True)
-        return {"manifest": {}, "objects_map": {}, "object_count": 0, "summary": "Missing openai package"}
+        raise RuntimeError(
+            f"[classify_material_manifest] No API key found for provider '{provider}'. "
+            f"Please set GEMINI_API_KEY, AI_API_KEY, LLM_API_KEY, or configure runner.toml."
+        )
 
     if is_local_ollama:
         client = OpenAI(api_key="ollama", base_url=endpoint or "http://localhost:11434/v1")
@@ -249,8 +280,9 @@ def main(
         content = response.choices[0].message.content or "{}"
         parsed_ai = json.loads(content)
     except Exception as e:
-        print(f"[classify_material_manifest] [ERROR] AI completion failed: {e}", flush=True)
-        return {"manifest": {}, "objects_map": {}, "object_count": 0, "summary": f"AI Error: {e}"}
+        raise RuntimeError(
+            f"[classify_material_manifest] AI material classification failed using model '{model}' ({provider}): {e}"
+        ) from e
 
     # 5. Format & Post-process for Unreal Engine setup_asset_materials.py
     ai_objects = parsed_ai.get("objects", {})
@@ -294,8 +326,31 @@ def main(
                 "textures": clean_textures
             })
 
-        has_cloth = any(s["material_tag"] == "Cloth" for s in formatted_slots)
-        cloth_type = "Cloth" if has_cloth else None
+        # Resolve cloth_type with precedence:
+        # 1. Explicit cloth_map from classify_mesh_types
+        # 2. Existing cloth_type in raw_manifest (from inspect_separated_meshes / export_fbx)
+        # 3. AI returned cloth_type
+        # 4. Fallback to "Cloth" if any slot tag is "Cloth"
+        raw_obj_meta = {}
+        if isinstance(raw_data, dict):
+            raw_obj_meta = (
+                raw_data.get("objects", {}).get(obj_name, {})
+                or raw_data.get("objects", {}).get(asset_name, {})
+                or raw_data.get(obj_name, {})
+                or raw_data.get(asset_name, {})
+            )
+            if not isinstance(raw_obj_meta, dict):
+                raw_obj_meta = {}
+
+        cloth_type = (
+            resolved_cloth_map.get(asset_name)
+            or resolved_cloth_map.get(obj_name)
+            or raw_obj_meta.get("cloth_type")
+            or obj_data.get("cloth_type")
+        )
+        if not cloth_type:
+            has_cloth = any(s["material_tag"] == "Cloth" for s in formatted_slots)
+            cloth_type = "Cloth" if has_cloth else None
 
         resolved_manifest[asset_name] = {
             "asset_name": asset_name,

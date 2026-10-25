@@ -8,8 +8,8 @@ using Microsoft.Extensions.Logging;
 namespace Automation.Pipeline.Contracts.Tools.Workspaces;
 
 /// <summary>
-/// Tool phát hiện và đồng bộ các thay đổi file cục bộ (relative paths) từ Repository Runner vào Database.
-/// Hoạt động thuần túy trên đường dẫn tương đối (Relative Path), độc lập với Root Path cục bộ của máy Runner.
+/// Tool phát hiện và đồng bộ các thay đổi file cục bộ (paths) từ Workstation hoặc Repository Runner vào Database.
+/// Chấp nhận cả đường dẫn tuyệt đối (Full Physical Path trên Runner) lẫn đường dẫn tương đối (Relative Path).
 /// </summary>
 public class SyncLocalChangeToRepositoryTool(
     IRepositoryApi repositoryApi,
@@ -17,48 +17,32 @@ public class SyncLocalChangeToRepositoryTool(
 ) : IResolverTool
 {
     public string Key => "SyncLocalChangeToRepository";
-    public IReadOnlyList<string> Aliases => ["SyncLocalChangeToWorkspace", "SyncLocalChanges"];
+    public IReadOnlyList<string> Aliases => ["SyncLocalChangeToWorkspace", "SyncLocalChanges", "SyncLocalChange"];
     public string Label => "Sync Local Change To Repository";
     public string? Category => "Repository";
-    public string? Description => "Detects and synchronizes newly created or modified local files from a runner workstation back into the repository database.";
+    public string? Description => "Detects and synchronizes newly created or modified local files from a workstation/runner back into the repository database.";
 
     public IReadOnlyList<PinDefinition> Inputs =>
         new List<PinDefinition>
         {
             new PinDefinition
             {
-                Id = "Repository",
-                Label = "Target Repository",
+                Id = "Workstation",
+                Label = "Target Workstation",
                 PrimitiveType = PinPrimitiveType.EntityRef,
-                StructType = WellKnownStructTypes.Repository,
+                StructType = WellKnownStructTypes.Workstation,
                 Cardinality = PinCardinality.Single,
-                IsRequired = true
-            },
-            new PinDefinition
-            {
-                Id = "Runner",
-                Label = "Target Runner",
-                PrimitiveType = PinPrimitiveType.EntityRef,
-                StructType = WellKnownStructTypes.Runner,
-                Cardinality = PinCardinality.Single,
-                IsRequired = true
+                IsRequired = true,
+                Description = "Target Workstation (Pairs Repository + Runner and provides RootPath)"
             },
             new PinDefinition
             {
                 Id = "RelativePaths",
-                Label = "Relative Paths",
+                Label = "Paths",
                 PrimitiveType = PinPrimitiveType.String,
                 Cardinality = PinCardinality.Array,
                 IsRequired = true,
-            },
-            new PinDefinition
-            {
-                Id = "Notes",
-                Label = "Notes",
-                PrimitiveType = PinPrimitiveType.String,
-                Cardinality = PinCardinality.Single,
-                IsRequired = false,
-                DefaultValue = "Sync from Pipeline",
+                Description = "File paths to synchronize (accepts both Full Physical Paths and POSIX Relative Paths)"
             },
         };
 
@@ -125,43 +109,83 @@ public class SyncLocalChangeToRepositoryTool(
         ToolExecutionContext context
     )
     {
-        // 1. Resolve Target Repository (hỗ trợ nhiều alias/fallback keys)
-        var repoObj =
-            inputs.GetValueOrDefault("Repository")
-            ?? inputs.GetValueOrDefault("RepositoryId")
-            ?? inputs.GetValueOrDefault("TargetRepository")
-            ?? inputs.GetValueOrDefault("Workspace")
-            ?? inputs.GetValueOrDefault("WorkspaceId");
+        var ct = context.CancellationToken;
+        Guid? repositoryId = null;
+        Guid? runnerId = null;
+        string? rootPath = null;
 
-        var repositoryId = EntityRefHelper.ExtractRefId(repoObj);
+        // 1. Resolve Workstation if provided
+        var wsObj = inputs.GetValueOrDefault("Workstation") ?? inputs.GetValueOrDefault("WorkstationId");
+        if (wsObj != null)
+        {
+            var wsId = EntityRefHelper.ExtractRefId(wsObj);
+            if (wsId.HasValue && wsId.Value != Guid.Empty)
+            {
+                var wsResult = await repositoryApi.GetWorkstationByIdAsync(wsId.Value, ct);
+                if (wsResult.IsSuccess && wsResult.Value != null)
+                {
+                    repositoryId = wsResult.Value.RepositoryId;
+                    runnerId = wsResult.Value.RunnerId;
+                    rootPath = wsResult.Value.RootPath;
+                }
+            }
+        }
+
+        // 2. Fallback to Target Repository
+        if (!repositoryId.HasValue)
+        {
+            var repoObj =
+                inputs.GetValueOrDefault("Repository")
+                ?? inputs.GetValueOrDefault("RepositoryId")
+                ?? inputs.GetValueOrDefault("TargetRepository")
+                ?? inputs.GetValueOrDefault("Workspace")
+                ?? inputs.GetValueOrDefault("WorkspaceId");
+
+            repositoryId = EntityRefHelper.ExtractRefId(repoObj);
+        }
+
         if (repositoryId == null || repositoryId == Guid.Empty)
-            throw new ArgumentException("Repository ID is required and must be a valid entity reference or GUID.");
+            throw new ArgumentException("Repository ID or Workstation is required and must be a valid entity reference or GUID.");
 
-        // 2. Resolve Target Runner
-        var runnerObj =
-            inputs.GetValueOrDefault("Runner")
-            ?? inputs.GetValueOrDefault("RunnerId")
-            ?? inputs.GetValueOrDefault("TargetRunner")
-            ?? inputs.GetValueOrDefault("TargetRunnerId");
+        // 3. Fallback to Target Runner
+        if (!runnerId.HasValue)
+        {
+            var runnerObj =
+                inputs.GetValueOrDefault("Runner")
+                ?? inputs.GetValueOrDefault("RunnerId")
+                ?? inputs.GetValueOrDefault("TargetRunner")
+                ?? inputs.GetValueOrDefault("TargetRunnerId");
 
-        var runnerId = EntityRefHelper.ExtractRefId(runnerObj);
+            runnerId = EntityRefHelper.ExtractRefId(runnerObj);
+        }
+
         if (runnerId == null || runnerId == Guid.Empty)
-            throw new ArgumentException("Runner ID is required and must be a valid entity reference or GUID.");
+            throw new ArgumentException("Runner ID or Workstation is required and must be a valid entity reference or GUID.");
 
-        // 3. Resolve & Normalize Relative Paths (bỏ qua rỗng, loại bỏ leading slashes, chỉ giữ relative)
+        // If rootPath not resolved from workstation, query from repositoryApi
+        if (string.IsNullOrEmpty(rootPath))
+        {
+            var rootResult = await repositoryApi.GetRepositoryRootPathAsync(repositoryId.Value, runnerId.Value, ct);
+            if (rootResult.IsSuccess)
+            {
+                rootPath = rootResult.Value;
+            }
+        }
+
+        // 4. Resolve & Normalize Paths (accepts FullPath and RelativePath)
         var rawPaths =
             inputs.GetValueOrDefault("RelativePaths")
             ?? inputs.GetValueOrDefault("Paths")
             ?? inputs.GetValueOrDefault("TargetPaths")
             ?? inputs.GetValueOrDefault("relative_paths");
 
-        var targetPaths = ExtractNormalizedRelativePaths(rawPaths);
+        var targetPaths = ExtractNormalizedRelativePaths(rawPaths, rootPath);
 
-        // Guard clause: Ngăn chặn quét sạch toàn bộ workspace local lên database nếu RelativePaths không có hoặc rỗng
+        // Guard clause: Ngăn chặn quét sạch toàn bộ workspace local lên database nếu Paths không có hoặc rỗng
         if (targetPaths.Count == 0)
         {
             logger?.LogWarning(
-                "SyncLocalChangeToRepositoryTool: RelativePaths is empty for repository {RepoId} and runner {RunnerId}. Sync skipped to prevent unintended full workspace scan.",
+                "SyncLocalChangeToRepositoryTool: Paths is empty for repository {RepoId} and runner {RunnerId}. Sync skipped to prevent unintended full workspace scan.",
                 repositoryId.Value,
                 runnerId.Value
             );
@@ -182,13 +206,13 @@ public class SyncLocalChangeToRepositoryTool(
                 ? nObj.ToString()
                 : "Sync from Pipeline";
 
-        // 4. Invoke Sync qua IRepositoryApi
+        // 5. Invoke Sync qua IRepositoryApi
         var result = await repositoryApi.SyncLocalChangesAsync(
             repositoryId.Value,
             runnerId.Value,
             targetPaths,
             notes,
-            context.CancellationToken
+            ct
         );
 
         if (result.IsFailed)
@@ -196,7 +220,7 @@ public class SyncLocalChangeToRepositoryTool(
                 string.Join(", ", result.Errors.Select(e => e.Message))
             );
 
-        // 5. Chuẩn hóa ResourceMap: Chỉ ánh xạ các RelativePath chuẩn -> Resource EntityRef
+        // 6. Chuẩn hóa ResourceMap: Chỉ ánh xạ các RelativePath chuẩn -> Resource EntityRef
         var syncedDict = result.Value.SyncedResources ?? new Dictionary<string, Guid>();
         var resourceMap = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         var versionIdList = result.Value.ResourceVersionIds ?? new List<Guid>();
@@ -210,7 +234,7 @@ public class SyncLocalChangeToRepositoryTool(
             if (Path.IsPathRooted(k) || (k.Length > 2 && k[1] == ':'))
                 continue;
 
-            var cleanRel = NormalizeRelativePath(k);
+            var cleanRel = NormalizeRelativePath(k, rootPath);
             var entityRef = EntityRefHelper.Create("Resource", v);
 
             // Cho phép tra cứu bằng cả 2 kiểu phân cách '/' và '\'
@@ -218,19 +242,19 @@ public class SyncLocalChangeToRepositoryTool(
             resourceMap[cleanRel.Replace('/', '\\')] = entityRef;
         }
 
-        if (versionIdList.Count == 0 && syncedDict.Count > 0)
+        // 7. Tạo danh sách Resources và FirstResource
+        var resourceList = new List<object>();
+        foreach (var vId in versionIdList)
         {
-            versionIdList = syncedDict.Values.Distinct().ToList();
+            resourceList.Add(EntityRefHelper.Create("Resource", vId));
         }
 
-        var firstResource =
-            versionIdList.Count > 0
-                ? EntityRefHelper.Create("Resource", versionIdList[0])
-                : (resourceMap.Values.FirstOrDefault() ?? (object)"");
-
-        var resourcesArray = versionIdList
-            .Select(id => (object)EntityRefHelper.Create("Resource", id))
-            .ToArray();
+        object firstResource = resourceList.Count > 0 ? resourceList[0] : "";
+        if (resourceList.Count == 0 && resourceMap.Count > 0)
+        {
+            firstResource = resourceMap.Values.First();
+            resourceList = resourceMap.Values.Distinct().ToList();
+        }
 
         return new Dictionary<string, object>
         {
@@ -239,19 +263,18 @@ public class SyncLocalChangeToRepositoryTool(
             ["LocationRemoved"] = result.Value.LocationRemoved,
             ["ResourceMap"] = resourceMap,
             ["FirstResource"] = firstResource,
-            ["Resources"] = resourcesArray,
+            ["Resources"] = resourceList,
         };
     }
 
-    private static List<string> ExtractNormalizedRelativePaths(object? raw)
+    private static List<string> ExtractNormalizedRelativePaths(object? raw, string? runnerRootPath = null)
     {
         var list = new List<string>();
-        if (raw == null) return list;
 
         void AddIfValid(string? path)
         {
             if (string.IsNullOrWhiteSpace(path)) return;
-            var normalized = NormalizeRelativePath(path);
+            var normalized = NormalizeRelativePath(path, runnerRootPath);
             if (!string.IsNullOrWhiteSpace(normalized))
             {
                 list.Add(normalized);
@@ -291,9 +314,30 @@ public class SyncLocalChangeToRepositoryTool(
         return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
-    private static string NormalizeRelativePath(string path)
+    private static string NormalizeRelativePath(string path, string? runnerRootPath = null)
     {
         var p = path.Trim().Replace('\\', '/');
+
+        if (!string.IsNullOrWhiteSpace(runnerRootPath))
+        {
+            var cleanRoot = runnerRootPath.Trim().Replace('\\', '/').TrimEnd('/');
+            if (p.StartsWith(cleanRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                p = p.Substring(cleanRoot.Length);
+            }
+            else if (Path.IsPathRooted(p) || (p.Length > 2 && p[1] == ':'))
+            {
+                try
+                {
+                    p = Path.GetRelativePath(cleanRoot, p).Replace('\\', '/');
+                }
+                catch
+                {
+                    // Fallback cross drive
+                }
+            }
+        }
+
         // Loại bỏ ký tự slash ở đầu để đảm bảo luôn là relative path
         return p.TrimStart('/');
     }

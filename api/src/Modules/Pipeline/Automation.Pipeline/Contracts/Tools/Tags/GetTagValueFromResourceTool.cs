@@ -1,3 +1,4 @@
+using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Contracts.Tools.Attributes;
@@ -14,6 +15,7 @@ public class GetTagValueFromResourceInputs
         PrimitiveType = PinPrimitiveType.EntityRef,
         Cardinality = PinCardinality.Single,
         IsRequired = true,
+        StructType = WellKnownStructTypes.Resource,
         Metadata = """{"type": "entity-select", "properties": {"entity": "Resource"}}"""
     )]
     public object? Target { get; set; }
@@ -24,6 +26,7 @@ public class GetTagValueFromResourceInputs
         PrimitiveType = PinPrimitiveType.EntityRef,
         Cardinality = PinCardinality.Single,
         IsRequired = true,
+        StructType = WellKnownStructTypes.Tag,
         Metadata = """{"type": "entity-select", "properties": {"entity": "Tag"}}"""
     )]
     public object? TagId { get; set; }

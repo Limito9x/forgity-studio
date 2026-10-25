@@ -270,3 +270,26 @@ cargo test
 # - test_storage_manager_paths_are_absolute
 # - test_normalize_verbatim_path
 ```
+
+---
+
+## 12. Vòng Đời Biến Môi Trường (Environment Variables) & Caveat Khi Runner Đang Chạy
+
+### 12.1. Hiện Tượng "Bóng Ma" Biến Môi Trường Cũ (Stale In-Memory Env)
+- **Cơ chế hoạt động:** Khi lệnh `forgity-runner.exe start --local` được khởi chạy, nó parse file `runner.toml` một lần duy nhất lúc khởi động và lưu bảng `[env]` vào struct bộ nhớ `RunnerConfig.env`.
+- **Hệ quả khi Runner chạy nền liên tục (Daemon):**
+  - Nếu user chỉnh sửa `runner.toml` (ví dụ cập nhật `GEMINI_API_KEY` từ mock value `"123456"` sang key thật `AQ.Ab8...`) **trong khi Runner vẫn đang chạy**, tiến trình Runner host **KHÔNG** tự động reload file này.
+  - Khi có Stage mới được dispatch, `StageDispatcher` tiếp tục lấy giá trị cũ từ RAM (`self.custom_env`) và tiêm vào subprocess qua `cmd.env(k, v)`.
+  - Kết quả: Subprocess Python nhận biến môi trường `os.environ["GEMINI_API_KEY"] = "123456"` cũ rích, dẫn đến lỗi xác thực API `400 INVALID_ARGUMENT`.
+
+### 12.2. Nguyên Tắc Thiết Kế Cho Pipeline Scripts (Zero-Stale-Env Pattern)
+Để ngăn ngừa tình trạng trên, toàn bộ script chạy trên Runner (đặc biệt là các script AI hoặc DCC cần credentials) **BẮT BUỘC** tuân thủ quy tắc 3 lớp:
+
+1. **Ưu tiên đọc file cấu hình trực tiếp từ đĩa trước (`runner.toml`):**
+   - Đọc trực tiếp từ file đĩa `D:\FullStack\Automation\runner\runner.toml` hoặc `%LOCALAPPDATA%\Forgity\runner.toml`. Dữ liệu trên đĩa luôn là dữ liệu mới nhất mà người dùng vừa sửa.
+2. **Kiểm tra tính hợp lệ của Key (`is_valid_key`):**
+   - Luôn kiểm tra định dạng và độ dài (`len >= 15`), đồng thời loại bỏ các placeholder rác (như `"123456"`, `"none"`, `"null"`, `"gemini"`, `"openai"`).
+   - Nếu biến môi trường nhận từ OS là key giả/mock, **tự động bỏ qua** và fallback về file trên đĩa hoặc báo lỗi rõ ràng.
+3. **Quy tắc thao tác khi sửa cấu hình Runner:**
+   - Khi sửa bất kỳ giá trị nào trong `runner.toml` (nhất là API keys và thông số RabbitMQ), **bắt buộc phải restart lại tiến trình Runner** (`Ctrl+C` và chạy lại `forgity-runner.exe start --local`) để Runner host nạp mới 100% bảng biến môi trường.
+

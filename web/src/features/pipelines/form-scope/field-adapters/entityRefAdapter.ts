@@ -6,15 +6,28 @@ export const entityRefAdapter: FieldAdapter = {
     return ctx.primitive === "EntityRef" || Boolean(ctx.structType);
   },
   create: (ctx: PinFieldContext) => {
+    const hintProps = (ctx.hint?.properties ?? {}) as Record<string, unknown>;
+    const hintEntity = (ctx.hint?.entity || hintProps.entity) as string | undefined;
+    const entityTarget = (ctx.structType || hintEntity || "").trim();
+
+    if (!entityTarget) {
+      console.warn(
+        `[Pipeline Inspector] EntityRef pin '${ctx.pinId}' (${ctx.label}) has no structType or entity metadata configured.`
+      );
+    }
+
     const isMultiple =
-      ctx.cardinality === "Array" || ctx.hint?.multiple === true;
+      ctx.cardinality === "Array" ||
+      ctx.hint?.multiple === true ||
+      hintProps.multiple === true;
+
     const cleanDefault = isMultiple
       ? Array.isArray(ctx.pin.defaultValue)
         ? ctx.pin.defaultValue
         : []
       : (ctx.pin.defaultValue ?? "");
 
-    if (ctx.structType === "Runner") {
+    if (entityTarget === "Runner") {
       return {
         name: ctx.pinId,
         label: ctx.label,
@@ -27,7 +40,7 @@ export const entityRefAdapter: FieldAdapter = {
       };
     }
 
-    if (ctx.structType === "Repository") {
+    if (entityTarget === "Repository") {
       return {
         name: ctx.pinId,
         label: ctx.label,
@@ -40,7 +53,6 @@ export const entityRefAdapter: FieldAdapter = {
       };
     }
 
-    const entityTarget = ctx.structType || ctx.hint?.entity || "Resource";
     return {
       name: ctx.pinId,
       label: ctx.label,
@@ -53,3 +65,4 @@ export const entityRefAdapter: FieldAdapter = {
     };
   },
 };
+
