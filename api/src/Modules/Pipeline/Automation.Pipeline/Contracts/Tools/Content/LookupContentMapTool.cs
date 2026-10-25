@@ -27,17 +27,82 @@ public class LookupContentMapTool(
     public string? Category => "Content & Struct";
     public string? Description => "Queries project ContentItems by key, name, or ContentType, resolving their dynamic schema properties (such as master material contracts).";
     public bool IsPure => true;
+    public bool HasDynamicPins => true;
+
+    public NodeCapabilities Capabilities => new(
+        CanAddPin: false,
+        CanRemovePin: false,
+        InspectorMode: "Default",
+        RuleNotes: "Queries ContentItems by name/keys or by direct ContentItem entity references, resolving their dynamic schema properties.",
+        ViewVariant: "Standard",
+        SchemaConfigKeys: ["Mode", "ContentType"]
+    );
+
+    public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(
+        Dictionary<string, object?>? configValues,
+        IPinResolutionContext? context = null
+    )
+    {
+        var mode = configValues?.GetValueOrDefault("Mode")?.ToString()?.Trim();
+        if (string.Equals(mode, "ByEntityRef", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(mode, "EntityRef", StringComparison.OrdinalIgnoreCase))
+        {
+            return (
+                [
+                    new()
+                    {
+                        Id = "ContentType",
+                        Label = "Content Type (Optional)",
+                        PrimitiveType = PinPrimitiveType.String,
+                        Cardinality = PinCardinality.Single,
+                        IsRequired = false,
+                        Metadata = """{"type": "entity-select", "properties": {"entity": "ContentType"}}""",
+                        Description = "Optional category filter or schema target"
+                    },
+                    new()
+                    {
+                        Id = "ContentItems",
+                        Label = "Content Items",
+                        PrimitiveType = PinPrimitiveType.EntityRef,
+                        StructType = WellKnownStructTypes.ContentItem,
+                        Cardinality = PinCardinality.Array,
+                        IsRequired = true,
+                        Description = "Batch of ContentItem entity references to lookup"
+                    }
+                ],
+                Outputs
+            );
+        }
+
+        // Mặc định: Mode ByKey
+        return (
+            [
+                new()
+                {
+                    Id = "ContentType",
+                    Label = "Content Type",
+                    PrimitiveType = PinPrimitiveType.String,
+                    Cardinality = PinCardinality.Single,
+                    IsRequired = false,
+                    Metadata = """{"type": "entity-select", "properties": {"entity": "ContentType"}}""",
+                    Description = "Target Content Type to filter schema items"
+                },
+                new()
+                {
+                    Id = "Keys",
+                    Label = "Keys / Tags / Names",
+                    PrimitiveType = PinPrimitiveType.String,
+                    Cardinality = PinCardinality.Array,
+                    IsRequired = false,
+                    Description = "Keys, tags, or names to match within project content items"
+                }
+            ],
+            Outputs
+        );
+    }
 
     public IReadOnlyList<PinDefinition> Inputs =>
     [
-        new()
-        {
-            Id = "Keys",
-            Label = "Keys / Tags / Names",
-            PrimitiveType = PinPrimitiveType.String,
-            Cardinality = PinCardinality.Array,
-            IsRequired = false
-        },
         new()
         {
             Id = "ContentType",
@@ -46,6 +111,14 @@ public class LookupContentMapTool(
             Cardinality = PinCardinality.Single,
             IsRequired = false,
             Metadata = """{"type": "entity-select", "properties": {"entity": "ContentType"}}"""
+        },
+        new()
+        {
+            Id = "Keys",
+            Label = "Keys / Tags / Names",
+            PrimitiveType = PinPrimitiveType.String,
+            Cardinality = PinCardinality.Array,
+            IsRequired = false
         }
     ];
 
@@ -133,6 +206,13 @@ public class LookupContentMapTool(
 
         var allItems = contentsResult.Value.Values.ToList();
 
+        // 2.5. Filter by direct ContentItems if provided (ByEntityRef mode)
+        var directItemIds = ExtractItemGuids(inputs.GetValueOrDefault("ContentItems") ?? inputs.GetValueOrDefault("Items"));
+        if (directItemIds.Count > 0)
+        {
+            allItems = allItems.Where(c => directItemIds.Contains(c.Id)).ToList();
+        }
+
         // 3. Filter by ContentType if specified
         var contentTypeFilter = (inputs.GetValueOrDefault("ContentType") ?? inputs.GetValueOrDefault("contentType"))?.ToString()?.Trim();
         if (!string.IsNullOrEmpty(contentTypeFilter))
@@ -191,6 +271,17 @@ public class LookupContentMapTool(
                 }
                 contentMap[key] = itemDict;
                 contentIds.Add(item.Id);
+            }
+
+            if (directItemIds.Count > 0)
+            {
+                foreach (var id in directItemIds)
+                {
+                    if (!contentIds.Contains(id))
+                    {
+                        missingKeys.Add(id.ToString());
+                    }
+                }
             }
         }
         else
@@ -368,5 +459,27 @@ public class LookupContentMapTool(
             JsonValueKind.Object => el.EnumerateObject().ToDictionary(p => p.Name, p => ConvertJsonElement(p.Value), StringComparer.OrdinalIgnoreCase),
             _ => el.GetRawText()
         };
+    }
+
+    private static HashSet<Guid> ExtractItemGuids(object? raw)
+    {
+        var set = new HashSet<Guid>();
+        if (raw == null) return set;
+
+        if (raw is IEnumerable enumerable && raw is not string && raw is not IDictionary)
+        {
+            foreach (var el in enumerable)
+            {
+                var parsed = EntityRefHelper.ExtractRefId(el);
+                if (parsed.HasValue && parsed.Value != Guid.Empty) set.Add(parsed.Value);
+            }
+        }
+        else
+        {
+            var parsed = EntityRefHelper.ExtractRefId(raw);
+            if (parsed.HasValue && parsed.Value != Guid.Empty) set.Add(parsed.Value);
+        }
+
+        return set;
     }
 }

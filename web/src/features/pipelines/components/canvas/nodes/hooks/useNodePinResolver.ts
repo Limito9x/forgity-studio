@@ -14,7 +14,11 @@ interface UseNodePinResolverOptions {
   configValues?: Record<string, unknown>;
   schemaConfigKeys?: readonly unknown[] | null;
   hasDynamicPins?: boolean;
+  hasExistingPins?: boolean;
 }
+
+// Module-level persistent cache across component mount/unmount lifecycle
+const resolvedSignaturesCache = new Map<string, string>();
 
 /**
  * Automatically calls `POST /api/pipelines/tools/resolve-pins` when a node's
@@ -28,16 +32,27 @@ export function useNodePinResolver({
   configValues,
   schemaConfigKeys,
   hasDynamicPins = true,
+  hasExistingPins = false,
 }: UseNodePinResolverOptions) {
   const { setNodes, setEdges } = useReactFlow();
-  const lastResolvedSignatureRef = useRef<string>("");
-  const latestConfigRef = useRef(configValues);
-  latestConfigRef.current = configValues;
-
   const schemaSignature = buildSchemaConfigSignature(
     configValues,
     schemaConfigKeys
   );
+
+  // If node already has hydrated pins from DTO or cache, initialize ref to current schemaSignature
+  // so we never fire an unnecessary resolve-pins request on initial load or canvas pan/drag!
+  const cachedSig = resolvedSignaturesCache.get(nodeId);
+  const initialSig = cachedSig ?? (hasExistingPins ? schemaSignature : "");
+  const lastResolvedSignatureRef = useRef<string>(initialSig);
+
+  // Always keep cached map up to date
+  if (hasExistingPins && !cachedSig) {
+    resolvedSignaturesCache.set(nodeId, schemaSignature);
+  }
+
+  const latestConfigRef = useRef(configValues);
+  latestConfigRef.current = configValues;
 
   useEffect(() => {
     if (!hasDynamicPins || !refId) return;
@@ -56,6 +71,7 @@ export function useNodePinResolver({
         );
 
         lastResolvedSignatureRef.current = schemaSignature;
+        resolvedSignaturesCache.set(nodeId, schemaSignature);
 
         if (!result) return;
 

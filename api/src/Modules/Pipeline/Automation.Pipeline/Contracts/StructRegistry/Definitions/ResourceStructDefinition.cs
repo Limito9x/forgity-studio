@@ -19,7 +19,6 @@ public class ResourceStructDefinition(
     public object? SampleJson => new Dictionary<string, object?>
     {
         ["ResourceId"] = "00000000-0000-0000-0000-000000000001",
-        ["ResourceVersionId"] = "00000000-0000-0000-0000-000000000002",
         ["FileName"] = "character_model.fbx",
         ["BaseName"] = "character_model",
         ["Extension"] = ".fbx",
@@ -42,13 +41,6 @@ public class ResourceStructDefinition(
             {
                 Id = "ResourceId",
                 Label = "Resource ID",
-                PrimitiveType = PinPrimitiveType.EntityRef,
-                Cardinality = PinCardinality.Single,
-            },
-            new()
-            {
-                Id = "ResourceVersionId",
-                Label = "Resource Version ID",
                 PrimitiveType = PinPrimitiveType.EntityRef,
                 Cardinality = PinCardinality.Single,
             },
@@ -129,7 +121,7 @@ public class ResourceStructDefinition(
                 Id = "ContentId",
                 Label = "Content ID",
                 PrimitiveType = PinPrimitiveType.EntityRef,
-                StructType = WellKnownStructTypes.ContentType,
+                StructType = WellKnownStructTypes.ContentItem,
                 Cardinality = PinCardinality.Single,
             },
             new()

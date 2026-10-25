@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { Node, Edge } from "@xyflow/react";
 import { useForm } from "react-hook-form";
-import { useGetRunners } from "@/gen/endpoints/runners/runners";
+import { useRunners } from "@/features/runners/hooks/useRunners";
 import { useRunPipeline, type PipelineParameterDto } from "../hooks/usePipelineGraph";
 import {
   Dialog,
@@ -72,7 +72,7 @@ export function RunPipelineModal({
   onClose,
   onExecutionStarted,
 }: RunPipelineModalProps) {
-  const { data: agents = [] } = useGetRunners();
+  const { data: agents = [] } = useRunners();
 
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const runMutation = useRunPipeline(pipelineId);

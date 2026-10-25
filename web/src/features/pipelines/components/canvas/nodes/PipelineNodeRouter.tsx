@@ -30,6 +30,7 @@ export const PipelineNodeRouter = memo((props: NodeProps) => {
     configValues: data.configValues,
     schemaConfigKeys: definition?.capabilities?.schemaConfigKeys,
     hasDynamicPins: data.kind === "Tool" && definition?.hasDynamicPins === true,
+    hasExistingPins: (data.inputs?.length ?? 0) > 0,
   });
 
   const view = nodeView(data.kind, definition);

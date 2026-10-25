@@ -99,8 +99,10 @@ public class ContentApiService(ContentDbContext db) : IContentApi
         }
 
         var ctQuery = contentTypeKeyOrName.Trim();
-        var contentType = await db.ContentTypes
-            .FirstOrDefaultAsync(c => c.ProjectId == projectId &&
+        var isGuid = Guid.TryParse(ctQuery, out var parsedCtId);
+        var contentType = isGuid
+            ? await db.ContentTypes.FirstOrDefaultAsync(c => c.ProjectId == projectId && c.Id == parsedCtId, ct)
+            : await db.ContentTypes.FirstOrDefaultAsync(c => c.ProjectId == projectId &&
                 (c.Key.ToLower() == ctQuery.ToLower() ||
                  c.Name.ToLower() == ctQuery.ToLower() ||
                  c.DisplayName.ToLower() == ctQuery.ToLower()), ct);

@@ -22,6 +22,96 @@ public class AssignResourcesToContentTool(
     public string? Category => "Workspace & Content";
     public string? Description => "Binds a list of Resource items to a designated Content Item (supports finding or auto-creating by Type and Name).";
     public bool IsPure => false;
+    public bool HasDynamicPins => true;
+
+    public NodeCapabilities Capabilities => new(
+        CanAddPin: false,
+        CanRemovePin: false,
+        InspectorMode: "Default",
+        RuleNotes: "Binds resources to a Content Item either directly via ContentItem entity reference, or automatically by Type and Name.",
+        ViewVariant: "Standard",
+        SchemaConfigKeys: ["Mode"]
+    );
+
+    public (IReadOnlyList<PinDefinition> Inputs, IReadOnlyList<PinDefinition> Outputs) ResolvePins(
+        Dictionary<string, object?>? configValues,
+        IPinResolutionContext? context = null
+    )
+    {
+        var mode = configValues?.GetValueOrDefault("Mode")?.ToString()?.Trim();
+        if (string.Equals(mode, "ByEntityRef", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(mode, "EntityRef", StringComparison.OrdinalIgnoreCase))
+        {
+            return (
+                [
+                    new()
+                    {
+                        Id = "ContentItem",
+                        Label = "Content Item",
+                        PrimitiveType = PinPrimitiveType.EntityRef,
+                        StructType = WellKnownStructTypes.ContentItem,
+                        Cardinality = PinCardinality.Single,
+                        IsRequired = true,
+                        Description = "Target Content Item reference to bind resources to"
+                    },
+                    new()
+                    {
+                        Id = "Resources",
+                        Label = "Resources",
+                        PrimitiveType = PinPrimitiveType.EntityRef,
+                        StructType = WellKnownStructTypes.Resource,
+                        Cardinality = PinCardinality.Array,
+                        IsRequired = true,
+                        Description = "Batch of Resource entity references to bind"
+                    }
+                ],
+                Outputs
+            );
+        }
+
+        // Mặc định: Mode ByName / Auto-Create
+        return (
+            [
+                new()
+                {
+                    Id = "ContentType",
+                    Label = "Content Type",
+                    PrimitiveType = PinPrimitiveType.String,
+                    Cardinality = PinCardinality.Single,
+                    IsRequired = true,
+                    Description = "Category/Type of the content (e.g. Character, Clothing, Hair)"
+                },
+                new()
+                {
+                    Id = "ContentName",
+                    Label = "Content Name",
+                    PrimitiveType = PinPrimitiveType.String,
+                    Cardinality = PinCardinality.Single,
+                    IsRequired = true,
+                    Description = "Name of the target content item (e.g. Eva)"
+                },
+                new()
+                {
+                    Id = "CreateIfNotExists",
+                    Label = "Create If Not Exists",
+                    PrimitiveType = PinPrimitiveType.Boolean,
+                    Cardinality = PinCardinality.Single,
+                    DefaultValue = true,
+                    IsRequired = false
+                },
+                new()
+                {
+                    Id = "Resources",
+                    Label = "Resources",
+                    PrimitiveType = PinPrimitiveType.EntityRef,
+                    StructType = WellKnownStructTypes.Resource,
+                    Cardinality = PinCardinality.Array,
+                    IsRequired = true
+                }
+            ],
+            Outputs
+        );
+    }
 
     public IReadOnlyList<PinDefinition> Inputs =>
     [
@@ -29,10 +119,10 @@ public class AssignResourcesToContentTool(
         {
             Id = "ContentType",
             Label = "Content Type",
-            PrimitiveType = PinPrimitiveType.EntityRef,
-            StructType = WellKnownStructTypes.ContentType,
+            PrimitiveType = PinPrimitiveType.String,
             Cardinality = PinCardinality.Single,
-            IsRequired = false
+            IsRequired = true,
+            Description = "Category/Type of the content (e.g. Character, Clothing, Hair)"
         },
         new()
         {
@@ -40,7 +130,8 @@ public class AssignResourcesToContentTool(
             Label = "Content Name",
             PrimitiveType = PinPrimitiveType.String,
             Cardinality = PinCardinality.Single,
-            IsRequired = false
+            IsRequired = true,
+            Description = "Name of the target content item (e.g. Eva)"
         },
         new()
         {
@@ -49,15 +140,6 @@ public class AssignResourcesToContentTool(
             PrimitiveType = PinPrimitiveType.Boolean,
             Cardinality = PinCardinality.Single,
             DefaultValue = true,
-            IsRequired = false
-        },
-        new()
-        {
-            Id = "ContentId",
-            Label = "Content ID (Optional)",
-            PrimitiveType = PinPrimitiveType.EntityRef,
-            StructType = WellKnownStructTypes.ContentItem,
-            Cardinality = PinCardinality.Single,
             IsRequired = false
         },
         new()
@@ -139,7 +221,12 @@ public class AssignResourcesToContentTool(
         if (contentGuid == null || contentGuid == Guid.Empty)
         {
             // Resolve via ContentType + ContentName + CreateIfNotExists
-            var rawContentType = inputs.GetValueOrDefault("ContentType")?.ToString()?.Trim();
+            var ctObj = inputs.GetValueOrDefault("ContentType");
+            var ctGuid = EntityRefHelper.ExtractRefId(ctObj);
+            var rawContentType = (ctGuid.HasValue && ctGuid.Value != Guid.Empty)
+                ? ctGuid.Value.ToString()
+                : ctObj?.ToString()?.Trim();
+
             var rawContentName = inputs.GetValueOrDefault("ContentName")?.ToString()?.Trim();
 
             var createObj = inputs.GetValueOrDefault("CreateIfNotExists");

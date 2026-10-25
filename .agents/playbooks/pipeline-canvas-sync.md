@@ -214,3 +214,7 @@ File được truyền vào Input Pin của Node (ví dụ file FBX, preset, scr
 2. **Không upload file khi chưa Publish:** Trong trang Ingestion Script, tuyệt đối không gọi API upload binary khi người dùng chỉ mới chọn file phân tích.
 3. **Giữ nguyên định dạng File Pin:** Phân biệt rõ Draft `{ assetId, originalName }` ở UI và Persisted `{ assetLinkId }` ở Backend DB.
 4. **Luôn sử dụng `ResolveOrCloneLinkAsync`:** Khi xử lý `assetLinkId` trên node config, luôn dùng `ResolveOrCloneLinkAsync` để tự động bảo đảm tính sở hữu link cho node mới mà không gây đứt gãy đồ thị.
+5. **Workstation Struct & Physical Mount Path (BL-009 / BL-010):**
+   - Struct `Workstation` đại diện cho cặp `(Repository, Runner)` cụ thể và ánh xạ đường dẫn vật lý `RootPath`.
+   - Node `FilterResourcesTool` cho phép lọc dynamic danh sách resource theo extension, keyword, workstation, trả về cả single `Resource` pin (cắm trực tiếp `BreakStruct`) và `Resources` array.
+   - Các tool Workspace như `SyncLocalChangeToRepositoryTool` và `UpdateResourceMetadataTool` nhận trực tiếp pin `Workstation` và đường dẫn tuyệt đối `FullPath`, tự động trích xuất `RootPath` để chuẩn hóa sang POSIX relative path trước khi đồng bộ hoặc ghi metadata. Loại bỏ hoàn toàn sự phụ thuộc vào các node cắt chuỗi trung gian.

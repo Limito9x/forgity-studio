@@ -13,7 +13,7 @@ Outputs a dictionary keyed by input object names.
 import os
 import sys
 import json
-from typing import Dict, Any, List, Optional, Set
+from typing import Dict, Any, List, Optional, Set, Union
 
 try:
     import bpy
@@ -73,44 +73,83 @@ def extract_material_textures(mat: Any, blend_dir: str = "") -> List[str]:
                 except ValueError:
                     rel_path = abs_path
 
-            if rel_path not in seen_paths:
-                seen_paths.add(rel_path)
-                textures.append(rel_path)
+            if abs_path not in seen_paths:
+                seen_paths.add(abs_path)
+                textures.append(abs_path)
 
     return textures
 
 
 def main(
-    target_objects: Optional[List[str]] = None
+    target_objects: Optional[Union[List[str], Dict[str, Any], str]] = None,
+    cloth_map: Optional[Union[Dict[str, str], str]] = None
 ) -> Dict[str, Any]:
     """
-    Inspect target objects as distinct entities, returning a dictionary keyed by the input object names.
+    Inspect target objects as distinct entities, returning a dictionary keyed by object names.
+    Supports modular cloth workflow by accepting cloth_map (from classify_mesh_types)
+    to pre-package 'cloth_type' in metadata and generate 'export_map' for batch_export_fbx.
 
     READ-ONLY: never modifies the scene. Unused slots are flagged with "is_used": false.
-    Run merge_materials (clean_unused=True) before batch_export_fbx to actually strip them.
-
-    Batch-first: target_objects is Array<Text>. Empty means all MESH objects in scene.
 
     Args:
-        target_objects: List of object names to process, e.g. ["Top_GND", "Panty_GND"]. Empty = all meshes.
+        target_objects: List of object names or Dict mapping mesh to type. Empty = all meshes.
+        cloth_map: Optional mapping of mesh name -> cloth_type (e.g. {'Armor': 'Top', 'Pants': 'Bottom'}).
 
     Returns:
         {
-            "objects": {"<target>": {"object_name": str, "slot_count": int, "unused_slot_count": int, "slots": [...]}},
+            "objects": {"<target>": {"object_name": str, "cloth_type": str, "asset_name": str, "slot_count": int, "slots": [...]}},
+            "export_map": {"<target>": "<cloth_type_or_name>.fbx"},
             "count": int
         }
-        objects keys feed batch_export_fbx.export_map (each key -> 1 FBX).
     """
-    # Batch-first: only List[str]. No str/dict parsing.
+    # 1. Parse cloth_map if provided
+    resolved_cloth_map: Dict[str, str] = {}
+    if cloth_map:
+        if isinstance(cloth_map, str) and cloth_map.strip().startswith("{"):
+            try:
+                resolved_cloth_map = json.loads(cloth_map)
+            except Exception:
+                pass
+        elif isinstance(cloth_map, dict):
+            resolved_cloth_map = {str(k).strip(): str(v).strip() for k, v in cloth_map.items()}
+
+    # 2. Parse target_objects
     target_names: List[str] = []
     if target_objects:
-        target_names = [str(x).strip() for x in target_objects if str(x).strip()]
+        if isinstance(target_objects, dict):
+            target_names = [str(k).strip() for k in target_objects.keys() if str(k).strip()]
+            if not resolved_cloth_map:
+                resolved_cloth_map = {str(k).strip(): str(v).strip() for k, v in target_objects.items()}
+        elif isinstance(target_objects, list):
+            target_names = [str(x).strip() for x in target_objects if str(x).strip()]
+        elif isinstance(target_objects, str):
+            if target_objects.strip().startswith("{"):
+                try:
+                    d = json.loads(target_objects)
+                    target_names = list(d.keys())
+                    if not resolved_cloth_map:
+                        resolved_cloth_map = d
+                except Exception:
+                    target_names = [target_objects.strip()]
+            elif target_objects.strip().startswith("["):
+                try:
+                    target_names = json.loads(target_objects)
+                except Exception:
+                    target_names = [target_objects.strip()]
+            else:
+                target_names = [x.strip() for x in target_objects.split(",") if x.strip()]
+
+    # If target_names empty but cloth_map provided, use cloth_map keys
+    if not target_names and resolved_cloth_map:
+        target_names = list(resolved_cloth_map.keys())
 
     if not HAS_BLENDER:
         # Mock response for testing outside Blender
         mock_objects = {
             "Helmet": {
                 "object_name": "Helmet",
+                "cloth_type": resolved_cloth_map.get("Helmet", "Headwear"),
+                "asset_name": resolved_cloth_map.get("Helmet", "Helmet"),
                 "slot_count": 2,
                 "slots": [
                     {
@@ -118,7 +157,7 @@ def main(
                         "name": "Visor",
                         "material_name": "M_Visor",
                         "textures": [
-                            "textures/visor_diff.png"
+                            "/textures/visor_diff.png"
                         ]
                     },
                     {
@@ -126,13 +165,15 @@ def main(
                         "name": "Shell",
                         "material_name": "M_Shell",
                         "textures": [
-                            "textures/shell_norm.png"
+                            "/textures/shell_norm.png"
                         ]
                     }
                 ]
             },
             "Rifle": {
                 "object_name": "Rifle",
+                "cloth_type": resolved_cloth_map.get("Rifle", "Weapon"),
+                "asset_name": resolved_cloth_map.get("Rifle", "Rifle"),
                 "slot_count": 1,
                 "slots": [
                     {
@@ -140,21 +181,32 @@ def main(
                         "name": "Metal_Body",
                         "material_name": "M_RifleMetal",
                         "textures": [
-                            "textures/rifle_diff.png"
+                            "/textures/rifle_diff.png"
                         ]
                     }
                 ]
             }
         }
 
+        mock_export_map = {
+            k: f"{v.get('cloth_type') or k}.fbx"
+            for k, v in mock_objects.items()
+        }
+
         if target_names:
             mock_res: Dict[str, Any] = {}
             for name in target_names:
+                c_type = resolved_cloth_map.get(name) or resolved_cloth_map.get(name.lower(), "")
                 if name in mock_objects:
                     mock_res[name] = mock_objects[name]
+                    if c_type:
+                        mock_res[name]["cloth_type"] = c_type
+                        mock_res[name]["asset_name"] = c_type
                 else:
                     mock_res[name] = {
                         "object_name": name,
+                        "cloth_type": c_type,
+                        "asset_name": c_type or name,
                         "slot_count": 1,
                         "slots": [
                             {
@@ -162,20 +214,35 @@ def main(
                                 "name": f"{name}_Mat",
                                 "material_name": f"M_{name}",
                                 "textures": [
-                                    f"textures/{name.lower()}_diff.png"
+                                    f"/textures/{name.lower()}_diff.png"
                                 ]
                             }
                         ]
                     }
-            return {"objects": mock_res}
-        return {"objects": mock_objects}
+            return {
+                "objects": mock_res,
+                "export_map": {k: f"{v.get('cloth_type') or k}.fbx" for k, v in mock_res.items()},
+                "count": len(mock_res)
+            }
+        return {"objects": mock_objects, "export_map": mock_export_map, "count": len(mock_objects)}
 
     blend_dir = os.path.dirname(os.path.abspath(bpy.data.filepath)) if bpy.data.filepath else ""
     all_meshes = [obj for obj in bpy.data.objects if obj.type == 'MESH']
 
     objects: Dict[str, Any] = {}
+    export_map: Dict[str, str] = {}
 
-    def _process_obj_slots(obj: Any) -> Dict[str, Any]:
+    def _get_cloth_type(name: str) -> Optional[str]:
+        if not resolved_cloth_map:
+            return None
+        if name in resolved_cloth_map:
+            return resolved_cloth_map[name]
+        for k, v in resolved_cloth_map.items():
+            if k.lower() == name.lower() or k.lower() in name.lower():
+                return v
+        return None
+
+    def _process_obj_slots(obj: Any, c_type: Optional[str] = None) -> Dict[str, Any]:
         used_indices = count_used_slot_indices(obj)
         slots_list: List[Dict[str, Any]] = []
         unused = 0
@@ -200,6 +267,8 @@ def main(
 
         return {
             "object_name": obj.name,
+            "cloth_type": c_type,
+            "asset_name": c_type or obj.name,
             "slot_count": len(slots_list),
             "unused_slot_count": unused,
             "slots": slots_list
@@ -207,30 +276,37 @@ def main(
 
     if target_names:
         for target_name in target_names:
-            # Match priority: Exact -> Case-insensitive exact -> Substring
             match = next((obj for obj in all_meshes if obj.name == target_name), None)
             if not match:
                 match = next((obj for obj in all_meshes if obj.name.lower() == target_name.lower()), None)
             if not match:
                 match = next((obj for obj in all_meshes if target_name.lower() in obj.name.lower() or obj.name.lower() in target_name.lower()), None)
 
+            c_type = _get_cloth_type(target_name)
+
             if match:
-                objects[target_name] = _process_obj_slots(match)
+                objects[target_name] = _process_obj_slots(match, c_type)
+                export_map[target_name] = f"{c_type}.fbx" if c_type else f"{target_name}.fbx"
             else:
                 print(f"[inspect_separated_meshes] Warning: Target object '{target_name}' not found in scene.", flush=True)
                 objects[target_name] = {
-                    "object_name": "",
+                    "object_name": target_name,
+                    "cloth_type": c_type,
+                    "asset_name": c_type or target_name,
                     "slot_count": 0,
                     "unused_slot_count": 0,
                     "slots": []
                 }
+                export_map[target_name] = f"{c_type}.fbx" if c_type else f"{target_name}.fbx"
     else:
-        # Fallback to all mesh objects if no specific targets were passed
         for obj in all_meshes:
-            objects[obj.name] = _process_obj_slots(obj)
+            c_type = _get_cloth_type(obj.name)
+            objects[obj.name] = _process_obj_slots(obj, c_type)
+            export_map[obj.name] = f"{c_type}.fbx" if c_type else f"{obj.name}.fbx"
 
     return {
         "objects": objects,
+        "export_map": export_map,
         "count": len(objects)
     }
 
