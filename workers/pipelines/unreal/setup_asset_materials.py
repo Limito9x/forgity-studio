@@ -428,15 +428,31 @@ def bind_materials_to_mesh(mesh_uasset_path: str, slot_to_mic_map: Dict[str, str
     bound_slots = []
     failed_slots = []
 
+    def _canonicalize_slot_name(name: str) -> str:
+        """Normalize slot name for robust matching across spaces, dashes, and underscores."""
+        return re.sub(r'[\s\-_]+', '_', str(name).strip().lower()).strip('_')
+
     def _find_mic_for_slot(slot_name: str, slot_idx: int) -> Optional[str]:
-        clean_name = sanitize_asset_name(slot_name).lower()
+        # 1. Exact match
         if slot_name in slot_to_mic_map and slot_to_mic_map[slot_name]:
             return slot_to_mic_map[slot_name]
-        if str(slot_idx) in slot_to_mic_map and slot_to_mic_map[str(slot_idx)]:
-            return slot_to_mic_map[str(slot_idx)]
+
+        # 2. Normalized name match (PRIORITY OVER INDEX! Ignore spaces, underscores, dashes, case)
+        target_canon = _canonicalize_slot_name(slot_name)
         for k, v in slot_to_mic_map.items():
-            if v and sanitize_asset_name(str(k)).lower() == clean_name:
+            if v and _canonicalize_slot_name(str(k)) == target_canon:
                 return v
+
+        # 3. Exact word-token match (e.g. "Eyelashes_Lower-1" vs "Eyelashes Lower 1")
+        target_words = [w for w in target_canon.split("_") if w]
+        for k, v in slot_to_mic_map.items():
+            if not v:
+                continue
+            k_canon = _canonicalize_slot_name(str(k))
+            k_words = [w for w in k_canon.split("_") if w]
+            if target_words and target_words == k_words:
+                return v
+
         return None
 
     # Handle SkeletalMesh (UE 5.x)
@@ -591,29 +607,27 @@ def _find_contract_for_slot(
 def main(
     manifest: Union[Dict[str, Any], str],
     material_contracts: Optional[Union[Dict[str, Any], str]] = None,
-    destination_root: str = "/Game/Assets",
-    mesh_paths: Optional[Union[Dict[str, str], List[str], str]] = None,
-    folder_path: str = "",
-    mesh_uasset_path: Optional[str] = None,
-    destination_path: Optional[str] = None,
+    destination_path: str = "/Game/Assets",
+    mesh_paths: Optional[List[str]] = None,
     **kwargs
 ) -> Dict[str, Any]:
     """
-    Orchestrate full material setup for an asset based on Manifest and Master Material Contracts.
+    Orchestrate full material setup for an asset based on Manifest, Master Material Contracts, and Mesh UAssets.
 
     Args:
         manifest: Manifest dict (or JSON string) containing objects, slots, and textures.
-        material_contracts: Master Material lookup registry dict (or JSON string).
-        destination_root: Unreal Content destination root (e.g. /Game/Characters/Eva).
-        mesh_paths: Dict[obj_name, uasset_path], List[uasset_path], or single mesh path for binding.
-        folder_path: Root folder of repository for resolving any relative texture paths.
-        mesh_uasset_path: Backward-compatibility alias for single mesh.
-        destination_path: Alias for destination_root.
+        material_contracts: Master Material lookup registry dict (from LookupContentMapTool).
+        destination_path: Unreal package destination root (e.g. /Game/Characters/Eva).
+        mesh_paths: List of imported Skeletal/Static Mesh UAsset paths to bind Material Instances to.
 
     Returns:
-        Dictionary with batch_results, created_instances, and imported_textures.
+        Dictionary with:
+            - created_instances: List[str] of created Material Instance UAsset paths.
+            - imported_textures: List[str] of ingested Texture UAsset paths.
+            - batch_results: List of per-object binding results.
+            - objects_map: Dictionary of mapped objects for DataTable registration.
     """
-    folder_path = folder_path or kwargs.get("root_path") or ""
+    folder_path = kwargs.get("folder_path") or kwargs.get("root_path") or ""
 
     # 1. Parse Manifest
     if isinstance(manifest, str):
@@ -678,20 +692,27 @@ def main(
     textures_dest = f"{destination_root}/Textures"
     materials_dest = f"{destination_root}/Materials"
 
-    asset_name = manifest_data.get("asset_name") or kwargs.get("character_name") or "Asset"
     objects_dict: Dict[str, Any] = (
-        manifest_data.get("objects")
-        or manifest_data.get("manifest")
+        manifest_data.get("manifest")
+        or manifest_data.get("objects")
         or manifest_data.get("objects_map")
         or {}
     )
     if not objects_dict and "slots" in manifest_data:
-        objects_dict = {asset_name: {"slots": manifest_data["slots"]}}
+        objects_dict = {"Asset": {"slots": manifest_data["slots"]}}
     elif not objects_dict and isinstance(manifest_data, dict):
-        # Support direct ObjectsMap: { "outfit/top.fbx": { "slots": [...] } }
         is_obj_map = any(isinstance(v, dict) and ("slots" in v or "file_path" in v) for v in manifest_data.values())
         if is_obj_map:
             objects_dict = {k: v for k, v in manifest_data.items() if isinstance(v, dict)}
+
+    # Determine canonical asset name
+    asset_name = manifest_data.get("asset_name") or kwargs.get("character_name")
+    if not asset_name and objects_dict:
+        first_key = list(objects_dict.keys())[0]
+        first_val = objects_dict[first_key]
+        asset_name = (first_val.get("asset_name") if isinstance(first_val, dict) else first_key) or first_key
+    if not asset_name:
+        asset_name = "Asset"
 
     print(f"[setup_asset_materials] Starting Batch Material Setup for '{asset_name}' ({len(objects_dict)} object(s)) into '{destination_root}'...", flush=True)
 
@@ -787,10 +808,10 @@ def main(
             # Assign Material: Always create a dedicated Material Instance (MIC) for every slot
             final_material_path = ""
             if master_path:
-                if str(asset_name).lower() == str(obj_name).lower():
-                    mic_name = sanitize_asset_name(f"MI_{asset_name}_{slot_name}")
-                else:
-                    mic_name = sanitize_asset_name(f"MI_{asset_name}_{obj_name}_{slot_name}")
+                curr_asset = (obj_data.get("asset_name") if isinstance(obj_data, dict) else obj_name) or obj_name
+                clean_curr_asset = sanitize_asset_name(curr_asset)
+                clean_slot = sanitize_asset_name(slot_name)
+                mic_name = f"MI_{clean_curr_asset}_{clean_slot}"
 
                 final_material_path = create_single_mic(
                     master_material_path=master_path,
@@ -806,11 +827,11 @@ def main(
                 print(f"[setup_asset_materials] Warning: No Master Material found for slot '{slot_name}'.", flush=True)
 
             if final_material_path:
+                clean_canon = re.sub(r'[\s\-_]+', '_', str(slot_name).strip().lower()).strip('_')
                 obj_slot_bindings[slot_name] = final_material_path
-                obj_slot_bindings[str(slot_idx)] = final_material_path
-                obj_slot_bindings[f"idx_{slot_idx}"] = final_material_path
-                if "index" in slot_info:
-                    obj_slot_bindings[str(slot_info["index"])] = final_material_path
+                obj_slot_bindings[slot_name.replace(" ", "_")] = final_material_path
+                obj_slot_bindings[slot_name.replace("_", " ")] = final_material_path
+                obj_slot_bindings[clean_canon] = final_material_path
 
         # Find matching mesh for this object and bind materials
         stem = os.path.splitext(os.path.basename(obj_name))[0]

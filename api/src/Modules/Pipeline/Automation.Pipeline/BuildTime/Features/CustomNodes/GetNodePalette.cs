@@ -105,7 +105,8 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
             returnInputs,
             returnOutputs,
             null,
-            "Defines the final outputs and completes the execution of the pipeline graph."
+            "Defines the final outputs and completes the execution of the pipeline graph.",
+            IsVisibleInPalette: false
         ));
 
         // 2. Custom User NodeDefinitions from DB

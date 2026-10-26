@@ -1,5 +1,6 @@
 using Automation.Pipeline.BuildTime.Features.Authoring.Dtos;
 using Automation.Pipeline.BuildTime.Graph;
+using Automation.Pipeline.BuildTime.Services;
 using Automation.Pipeline.Contracts.NodeContract;
 using Automation.Pipeline.Contracts.Validation;
 using Automation.Pipeline.Extensions;
@@ -52,6 +53,8 @@ public sealed class PipelineModule : IModule, IPermissionModule
         services.AddScoped<IPipelineContractValidator, PipelineContractValidator>();
         services.AddScoped<ITransientPipelineGraphFactory, TransientPipelineGraphFactory>();
         services.AddScoped<IPipelineGraphDtoBuilder, PipelineGraphDtoBuilder>();
+        services.AddSingleton<NativePythonScriptAnalyzer>();
+        services.AddSingleton<IScriptSchemaAnalyzer, HybridScriptSchemaAnalyzer>();
         services.AddHttpClient();
         services.AddPipelineGrpcServices();
     }

@@ -116,16 +116,13 @@ def import_fbx_skeletal_mesh(
 
 
 def _normalize_input_items(
-    fbx_files: Optional[Union[str, List[str], Dict[str, Any]]],
-    fbx_path: Optional[str],
-    mesh_name: str,
-    folder_path: str = ""
+    fbx_files: Union[List[str], str, Dict[str, Any]],
+    folder_path: str = "",
+    mesh_name: str = ""
 ) -> List[Tuple[str, str]]:
-    """Normalize input representations into a list of (mesh_name, file_path)."""
+    """Normalize input representations into a clean list of (mesh_name, file_path)."""
     items: List[Tuple[str, str]] = []
-
-    raw = fbx_files if fbx_files is not None else fbx_path
-    if not raw:
+    if not fbx_files:
         return items
 
     def _resolve_path(p: str) -> str:
@@ -137,18 +134,8 @@ def _normalize_input_items(
             return candidate
         return p_clean
 
-    if isinstance(raw, dict):
-        for k, v in raw.items():
-            if isinstance(v, str) and v.strip():
-                name = str(k).strip()
-                items.append((name, _resolve_path(v)))
-            elif isinstance(v, dict):
-                p = v.get("file_path") or v.get("relative_path") or v.get("path")
-                if p and isinstance(p, str):
-                    name = v.get("asset_name") or str(k).strip()
-                    items.append((str(name).strip(), _resolve_path(p)))
-    elif isinstance(raw, list):
-        for p in raw:
+    if isinstance(fbx_files, list):
+        for p in fbx_files:
             if isinstance(p, str) and p.strip():
                 p_clean = _resolve_path(p)
                 name = os.path.splitext(os.path.basename(p_clean))[0]
@@ -158,8 +145,18 @@ def _normalize_input_items(
                 if path_val and isinstance(path_val, str):
                     name = p.get("asset_name") or os.path.splitext(os.path.basename(path_val))[0]
                     items.append((str(name).strip(), _resolve_path(path_val)))
-    elif isinstance(raw, str):
-        raw_clean = _resolve_path(raw)
+    elif isinstance(fbx_files, dict):
+        for k, v in fbx_files.items():
+            if isinstance(v, str) and v.strip():
+                name = str(k).strip()
+                items.append((name, _resolve_path(v)))
+            elif isinstance(v, dict):
+                p = v.get("file_path") or v.get("relative_path") or v.get("path")
+                if p and isinstance(p, str):
+                    name = v.get("asset_name") or str(k).strip()
+                    items.append((str(name).strip(), _resolve_path(p)))
+    elif isinstance(fbx_files, str):
+        raw_clean = _resolve_path(fbx_files)
         if raw_clean:
             name = mesh_name.strip() if mesh_name else os.path.splitext(os.path.basename(raw_clean))[0]
             items.append((name, raw_clean))
@@ -168,49 +165,41 @@ def _normalize_input_items(
 
 
 def main(
-    fbx_files: Optional[Union[str, List[str], Dict[str, Any]]] = None,
+    fbx_files: List[str],
     destination_path: str = "/Game/Meshes",
     skeleton_path: str = "",
-    folder_path: str = "",
     **kwargs
 ) -> Dict[str, Any]:
     """
-    Import one or multiple FBX files as Skeletal Meshes sharing a common Skeleton.
+    Batch import FBX geometry files as Skeletal Meshes sharing an optional common Skeleton.
 
     Args:
-        fbx_files: Single path, list of paths, or dict { "mesh_name": "file_path" or metadata }.
+        fbx_files: List of absolute file paths to FBX assets (e.g. ["D:/Exports/Top.fbx", "D:/Exports/Pants.fbx"]).
         destination_path: Unreal package destination path (e.g. /Game/Characters/Eva/Meshes).
-        skeleton_path: Shared Skeleton asset path in Unreal Engine.
-        folder_path: Optional repository root path for resolving relative FBX paths.
+        skeleton_path: Optional shared Skeleton asset path in Unreal Engine (e.g. /Game/Characters/Common/SK_Skeleton).
 
     Returns:
         Dictionary with:
-            - mesh_paths: Dict[mesh_name, uasset_path]
-            - all_mesh_paths: List of all imported UAsset paths
-            - material_slots: Dict[mesh_name, List[slot_names]]
-            - mesh_uasset_path: First imported mesh path (for single-item backward compatibility)
-            - material_slot_names: First imported mesh material slots (for backward compatibility)
+            - mesh_paths: List[str] of imported UAsset paths (e.g. ["/Game/.../Top", "/Game/.../Pants"]).
+            - material_slots: Dict[str, List[str]] mapping each mesh name to its material slot names.
     """
     destination_path = _clean_ue_path(destination_path or "/Game/Meshes")
     skeleton_path = _clean_ue_path(skeleton_path) if skeleton_path else ""
-    folder_path = folder_path or kwargs.get("root_path") or ""
+    folder_path = kwargs.get("folder_path") or kwargs.get("root_path") or ""
     mesh_name = kwargs.get("mesh_name", "")
-    fbx_path = kwargs.get("fbx_path")
-    items = _normalize_input_items(fbx_files, fbx_path, mesh_name, folder_path)
+    raw_input = fbx_files if fbx_files is not None else kwargs.get("fbx_path")
+    items = _normalize_input_items(raw_input, folder_path, mesh_name)
 
     if not items:
         print("[import_skeletal_mesh] Warning: No FBX files provided for import.", flush=True)
         return {
-            "mesh_paths": {},
-            "all_mesh_paths": [],
-            "material_slots": {},
-            "mesh_uasset_path": "",
-            "material_slot_names": []
+            "mesh_paths": [],
+            "material_slots": {}
         }
 
     print(f"[import_skeletal_mesh] Batch importing {len(items)} mesh(es) into '{destination_path}' (Skeleton: '{skeleton_path or 'Auto-Create'}')...", flush=True)
 
-    mesh_paths: Dict[str, str] = {}
+    mesh_map: Dict[str, str] = {}
     material_slots: Dict[str, List[str]] = {}
     all_mesh_paths: List[str] = []
 
@@ -224,8 +213,8 @@ def main(
 
         if not HAS_UNREAL:
             # Dry-run simulation mode
-            mesh_paths[raw_item_name] = target_uasset_path
-            mesh_paths[clean_mesh_name] = target_uasset_path
+            mesh_map[raw_item_name] = target_uasset_path
+            mesh_map[clean_mesh_name] = target_uasset_path
             material_slots[raw_item_name] = [f"M_{clean_mesh_name}"]
             material_slots[clean_mesh_name] = [f"M_{clean_mesh_name}"]
             all_mesh_paths.append(target_uasset_path)
@@ -238,8 +227,8 @@ def main(
             mesh_asset = unreal.EditorAssetLibrary.load_asset(imported_path)
             slots = extract_mesh_slot_names(mesh_asset)
 
-            mesh_paths[raw_item_name] = imported_path
-            mesh_paths[clean_mesh_name] = imported_path
+            mesh_map[raw_item_name] = imported_path
+            mesh_map[clean_mesh_name] = imported_path
             material_slots[raw_item_name] = slots
             material_slots[clean_mesh_name] = slots
             all_mesh_paths.append(imported_path)
@@ -251,11 +240,8 @@ def main(
     first_slots = material_slots.get(items[0][0], []) if items else []
 
     return {
-        "mesh_paths": mesh_paths,
-        "all_mesh_paths": all_mesh_paths,
-        "material_slots": material_slots,
-        "mesh_uasset_path": first_mesh,
-        "material_slot_names": first_slots
+        "mesh_paths": all_mesh_paths,
+        "material_slots": material_slots
     }
 
 

@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Sliders, X } from "lucide-react";
+import { Sliders, X, ListFilter } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface PinConfigInspectorProps {
   selectedPin: {
@@ -45,6 +46,16 @@ export function PinConfigInspector({
   const isInput = direction === "in";
 
   const normType: NormalizedPinType = normalizePinType(pin.primitiveType);
+
+  const pinOptions: string[] = (() => {
+    if (!pin.metadata) return [];
+    try {
+      const meta = typeof pin.metadata === "object" ? pin.metadata : JSON.parse(String(pin.metadata));
+      return Array.isArray(meta?.options) ? meta.options : [];
+    } catch {
+      return [];
+    }
+  })();
 
   const currentCardinality = (() => {
     const c = String(pin.cardinality ?? "").toLowerCase();
@@ -185,6 +196,30 @@ export function PinConfigInspector({
             </SelectContent>
           </Select>
         </div>
+
+        {/* Detected Select Options (Literal Presets from Python AST) */}
+        {pinOptions.length > 0 && (
+          <div className="space-y-1.5 p-3 rounded-lg border border-primary/20 bg-primary/5">
+            <Label className="text-xs font-semibold flex items-center gap-1.5 text-primary">
+              <ListFilter className="size-3.5" />
+              Detected Options (Literal Presets)
+            </Label>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {pinOptions.map((opt, i) => (
+                <Badge
+                  key={i}
+                  variant="secondary"
+                  className="text-[10px] font-mono bg-background/80 border border-primary/20 text-foreground"
+                >
+                  {opt}
+                </Badge>
+              ))}
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Canvas will automatically render this pin as a dropdown select.
+            </p>
+          </div>
+        )}
 
         {/* Input specific fields */}
         {isInput && (

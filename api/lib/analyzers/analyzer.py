@@ -37,10 +37,11 @@ class PythonScriptAnalyzer:
         try:
             ctx = ASTAnalysisContext(source_code, file_name)
         except SyntaxError as e:
+            base_name = os.path.splitext(os.path.basename(file_name))[0] if file_name else "InvalidScript"
             return {
                 "error": f"Python Syntax Error: {e.msg} at line {e.lineno}",
-                "suggestedName": file_name or "InvalidScript",
-                "suggestedLabel": file_name or "Invalid Script",
+                "suggestedName": base_name,
+                "suggestedLabel": base_name,
                 "executor": "python",
                 "inputs": [],
                 "outputs": [],

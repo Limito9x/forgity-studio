@@ -114,7 +114,7 @@ public class PythonScriptSchemaParserTests
             result.Executor.Should().Be("python");
             result.SuggestedLabel.Should().Be("Classify Material Manifest");
             result.Inputs.Should().Contain(p => p.Id == "raw_manifest");
-            result.Inputs.Should().Contain(p => p.Id == "cloth_map");
+            result.Inputs.Should().NotContain(p => p.Id == "cloth_map");
             result.Inputs.Should().Contain(p => p.Id == "provider");
             result.Inputs.Should().Contain(p => p.Id == "model");
             result.Inputs.Should().NotContain(p => p.Id == "folder_path");
