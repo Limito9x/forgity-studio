@@ -80,7 +80,7 @@ public class NativePythonScriptAnalyzer : IScriptSchemaAnalyzer
 
         using var process = new Process { StartInfo = psi };
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(TimeSpan.FromMilliseconds(7000));
+        cts.CancelAfter(TimeSpan.FromMilliseconds(15000));
 
         try
         {
@@ -126,7 +126,7 @@ public class NativePythonScriptAnalyzer : IScriptSchemaAnalyzer
         catch (OperationCanceledException) when (!ct.IsCancellationRequested && cts.IsCancellationRequested)
         {
             TryKillProcess(process);
-            throw new TimeoutException("Python analyzer process timed out after 7000ms.");
+            throw new TimeoutException("Python analyzer process timed out after 15000ms.");
         }
         catch
         {
