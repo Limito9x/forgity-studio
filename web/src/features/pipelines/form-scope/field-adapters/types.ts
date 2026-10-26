@@ -10,6 +10,8 @@ export interface PinMetadataHint {
   multiple?: boolean;
   multiline?: boolean;
   rows?: number;
+  allowCustom?: boolean;
+  placeholder?: string;
   entity?: string;
   properties?: Record<string, unknown>;
 }
