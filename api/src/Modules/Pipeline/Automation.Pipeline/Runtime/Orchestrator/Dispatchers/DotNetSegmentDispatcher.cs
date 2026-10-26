@@ -102,7 +102,7 @@ public class DotNetSegmentDispatcher(
                 );
                 if (subRes.IsFailed)
                 {
-                    return subRes;
+                    return Result.Fail(subRes.Errors);
                 }
                 continue;
             }

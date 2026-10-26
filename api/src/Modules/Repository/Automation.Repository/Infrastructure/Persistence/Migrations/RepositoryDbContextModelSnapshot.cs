@@ -173,7 +173,8 @@ namespace Automation.Repository.Infrastructure.Persistence.Migrations
                     b.HasIndex("RepositoryId", "DisplayName");
 
                     b.HasIndex("RepositoryId", "RelativePath")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"DeletedAt\" IS NULL");
 
                     b.ToTable("ResourceItems", "repository");
                 });

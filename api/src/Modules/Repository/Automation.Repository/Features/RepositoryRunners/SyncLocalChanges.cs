@@ -127,6 +127,7 @@ public class SyncLocalChangesHandler(RepositoryDbContext dbContext, IMessageBus 
 
         var toAdd = diff
             .Added.Where(x => IsTargetMatch(x.RelativePath))
+            .DistinctBy(x => x.RelativePath)
             .Select(x =>
                 ResourceItem.Create(
                     cmd.RepositoryId,
@@ -252,7 +253,8 @@ public class SyncLocalChangesHandler(RepositoryDbContext dbContext, IMessageBus 
                     projectId,
                     cmd.RepositoryId,
                     cmd.RunnerId,
-                    createdVersions
+                    createdVersions,
+                    repositoryRunnerId
                 )
             );
         }

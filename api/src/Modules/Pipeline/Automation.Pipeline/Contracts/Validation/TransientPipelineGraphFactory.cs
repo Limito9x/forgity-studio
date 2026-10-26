@@ -324,7 +324,9 @@ public class TransientPipelineGraphFactory(
                 pipeline.Parameters,
                 customByKey,
                 customById,
-                projectPipelines
+                projectPipelines,
+                edges: null,
+                triggerType: pipeline.TriggerType
             );
 
             resultItems.Add(new TransientPackagePipelineItem(

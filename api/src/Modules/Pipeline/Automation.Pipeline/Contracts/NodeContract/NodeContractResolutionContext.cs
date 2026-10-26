@@ -1,11 +1,14 @@
 using Automation.Pipeline.Domain.Entities;
+using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
+
 namespace Automation.Pipeline.Contracts.NodeContract;
 
 public sealed class NodeContractResolutionContext
 {
     public Guid PipelineId { get; }
     public Guid ProjectId { get; }
+    public PipelineTriggerType TriggerType { get; }
     public IReadOnlyList<PipelineParameter> Parameters { get; }
     public IReadOnlyDictionary<string, NodeDefinition> CustomDefinitionsByKey { get; }
     public IReadOnlyDictionary<Guid, NodeDefinition> CustomDefinitionsById { get; }
@@ -19,7 +22,8 @@ public sealed class NodeContractResolutionContext
         IReadOnlyDictionary<string, NodeDefinition>? customDefinitionsByKey = null,
         IReadOnlyDictionary<Guid, NodeDefinition>? customDefinitionsById = null,
         IReadOnlyDictionary<Guid, Domain.Entities.Pipeline>? subPipelinesById = null,
-        IReadOnlyList<PipelineEdge>? edges = null)
+        IReadOnlyList<PipelineEdge>? edges = null,
+        PipelineTriggerType triggerType = PipelineTriggerType.Manual)
     {
         PipelineId = pipelineId;
         ProjectId = projectId;
@@ -28,5 +32,6 @@ public sealed class NodeContractResolutionContext
         CustomDefinitionsById = customDefinitionsById ?? new Dictionary<Guid, NodeDefinition>();
         SubPipelinesById = subPipelinesById ?? new Dictionary<Guid, Domain.Entities.Pipeline>();
         Edges = edges ?? [];
+        TriggerType = triggerType;
     }
 }

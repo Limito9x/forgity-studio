@@ -65,7 +65,8 @@ public class PipelineNodeContractResolver(
             customByKey,
             customById,
             projectPipelines,
-            pipeline.Edges.ToList()
+            pipeline.Edges.ToList(),
+            pipeline.TriggerType
         );
     }
 
@@ -196,6 +197,37 @@ public class PipelineNodeContractResolver(
         {
             var defLabel = "Start";
             var startOutputs = new List<PinDefinition>();
+
+            if (context.TriggerType is PipelineTriggerType.OnResourceCreated or PipelineTriggerType.OnResourceVersionUpdated)
+            {
+                defLabel = context.TriggerType == PipelineTriggerType.OnResourceVersionUpdated
+                    ? "On Resource Version Updated"
+                    : "On Resource Created";
+
+                startOutputs.Add(new PinDefinition
+                {
+                    Id = "Resources",
+                    Label = "Resources",
+                    Kind = PinKind.Data,
+                    PrimitiveType = PinPrimitiveType.EntityRef,
+                    Cardinality = PinCardinality.Array,
+                    StructType = WellKnownStructTypes.Resource,
+                    IsRequired = true,
+                    Description = "List of created/updated resources"
+                });
+
+                startOutputs.Add(new PinDefinition
+                {
+                    Id = "Workstation",
+                    Label = "Workstation",
+                    Kind = PinKind.Data,
+                    PrimitiveType = PinPrimitiveType.EntityRef,
+                    Cardinality = PinCardinality.Single,
+                    StructType = WellKnownStructTypes.Workstation,
+                    IsRequired = true,
+                    Description = "Target workstation context"
+                });
+            }
 
             startOutputs.AddRange(context.Parameters
                 .Where(p => p.Kind == PipelineParameterKind.Input)

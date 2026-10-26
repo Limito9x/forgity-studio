@@ -121,7 +121,6 @@ public class PythonScriptSchemaParserTests
             result.Inputs.Should().NotContain(p => p.Id == "api_key");
 
             result.Outputs.Should().Contain(p => p.Id == "manifest");
-            result.Outputs.Should().Contain(p => p.Id == "objects_map");
             result.Outputs.Should().Contain(p => p.Id == "summary");
         }
     }

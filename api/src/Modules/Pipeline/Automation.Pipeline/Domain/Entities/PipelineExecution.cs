@@ -56,6 +56,14 @@ public class PipelineExecution : BaseEntity
         ExecutionState = state;
     }
 
+    public void MarkWaitingForSubPipeline(Guid childExecutionId, int nextIndex, JsonDocument state)
+    {
+        Status = ExecutionStatus.WaitingForSubPipeline;
+        CurrentBatchId = childExecutionId.ToString();
+        NextNodeIndex = nextIndex;
+        ExecutionState = state;
+    }
+
     public void Resume()
     {
         Status = ExecutionStatus.Running;

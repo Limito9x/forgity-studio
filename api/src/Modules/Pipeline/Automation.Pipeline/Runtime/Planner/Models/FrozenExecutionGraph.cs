@@ -129,7 +129,9 @@ public sealed class FrozenExecutionGraph
                 pipeline.ProjectId,
                 pipeline.Parameters,
                 customByKey,
-                customById
+                customById,
+                edges: null,
+                triggerType: pipeline.TriggerType
             );
             resolvedContracts = resolver.ResolveAllNodes(pipeline.Nodes, context);
         }
