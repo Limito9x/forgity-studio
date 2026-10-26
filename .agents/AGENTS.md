@@ -129,13 +129,14 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 ## 8. Kế Hoạch Kỹ Thuật (Engineering Plans)
 
 > **QUY TẮC LƯU TRỮ & TRA CỨU:**
-> - Toàn bộ Kế hoạch kỹ thuật **BẮT BUỘC** lưu trữ tập trung tại `.agents/plans/`. Tuyệt đối không tạo file kế hoạch ngoài thư mục này.
+> - Toàn bộ Kế hoạch kỹ thuật **BẮT BUỘC** lưu trữ tập trung tại `.agents/plans/`. Chỉ giữ lại các Active Plans và `BACKLOG.md` tại thư mục này.
+> - Kế hoạch đã hoàn thành được di chuyển vào kho lưu trữ theo tháng: `.agents/plans/archive/YYYY-MM/`.
 > - **Sổ bộ Tồn đọng & Định hướng (Backlog)**: [plans/BACKLOG.md](file:///d:/FullStack/Automation/.agents/plans/BACKLOG.md).
 > - Danh mục toàn bộ 25+ kế hoạch lịch sử đã hoàn thành được lưu trữ tại [plans/README.md](file:///d:/FullStack/Automation/.agents/plans/README.md).
 
 ### Kế hoạch đang thực hiện (Active):
 - [**topology-aware-resolver-and-trial-readiness (24/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/2026-10-24-topology-aware-resolver-and-trial-readiness.md): Topology-Aware Contract Resolution (Auto-Infer Struct Pin từ Incoming Edge), Xử Lý File Unbound (BL-005), Cảnh Báo Trạng Thái Runner Khi Chạy & Làm Sạch DB Cho Trial User.
 
-### Kế hoạch vừa hoàn thành gần nhất:
-- [**bl-025-subpipeline-suspend-resume (26/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/2026-10-26-bl-025-subpipeline-suspend-resume.md): Sub-Pipeline (Macro) Suspend/Resume tuần tự, WaitingForSubPipeline, Wolverine callback hoàn tất child → resume parent, lan truyền fail/timeout, cascade cancel đệ quy.
-- [**bl-024-native-python-script-analyzer-sidecar (26/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/2026-10-25-bl-024-native-python-script-analyzer-sidecar.md): Native Python Script Analyzer Sidecar (Subprocess AST Ingestion, Automated Dependency Discovery, Full-width Markdown Description & Literal Dropdown Mapping tại `api/lib/analyzers/`).
+### Kế hoạch vừa hoàn thành gần nhất (Đã Archive):
+- [**bl-025-subpipeline-suspend-resume (26/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/archive/2026-10/2026-10-26-bl-025-subpipeline-suspend-resume.md): Sub-Pipeline (Macro) Suspend/Resume tuần tự, WaitingForSubPipeline, Wolverine callback hoàn tất child → resume parent, lan truyền fail/timeout, cascade cancel đệ quy.
+- [**bl-024-native-python-script-analyzer-sidecar (26/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/archive/2026-10/2026-10-25-bl-024-native-python-script-analyzer-sidecar.md): Native Python Script Analyzer Sidecar (Subprocess AST Ingestion, Automated Dependency Discovery, Full-width Markdown Description & Literal Dropdown Mapping tại `api/lib/analyzers/`).
