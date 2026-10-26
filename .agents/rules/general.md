@@ -93,3 +93,22 @@ Khi thực hiện tác vụ, hãy xác định khu vực mã nguồn đang thao 
 - **100% Data-Driven & Single Source of Truth:** Mọi thẻ (Card), bảng (Table), dòng dữ liệu, hoặc thông số trên UI PHẢI gắn liền trực tiếp với API DTO, gRPC message, hoặc database entity có thật trong hệ thống. Tuyệt đối không hardcode mock data, số liệu giả để "làm màu" cho giao diện.
 - **Triệt Để Tuân Thủ YAGNI (You Aren't Gonna Need It):** Chỉ cài đặt đúng và đủ các tính năng nằm trong phạm vi của Phase hiện tại. Không suy diễn, không tự ý mở rộng phạm vi ("tiện tay làm thêm"), không nhét các tính năng mà hệ sinh thái chưa sẵn sàng hỗ trợ.
 - **Không Monkey-Patch UI Primitives:** Khi gặp lỗi type hoặc thuộc tính (ví dụ: `title` vs `aria-label`), KHÔNG ĐƯỢC hack, monkey-patch, thêm `any` hoặc nới lỏng props của các component UI dùng chung trong `components/ui/`. Phải giải quyết đúng chuẩn mực ở tầng gọi component (call-site).
+
+---
+
+## 8. Quy Chuẩn Sửa Đổi Mã Nguồn Bằng Native Tool (Source Code Modification Standard)
+
+- **BẮT BUỘC Dùng Native Tools (`edit_file` / `write_file`):** Mọi thao tác sửa đổi file mã nguồn phải đi qua `edit_file` (cho sửa đổi từng phần) hoặc `write_file` (cho tạo mới / ghi đè toàn bộ file).
+- **TUYỆT ĐỐI CẤM Dùng Script Phụ Trợ (Python / PowerShell / Node.js) Để Sửa Code:** Nghiêm cấm tạo script trong `scratch/` hoặc chạy script shell để ghi đè file code. Thao tác này làm mất tính minh bạch của Diff UI trực quan trên IDE của User và tiềm ẩn rủi ro sai lệch encoding / format.
+- **Kỹ Thuật Chọn Anchor Với `edit_file`:**
+  - Luôn chọn đoạn `Target` ngắn, có ngữ cảnh neo độc nhất (unique anchors) từ 3–8 dòng.
+  - Hạn chế copy-paste block quá dài (hàng chục dòng) để tránh lỗi lệch line-ending giữa CRLF (`\r\n`) và LF (`\n`) trên môi trường Windows.
+  - Nếu cần thay đổi toàn bộ file hoặc file cấu hình lớn, sử dụng `write_file` kèm cờ `Overwrite: true`.
+
+---
+
+## 9. Quy Chuẩn Vòng Đời Kế Hoạch & Lưu Trữ Theo Tháng (Plan Lifecycle & Monthly Archiving)
+
+- **Thư Mục Gốc `.agents/plans/` Tinh Gọn:** Chỉ lưu giữ duy nhất `BACKLOG.md`, `README.md` và các Active Plans đang triển khai (tối đa 1–3 file).
+- **Lưu Trữ (Archive) Định Kỳ Theo Tháng:** Toàn bộ kế hoạch kỹ thuật sau khi đã nghiệm thu và hoàn thành BẮT BUỘC phải di chuyển vào kho lưu trữ theo tháng: `.agents/plans/archive/YYYY-MM/` và cập nhật chỉ mục tương ứng tại `README.md`.
+- **Sổ Bộ Backlog 2 Tầng:** `BACKLOG.md` duy trì ngắn gọn (chỉ chứa các mục Active & High-priority Next Up); các ý tưởng dài hạn chưa xếp lịch được chuyển vào kho `ICEBOX.md` để tránh làm phình to context window của Agent.
