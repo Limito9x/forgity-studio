@@ -128,7 +128,6 @@ def resolve_api_key(explicit_key: str = "", provider: str = "gemini") -> str:
 def main(
     raw_manifest: Union[Dict[str, Any], str],
     contracts: Optional[Union[Dict[str, Any], str]] = None,
-    cloth_map: Optional[Union[Dict[str, str], str]] = None,
     provider: str = "gemini",
     model: str = "gemini-2.5-flash",
     **kwargs
@@ -136,14 +135,16 @@ def main(
     """
     AI-powered Material Manifest Classifier for Unreal Engine 5 Batch Ingestion.
     Sends raw JSON tree directly to LLM for zero-brittle semantic parsing.
-    Supports inheriting or passing cloth_map to enrich manifest for Unreal Appearance DataTable.
+    Focuses purely on classifying material slots, textures, and shader parameter mapping.
+    Object identity and cloth_type are preserved directly from raw_manifest.
     """
     start_time = time.time()
     api_key = kwargs.get("api_key", "")
     endpoint = kwargs.get("endpoint", "")
     folder_path = kwargs.get("folder_path", "")
 
-    # Parse cloth_map if provided
+    # Backward compatibility: read cloth_map from kwargs if passed
+    cloth_map = kwargs.get("cloth_map")
     resolved_cloth_map: Dict[str, str] = {}
     if cloth_map:
         if isinstance(cloth_map, str) and cloth_map.strip().startswith("{"):
@@ -171,7 +172,7 @@ def main(
 
     if not raw_data:
         print("[classify_material_manifest] [WARN] Empty input manifest.", flush=True)
-        return {"manifest": {}, "objects_map": {}, "object_count": 0, "summary": "Empty input"}
+        return {"manifest": {}, "summary": "Empty input"}
 
     # 2. Parse project contracts if provided
     raw_contracts = contracts or kwargs.get("contracts_map")
@@ -241,7 +242,7 @@ def main(
         "3. Locate all material slots for each mesh (e.g. from 'slots', 'fbx_slots', or nested 'objects').\n"
         "4. Assign each slot a semantic 'material_tag' (Cloth for clothing/fabrics, Skin for human body/face, Eye, Hair, Mouth, etc.).\n"
         "5. For each slot, map its available texture files to appropriate shader parameter names (NormalMap, BaseColorMap, etc.).\n"
-        "6. Ensure relative texture paths are preserved with their subfolder if declared (e.g. 'Characters/Sam/textures/image.jpg').\n"
+        "6. In 'textures' and 'file_path', you MUST preserve the EXACT FULL FILE PATHS from the input metadata. Do NOT shorten, truncate, or convert them to relative paths.\n"
         f"{contract_section}\n"
         "OUTPUT SCHEMA REQUIREMENT:\n"
         "You MUST return a JSON object with this exact top-level structure:\n"
@@ -292,10 +293,54 @@ def main(
         asset_name = obj_data.get("asset_name") or obj_name
         file_path = obj_data.get("file_path") or ""
 
-        # Make file_path absolute if folder_path is given
-        if folder_path and file_path and not os.path.isabs(file_path):
-            candidate = os.path.normpath(os.path.join(folder_path, file_path)).replace("\\", "/")
-            file_path = candidate
+        # Extract raw object metadata from input for reverse lookup fallback
+        raw_obj_meta = {}
+        if isinstance(raw_data, dict):
+            raw_obj_meta = (
+                raw_data.get("objects", {}).get(obj_name, {})
+                or raw_data.get("objects", {}).get(asset_name, {})
+                or raw_data.get(obj_name, {})
+                or raw_data.get(asset_name, {})
+            )
+            if not isinstance(raw_obj_meta, dict):
+                raw_obj_meta = {}
+
+        # Collect all known raw texture paths from raw metadata for reverse lookup
+        known_raw_textures: List[str] = []
+        if "raw_textures" in raw_obj_meta and isinstance(raw_obj_meta["raw_textures"], list):
+            known_raw_textures.extend([str(p).replace("\\", "/") for p in raw_obj_meta["raw_textures"] if p])
+        for raw_slot in raw_obj_meta.get("slots", []):
+            if isinstance(raw_slot, dict):
+                raw_slot_tex = raw_slot.get("textures", [])
+                if isinstance(raw_slot_tex, list):
+                    known_raw_textures.extend([str(p).replace("\\", "/") for p in raw_slot_tex if p])
+                elif isinstance(raw_slot_tex, dict):
+                    known_raw_textures.extend([str(p).replace("\\", "/") for p in raw_slot_tex.values() if p])
+
+        def _resolve_to_full_path(candidate_p: str) -> str:
+            if not candidate_p:
+                return ""
+            c_clean = candidate_p.strip().replace("\\", "/")
+            if os.path.isabs(c_clean):
+                return c_clean
+            # Reverse lookup in known_raw_textures by suffix or base filename
+            c_base = os.path.basename(c_clean).lower()
+            for raw_p in known_raw_textures:
+                if raw_p.endswith(c_clean) or os.path.basename(raw_p).lower() == c_base:
+                    return raw_p
+            # Fallback to folder_path if supplied
+            if folder_path:
+                norm_cand = os.path.normpath(os.path.join(folder_path, c_clean)).replace("\\", "/")
+                return norm_cand
+            return c_clean
+
+        # Recover full file_path of mesh if truncated
+        if not os.path.isabs(file_path):
+            raw_file_p = raw_obj_meta.get("file_path") or raw_obj_meta.get("local_path")
+            if raw_file_p and os.path.isabs(str(raw_file_p)):
+                file_path = str(raw_file_p).replace("\\", "/")
+            elif folder_path:
+                file_path = os.path.normpath(os.path.join(folder_path, file_path)).replace("\\", "/")
 
         slots_list = obj_data.get("slots", [])
         formatted_slots = []
@@ -305,17 +350,12 @@ def main(
             s_tag = s.get("material_tag") or s.get("tag") or "Generic"
             s_textures = s.get("textures") or {}
 
-            # Normalize texture paths to absolute if folder_path given
+            # Normalize texture paths to full absolute paths via Reverse Lookup
             clean_textures: Dict[str, str] = {}
             for param_k, tex_p in s_textures.items():
                 if not tex_p:
                     continue
-                tex_p_str = str(tex_p).strip().replace("\\", "/")
-                if folder_path and not os.path.isabs(tex_p_str):
-                    abs_tex = os.path.normpath(os.path.join(folder_path, tex_p_str)).replace("\\", "/")
-                    clean_textures[str(param_k)] = abs_tex
-                else:
-                    clean_textures[str(param_k)] = tex_p_str
+                clean_textures[str(param_k)] = _resolve_to_full_path(str(tex_p))
 
             formatted_slots.append({
                 "name": s_name,
@@ -367,9 +407,6 @@ def main(
 
     return {
         "manifest": resolved_manifest,
-        "objects": resolved_manifest,
-        "objects_map": resolved_manifest,
-        "object_count": len(resolved_manifest),
         "summary": summary
     }
 

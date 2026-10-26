@@ -3,7 +3,7 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
 using Automation.Pipeline.Domain.ValueObjects;
-using Automation.Pipeline.BuildTime.Parsers;
+using Automation.Pipeline.BuildTime.Services;
 using Automation.Pipeline.Infrastructure.Persistence;
 namespace Automation.Pipeline.BuildTime.Features.CustomNodes;
 
@@ -46,7 +46,8 @@ public record AnalyzedCustomNodeDto(
     IReadOnlyList<PinDefinition> Outputs,
     IReadOnlyList<PinDiffItem> InputPinDiffs,
     IReadOnlyList<PinDiffItem> OutputPinDiffs,
-    ScriptImpactReportDto ImpactReport
+    ScriptImpactReportDto ImpactReport,
+    IReadOnlyList<ScriptDependencyDto>? Dependencies = null
 );
 
 public record AnalyzeCustomNodesBatchResponseDto(
@@ -82,7 +83,7 @@ public class AnalyzeCustomNodesBatchEndpoint(IMessageBus bus)
 }
 
 [NonTransactional]
-public class AnalyzeCustomNodesBatchHandler(PipelineDbContext db)
+public class AnalyzeCustomNodesBatchHandler(PipelineDbContext db, IScriptSchemaAnalyzer analyzer)
 {
     public async Task<Result<AnalyzeCustomNodesBatchResponseDto>> HandleAsync(
         AnalyzeCustomNodesBatchCommand command,
@@ -102,7 +103,7 @@ public class AnalyzeCustomNodesBatchHandler(PipelineDbContext db)
             var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(content));
             var contentHash = Convert.ToHexStringLower(hashBytes);
 
-            var parsed = PythonScriptSchemaParser.Parse(content, script.FileName);
+            var parsed = await analyzer.AnalyzeAsync(content, script.FileName, ct);
             var key = parsed.SuggestedName.Replace(" ", "-").ToLowerInvariant();
             if (!keys.Add(key))
                 return Result.Fail<AnalyzeCustomNodesBatchResponseDto>($"Multiple scripts resolve to node key '{key}'. Use distinct script names.");
@@ -222,7 +223,8 @@ public class AnalyzeCustomNodesBatchHandler(PipelineDbContext db)
                 parsed.Outputs,
                 inputPinDiffs,
                 outputPinDiffs,
-                impactReport
+                impactReport,
+                parsed.Dependencies
             ));
         }
 

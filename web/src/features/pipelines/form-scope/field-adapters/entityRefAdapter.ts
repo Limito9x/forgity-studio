@@ -3,7 +3,14 @@ import type { FieldAdapter, PinFieldContext } from "./types";
 export const entityRefAdapter: FieldAdapter = {
   id: "entityRef",
   match: (ctx: PinFieldContext) => {
-    return ctx.primitive === "EntityRef" || Boolean(ctx.structType);
+    const hintProps = (ctx.hint?.properties ?? {}) as Record<string, unknown>;
+    const hintEntity = (ctx.hint?.entity || hintProps.entity) as string | undefined;
+    const isEntityHint =
+      ctx.hint?.type === "entity-select" ||
+      ctx.hint?.type === "pin:entitySelect" ||
+      Boolean(hintEntity);
+
+    return ctx.primitive === "EntityRef" || Boolean(ctx.structType) || isEntityHint;
   },
   create: (ctx: PinFieldContext) => {
     const hintProps = (ctx.hint?.properties ?? {}) as Record<string, unknown>;

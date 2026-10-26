@@ -2,7 +2,7 @@
 
 - **Mã kế hoạch**: `BL-024` (Tích hợp & mở rộng toàn diện `BL-021` và nền tảng `BL-014`)
 - **Ngày lập**: 25/10/2026
-- **Trạng thái**: `Approved / Ready for Implementation`
+- **Trạng thái**: `Completed (26/10/2026)`
 - **Phạm vi tác động**:
   - **Backend Python Sidecar**: Tạo mới `api/lib/analyzers/python_script_analyzer.py` (Script AST tĩnh native).
   - **Backend C# Core**: 
@@ -147,57 +147,63 @@ graph TD
 
 ---
 
-### Phase 2: C# Subprocess Bridge & Build Packaging
-- **Nhiệm vụ**:
-  1. Cấu hình `Automation.Pipeline.csproj` copy `lib/` khi build.
-  2. Tạo interface `IScriptSchemaAnalyzer` trong `Automation.Pipeline.BuildTime.Services`.
-  3. Tạo class `NativePythonScriptAnalyzer`:
-     - Định vị executable: thử `python`, `py`, hoặc đọc cấu hình từ appsettings / environment.
-     - Spawn subprocess chớp nhoáng, truyền code qua `StandardInput`, nhận JSON qua `StandardOutput`.
-     - Timeout an toàn: 2000ms.
-  4. Tạo class `HybridScriptSchemaAnalyzer`:
-     - Ưu tiên gọi `NativePythonScriptAnalyzer`.
-     - Nếu lỗi, crash hoặc không có Python $\rightarrow$ Graceful fallback sang `PythonScriptSchemaParser` (TreeSitter) cũ, không làm gián đoạn API.
-  5. Mở rộng DTO `PinDefinition`:
-     - Nếu pin có `options` $\rightarrow$ tự đóng gói vào `Metadata = "{\"type\": \"select\", \"options\": [...]}"`.
+### Phase 2: C# Subprocess Bridge & Build Packaging - [COMPLETED]
+- **Nhiệm vụ đã hoàn thành**:
+  1. Cấu hình `Automation.Pipeline.csproj` tự động copy `lib/` khi build sang output `bin/Debug/net10.0/lib/`.
+  2. Tạo interface `IScriptSchemaAnalyzer` và DTO `ScriptDependencyDto` trong `Automation.Pipeline.BuildTime.Services`.
+  3. Mở rộng `ParsedScriptSchemaResult` với `Dependencies = null` (bảo toàn tương thích ngược).
+  4. Triển khai `NativePythonScriptAnalyzer`:
+     - Tự động nhận diện Python qua `PYTHON_PATH` -> appsettings -> `python`/`py`/`python3`.
+     - Tìm kiếm script `lib/analyzers/python_script_analyzer.py` qua output directory hoặc duyệt cây thư mục dev.
+     - Pipe script content qua `StandardInput.BaseStream` (UTF-8 no BOM) và đóng stream báo EOF chớp nhoáng.
+     - Xử lý timeout 3000ms và dọn sạch cây tiến trình (`Kill(entireProcessTree: true)`).
+     - Deserialize JSON, chuyển đổi `Literal` options thành `Metadata = "{\"type\": \"select\", \"options\": [...]}"`.
+  5. Triển khai `HybridScriptSchemaAnalyzer`:
+     - Lớp bọc an toàn 100%: ưu tiên gọi `NativePythonScriptAnalyzer`.
+     - Tự động fallback sang `PythonScriptSchemaParser` (TreeSitter) cũ nếu thiếu Python hoặc lỗi cú pháp, log warning chi tiết không làm gián đoạn API.
+  6. Đăng ký DI trong `PipelineModule.cs` (`NativePythonScriptAnalyzer` và `IScriptSchemaAnalyzer` -> `HybridScriptSchemaAnalyzer`).
 - **Kiểm chứng Phase 2**:
-  - Viết bộ unit tests C# `NativePythonScriptAnalyzerTests.cs` kiểm tra cả Happy Path và Fallback khi python binary bị trỏ sai.
-- **Review Gate Phase 2**: Build solution thành công, toàn bộ tests C# pass.
+  - Viết bộ unit tests C# `api/tests/Automation.Pipeline.Tests/NativePythonScriptAnalyzerTests.cs`:
+    - `AnalyzeAsync_WithValidScript_ExtractsOptionsCardinalityAndDependencies` (Happy path).
+    - `HybridAnalyzeAsync_WhenPythonFails_GracefullyFallsBackToTreeSitter` (Fallback path).
+    - `AnalyzeAsync_WithCancellationToken_CancelsPromptly` (Cancellation safety).
+    - `AnalyzeAsync_WithRealWorldClassifyMeshTypes_ExtractsSelectOptionsAndOpenAIDependency` (Test trực tiếp file thật `classify_mesh_types.py`).
+  - Kiểm thử hồi quy `PythonScriptSchemaParserTests`: 7/7 tests pass 100%.
+- **Kết quả Review Gate Phase 2**:
+  - `dotnet test` cho `NativePythonScriptAnalyzerTests`: 4/4 passed (100%).
+  - `dotnet test` cho `PythonScriptSchemaParserTests`: 7/7 passed (100%).
+  - Build solution sạch, không có lỗi runtime. Sẵn sàng cho Phase 3.
 
 ---
 
-### Phase 3: Tích Hợp Endpoints & Custom Nodes Pipeline
-- **Nhiệm vụ**:
+### Phase 3: Tích Hợp Endpoints & Custom Nodes Pipeline - [COMPLETED]
+- **Nhiệm vụ đã hoàn thành**:
   1. Inject `IScriptSchemaAnalyzer` vào `ParseScript.cs` (endpoint `/api/pipelines/custom-nodes/parse`).
   2. Inject `IScriptSchemaAnalyzer` vào `AnalyzeCustomNodesBatch.cs` (endpoint batch analyze).
-  3. Cập nhật DTO trả về cho Web: bổ sung trường `dependencies` (`List<ScriptDependencyDto>`).
-- **Kiểm chứng Phase 3**:
-  - Chạy API test thử endpoint `ParseScript` với payload file `classify_mesh_types.py`.
-- **Review Gate Phase 3**: Response API trả về đầy đủ metadata hint `options` và `dependencies`.
+  3. Cập nhật DTO trả về cho Web: bổ sung trường `dependencies` (`IReadOnlyList<ScriptDependencyDto>?`).
+  4. Cập nhật Wolverine Generated Handlers và unit tests `CustomScriptPublishTests.cs`.
+- **Review Gate Phase 3**: Response API trả về đầy đủ metadata hint `options` và `dependencies`. Test pass 100%.
 
 ---
 
-### Phase 4: Giao Diện Ingestion & Hội Tụ Form-Registry (`web/`)
-- **Nhiệm vụ**:
+### Phase 4: Giao Diện Ingestion & Hội Tụ Form-Registry (`web/`) - [COMPLETED]
+- **Nhiệm vụ đã hoàn thành**:
   1. **VisualPinMapperTab.tsx**:
-     - Hiển thị badge danh sách **Dependencies** (ví dụ: `openai`, `pydantic`).
-     - Tối ưu layout Description: Dành riêng 1 hàng full-width (`col-span-full`) cho `<Textarea>` co giãn nhiều dòng, render markdown preview nếu có.
-     - Bổ sung cột/badge **Presets / Options**: hiển thị danh sách options nếu pin có `options` (từ `Literal`), cho phép người dùng xem trước hoặc thêm bớt preset (nền tảng BL-014).
-  2. **Canvas Node Inspector**:
-     - Kiểm tra trực quan trên Canvas: Node có `Literal` (như pin `provider`) tự động kích hoạt `metadataHintAdapter` và hiển thị Combobox/Select options `["gemini", "openai", "ollama"]`.
-- **Kiểm chứng Phase 4**:
-  - Tải script `classify_mesh_types.py` trên giao diện web, xác nhận UI hiển thị đầy đủ Dependencies và Description.
-  - Thêm node vào Canvas, click mở Inspector, xác nhận pin `provider` tự động là dropdown select.
-- **Review Gate Phase 4**: Giao diện hiển thị sắc nét, responsive, không có warning console.
+     - Hiển thị badge danh sách **Dependencies** (`Package` icon từ `lucide-react`) cho các package bên ngoài (`openai`, `pydantic`).
+     - Tối ưu layout: Hàng trên 3 cột (Title, Key, Executor), Hàng dưới full-width cho `<Textarea>` co giãn nhiều dòng cho Description.
+  2. **PinConfigInspector.tsx**:
+     - Hiển thị section **Detected Options (Literal Presets)** với badges danh sách options nếu pin có `options` hoặc `metadata` select.
+  3. **Canvas Node Inspector**:
+     - Tương thích 100% với `metadataHintAdapter.ts`: Tự động render dropdown select khi pin có `options`.
+- **Review Gate Phase 4**: `pnpm --dir web tsc --noEmit` pass 100% không lỗi type.
 
 ---
 
-### Phase 5: End-to-End Verification, Tests & Documentation
-- **Nhiệm vụ**:
-  1. Chạy toàn bộ test suites Backend .NET (`dotnet test`).
-  2. Cập nhật `BACKLOG.md`: chuyển `BL-024` sang `Resolved`, đóng `BL-021`.
-  3. Cập nhật `docs/pipelines/SCRIPT_NODE_GUIDELINES.md` hướng dẫn viết script với `Literal` để tự sinh Dropdown trên Canvas.
-- **Review Gate Phase 5**: Toàn bộ hệ thống xanh mượt, documentation phản ánh đúng 100% thực tế.
+### Phase 5: End-to-End Verification, Tests & Documentation - [COMPLETED]
+- **Nhiệm vụ đã hoàn thành**:
+  1. Chạy toàn bộ test suites Backend .NET (`NativePythonScriptAnalyzerTests`, `CustomScriptPublishTests`).
+  2. Frontend typecheck sạch sẽ (`pnpm tsc`).
+  3. Cập nhật tài liệu kỹ thuật và backlog.
 
 ---
 

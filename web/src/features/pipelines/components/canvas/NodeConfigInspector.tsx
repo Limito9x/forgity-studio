@@ -15,6 +15,7 @@ import { useGetStructCatalogue } from "@/gen/endpoints/pipelines/pipelines";
 import { NodeConfigHeader } from "./inspector/NodeConfigHeader";
 import { NodeConfigDiagnosticsBanner } from "./inspector/NodeConfigDiagnosticsBanner";
 import { NodeConfigStructSelector } from "./inspector/NodeConfigStructSelector";
+import { NodeConfigModeSelector } from "./inspector/NodeConfigModeSelector";
 import { NodeConfigWiredInputs } from "./inspector/NodeConfigWiredInputs";
 
 interface NodeConfigInspectorProps {
@@ -53,6 +54,9 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
     nodeView(data.kind, definition) === "Start";
 
   const isStructSelector = definition?.capabilities?.inspectorMode === "StructSelector";
+  const hasModeSelector = (definition?.capabilities?.schemaConfigKeys || []).some(
+    (k) => String(k).toLowerCase() === "mode"
+  );
 
   const inputs = data.inputs || [];
   const configValues = data.configValues || {};
@@ -103,9 +107,10 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
       const isExec = k === "1" || k === "exec" || p.id === "exec" || p.id === "Exec";
       if (isExec) return false;
       if (isStructSelector && p.id === "StructType") return false;
+      if (hasModeSelector && p.id?.toLowerCase() === "mode") return false;
       return true;
     });
-  }, [inputs, isStructSelector]);
+  }, [inputs, isStructSelector, hasModeSelector]);
 
   // Split wired vs unwired inputs
   const wiredInputs = useMemo(() => {
@@ -196,6 +201,15 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
                 currentStructType={String(configValues["StructType"] || "").trim()}
                 structCatalogue={structCatalogue}
                 onSelectStruct={(structType) => onUpdateConfig(node.id, "StructType", structType)}
+              />
+            )}
+
+            {/* Capability-driven ModeSelector Configuration */}
+            {hasModeSelector && (
+              <NodeConfigModeSelector
+                currentMode={String(configValues["Mode"] || "").trim()}
+                refId={data.refId}
+                onSelectMode={(mode) => onUpdateConfig(node.id, "Mode", mode)}
               />
             )}
 

@@ -1,6 +1,6 @@
 using Wolverine.Attributes;
 using Automation.Pipeline.Domain.ValueObjects;
-using Automation.Pipeline.BuildTime.Parsers;
+using Automation.Pipeline.BuildTime.Services;
 namespace Automation.Pipeline.BuildTime.Features.CustomNodes;
 
 public record ParseScriptCommand(
@@ -27,28 +27,29 @@ public class ParseScriptEndpoint(IMessageBus bus)
 }
 
 [NonTransactional]
-public class ParseScriptHandler
+public class ParseScriptHandler(IScriptSchemaAnalyzer analyzer)
 {
-    public Task<Result<ParseScriptResponseDto>> HandleAsync(
+    public async Task<Result<ParseScriptResponseDto>> HandleAsync(
         ParseScriptCommand command,
         CancellationToken ct
     )
     {
         if (string.IsNullOrWhiteSpace(command.ScriptContent))
         {
-            return Task.FromResult(Result.Fail<ParseScriptResponseDto>("Script content is empty."));
+            return Result.Fail<ParseScriptResponseDto>("Script content is empty.");
         }
 
-        var parsed = PythonScriptSchemaParser.Parse(command.ScriptContent, command.FileName);
+        var parsed = await analyzer.AnalyzeAsync(command.ScriptContent, command.FileName, ct);
 
-        return Task.FromResult(Result.Ok(new ParseScriptResponseDto(
+        return Result.Ok(new ParseScriptResponseDto(
             parsed.SuggestedName,
             parsed.SuggestedLabel,
             parsed.Executor,
             parsed.Description,
             parsed.Inputs,
-            parsed.Outputs
-        )));
+            parsed.Outputs,
+            parsed.Dependencies
+        ));
     }
 }
 
@@ -58,5 +59,6 @@ public record ParseScriptResponseDto(
     string Executor,
     string? Description,
     IReadOnlyList<PinDefinition> Inputs,
-    IReadOnlyList<PinDefinition> Outputs
+    IReadOnlyList<PinDefinition> Outputs,
+    IReadOnlyList<ScriptDependencyDto>? Dependencies = null
 );

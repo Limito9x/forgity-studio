@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Tag, Sparkles, Cpu, Info, FileText } from "lucide-react";
+import { Tag, Sparkles, Cpu, Info, FileText, Package } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -96,8 +97,8 @@ export function VisualPinMapperTab({
     <div className="w-full p-6 space-y-6">
       {/* Node Metadata Section */}
       <Card className="border border-border/80 shadow-xs bg-card">
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <CardContent className="p-4 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Display Title */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold flex items-center gap-1.5">
@@ -151,22 +152,39 @@ export function VisualPinMapperTab({
               </Select>
               <p className="text-[10px] text-muted-foreground">Target execution daemon on Runner.</p>
             </div>
-
-            {/* Node Description */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold flex items-center gap-1.5">
-                <FileText className="size-3.5 text-primary" />
-                Description
-              </Label>
-              <Input
-                placeholder="Brief summary of what this node does..."
-                value={node.description || ""}
-                onChange={(e) => onUpdateNode({ description: e.target.value })}
-                className="h-9 text-xs"
-              />
-              <p className="text-[10px] text-muted-foreground">Optional tool documentation.</p>
-            </div>
           </div>
+
+          {/* Node Description - Full width with multi-line Textarea */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold flex items-center gap-1.5">
+              <FileText className="size-3.5 text-primary" />
+              Documentation / Description
+            </Label>
+            <Textarea
+              placeholder="Detailed description or markdown documentation extracted from docstrings..."
+              value={node.description || ""}
+              onChange={(e) => onUpdateNode({ description: e.target.value })}
+              className="text-xs min-h-[68px] leading-relaxed resize-y font-sans"
+            />
+            <p className="text-[10px] text-muted-foreground">Cleaned docstring explaining inputs, outputs, and behavior.</p>
+          </div>
+
+          {/* Detected Dependencies (from AST Native Python Analyzer) */}
+          {Array.isArray((node as any).dependencies) && (node as any).dependencies.length > 0 && (
+            <div className="flex items-center gap-2 pt-2 border-t border-border/50 text-xs">
+              <span className="text-[11px] text-muted-foreground font-semibold flex items-center gap-1 shrink-0">
+                <Package className="size-3.5 text-primary" />
+                External Dependencies:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {(node as any).dependencies.map((dep: any, idx: number) => (
+                  <Badge key={idx} variant="outline" className="text-[10px] font-mono bg-primary/5 text-primary border-primary/20">
+                    {dep.packageName || dep.module}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
+using Automation.Pipeline.BuildTime.Services;
 using TreeSitter;
 namespace Automation.Pipeline.BuildTime.Parsers;
 
@@ -10,7 +11,8 @@ public record ParsedScriptSchemaResult(
     string Executor,
     string? Description,
     List<PinDefinition> Inputs,
-    List<PinDefinition> Outputs
+    List<PinDefinition> Outputs,
+    List<ScriptDependencyDto>? Dependencies = null
 );
 
 public static class PythonScriptSchemaParser
