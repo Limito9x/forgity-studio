@@ -11,6 +11,7 @@ export interface FormStaticComboboxProps<TFieldValues extends FieldValues, TValu
     Omit<StaticComboboxProps<TValue>, 'value' | 'onValueChange' | 'options'> {
     options?: (OptionItem<TValue> | string)[];
     isLoading?: boolean;
+    allowCustom?: boolean;
 }
 
 /**
@@ -20,6 +21,7 @@ export interface FormStaticComboboxProps<TFieldValues extends FieldValues, TValu
 export function FormStaticCombobox<TFieldValues extends FieldValues, TValue = any>({
     options,
     isLoading,
+    allowCustom,
     ...rest
 }: FormStaticComboboxProps<TFieldValues, TValue>) {
 
@@ -38,6 +40,7 @@ export function FormStaticCombobox<TFieldValues extends FieldValues, TValue = an
                     onValueChange={field.onChange}
                     options={normalizedOptions}
                     isLoading={isLoading}
+                    allowCustom={allowCustom}
                 />
             )}
         />
@@ -52,6 +55,7 @@ export interface StaticComboboxProperties {
     disabled?: boolean;
     options?: (OptionItem<any> | string)[];
     dataSource?: any; // FieldDataSource
+    allowCustom?: boolean;
 }
 
 declare module "@/lib/field-registry" {

@@ -17,6 +17,7 @@ export interface ComboboxContextType<T> {
     id?: string;
     isLoading?: boolean;
     disabled?: boolean;
+    allowCustom?: boolean;
 }
 
 export const ComboboxContext = createContext<ComboboxContextType<any> | undefined>(undefined);
