@@ -135,6 +135,7 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 > - Danh mục toàn bộ 25+ kế hoạch lịch sử đã hoàn thành được lưu trữ tại [plans/README.md](file:///d:/FullStack/Automation/.agents/plans/README.md).
 
 ### Kế hoạch đang thực hiện (Active):
+- [**trial-readiness-security-trust-and-environment (26/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/2026-10-26-trial-readiness-security-trust-and-environment.md): Chuẩn Hóa Trial Readiness — Pipeline Script Trust Gate (1-Prompt AI Audit), Script Viewer & Pre-flight Environment Check & Email Deliverability (`BL-022`).
 - [**bl-014-form-registry-advanced-pin-inputs (26/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/2026-10-26-bl-014-form-registry-advanced-pin-inputs.md): Form-Registry-Driven Advanced Pin Inputs & Preset Mode (Multiline Textarea, Dropdown Presets with TagsInput, allowCustom Combobox).
 - [**topology-aware-resolver-and-trial-readiness (24/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/2026-10-24-topology-aware-resolver-and-trial-readiness.md): Topology-Aware Contract Resolution (Auto-Infer Struct Pin từ Incoming Edge), Xử Lý File Unbound (BL-005), Cảnh Báo Trạng Thái Runner Khi Chạy & Làm Sạch DB Cho Trial User.
 
