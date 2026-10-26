@@ -59,20 +59,6 @@ export function PinConfigInspector({
     }
   }, [pin.metadata]);
 
-  const controlType = useMemo<"auto" | "select" | "textarea" | "tagsInput">(() => {
-    const t = String(parsedMetadata.type || "").toLowerCase();
-    if (t === "select" || t === "combobox" || Array.isArray(parsedMetadata.options)) {
-      return "select";
-    }
-    if (t === "textarea" || parsedMetadata.multiline) {
-      return "textarea";
-    }
-    if (t === "tagsinput" || t === "tags") {
-      return "tagsInput";
-    }
-    return "auto";
-  }, [parsedMetadata]);
-
   const pinOptions: string[] = useMemo(() => {
     return Array.isArray(parsedMetadata.options) ? parsedMetadata.options : [];
   }, [parsedMetadata]);
@@ -83,6 +69,24 @@ export function PinConfigInspector({
     if (c === "map" || c === "2") return "Map";
     return "Single";
   })();
+
+  const isCollection =
+    currentCardinality === "Array" ||
+    String(pin.primitiveType ?? "").includes("[]");
+
+  const controlType = useMemo<"auto" | "select" | "textarea" | "tagsInput">(() => {
+    const t = String(parsedMetadata.type || "").toLowerCase();
+    if (t === "textarea" || parsedMetadata.multiline) {
+      return "textarea";
+    }
+    if (t === "tagsinput" || t === "tags") {
+      return "tagsInput";
+    }
+    if (t === "select" || t === "combobox" || Array.isArray(parsedMetadata.options)) {
+      return isCollection ? "tagsInput" : "select";
+    }
+    return "auto";
+  }, [parsedMetadata, isCollection]);
 
   const updateMetadata = (updates: Record<string, any> | null) => {
     if (!updates || Object.keys(updates).length === 0) {
@@ -107,7 +111,7 @@ export function PinConfigInspector({
     if (newType === "select") {
       updateMetadata({
         ...parsedMetadata,
-        type: "select",
+        type: isCollection ? "tagsInput" : "select",
         options: pinOptions.length > 0 ? pinOptions : ["default_option"],
         allowCustom: parsedMetadata.allowCustom ?? true,
       });
@@ -126,12 +130,11 @@ export function PinConfigInspector({
     }
 
     if (newType === "tagsInput") {
-      const nextMeta = { ...parsedMetadata };
-      delete nextMeta.options;
-      delete nextMeta.rows;
       updateMetadata({
-        ...nextMeta,
+        ...parsedMetadata,
         type: "tagsInput",
+        options: pinOptions,
+        allowCustom: parsedMetadata.allowCustom ?? true,
       });
     }
   };
@@ -139,7 +142,7 @@ export function PinConfigInspector({
   const handleOptionsChange = (newOptions: string[]) => {
     updateMetadata({
       ...parsedMetadata,
-      type: "select",
+      type: isCollection ? "tagsInput" : (parsedMetadata.type || "select"),
       options: newOptions,
     });
   };
@@ -261,24 +264,24 @@ export function PinConfigInspector({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem id="Resource">Resource</SelectItem>
-                <SelectItem id="Runner">Runner</SelectItem>
+                <SelectItem id="Workstation">Workstation</SelectItem>
                 <SelectItem id="Repository">Repository</SelectItem>
+                <SelectItem id="Runner">Runner</SelectItem>
+                <SelectItem id="ContentItem">ContentItem</SelectItem>
                 <SelectItem id="ContentType">ContentType</SelectItem>
+                <SelectItem id="Tag">Tag</SelectItem>
               </SelectContent>
             </Select>
           </div>
         )}
 
-        {/* Cardinality (Single vs Array vs Map) */}
+        {/* Cardinality (Single vs Array) */}
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold">Cardinality (Data Structure)</Label>
+          <Label className="text-xs font-semibold">Cardinality</Label>
           <Select
             selectedKey={currentCardinality}
             onSelectionChange={(key) =>
-              onUpdatePin({
-                ...pin,
-                cardinality: String(key) as any,
-              })
+              onUpdatePin({ ...pin, cardinality: String(key) as any })
             }
           >
             <SelectTrigger className="text-xs">
@@ -286,18 +289,18 @@ export function PinConfigInspector({
             </SelectTrigger>
             <SelectContent>
               <SelectItem id="Single">Single Value</SelectItem>
-              <SelectItem id="Array">Array / List ([])</SelectItem>
-              <SelectItem id="Map">Map / Dictionary (Key-Value)</SelectItem>
+              <SelectItem id="Array">Array / List of Values</SelectItem>
+              <SelectItem id="Map">Key-Value Map</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
-        {/* ─── UI Control & Input Mode (Form Registry Driven) ─── */}
+        {/* UI Control & Preset Mode Section (Form Registry Integration) */}
         {isInput && (
-          <div className="space-y-3 p-3 rounded-xl border border-primary/20 bg-primary/5">
+          <div className="space-y-3 p-3 rounded-lg border border-primary/20 bg-primary/5">
             <div className="flex items-center gap-1.5">
               <LayoutTemplate className="size-3.5 text-primary" />
-              <Label className="text-xs font-semibold text-foreground">
+              <Label className="text-xs font-semibold text-primary">
                 UI Control & Preset Mode
               </Label>
             </div>
@@ -316,7 +319,7 @@ export function PinConfigInspector({
                   <SelectItem id="select">
                     <div className="flex items-center gap-1.5">
                       <ListFilter className="size-3 text-primary" />
-                      <span>Preset Dropdown (Select)</span>
+                      <span>Preset Options {isCollection ? "(Multi-Select Chips)" : "(Dropdown / Combobox)"}</span>
                     </div>
                   </SelectItem>
                   <SelectItem id="textarea">
@@ -335,8 +338,8 @@ export function PinConfigInspector({
               </Select>
             </div>
 
-            {/* Sub-config for Preset Dropdown */}
-            {controlType === "select" && (
+            {/* Sub-config for Preset Dropdown or TagsInput */}
+            {(controlType === "select" || controlType === "tagsInput") && (
               <div className="space-y-2.5 pt-2 border-t border-primary/10 animate-in fade-in duration-150">
                 <div className="space-y-1">
                   <Label className="text-[11px] font-medium text-foreground">
@@ -349,7 +352,9 @@ export function PinConfigInspector({
                     className="text-xs bg-background"
                   />
                   <p className="text-[10px] text-muted-foreground">
-                    Type and press Enter to add options (e.g. models, enum keys, modes).
+                    {isCollection
+                      ? "Presets that users can quickly toggle on/off as multi-select chips."
+                      : "Options available in dropdown/combobox for this pin."}
                   </p>
                 </div>
 
@@ -357,7 +362,9 @@ export function PinConfigInspector({
                   <div className="space-y-0.5">
                     <Label className="text-[11px] font-medium">Allow Custom Values</Label>
                     <p className="text-[10px] text-muted-foreground">
-                      Allow free-text input beyond presets
+                      {isCollection
+                        ? "Allow typing free-text tags beyond presets"
+                        : "Allow free-text input beyond presets"}
                     </p>
                   </div>
                   <Switch
@@ -409,7 +416,7 @@ export function PinConfigInspector({
             {/* Default Value */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Default Fallback Value</Label>
-              {controlType === "select" && pinOptions.length > 0 ? (
+              {controlType === "select" && pinOptions.length > 0 && !isCollection ? (
                 <Select
                   selectedKey={String(pin.defaultValue || pinOptions[0] || "")}
                   onSelectionChange={(key) =>
