@@ -1,3 +1,4 @@
+using Automation.Pipeline.Runtime.Orchestrator.SubPipeline;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Runtime.State.Messages;
 using Automation.Pipeline.Hubs;
@@ -12,7 +13,8 @@ namespace Automation.Pipeline.Runtime.Features.Execution.HandleAgentCallback;
 public class StageTimeoutHandler(
     PipelineDbContext db,
     ILogger<StageTimeoutHandler> logger,
-    IHubContext<PipelineExecutionHub>? hubContext = null
+    IHubContext<PipelineExecutionHub>? hubContext = null,
+    ISubPipelineCompletionNotifier? subPipelineNotifier = null
 )
 {
     public async Task HandleAsync(StageTimeoutCheckMessage message, CancellationToken ct)
@@ -32,6 +34,18 @@ public class StageTimeoutHandler(
 
             execution.MarkFailed(errMsg);
             await db.SaveChangesAsync(ct);
+
+            if (subPipelineNotifier != null)
+            {
+                try
+                {
+                    await subPipelineNotifier.NotifyIfChildAsync(execution, ct);
+                }
+                catch (Exception notifyEx)
+                {
+                    logger.LogWarning(notifyEx, "Failed to notify parent of stage timeout for {ExecutionId}", execution.Id);
+                }
+            }
 
             if (hubContext != null)
             {

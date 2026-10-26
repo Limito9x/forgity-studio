@@ -314,7 +314,7 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
             {/* Right-click Context Palette Popover */}
             <ContextMenuPalette
               projectId={projectId}
-              currentPipelineId={props.pipelineId}
+              currentPipelineId={graph.id}
               position={ctxMenu.palettePosition}
               targetStage={ctxMenu.targetStage}
               onClose={ctxMenu.closePalette}

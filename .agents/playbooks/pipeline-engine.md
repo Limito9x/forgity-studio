@@ -150,7 +150,7 @@ Hệ thống phân tách rạch ròi giữa **Dữ liệu bền vững (Durable 
 | **`DotNetSegmentDispatcher`** | **In-Process** (RAM Backend C#) | Các built-in Tools C# (`make-map`, `format-string`, `set-variable`, `get-resource-relative-paths`...) | Chạy tức thì qua `IToolRegistry`. Đầu ra lưu ngay vào `MemoryStore`. Không qua RabbitMQ, không tốn tài nguyên worker, không context-switch. |
 | **`RunnerSegmentDispatcher`** | **Out-of-Process** (Worker Daemons) | Các Custom Script nodes (`bake-mesh`, `apply-baked-textures`...) | Gom toàn bộ node trong cùng một **Container/Stage** thành một mảng `StepExecution` trong `StageTaskMessage`. Gửi sang RabbitMQ, chuyển DB sang `WaitingForRunner` và **nhả thread server**. |
 | **`ForEachDispatcher`** | **Orchestrated Loop** | Node loại ForEach Loop | Tách mảng dữ liệu thành từng iteration, nạp scope index vào MemoryStore và điều phối nhánh lặp. |
-| **`SubPipelineDispatcher`** | **Nested Execution** | Node loại SubPipeline | Kích hoạt một Execution độc lập cho Pipeline con, chờ hoàn tất và map outputs ngược lại Pipeline cha. |
+| **`SubPipelineDispatcher`** | **Nested Execution (Sequential Suspend/Resume)** | Node loại SubPipeline | Khởi tạo child execution. Nếu child có worker segment, parent chuyển sang `WaitingForSubPipeline` và **suspend**; khi child hoàn thành, handler thu outputs và **resume** parent chạy tiếp các segment sau. |
 
 ---
 
@@ -203,6 +203,43 @@ Nhằm loại bỏ hoàn toàn hiện tượng nghẽn giao dịch SQL (Race Con
 - **`StageTimeoutHandler`:** Sau 30 phút, nếu execution vẫn ở trạng thái `WaitingForRunner` (hoặc `Running`) và `CurrentBatchId == stageId` (Runner không phản hồi do sập nguồn/crash), hệ thống tự động:
   - Đánh dấu `execution.MarkFailed("Stage timed out: Runner did not report back within 30 minutes.")`.
   - Phát sóng SignalR `PipelineExecutionFinished(status: "failed")` để dọn dẹp tiến trình an toàn.
+
+### 4.3. Cơ Chế Sub-Pipeline (Macro) Suspend / Resume Tuần Tự (BL-025)
+
+Khi Pipeline chứa các node Macro (Sub-Pipeline) lồng nhau (ví dụ: `Daz Character To Unreal` bao gồm macro `Blender` chạy trước rồi mới tới macro `Unreal`):
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant P as Parent Orchestrator
+    participant S as SubPipelineDispatcher
+    participant C as Child Orchestrator
+    participant R as Worker (Blender/Unreal)
+    participant H as SubPipelineCompletedHandler
+
+    P->>S: Segment i (Macro Step)
+    S->>C: ExecuteOrResumeAsync(childId)
+    C->>R: StageTaskMessage qua RabbitMQ
+    C-->>S: Trạng thái Child = WaitingForRunner
+    S-->>P: SubPipelineDispatchStatus.Suspended(childId)
+    P->>P: execution.MarkWaitingForSubPipeline(childId, i + 1)
+    Note over P: Parent SUSPEND! Không dispatch segment kế tiếp.
+
+    R-->>C: StageResultMessage (Runner hoàn tất)
+    C->>C: Child.MarkSucceeded()
+    C->>H: Publish SubPipelineCompletedMessage(parentId, childId, Succeeded)
+
+    H->>P: Kiểm tra Idempotent (Status == WaitingForSubPipeline && CurrentBatchId == childId)
+    H->>S: CompleteFromChildAsync (Thu thập outputs từ Return node/snapshot)
+    H->>P: Orchestrator.ExecuteOrResumeAsync(parentId)
+    Note over P: Parent RESUME! Tiếp tục dispatch Segment i + 1 (Unreal)
+```
+
+- **Quy tắc An Toàn & Phản Hồi Hai Chiều (2-Way Propagation):**
+  1. **Idempotency Guard:** Parent chỉ nhận callback nếu đang `WaitingForSubPipeline` và `CurrentBatchId == childId.ToString()`. Các message trùng lặp hoặc đến muộn bị bỏ qua.
+  2. **Failure Propagation:** Nếu Child bị `Failed` hoặc `Timeout` (30m watchdog), `SubPipelineCompletedHandler` lập tức đánh dấu node Macro là failed, chuyển Parent sang `Failed` và tiếp tục lan truyền lên ông (hỗ trợ nested macro vô hạn cấp).
+  3. **Cascade Cancellation:** Khi người dùng Cancel Parent, nếu Parent đang `WaitingForSubPipeline`, lệnh cancel sẽ cascade đệ quy xuống Child execution và gửi tín hiệu kill subprocess tới Runner tương ứng.
+
 
 ---
 

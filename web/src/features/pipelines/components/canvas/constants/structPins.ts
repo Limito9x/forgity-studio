@@ -13,20 +13,12 @@ export const EVENT_TRIGGER_START_PINS: PinDefinition[] = [
     structType: "Resource",
   },
   {
-    id: "Repository",
-    label: "Repository",
+    id: "Workstation",
+    label: "Workstation",
     kind: "Data" as any,
     primitiveType: "EntityRef" as any,
     cardinality: "Single" as any,
-    structType: "Repository",
-  },
-  {
-    id: "Runner",
-    label: "Runner",
-    kind: "Data" as any,
-    primitiveType: "EntityRef" as any,
-    cardinality: "Single" as any,
-    structType: "Runner",
+    structType: "Workstation",
   },
 ];
 

@@ -76,7 +76,15 @@ export function LiveExecutionDrawer({
   const isExecutionRunning = useMemo(() => {
     if (!activeExecution) return false;
     const s = Number(activeExecution.status) || activeExecution.status;
-    return s === 2 || s === 3 || s === "Running" || (s as unknown as string) === "WaitingForAgent" || s === "WaitingForRunner";
+    return (
+      s === 2 ||
+      s === 3 ||
+      s === 7 ||
+      s === "Running" ||
+      (s as unknown as string) === "WaitingForAgent" ||
+      s === "WaitingForRunner" ||
+      s === "WaitingForSubPipeline"
+    );
   }, [activeExecution]);
 
   const handleCancel = async () => {
@@ -93,15 +101,23 @@ export function LiveExecutionDrawer({
     const s = Number(status) || status;
     const isSucc = s === 4 || s === "Succeeded";
     const isFail = s === 5 || s === "Failed";
-    const isRun = s === 2 || s === 3 || s === "Running" || s === "WaitingForAgent";
+    const isRun =
+      s === 2 ||
+      s === 3 ||
+      s === 7 ||
+      s === "Running" ||
+      s === "WaitingForAgent" ||
+      s === "WaitingForRunner" ||
+      s === "WaitingForSubPipeline";
 
     const label =
       s === 1 || s === "Pending" ? "Pending" :
         s === 2 || s === "Running" ? "Running" :
-          s === 3 || s === "WaitingForAgent" ? "WaitingForAgent" :
-            s === 4 || s === "Succeeded" ? "Succeeded" :
-              s === 5 || s === "Failed" ? "Failed" :
-                s === 6 || s === "Cancelled" ? "Cancelled" : String(s);
+          s === 3 || s === "WaitingForAgent" || s === "WaitingForRunner" ? "Waiting For Runner" :
+            s === 7 || s === "WaitingForSubPipeline" ? "Waiting For Sub-Pipeline" :
+              s === 4 || s === "Succeeded" ? "Succeeded" :
+                s === 5 || s === "Failed" ? "Failed" :
+                  s === 6 || s === "Cancelled" ? "Cancelled" : String(s);
 
     return (
       <Badge

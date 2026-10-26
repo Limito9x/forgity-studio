@@ -3,7 +3,7 @@ import json
 import os
 import urllib.parse
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 
 def load_duf_json(file_path: Path) -> dict:
@@ -81,149 +81,66 @@ def inspect_single_duf(file_path: Path) -> dict:
     }
 
 
-def _extract_path_strings(raw_val: Any) -> List[str]:
-    """Helper to recursively extract clean path strings from strings, lists, or dicts."""
-    results: List[str] = []
-    if raw_val is None:
-        return results
-
-    if isinstance(raw_val, list):
-        for item in raw_val:
-            results.extend(_extract_path_strings(item))
-    elif isinstance(raw_val, dict):
-        # Look for common path keys in resource/file objects
-        for k in ["RelativePath", "relativePath", "relative_path", "Path", "path", "file_path", "FilePath", "uri", "url"]:
-            if k in raw_val and raw_val[k]:
-                results.extend(_extract_path_strings(raw_val[k]))
-                return results
-    elif isinstance(raw_val, str):
-        cleaned = raw_val.strip()
-        if not cleaned:
-            return results
-        # If it's a JSON array or object, parse and recurse
-        if (cleaned.startswith("[") and cleaned.endswith("]")) or (cleaned.startswith("{") and cleaned.endswith("}")):
-            try:
-                parsed = json.loads(cleaned)
-                results.extend(_extract_path_strings(parsed))
-                return results
-            except Exception:
-                pass
-        results.append(cleaned)
-    else:
-        results.append(str(raw_val).strip())
-
-    return results
-
-
 def main(
-    root_path: Optional[str] = None,
-    relative_paths: Optional[Union[List[Any], str]] = None,
-    input_path: Optional[str] = None,
-    paths: Optional[Union[List[Any], str]] = None,
-    **kwargs: Any
+    full_paths: Optional[List[str]] = None,
+    full_path: Optional[str] = None
 ) -> dict:
     """
-    Clean DAZ .duf Inspector.
-    Computes full paths from root_path and relative_paths, inspects .duf files,
-    and returns a metadata_map dictionary keyed by relative paths.
+    DAZ Studio .duf Inspector.
+    Inspects DAZ Studio scene/character .duf files and extracts metadata (objects, materials, bones, dependencies).
 
     Args:
-        root_path: Base directory of the repository/workspace.
-        relative_paths: List of relative file paths (or resource objects/JSON string).
-        input_path: Single relative or absolute file path (for backwards compatibility).
-        paths: List of file paths (for backwards compatibility).
-        **kwargs: Additional parameters (e.g. root, RootPath, etc.)
+        full_paths: List of absolute paths to DAZ .duf files to inspect.
+        full_path: Single absolute path to a DAZ .duf file (optional single-file input).
 
     Returns:
         dict containing:
-          - metadata_map: Dict[str, str] mapping relative path to metadata JSON string
-          - metadata: metadata_map (aliased for flexible pin binding)
-          - first_metadata: metadata JSON string of the first inspected file
-          - count: number of processed files
+            - metadata_map: Dict[str, dict] mapping each file's FullPath to its inspected metadata
+            - summary: Overall summary string of the inspection
+            - count: Total number of files inspected
     """
-    # 1. Resolve root_path
-    resolved_root = ""
-    for r_candidate in [root_path, kwargs.get("root"), kwargs.get("RootPath"), kwargs.get("root_path"), kwargs.get("workspace_path")]:
-        if r_candidate and str(r_candidate).strip():
-            resolved_root = str(r_candidate).strip()
-            break
+    targets: List[str] = []
+    if full_paths:
+        for p in full_paths:
+            if p and str(p).strip():
+                targets.append(str(p).strip())
+    if full_path and str(full_path).strip():
+        targets.append(str(full_path).strip())
 
-    # 2. Extract all target path candidates
-    raw_candidates: List[Any] = []
-    if relative_paths is not None:
-        raw_candidates.append(relative_paths)
-    if paths is not None:
-        raw_candidates.append(paths)
-    if input_path is not None:
-        raw_candidates.append(input_path)
-
-    for kw in ["RelativePaths", "relative_path", "RelativePath", "file_paths", "items", "resources"]:
-        if kw in kwargs and kwargs[kw] is not None:
-            raw_candidates.append(kwargs[kw])
-
-    extracted_paths = _extract_path_strings(raw_candidates)
-
-    if not extracted_paths:
-        print("[daz_inspector] Notice: No relative paths provided or list is empty. Returning empty metadata.", flush=True)
+    if not targets:
+        print("[daz_inspector] Notice: No file paths provided. Returning empty metadata.", flush=True)
         return {
             "metadata_map": {},
-            "metadata": {},
-            "first_metadata": "",
+            "summary": "No DAZ files provided for inspection.",
             "count": 0,
         }
 
-    metadata_map: Dict[str, str] = {}
-    first_metadata_json = ""
+    metadata_map: Dict[str, dict] = {}
+    summaries: List[str] = []
 
-    for rel_item in extracted_paths:
-        if not rel_item:
+    for file_str in targets:
+        resolved_path = Path(file_str).resolve()
+        clean_key = str(resolved_path).replace("\\", "/")
+
+        if not resolved_path.exists():
+            print(f"[daz_inspector] Warning: File not found: '{resolved_path}'", flush=True)
             continue
 
-        # Standardize relative key (POSIX style, no leading slash)
-        rel_key = rel_item.replace("\\", "/").lstrip("/")
-
-        # Compute target full path on disk
-        target_file: Optional[Path] = None
-
-        if os.path.isabs(rel_item):
-            target_file = Path(rel_item)
-            if resolved_root:
-                try:
-                    rel_key = str(Path(rel_item).relative_to(resolved_root)).replace("\\", "/").lstrip("/")
-                except Exception:
-                    pass
-        else:
-            if resolved_root:
-                target_file = Path(resolved_root) / rel_item
-            else:
-                target_file = Path(rel_item)
-
-        # Fallback check
-        if not target_file.exists():
-            if Path(rel_item).exists():
-                target_file = Path(rel_item)
-            else:
-                print(f"[daz_inspector] Warning: File not found: '{target_file}' (raw: '{rel_item}')", flush=True)
-                continue
-
         try:
-            res = inspect_single_duf(target_file)
-            meta_json = json.dumps(res, indent=2, ensure_ascii=False)
-
-            # Store keyed by relative path (both normalized and original if different)
-            metadata_map[rel_key] = meta_json
-            if rel_item != rel_key:
-                metadata_map[rel_item] = meta_json
-
-            if not first_metadata_json:
-                first_metadata_json = meta_json
+            meta = inspect_single_duf(resolved_path)
+            metadata_map[clean_key] = meta
+            summaries.append(f"{resolved_path.name}: {len(meta.get('objects', []))} obj(s), {len(meta.get('materials', []))} mat(s)")
+            print(f"[daz_inspector] Inspected '{resolved_path.name}' -> {len(meta.get('objects', []))} objects, {len(meta.get('materials', []))} materials.", flush=True)
         except Exception as ex:
-            print(f"[daz_inspector] Error inspecting '{target_file}': {ex}", flush=True)
+            print(f"[daz_inspector] Error inspecting '{resolved_path}': {ex}", flush=True)
+
+    summary_text = f"Inspected {len(metadata_map)} DAZ file(s). " + "; ".join(summaries[:3])
+    if len(summaries) > 3:
+        summary_text += f" ...and {len(summaries) - 3} more."
 
     return {
         "metadata_map": metadata_map,
-        "metadata": metadata_map,
-        "first_metadata": first_metadata_json,
+        "summary": summary_text,
         "count": len(metadata_map),
     }
 
@@ -231,7 +148,7 @@ def main(
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:
-        res = main(input_path=sys.argv[1])
-        print(res.get("metadata", ""))
+        res = main(full_paths=sys.argv[1:])
+        print(json.dumps(res, indent=2, ensure_ascii=False))
     else:
-        print("Usage: python daz_inspector.py <path_to_daz_file.duf>")
+        print("Usage: python daz_inspector.py <path_to_daz_file.duf> [...]")

@@ -1,3 +1,4 @@
+using Automation.Pipeline.Runtime.Orchestrator.SubPipeline;
 using System.Text.Json;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
@@ -18,7 +19,8 @@ public class StageResultConsumer(
     IExecutionMemoryStore memoryStore,
     IExecutionStateStore stateStore,
     ILogger<StageResultConsumer> logger,
-    IHubContext<PipelineExecutionHub>? hubContext = null
+    IHubContext<PipelineExecutionHub>? hubContext = null,
+    ISubPipelineCompletionNotifier? subPipelineNotifier = null
 )
 {
     public async Task HandleAsync(StageResultMessage message, CancellationToken ct)
@@ -126,6 +128,18 @@ public class StageResultConsumer(
 
             execution.MarkFailed(err, failSnapshot);
             await db.SaveChangesAsync(ct);
+
+            if (subPipelineNotifier != null)
+            {
+                try
+                {
+                    await subPipelineNotifier.NotifyIfChildAsync(execution, ct);
+                }
+                catch (Exception notifyEx)
+                {
+                    logger.LogWarning(notifyEx, "Failed to notify parent of stage failure for {ExecutionId}", execution.Id);
+                }
+            }
             logger.LogError("PipelineExecution {ExecutionId} failed during Agent stage {StageId}: {Error}", execution.Id, message.StageExecutionId, err);
 
             if (hubContext != null)

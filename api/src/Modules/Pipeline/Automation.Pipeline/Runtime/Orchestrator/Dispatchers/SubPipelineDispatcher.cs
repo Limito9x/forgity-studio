@@ -10,7 +10,21 @@ using Automation.Pipeline.Infrastructure.Persistence;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+
 namespace Automation.Pipeline.Runtime.Orchestrator.Dispatchers;
+
+public enum SubPipelineDispatchStatus
+{
+    Completed,
+    Suspended,
+    Failed
+}
+
+public record SubPipelineDispatchResult(
+    SubPipelineDispatchStatus Status,
+    Guid? ChildExecutionId = null,
+    string? ErrorMessage = null
+);
 
 public class SubPipelineDispatcher(
     PipelineDbContext db,
@@ -21,7 +35,7 @@ public class SubPipelineDispatcher(
     IHubContext<PipelineExecutionHub>? hubContext = null
 )
 {
-    public async Task<Result> DispatchAsync(
+    public async Task<Result<SubPipelineDispatchResult>> DispatchAsync(
         PipelineExecution execution,
         ExecSegment segment,
         ScopeContext? scope = null,
@@ -34,14 +48,19 @@ public class SubPipelineDispatcher(
             var stepRes = await DispatchStepAsync(execution, step, scope, orchestrator, ct);
             if (stepRes.IsFailed)
             {
-                return stepRes;
+                return Result.Fail<SubPipelineDispatchResult>(stepRes.Errors);
+            }
+
+            if (stepRes.Value.Status == SubPipelineDispatchStatus.Suspended)
+            {
+                return Result.Ok(stepRes.Value);
             }
         }
 
-        return Result.Ok();
+        return Result.Ok(new SubPipelineDispatchResult(SubPipelineDispatchStatus.Completed));
     }
 
-    public async Task<Result> DispatchStepAsync(
+    public async Task<Result<SubPipelineDispatchResult>> DispatchStepAsync(
         PipelineExecution execution,
         ExecStep step,
         ScopeContext? scope = null,
@@ -83,7 +102,7 @@ public class SubPipelineDispatcher(
             var err = $"Sub-Pipeline target not configured for step '{step.Label}'.";
             logger.LogError(err);
             await RecordNodeFailureAsync(execution.Id, execution.PipelineId, step.NodeId, err, ct);
-            return Result.Fail(err);
+            return Result.Fail<SubPipelineDispatchResult>(err);
         }
 
         var childPipeline = await db
@@ -95,7 +114,7 @@ public class SubPipelineDispatcher(
             var err = $"Target Sub-Pipeline '{targetPipelineId.Value}' not found.";
             logger.LogError(err);
             await RecordNodeFailureAsync(execution.Id, execution.PipelineId, step.NodeId, err, ct);
-            return Result.Fail(err);
+            return Result.Fail<SubPipelineDispatchResult>(err);
         }
 
         var childExecution = new PipelineExecution(
@@ -123,7 +142,7 @@ public class SubPipelineDispatcher(
             var err = "Orchestrator instance required for Sub-Pipeline execution.";
             logger.LogError(err);
             await RecordNodeFailureAsync(execution.Id, execution.PipelineId, step.NodeId, err, ct);
-            return Result.Fail(err);
+            return Result.Fail<SubPipelineDispatchResult>(err);
         }
 
         var childResult = await orchestrator.ExecuteOrResumeAsync(
@@ -136,23 +155,48 @@ public class SubPipelineDispatcher(
         {
             var err =
                 childResult.Errors.FirstOrDefault()?.Message
-                ?? childResult.Value.ErrorMessage
+                ?? childResult.Value?.ErrorMessage
                 ?? "Sub-Pipeline execution failed.";
             logger.LogError(err);
             await RecordNodeFailureAsync(execution.Id, execution.PipelineId, step.NodeId, err, ct);
-            return Result.Fail(err);
+            return Result.Fail<SubPipelineDispatchResult>(err);
         }
 
-        // Collect outputs from child Return node (if any) or memory store
-        var subOutputs = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        var childReturnNode = await db
-            .PipelineNodes.AsNoTracking()
-            .FirstOrDefaultAsync(
-                n => n.PipelineId == childPipeline.Id && n.Kind == PipelineNodeKind.Return,
-                ct
+        // Nếu Child tạm dừng (chờ Runner hoặc chờ Sub-Pipeline tiếp theo), đình chỉ Parent
+        if (childResult.Value.Status is ExecutionStatus.WaitingForRunner or ExecutionStatus.WaitingForSubPipeline)
+        {
+            logger.LogInformation(
+                "Child execution {ChildExecutionId} suspended with status {Status}. Suspending parent execution {ParentExecutionId}.",
+                childExecution.Id,
+                childResult.Value.Status,
+                execution.Id
             );
+            return Result.Ok(new SubPipelineDispatchResult(SubPipelineDispatchStatus.Suspended, childExecution.Id));
+        }
 
-        // 1. Try reading outputs directly from child execution parameters snapshot
+        // Child đã chạy xong đồng bộ (ví dụ: child chỉ gồm các node dotNet)
+        await CompleteFromChildAsync(
+            execution,
+            childResult.Value,
+            step.NodeId,
+            scope,
+            ct
+        );
+
+        return Result.Ok(new SubPipelineDispatchResult(SubPipelineDispatchStatus.Completed, childExecution.Id));
+    }
+
+    public async Task<Result> CompleteFromChildAsync(
+        PipelineExecution parentExecution,
+        PipelineExecution childExecution,
+        Guid macroNodeId,
+        ScopeContext? scope = null,
+        CancellationToken ct = default
+    )
+    {
+        var subOutputs = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+        // 1. Đọc outputs trực tiếp từ parameters snapshot của child execution nếu có
         if (childExecution.ExecutionState != null)
         {
             try
@@ -172,35 +216,50 @@ public class SubPipelineDispatcher(
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to parse outputs from child execution state {ChildExecutionId}", childExecution.Id);
+            }
         }
 
-        if (childReturnNode != null && subOutputs.Count == 0)
+        // 2. Fallback nếu snapshot chưa có outputs: tìm node Return của child pipeline
+        if (subOutputs.Count == 0)
         {
-            var childOutputs = await stateStore.GetNodeAllOutputsAsync(
-                childExecution.Id,
-                childReturnNode.Id,
-                ct
-            );
-            if (childOutputs.Count > 0)
+            var childReturnNode = await db
+                .PipelineNodes.AsNoTracking()
+                .FirstOrDefaultAsync(
+                    n => n.PipelineId == childExecution.PipelineId && n.Kind == PipelineNodeKind.Return,
+                    ct
+                );
+
+            if (childReturnNode != null)
             {
-                foreach (var (k, v) in childOutputs)
+                var childOutputs = await stateStore.GetNodeAllOutputsAsync(
+                    childExecution.Id,
+                    childReturnNode.Id,
+                    ct
+                );
+                if (childOutputs.Count > 0)
                 {
-                    subOutputs[k] = v;
+                    foreach (var (k, v) in childOutputs)
+                    {
+                        subOutputs[k] = v;
+                    }
                 }
             }
         }
 
-        await memoryStore.SetNodeAllOutputsAsync(execution.Id, step.NodeId, subOutputs, scope, ct);
+        await memoryStore.SetNodeAllOutputsAsync(parentExecution.Id, macroNodeId, subOutputs, scope, ct);
         var successOutputs = new Dictionary<string, object>();
         foreach (var (k, v) in subOutputs)
         {
             successOutputs[k] = v ?? string.Empty;
         }
+
         await RecordNodeSuccessAsync(
-            execution.Id,
-            execution.PipelineId,
-            step.NodeId,
+            parentExecution.Id,
+            parentExecution.PipelineId,
+            macroNodeId,
             successOutputs,
             ct
         );
@@ -208,7 +267,7 @@ public class SubPipelineDispatcher(
         return Result.Ok();
     }
 
-    private async Task RecordNodeSuccessAsync(
+    public async Task RecordNodeSuccessAsync(
         Guid executionId,
         Guid pipelineId,
         Guid nodeId,
@@ -255,7 +314,7 @@ public class SubPipelineDispatcher(
         }
     }
 
-    private async Task RecordNodeRunningAsync(
+    public async Task RecordNodeRunningAsync(
         Guid executionId,
         Guid pipelineId,
         Guid nodeId,
@@ -294,7 +353,7 @@ public class SubPipelineDispatcher(
         }
     }
 
-    private async Task RecordNodeFailureAsync(
+    public async Task RecordNodeFailureAsync(
         Guid executionId,
         Guid pipelineId,
         Guid nodeId,

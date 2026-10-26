@@ -136,15 +136,18 @@ public class ResourcesCreatedPipelineBridgeHandler(
                 continue;
             }
 
-            // Gom toàn bộ Resource vừa tạo thành danh sách (Batch) và bổ sung Repository, Runner
+            // Gom toàn bộ Resource vừa tạo thành danh sách (Batch) và bổ sung Workstation context
             var runtimeInputs = new Dictionary<string, object?>
             {
                 ["Resources"] = matchedVersions
                     .Select(v => $"resource:{v.ResourceVersionId}")
                     .ToList(),
-                ["Repository"] = $"repository:{message.RepositoryId}",
-                ["Runner"] = $"runner:{message.RunnerId}",
             };
+
+            if (message.WorkstationId.HasValue && message.WorkstationId.Value != Guid.Empty)
+            {
+                runtimeInputs["Workstation"] = $"workstation:{message.WorkstationId.Value}";
+            }
 
             logger.LogInformation(
                 "Auto-triggering Pipeline '{PipelineName}' ({PipelineId}) with batch of {Count} ResourceVersion(s) in Repository '{RepositoryId}', Runner '{RunnerId}'.",

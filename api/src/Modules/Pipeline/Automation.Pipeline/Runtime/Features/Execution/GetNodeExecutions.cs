@@ -48,7 +48,7 @@ public class GetNodeExecutionsHandler(PipelineDbContext db, IExecutionStateStore
         var dtos = new List<NodeExecutionDto>();
 
         // 1. If currently executing (Running or WaitingForRunner), read directly from Redis live hot-state
-        if (execution.Status is ExecutionStatus.Running or ExecutionStatus.WaitingForRunner)
+        if (execution.Status is ExecutionStatus.Running or ExecutionStatus.WaitingForRunner or ExecutionStatus.WaitingForSubPipeline)
         {
             var nodes = await db.PipelineNodes
                 .AsNoTracking()

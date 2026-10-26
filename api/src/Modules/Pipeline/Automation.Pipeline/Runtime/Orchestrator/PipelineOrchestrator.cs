@@ -1,3 +1,4 @@
+using Automation.Pipeline.Runtime.Orchestrator.SubPipeline;
 using System.Text.Json;
 using Automation.Pipeline.Constants;
 using Automation.Pipeline.Contracts.NodeContract;
@@ -29,9 +30,25 @@ public class PipelineOrchestrator(
     ILogger<PipelineOrchestrator>? logger = null,
     IPipelineGraphProvider? graphProvider = null,
     IExecutionEntityStore? entityStore = null,
-    INodeContractResolver? contractResolver = null
+    INodeContractResolver? contractResolver = null,
+    ISubPipelineCompletionNotifier? subPipelineNotifier = null
 ) : IPipelineOrchestrator
 {
+    private async Task NotifyCompletionIfChildAsync(PipelineExecution execution, CancellationToken ct)
+    {
+        if (subPipelineNotifier != null)
+        {
+            try
+            {
+                await subPipelineNotifier.NotifyIfChildAsync(execution, ct);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Failed to notify parent execution for child execution {ExecutionId}", execution.Id);
+            }
+        }
+    }
+
     public async Task<Result<PipelineExecution>> ExecuteOrResumeAsync(
         Guid executionId,
         Dictionary<string, object?>? runtimeInputs = null,
@@ -208,6 +225,7 @@ public class PipelineOrchestrator(
                     );
                 }
 
+                await NotifyCompletionIfChildAsync(execution, ct);
                 return Result.Fail<PipelineExecution>(cycleError);
             }
 
@@ -226,6 +244,7 @@ public class PipelineOrchestrator(
                     );
                 }
 
+                await NotifyCompletionIfChildAsync(execution, ct);
                 return Result.Fail<PipelineExecution>(new UnresolvedPinsError(plan.UnresolvedPins));
             }
 
@@ -242,7 +261,8 @@ public class PipelineOrchestrator(
                 );
             }
 
-            return Result.Fail<PipelineExecution>(generalPlanError);
+            await NotifyCompletionIfChildAsync(execution, ct);
+                return Result.Fail<PipelineExecution>(generalPlanError);
         }
 
         if (execution.Status == ExecutionStatus.Pending)
@@ -259,7 +279,7 @@ public class PipelineOrchestrator(
                 );
             }
         }
-        else if (execution.Status == ExecutionStatus.WaitingForRunner)
+        else if (execution.Status is ExecutionStatus.WaitingForRunner or ExecutionStatus.WaitingForSubPipeline)
         {
             execution.Resume();
             await db.SaveChangesAsync(ct);
@@ -293,7 +313,24 @@ public class PipelineOrchestrator(
                         );
                     }
 
+                    await NotifyCompletionIfChildAsync(execution, ct);
                     return Result.Fail<PipelineExecution>(subRes.Errors);
+                }
+
+                if (subRes.Value.Status == SubPipelineDispatchStatus.Suspended)
+                {
+                    var childExecutionId = subRes.Value.ChildExecutionId!.Value;
+                    var suspendSnapshot = await CaptureExecutionStateSnapshotAsync(execution, ct);
+                    execution.MarkWaitingForSubPipeline(childExecutionId, segIdx + 1, suspendSnapshot);
+                    await db.SaveChangesAsync(ct);
+
+                    logger.LogInformation(
+                        "Parent Execution [{ExecutionId}] suspended waiting for SubPipeline Execution [{ChildExecutionId}].",
+                        execution.Id,
+                        childExecutionId
+                    );
+
+                    return Result.Ok(execution);
                 }
             }
             else if (string.Equals(segment.Executor, "dotNet", StringComparison.OrdinalIgnoreCase))
@@ -315,6 +352,7 @@ public class PipelineOrchestrator(
                         );
                     }
 
+                    await NotifyCompletionIfChildAsync(execution, ct);
                     return Result.Fail<PipelineExecution>(dotNetRes.Errors);
                 }
             }
@@ -346,6 +384,7 @@ public class PipelineOrchestrator(
                         );
                     }
 
+                    await NotifyCompletionIfChildAsync(execution, ct);
                     return Result.Fail<PipelineExecution>(agentRes.Errors);
                 }
 
@@ -379,6 +418,7 @@ public class PipelineOrchestrator(
             logger.LogWarning(ex, "Failed to set Redis TTL for finished execution {ExecutionId}", execution.Id);
         }
 
+        await NotifyCompletionIfChildAsync(execution, ct);
         logger.LogInformation("Pipeline Execution [{ExecutionId}] completed successfully with Parameters snapshot.", execution.Id);
         return Result.Ok(execution);
     }

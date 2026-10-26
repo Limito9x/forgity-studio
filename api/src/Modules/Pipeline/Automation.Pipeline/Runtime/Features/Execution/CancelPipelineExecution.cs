@@ -1,3 +1,4 @@
+using Automation.Pipeline.Runtime.Orchestrator.SubPipeline;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Hubs;
 using Automation.Pipeline.Infrastructure.Persistence;
@@ -39,7 +40,8 @@ public record CancelPipelineExecutionCommand(Guid ExecutionId);
 public class CancelPipelineExecutionHandler(
     PipelineDbContext db,
     IRunnerApi runnerApi,
-    IHubContext<PipelineExecutionHub>? hubContext = null
+    IHubContext<PipelineExecutionHub>? hubContext = null,
+    ISubPipelineCompletionNotifier? subPipelineNotifier = null
 )
 {
     public async Task<Result<PipelineExecutionDto>> HandleAsync(
@@ -61,8 +63,23 @@ public class CancelPipelineExecutionHandler(
             return Result.Ok(ToDto(exec));
         }
 
+        var previousStatus = exec.Status;
+        var childBatchId = exec.CurrentBatchId;
         exec.Cancel();
         await db.SaveChangesAsync(ct);
+
+        // Phase 3: Cascade cancel to child execution if suspended waiting for subpipeline
+        if (previousStatus == ExecutionStatus.WaitingForSubPipeline && !string.IsNullOrWhiteSpace(childBatchId) && Guid.TryParse(childBatchId, out var childExecId))
+        {
+            try
+            {
+                await HandleAsync(new CancelPipelineExecutionCommand(childExecId), ct);
+            }
+            catch
+            {
+                // Non-fatal
+            }
+        }
 
         // Terminate any active DCC subprocess tree (Blender / Unreal / Python) on connected Runners
         try
@@ -99,6 +116,18 @@ public class CancelPipelineExecutionHandler(
             catch
             {
                 // Non-fatal SignalR broadcast error
+            }
+        }
+
+        if (subPipelineNotifier != null)
+        {
+            try
+            {
+                await subPipelineNotifier.NotifyIfChildAsync(exec, ct);
+            }
+            catch
+            {
+                // Non-fatal
             }
         }
 
