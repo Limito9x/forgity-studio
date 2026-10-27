@@ -149,7 +149,8 @@ class PythonScriptAnalyzer:
             # Format metadata hint payload for FormRenderer
             metadata_hint: Optional[str] = None
             if options:
-                metadata_hint = json.dumps({"type": "select", "options": options})
+                control_type = "tagsInput" if cardinality == "Array" else "select"
+                metadata_hint = json.dumps({"type": control_type, "options": options})
 
             inputs.append({
                 "name": name,

@@ -26,6 +26,7 @@ import {
   Sparkles,
   Server,
   AlertTriangle,
+  Boxes,
 } from "lucide-react";
 import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -109,6 +110,38 @@ export function RunPipelineModal({
       (selectedAgent as any).status === 1
     );
   }, [selectedAgent]);
+
+  const requiredExecutors = useMemo(() => {
+    const set = new Set<string>();
+    nodes.forEach((n: any) => {
+      const exec = n.data?.executorKey || n.data?.executor;
+      if (exec && !["builtin", "dotnet", "system"].includes(String(exec).toLowerCase())) {
+        set.add(String(exec).toLowerCase());
+      }
+    });
+    return Array.from(set);
+  }, [nodes]);
+
+  const executorReadiness = useMemo(() => {
+    if (!selectedAgent) return [];
+    const configs: any[] = (selectedAgent as any).executorConfigs || [];
+    return requiredExecutors.map((execKey) => {
+      const config = configs.find(
+        (c: any) => c.executorKey?.toLowerCase() === execKey || c.id?.toLowerCase() === execKey
+      );
+      const isAvailable = Boolean(config && config.isEnabled !== false);
+      return {
+        executorKey: execKey,
+        isAvailable,
+        version: config?.version || null,
+        path: config?.executablePath || null,
+      };
+    });
+  }, [selectedAgent, requiredExecutors]);
+
+  const hasMissingExecutors = useMemo(() => {
+    return executorReadiness.some((item) => !item.isAvailable);
+  }, [executorReadiness]);
 
   // Derived inputs: strictly rely on unified parameters (kind === "Input" or 1)
   const pipelineInputs = useMemo(() => {
@@ -399,8 +432,44 @@ export function RunPipelineModal({
                     <div className="space-y-0.5">
                       <p className="font-semibold text-[11px]">Runner is currently Offline</p>
                       <p className="text-[11px] text-muted-foreground leading-relaxed">
-                        This pipeline requires external DCC execution (e.g. Blender/Unreal). The task will wait in queue until the runner daemon is started.
+                        This pipeline requires external DCC execution ({requiredExecutors.join(", ") || "Blender/Unreal"}). Tasks will queue until {selectedAgent?.name || "the runner"} connects.
                       </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Pre-flight DCC Environment Readiness Checklist */}
+                {requiredExecutors.length > 0 && (
+                  <div className="space-y-1.5 pt-1.5 border-t border-border/50">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Boxes className="size-3 text-primary" />
+                        <span>Pipeline DCC Requirements</span>
+                      </div>
+                      {hasMissingExecutors && isSelectedAgentOnline && (
+                        <span className="text-amber-600 dark:text-amber-400 font-medium normal-case text-[10px]">
+                          ⚠️ Missing config detected
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {executorReadiness.map((item) => (
+                        <Badge
+                          key={item.executorKey}
+                          variant="outline"
+                          className={cn(
+                            "text-[10px] px-2 py-0.5 font-mono gap-1",
+                            item.isAvailable
+                              ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400"
+                              : "border-amber-500/40 bg-amber-500/5 text-amber-600 dark:text-amber-400"
+                          )}
+                          title={item.path ? `Path: ${item.path}` : "Executable path not detected on runner"}
+                        >
+                          <span>{item.isAvailable ? "✓" : "⚠️"}</span>
+                          <span className="uppercase font-semibold">{item.executorKey}</span>
+                          {item.version && <span className="opacity-80">v{item.version}</span>}
+                        </Badge>
+                      ))}
                     </div>
                   </div>
                 )}
