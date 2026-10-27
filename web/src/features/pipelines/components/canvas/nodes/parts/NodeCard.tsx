@@ -1,6 +1,6 @@
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useNodeId } from "@xyflow/react";
-import { AlertCircle, AlertTriangle } from "lucide-react";
+import { AlertCircle, AlertTriangle, ChevronDown, ChevronUp, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNodeDiagnostics } from "@/features/pipelines/form-scope/PipelineFormScope";
 
@@ -12,6 +12,70 @@ interface NodeCardProps {
   borderThemeClass?: string;
   className?: string;
   children: ReactNode;
+}
+
+function ExecutionErrorBanner({ error }: { error: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(error);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsExpanded((prev) => !prev);
+  };
+
+  const isLong = error.length > 100 || error.includes("\n");
+
+  return (
+    <div className="rounded-b-xl border-t border-destructive/40 bg-destructive/10 px-3 py-2 text-[11px] text-destructive animate-in fade-in">
+      <div className="flex items-start gap-1.5">
+        <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-destructive" />
+        <div className="flex-1 min-w-0">
+          <div
+            className={cn(
+              "leading-tight break-words font-medium",
+              !isExpanded && "line-clamp-2"
+            )}
+          >
+            {error}
+          </div>
+
+          {isExpanded && (
+            <div className="mt-2 max-h-48 overflow-y-auto rounded bg-destructive/15 p-2 font-mono text-[10px] leading-relaxed text-destructive select-text whitespace-pre-wrap break-all border border-destructive/25">
+              {error}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-0.5 shrink-0 ml-1">
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="rounded p-1 hover:bg-destructive/20 text-destructive transition-colors"
+            title={copied ? "Copied to clipboard!" : "Copy full error"}
+          >
+            {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+          </button>
+          {isLong && (
+            <button
+              type="button"
+              onClick={handleToggle}
+              className="rounded p-1 hover:bg-destructive/20 text-destructive transition-colors"
+              title={isExpanded ? "Collapse error" : "Expand full error"}
+            >
+              {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function NodeCard({
@@ -61,12 +125,7 @@ export function NodeCard({
 
       {/* Runtime Failure Banner */}
       {status === "failed" && (
-        <div className="rounded-b-xl border-t border-destructive/40 bg-destructive/10 px-3 py-2 text-[11px] text-destructive flex items-start gap-1.5 animate-in fade-in">
-          <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-          <span className="leading-tight break-words flex-1 font-medium">
-            {executionError || "Execution failed on this node."}
-          </span>
-        </div>
+        <ExecutionErrorBanner error={executionError || "Execution failed on this node."} />
       )}
 
       {/* Build-Time Diagnostic Banner (only when idle and node has unaddressed issues) */}
