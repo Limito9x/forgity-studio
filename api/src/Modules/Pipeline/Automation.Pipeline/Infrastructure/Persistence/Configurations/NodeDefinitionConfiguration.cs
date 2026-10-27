@@ -32,36 +32,70 @@ public class NodeDefinitionConfiguration : IEntityTypeConfiguration<Domain.Entit
             .HasColumnType("jsonb")
             .HasConversion(
                 v => JsonSerializer.Serialize(v, jsonOptions),
-                v => JsonSerializer.Deserialize<List<PinDefinition>>(v, jsonOptions) ?? new List<PinDefinition>()
+                v => SafeDeserializePins(v, jsonOptions)
             )
             .Metadata.SetValueComparer(new ValueComparer<List<PinDefinition>>(
                 (c1, c2) => JsonSerializer.Serialize(c1, jsonOptions) == JsonSerializer.Serialize(c2, jsonOptions),
                 c => c == null ? 0 : JsonSerializer.Serialize(c, jsonOptions).GetHashCode(),
-                c => JsonSerializer.Deserialize<List<PinDefinition>>(JsonSerializer.Serialize(c, jsonOptions), jsonOptions)!
+                c => SafeDeserializePins(JsonSerializer.Serialize(c, jsonOptions), jsonOptions)
             ));
 
         builder.Property(x => x.Outputs)
             .HasColumnType("jsonb")
             .HasConversion(
                 v => JsonSerializer.Serialize(v, jsonOptions),
-                v => JsonSerializer.Deserialize<List<PinDefinition>>(v, jsonOptions) ?? new List<PinDefinition>()
+                v => SafeDeserializePins(v, jsonOptions)
             )
             .Metadata.SetValueComparer(new ValueComparer<List<PinDefinition>>(
                 (c1, c2) => JsonSerializer.Serialize(c1, jsonOptions) == JsonSerializer.Serialize(c2, jsonOptions),
                 c => c == null ? 0 : JsonSerializer.Serialize(c, jsonOptions).GetHashCode(),
-                c => JsonSerializer.Deserialize<List<PinDefinition>>(JsonSerializer.Serialize(c, jsonOptions), jsonOptions)!
+                c => SafeDeserializePins(JsonSerializer.Serialize(c, jsonOptions), jsonOptions)
             ));
 
         builder.Property(x => x.Dependencies)
             .HasColumnType("jsonb")
             .HasConversion(
                 v => JsonSerializer.Serialize(v, jsonOptions),
-                v => JsonSerializer.Deserialize<List<ScriptDependencyDto>>(v, jsonOptions) ?? new List<ScriptDependencyDto>()
+                v => SafeDeserializeDependencies(v, jsonOptions)
             )
             .Metadata.SetValueComparer(new ValueComparer<List<ScriptDependencyDto>>(
                 (c1, c2) => JsonSerializer.Serialize(c1, jsonOptions) == JsonSerializer.Serialize(c2, jsonOptions),
                 c => c == null ? 0 : JsonSerializer.Serialize(c, jsonOptions).GetHashCode(),
-                c => JsonSerializer.Deserialize<List<ScriptDependencyDto>>(JsonSerializer.Serialize(c, jsonOptions), jsonOptions)!
+                c => SafeDeserializeDependencies(JsonSerializer.Serialize(c, jsonOptions), jsonOptions)
             ));
+    }
+
+    private static List<PinDefinition> SafeDeserializePins(string? json, JsonSerializerOptions options)
+    {
+        if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith('{'))
+        {
+            return new List<PinDefinition>();
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<PinDefinition>>(json, options) ?? new List<PinDefinition>();
+        }
+        catch
+        {
+            return new List<PinDefinition>();
+        }
+    }
+
+    private static List<ScriptDependencyDto> SafeDeserializeDependencies(string? json, JsonSerializerOptions options)
+    {
+        if (string.IsNullOrWhiteSpace(json) || json.TrimStart().StartsWith('{'))
+        {
+            return new List<ScriptDependencyDto>();
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<ScriptDependencyDto>>(json, options) ?? new List<ScriptDependencyDto>();
+        }
+        catch
+        {
+            return new List<ScriptDependencyDto>();
+        }
     }
 }
