@@ -606,7 +606,7 @@ def _find_contract_for_slot(
 
 def main(
     manifest: Union[Dict[str, Any], str],
-    material_contracts: Optional[Union[Dict[str, Any], str]] = None,
+    material_contracts: Optional[Dict[str, Any]] = None,
     destination_path: str = "/Game/Assets",
     mesh_paths: Optional[List[str]] = None,
     **kwargs

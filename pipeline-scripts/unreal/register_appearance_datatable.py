@@ -261,12 +261,11 @@ def ensure_datatable_exists(datatable_path: str, struct_path: str = "", characte
 
 
 def main(
-    objects_map: Optional[Union[Dict[str, Any], List[Dict[str, Any]], str]] = None,
-    cloth_types: Optional[Union[Dict[str, str], str]] = None,
-    datatable_directory: str = "",
-    datatable_name: str = "",
+    objects_map: Optional[Dict[str, Any]] = None,
+    datatable_path: str = "",
     struct_path: str = "/Game/Characters/Database/ST_AppearanceItem.ST_AppearanceItem",
     should_register: bool = True,
+    cloth_types: Optional[Dict[str, str]] = None,
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -274,11 +273,10 @@ def main(
 
     Args:
         objects_map: Asset material bindings dictionary from setup_asset_materials.
-        cloth_types: Optional explicit mapping of mesh name to cloth type.
-        datatable_directory: Destination folder in Content Browser.
-        datatable_name: Name of the DataTable.
+        datatable_path: Unified full Unreal package path (e.g. /Game/Characters/Eva/Database/DT_EvaWardrobe).
         struct_path: Unreal row struct path.
         should_register: Master boolean flag to skip or allow registration.
+        cloth_types: Optional explicit mapping of mesh name to cloth type (can also pass cloth_map).
     """
     # 0. Master Switch: Circuit breaker for user intent or body-only pipelines
     if not should_register:
@@ -293,12 +291,12 @@ def main(
         }
 
     # Read optional configuration from kwargs
-    datatable_path = kwargs.get("datatable_path", "")
     character_name = kwargs.get("character_name") or "Eva"
     default_color = kwargs.get("default_color")
     color_param_name = kwargs.get("color_param_name") or "Tint_Color"
     row_name_prefix = kwargs.get("row_name_prefix")
     batch_items = kwargs.get("batch_items")
+    resolved_cloth_types = cloth_types or kwargs.get("cloth_map")
 
     # 1. Normalize input items (objects_map or fallback batch_items)
     raw_input = objects_map if objects_map is not None else batch_items
@@ -342,7 +340,7 @@ def main(
     # 2. Filter clothing items: Skip body meshes or non-cloth assets cleanly
     valid_cloth_items: Dict[str, tuple[str, Dict[str, Any]]] = {}
     for item_key, item_data in items_dict.items():
-        c_type = extract_cloth_type(item_key, item_data, cloth_types)
+        c_type = extract_cloth_type(item_key, item_data, resolved_cloth_types)
         if not c_type:
             print(f"[register_appearance_datatable] ⏭️ Skipping non-clothing item '{item_key}' (no cloth_type found).", flush=True)
             continue
@@ -359,14 +357,19 @@ def main(
             "registered_rows": []
         }
 
-    # 3. Resolve DataTable Path
-    if datatable_path and datatable_path.strip():
-        final_dt_path = _clean_ue_path(datatable_path)
+    # 3. Resolve DataTable Path (Single unified path priority, with backward-compatibility for directory + name)
+    dt_path_param = (datatable_path or kwargs.get("datatable_path") or "").strip()
+    dt_dir = kwargs.get("datatable_directory", "").strip()
+    dt_name = kwargs.get("datatable_name", "").strip()
+
+    if dt_path_param:
+        final_dt_path = _clean_ue_path(dt_path_param)
+    elif dt_dir and dt_name:
+        final_dt_path = f"{_clean_ue_path(dt_dir)}/{dt_name}"
     else:
-        # Resolve directory
-        resolved_dir = datatable_directory.strip() if datatable_directory else ""
+        # Check if mesh path provides directory hint
+        resolved_dir = dt_dir
         if not resolved_dir:
-            # Check if mesh path provides directory hint
             for _, item_data in valid_cloth_items.values():
                 mesh_p = item_data.get("skeletal_mesh") or item_data.get("mesh_path") or ""
                 if mesh_p and mesh_p.startswith("/Game/"):
@@ -376,8 +379,7 @@ def main(
             if not resolved_dir:
                 resolved_dir = f"/Game/Characters/{character_name}/Database"
 
-        # Resolve table name
-        resolved_name = datatable_name.strip() if datatable_name else f"DT_{character_name}Wardrobe"
+        resolved_name = dt_name or f"DT_{character_name}Wardrobe"
         final_dt_path = f"{_clean_ue_path(resolved_dir)}/{resolved_name}"
 
     def_color = default_color or {"R": 0.0, "G": 0.5, "B": 1.0, "A": 1.0}

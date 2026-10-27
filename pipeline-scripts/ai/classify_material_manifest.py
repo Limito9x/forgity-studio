@@ -127,7 +127,7 @@ def resolve_api_key(explicit_key: str = "", provider: str = "gemini") -> str:
 
 def main(
     raw_manifest: Union[Dict[str, Any], str],
-    contracts: Optional[Union[Dict[str, Any], str]] = None,
+    contracts: Optional[Dict[str, Any]] = None,
     provider: str = "gemini",
     model: str = "gemini-2.5-flash",
     **kwargs
@@ -185,17 +185,17 @@ def main(
     elif isinstance(raw_contracts, dict):
         normalized_contracts = raw_contracts
 
-    contract_summary: Dict[str, List[str]] = {}
+    contract_summary: Dict[str, Any] = {}
     if normalized_contracts:
         for c_name, c_data in normalized_contracts.items():
             if isinstance(c_data, dict):
-                t_params = c_data.get("texture_params") or c_data.get("texture_map") or {}
+                t_params = c_data.get("texture_map") or c_data.get("texture_params") or {}
                 if isinstance(t_params, str):
                     try:
                         t_params = json.loads(t_params)
                     except Exception:
                         t_params = {}
-                contract_summary[c_name] = list(t_params.keys()) if isinstance(t_params, dict) else []
+                contract_summary[c_name] = t_params if isinstance(t_params, dict) else {}
 
     # 3. Setup AI Client
     if not HAS_OPENAI:
@@ -225,11 +225,12 @@ def main(
     if contract_summary:
         contract_section = (
             "\nPROJECT MASTER MATERIAL CONTRACTS:\n"
+            "Each contract defines expected shader parameters and their map type (e.g. BASE_COLOR, NORMAL, MASKS/ORM, ART, GRAYSCALE):\n"
             f"{json.dumps(contract_summary, indent=2)}\n\n"
             "RULES WHEN MATCHING CONTRACTS:\n"
             "- Set 'material_tag' to the matched contract key (Cloth, Skin, Eye, Hair, Mouth, etc.).\n"
-            "- In 'textures', ONLY use the exact parameter names from that matched contract's parameter list!\n"
-            "- If no contract matches a slot, use standard PBR parameter names (BaseColorMap, NormalMap, RoughnessMap, SpecularMap, OpacityMap).\n"
+            "- In 'textures', map each texture file to the exact shader parameter name based on its texture type.\n"
+            "- If no contract matches a slot, use standard PBR parameter names (BaseColorMap, NormalMap, ORMMap, OpacityMap).\n"
         )
 
     system_prompt = (
