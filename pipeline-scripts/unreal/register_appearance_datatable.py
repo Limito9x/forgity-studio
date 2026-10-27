@@ -218,7 +218,7 @@ def detect_field_keys(sample_row: Dict[str, Any]) -> tuple:
     return item_keys, param_keys
 
 
-def ensure_datatable_exists(datatable_path: str, struct_path: str = "", character_name: str = "Eva") -> Any:
+def ensure_datatable_exists(datatable_path: str, struct_path: str = "", character_name: str = "") -> Any:
     """Ensure DataTable asset exists, create it from struct_path if necessary."""
     if not HAS_UNREAL:
         return None
@@ -235,9 +235,11 @@ def ensure_datatable_exists(datatable_path: str, struct_path: str = "", characte
     if not row_struct:
         fallback_structs = [
             "/Game/Characters/Database/ST_AppearanceItem.ST_AppearanceItem",
-            f"/Game/Characters/{character_name}/Data/ST_AppearanceItem.ST_AppearanceItem",
             "/Game/Blueprints/Appearance/ST_AppearanceItem.ST_AppearanceItem",
         ]
+        if character_name:
+            fallback_structs.insert(1, f"/Game/Characters/{character_name}/Data/ST_AppearanceItem.ST_AppearanceItem")
+
         for candidate in fallback_structs:
             pkg_name = candidate.split(".")[0]
             if unreal.EditorAssetLibrary.does_asset_exist(pkg_name):
@@ -264,6 +266,8 @@ def main(
     objects_map: Optional[Dict[str, Any]] = None,
     datatable_path: str = "",
     struct_path: str = "/Game/Characters/Database/ST_AppearanceItem.ST_AppearanceItem",
+    character_name: str = "",
+    row_name_prefix: str = "",
     should_register: bool = True,
     cloth_types: Optional[Dict[str, str]] = None,
     **kwargs
@@ -273,8 +277,10 @@ def main(
 
     Args:
         objects_map: Asset material bindings dictionary from setup_asset_materials.
-        datatable_path: Unified full Unreal package path (e.g. /Game/Characters/Eva/Database/DT_EvaWardrobe).
+        datatable_path: Unified full Unreal package path (e.g. /Game/Characters/Database/DT_Wardrobe).
         struct_path: Unreal row struct path.
+        character_name: Character identifier such as Luna, Adam, etc. If omitted, inferred from mesh path or generic.
+        row_name_prefix: Optional custom prefix for DataTable row keys (e.g. 'luna_outfit').
         should_register: Master boolean flag to skip or allow registration.
         cloth_types: Optional explicit mapping of mesh name to cloth type (can also pass cloth_map).
     """
@@ -290,11 +296,11 @@ def main(
             "registered_rows": []
         }
 
-    # Read optional configuration from kwargs
-    character_name = kwargs.get("character_name") or "Eva"
+    # Read optional configuration from args or kwargs (never hardcode fallback to Eva)
+    resolved_char_name = (character_name or kwargs.get("character_name") or "").strip()
     default_color = kwargs.get("default_color")
     color_param_name = kwargs.get("color_param_name") or "Tint_Color"
-    row_name_prefix = kwargs.get("row_name_prefix")
+    custom_row_prefix = (row_name_prefix or kwargs.get("row_name_prefix") or "").strip()
     batch_items = kwargs.get("batch_items")
     resolved_cloth_types = cloth_types or kwargs.get("cloth_map")
 
@@ -357,7 +363,18 @@ def main(
             "registered_rows": []
         }
 
-    # 3. Resolve DataTable Path (Single unified path priority, with backward-compatibility for directory + name)
+    # 3. Resolve DataTable Path & Character Context (Never hardcode fallback to Eva)
+    # Infer character_name from skeletal_mesh path if not explicitly provided
+    if not resolved_char_name:
+        for _, item_data in valid_cloth_items.values():
+            mesh_p = item_data.get("skeletal_mesh") or item_data.get("mesh_path") or ""
+            # e.g. /Game/Characters/Luna/Outfits/... -> Luna
+            if "/Characters/" in mesh_p:
+                parts = mesh_p.split("/Characters/")[-1].split("/")
+                if len(parts) > 1 and parts[0].strip() not in {"Database", "Common", "Shared"}:
+                    resolved_char_name = parts[0].strip()
+                    break
+
     dt_path_param = (datatable_path or kwargs.get("datatable_path") or "").strip()
     dt_dir = kwargs.get("datatable_directory", "").strip()
     dt_name = kwargs.get("datatable_name", "").strip()
@@ -377,16 +394,16 @@ def main(
                     resolved_dir = f"{char_root}/Database"
                     break
             if not resolved_dir:
-                resolved_dir = f"/Game/Characters/{character_name}/Database"
+                resolved_dir = f"/Game/Characters/{resolved_char_name}/Database" if resolved_char_name else "/Game/Characters/Database"
 
-        resolved_name = dt_name or f"DT_{character_name}Wardrobe"
+        resolved_name = dt_name or (f"DT_{resolved_char_name}Wardrobe" if resolved_char_name else "DT_Wardrobe")
         final_dt_path = f"{_clean_ue_path(resolved_dir)}/{resolved_name}"
 
     def_color = default_color or {"R": 0.0, "G": 0.5, "B": 1.0, "A": 1.0}
-    prefix = row_name_prefix or f"{character_name}_outfit"
+    prefix = custom_row_prefix or (f"{resolved_char_name}_outfit" if resolved_char_name else "")
 
     print(f"[register_appearance_datatable] Registering {len(valid_cloth_items)} clothing asset(s) to DataTable: '{final_dt_path}'...", flush=True)
-    print(f"  Struct Path: '{struct_path}'", flush=True)
+    print(f"  Struct Path: '{struct_path}' (Character Context: '{resolved_char_name or 'Generic'}')", flush=True)
 
     # 4. Load or create DataTable and retrieve existing rows
     existing_rows_dict: Dict[str, Dict[str, Any]] = {}
@@ -395,7 +412,7 @@ def main(
     param_guid_keys = dict(DEFAULT_PARAM_GUID_KEYS)
 
     if HAS_UNREAL:
-        dt_asset = ensure_datatable_exists(final_dt_path, struct_path, character_name)
+        dt_asset = ensure_datatable_exists(final_dt_path, struct_path, resolved_char_name)
         if dt_asset:
             try:
                 raw_json = unreal.DataTableFunctionLibrary.export_data_table_to_json_string(dt_asset)
@@ -423,14 +440,22 @@ def main(
 
         clean_item_stem = sanitize_asset_name(os.path.splitext(os.path.basename(item_key))[0])
         short_stem = clean_item_stem
-        char_lower = character_name.lower().strip()
-        for p_part in [f"{char_lower}_outfit_duf_", f"{char_lower}_outfit_", "outfit_duf_", "outfit_"]:
-            if short_stem.lower().startswith(p_part):
-                short_stem = short_stem[len(p_part):]
+        if resolved_char_name:
+            char_lower = resolved_char_name.lower().strip()
+            for p_part in [f"{char_lower}_outfit_duf_", f"{char_lower}_outfit_", f"{char_lower}_"]:
+                if short_stem.lower().startswith(p_part):
+                    short_stem = short_stem[len(p_part):]
+                    break
+        for generic_p in ["outfit_duf_", "outfit_"]:
+            if short_stem.lower().startswith(generic_p):
+                short_stem = short_stem[len(generic_p):]
                 break
 
         safe_type = cloth_type.lower()
-        row_name = f"{prefix}_{safe_type}_{short_stem}" if prefix else f"{short_stem}"
+        if prefix:
+            row_name = f"{prefix}_{safe_type}_{short_stem}"
+        else:
+            row_name = f"{safe_type}_{short_stem}"
 
         # Build Material Slots Map conforming to ST_MaterialParams
         slots_source = item_data.get("material_slots") or item_data.get("slot_bindings") or {}
