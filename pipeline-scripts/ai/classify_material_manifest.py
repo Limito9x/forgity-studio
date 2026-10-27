@@ -61,6 +61,34 @@ class BatchClassificationResult(BaseModel):
 # 2. API Key Resolver (Generic Runner Environment)
 # ==============================================================================
 
+PROVIDER_DEFAULTS = {
+    "groq": {
+        "endpoint": "https://api.groq.com/openai/v1",
+        "model": "llama-3.3-70b-versatile",
+    },
+    "gemini": {
+        "endpoint": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "model": "gemini-1.5-flash",
+    },
+    "ollama": {
+        "endpoint": "http://localhost:11434/v1",
+        "model": "qwen2.5:7b",
+    },
+    "deepseek": {
+        "endpoint": "https://api.deepseek.com/v1",
+        "model": "deepseek-chat",
+    },
+    "openai": {
+        "endpoint": "https://api.openai.com/v1",
+        "model": "gpt-4o-mini",
+    },
+    "openrouter": {
+        "endpoint": "https://openrouter.ai/api/v1",
+        "model": "meta-llama/llama-3.3-70b-instruct:free",
+    },
+}
+
+
 def is_valid_key(val: str) -> bool:
     if not val:
         return False
@@ -76,6 +104,7 @@ def resolve_api_key(explicit_key: str = "", provider: str = "gemini") -> str:
     """
     Resolve API key for AI provider strictly verifying validity:
     1. First priority: runner.toml [env] (always fresh from disk)
+       Priority: AI_API_KEY -> {PROVIDER}_API_KEY -> LLM_API_KEY
     2. Explicit key (if valid format and not mock string)
     3. OS Environment variables (validated)
     """
@@ -97,10 +126,11 @@ def resolve_api_key(explicit_key: str = "", provider: str = "gemini") -> str:
                     cfg = tomllib.load(f)
                     env_table = cfg.get("env", {})
                     for candidate in [
-                        env_table.get(target_env_var),
-                        env_table.get("GEMINI_API_KEY"),
                         env_table.get("AI_API_KEY"),
+                        env_table.get(target_env_var),
                         env_table.get("LLM_API_KEY"),
+                        env_table.get("GEMINI_API_KEY"),
+                        env_table.get("GROQ_API_KEY"),
                     ]:
                         if candidate and is_valid_key(str(candidate)):
                             return str(candidate).strip()
@@ -112,7 +142,7 @@ def resolve_api_key(explicit_key: str = "", provider: str = "gemini") -> str:
         return explicit_key.strip()
 
     # 3. Check OS Environment variable
-    for env_var in [target_env_var, "GEMINI_API_KEY", "AI_API_KEY", "LLM_API_KEY", "GOOGLE_API_KEY"]:
+    for env_var in ["AI_API_KEY", target_env_var, "LLM_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY"]:
         env_val = os.environ.get(env_var, "").strip()
         if is_valid_key(env_val):
             return env_val
@@ -128,8 +158,8 @@ def resolve_api_key(explicit_key: str = "", provider: str = "gemini") -> str:
 def main(
     raw_manifest: Union[Dict[str, Any], str],
     contracts: Optional[Dict[str, Any]] = None,
-    provider: str = "gemini",
-    model: str = "gemini-2.5-flash",
+    provider: str = "groq",
+    model: str = "llama-3.3-70b-versatile",
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -137,6 +167,12 @@ def main(
     Sends raw JSON tree directly to LLM for zero-brittle semantic parsing.
     Focuses purely on classifying material slots, textures, and shader parameter mapping.
     Object identity and cloth_type are preserved directly from raw_manifest.
+
+    Args:
+        raw_manifest: Raw metadata JSON tree from GetResourceRelativePaths, Blender Inspection, or upstream.
+        contracts: Master Material Contracts dictionary (ContentMap) for shader parameter names.
+        provider: AI provider ('groq', 'gemini', 'ollama', 'openai', 'deepseek', 'openrouter'). Default 'groq'.
+        model: Model identifier such as llama-3.3-70b-versatile, gemini-1.5-flash, or qwen2.5:7b. Default llama-3.3-70b-versatile.
     """
     start_time = time.time()
     api_key = kwargs.get("api_key", "")
@@ -197,28 +233,36 @@ def main(
                         t_params = {}
                 contract_summary[c_name] = t_params if isinstance(t_params, dict) else {}
 
-    # 3. Setup AI Client
+    # 3. Setup AI Provider, Endpoint, Model & Client
     if not HAS_OPENAI:
         raise RuntimeError(
             "[classify_material_manifest] Missing required Python package 'openai'. "
             "Please install it using 'pip install openai'."
         )
 
-    resolved_key = resolve_api_key(api_key, provider)
-    is_local_ollama = provider.lower() == "ollama" or "11434" in endpoint
+    provider_key = (provider or "gemini").strip().lower()
+    default_config = PROVIDER_DEFAULTS.get(provider_key, {})
+
+    target_endpoint = (endpoint or "").strip() or default_config.get("endpoint", "")
+    target_model = (model or "").strip()
+    if not target_model or (provider_key == "groq" and "gemini" in target_model) or (provider_key == "gemini" and "llama" in target_model):
+        target_model = default_config.get("model", "llama-3.3-70b-versatile" if provider_key == "groq" else "gemini-1.5-flash")
+
+    resolved_key = resolve_api_key(api_key, provider_key)
+    print(f"[classify_material_manifest] [INFO] Provider: '{provider_key}', Model: '{target_model}', Endpoint: '{target_endpoint or 'default'}'", flush=True)
+
+    is_local_ollama = provider_key == "ollama" or "11434" in target_endpoint
 
     if not resolved_key and not is_local_ollama:
         raise RuntimeError(
-            f"[classify_material_manifest] No API key found for provider '{provider}'. "
-            f"Please set GEMINI_API_KEY, AI_API_KEY, LLM_API_KEY, or configure runner.toml."
+            f"[classify_material_manifest] No API key found for provider '{provider_key}'. "
+            f"Please configure AI_API_KEY (or {provider_key.upper()}_API_KEY) in runner.toml or OS environment."
         )
 
     if is_local_ollama:
-        client = OpenAI(api_key="ollama", base_url=endpoint or "http://localhost:11434/v1")
-    elif provider.lower() == "gemini":
-        client = OpenAI(api_key=resolved_key, base_url=endpoint or "https://generativelanguage.googleapis.com/v1beta/openai/")
+        client = OpenAI(api_key="ollama", base_url=target_endpoint or "http://localhost:11434/v1")
     else:
-        client = OpenAI(api_key=resolved_key, base_url=endpoint or None)
+        client = OpenAI(api_key=resolved_key, base_url=target_endpoint or None)
 
     # 4. Build Prompts
     contract_section = ""
@@ -268,23 +312,38 @@ def main(
 
     user_prompt = f"Analyze the following raw metadata JSON tree and produce the classified material structure:\n\n```json\n{json.dumps(raw_data, indent=2)}\n```"
 
-    print(f"[classify_material_manifest] [INFO] Sending raw JSON tree to {model} ({provider})...", flush=True)
+    print(f"[classify_material_manifest] [INFO] Sending raw JSON tree to {target_model} ({provider_key})...", flush=True)
 
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            response_format={"type": "json_object"}
-        )
-        content = response.choices[0].message.content or "{}"
-        parsed_ai = json.loads(content)
-    except Exception as e:
-        raise RuntimeError(
-            f"[classify_material_manifest] AI material classification failed using model '{model}' ({provider}): {e}"
-        ) from e
+    max_retries = 3
+    parsed_ai = {}
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = client.chat.completions.create(
+                model=target_model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                response_format={"type": "json_object"}
+            )
+            content = response.choices[0].message.content or "{}"
+            parsed_ai = json.loads(content)
+            break
+        except Exception as e:
+            err_str = str(e)
+            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                wait_secs = attempt * 4
+                print(f"[classify_material_manifest] [WARNING] Hit rate limit 429 on attempt {attempt}/{max_retries}. Waiting {wait_secs}s before retry...", flush=True)
+                time.sleep(wait_secs)
+                if attempt == max_retries:
+                    raise RuntimeError(
+                        f"[classify_material_manifest] Quota exhausted (429) for provider '{provider_key}' model '{target_model}'. "
+                        f"Suggestion: Switch provider to 'groq' (14,400 free requests/day) or use local 'ollama'. Details: {e}"
+                    ) from e
+            else:
+                raise RuntimeError(
+                    f"[classify_material_manifest] AI material classification failed using model '{target_model}' ({provider_key}): {e}"
+                ) from e
 
     # 5. Format & Post-process for Unreal Engine setup_asset_materials.py
     ai_objects = parsed_ai.get("objects", {})

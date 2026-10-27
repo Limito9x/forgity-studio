@@ -44,10 +44,38 @@ def is_valid_key(val: str) -> bool:
     return True
 
 
+PROVIDER_DEFAULTS = {
+    "groq": {
+        "endpoint": "https://api.groq.com/openai/v1",
+        "model": "llama-3.3-70b-versatile",
+    },
+    "gemini": {
+        "endpoint": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "model": "gemini-1.5-flash",
+    },
+    "ollama": {
+        "endpoint": "http://localhost:11434/v1",
+        "model": "qwen2.5:7b",
+    },
+    "deepseek": {
+        "endpoint": "https://api.deepseek.com/v1",
+        "model": "deepseek-chat",
+    },
+    "openai": {
+        "endpoint": "https://api.openai.com/v1",
+        "model": "gpt-4o-mini",
+    },
+    "openrouter": {
+        "endpoint": "https://openrouter.ai/api/v1",
+        "model": "meta-llama/llama-3.3-70b-instruct:free",
+    },
+}
+
+
 def resolve_api_key(provider: str = "gemini") -> str:
     """
     Resolve API key strictly from runner.toml and OS Environment.
-    Validates key format and ignores mock/stale environment variables.
+    Priority: AI_API_KEY -> {PROVIDER}_API_KEY -> LLM_API_KEY -> GEMINI_API_KEY.
     """
     provider_clean = (provider or "gemini").strip().upper()
     target_env_var = f"{provider_clean}_API_KEY"
@@ -66,19 +94,21 @@ def resolve_api_key(provider: str = "gemini") -> str:
                 with open(p, "rb") as f:
                     cfg = tomllib.load(f)
                     env_table = cfg.get("env", {})
+                    # AI_API_KEY is universal top priority
                     for candidate in [
-                        env_table.get(target_env_var),
-                        env_table.get("GEMINI_API_KEY"),
                         env_table.get("AI_API_KEY"),
+                        env_table.get(target_env_var),
                         env_table.get("LLM_API_KEY"),
+                        env_table.get("GEMINI_API_KEY"),
+                        env_table.get("GROQ_API_KEY"),
                     ]:
                         if candidate and is_valid_key(str(candidate)):
                             return str(candidate).strip()
             except Exception:
                 pass
 
-    # 2. Second priority: OS Environment variable (validate to avoid stale mock keys)
-    for env_var in [target_env_var, "GEMINI_API_KEY", "AI_API_KEY", "LLM_API_KEY", "GOOGLE_API_KEY"]:
+    # 2. Second priority: OS Environment variable
+    for env_var in ["AI_API_KEY", target_env_var, "LLM_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY"]:
         env_val = os.environ.get(env_var, "").strip()
         if is_valid_key(env_val):
             return env_val
@@ -94,8 +124,8 @@ def resolve_api_key(provider: str = "gemini") -> str:
 def main(
     raw_metadata: str,
     contracts: List[str],
-    provider: str = "gemini",
-    model: str = "gemini-2.5-flash",
+    provider: str = "groq",
+    model: str = "llama-3.3-70b-versatile",
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -107,8 +137,8 @@ def main(
     Args:
         raw_metadata: Raw JSON metadata text/string (e.g. from Metadata JSON or file path).
         contracts: Target modular appearance categories (e.g. ['Top', 'Bottom', 'Shoes', 'Hair', 'Body']). Required.
-        provider: AI provider ('gemini', 'openai', 'ollama'). Default 'gemini'.
-        model: Model identifier. Default 'gemini-2.5-flash'.
+        provider: AI provider ('groq', 'gemini', 'ollama', 'openai', 'deepseek', 'openrouter'). Default 'groq'.
+        model: Model identifier such as llama-3.3-70b-versatile, gemini-1.5-flash, or qwen2.5:7b. Default llama-3.3-70b-versatile.
 
     Returns:
         {
@@ -163,30 +193,36 @@ def main(
             "Please specify target modular appearance slots (e.g. ['Top', 'Bottom', 'Shoes', 'Body', 'Hair'])."
         )
 
-    # 3. Setup AI Client
+    # 3. Setup AI Provider, Endpoint, Model & Client
     if not HAS_OPENAI:
         raise RuntimeError(
             "[classify_mesh_types] Missing required Python package 'openai'. "
             "Please install it using 'pip install openai'."
         )
 
-    resolved_key = resolve_api_key(provider)
-    print(f"[classify_mesh_types] [INFO] Resolved API key prefix: {resolved_key[:6]!r} (len={len(resolved_key)})", flush=True)
+    provider_key = (provider or "gemini").strip().lower()
+    default_config = PROVIDER_DEFAULTS.get(provider_key, {})
 
-    is_local_ollama = provider.lower() == "ollama" or "11434" in endpoint
+    target_endpoint = (endpoint or "").strip() or default_config.get("endpoint", "")
+    target_model = (model or "").strip()
+    if not target_model or (provider_key == "groq" and "gemini" in target_model) or (provider_key == "gemini" and "llama" in target_model):
+        target_model = default_config.get("model", "llama-3.3-70b-versatile" if provider_key == "groq" else "gemini-1.5-flash")
+
+    resolved_key = resolve_api_key(provider_key)
+    print(f"[classify_mesh_types] [INFO] Provider: '{provider_key}', Model: '{target_model}', Endpoint: '{target_endpoint or 'default'}'", flush=True)
+
+    is_local_ollama = provider_key == "ollama" or "11434" in target_endpoint
 
     if not resolved_key and not is_local_ollama:
         raise RuntimeError(
-            f"[classify_mesh_types] No API key found for provider '{provider}'. "
-            f"Please set GEMINI_API_KEY in OS environment or configure runner.toml."
+            f"[classify_mesh_types] No API key found for provider '{provider_key}'. "
+            f"Please configure AI_API_KEY (or {provider_key.upper()}_API_KEY) in runner.toml or OS environment."
         )
 
     if is_local_ollama:
-        client = OpenAI(api_key="ollama", base_url=endpoint or "http://localhost:11434/v1")
-    elif provider.lower() == "gemini":
-        client = OpenAI(api_key=resolved_key, base_url=endpoint or "https://generativelanguage.googleapis.com/v1beta/openai/")
+        client = OpenAI(api_key="ollama", base_url=target_endpoint or "http://localhost:11434/v1")
     else:
-        client = OpenAI(api_key=resolved_key, base_url=endpoint or None)
+        client = OpenAI(api_key=resolved_key, base_url=target_endpoint or None)
 
     # 4. Prepare Prompts
     system_prompt = (
@@ -215,23 +251,38 @@ def main(
         f"```json\n{json.dumps(raw_data, indent=2)}\n```"
     )
 
-    print(f"[classify_mesh_types] [INFO] Sending raw 3D metadata tree to {model} ({provider})...", flush=True)
+    print(f"[classify_mesh_types] [INFO] Sending raw 3D metadata tree to {target_model} ({provider_key})...", flush=True)
 
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            response_format={"type": "json_object"}
-        )
-        content = response.choices[0].message.content or "{}"
-        parsed = json.loads(content)
-    except Exception as e:
-        raise RuntimeError(
-            f"[classify_mesh_types] AI mesh classification failed using model '{model}' ({provider}): {e}"
-        ) from e
+    max_retries = 3
+    parsed = {}
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = client.chat.completions.create(
+                model=target_model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                response_format={"type": "json_object"}
+            )
+            content = response.choices[0].message.content or "{}"
+            parsed = json.loads(content)
+            break
+        except Exception as e:
+            err_str = str(e)
+            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                wait_secs = attempt * 4
+                print(f"[classify_mesh_types] [WARNING] Hit rate limit 429 on attempt {attempt}/{max_retries}. Waiting {wait_secs}s before retry...", flush=True)
+                time.sleep(wait_secs)
+                if attempt == max_retries:
+                    raise RuntimeError(
+                        f"[classify_mesh_types] Quota exhausted (429) for provider '{provider_key}' model '{target_model}'. "
+                        f"Suggestion: Switch provider to 'groq' (14,400 free requests/day) or use local 'ollama'. Details: {e}"
+                    ) from e
+            else:
+                raise RuntimeError(
+                    f"[classify_mesh_types] AI mesh classification failed using model '{target_model}' ({provider_key}): {e}"
+                ) from e
 
     # 5. Extract & Normalize Output
     raw_body = parsed.get("body_mesh")
