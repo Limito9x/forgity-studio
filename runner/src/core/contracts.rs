@@ -42,6 +42,8 @@ pub struct StepExecution {
     pub inputs: HashMap<String, serde_json::Value>,
     #[serde(default)]
     pub outputs: Vec<String>,
+    #[serde(default)]
+    pub dependencies: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,6 +65,8 @@ pub struct StageTaskMessage {
     pub resolved_data: HashMap<String, serde_json::Value>,
     #[serde(default)]
     pub environment_config: HashMap<String, serde_json::Value>,
+    #[serde(default)]
+    pub site_packages_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

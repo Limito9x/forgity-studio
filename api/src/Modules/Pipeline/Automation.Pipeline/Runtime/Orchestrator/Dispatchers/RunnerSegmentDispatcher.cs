@@ -157,6 +157,7 @@ public class RunnerSegmentDispatcher(
                     Order = i,
                     InputMappings = inputMappings,
                     Inputs = initialInputs,
+                    Dependencies = def?.Dependencies?.Select(d => !string.IsNullOrWhiteSpace(d.PackageName) ? d.PackageName : d.Module).Where(p => !string.IsNullOrWhiteSpace(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? [],
                 }
             );
 

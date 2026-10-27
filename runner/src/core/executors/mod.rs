@@ -110,6 +110,7 @@ mod tests {
             access_token: "mock_token".to_string(),
             grpc_endpoint: "http://localhost:50051".to_string(),
             environment_config: HashMap::new(),
+            site_packages_path: None,
             steps: vec![],
             resolved_data: HashMap::new(),
         }

@@ -18,6 +18,30 @@ pub struct StorageManager {
     base_dir: PathBuf,
 }
 
+/// Computes a deterministic SHA-256 hash prefix (16 chars) for a set of python package requirements.
+pub fn compute_dependencies_hash(packages: &[String]) -> String {
+    use sha2::{Digest, Sha256};
+
+    let mut unique_pkgs: Vec<String> = packages
+        .iter()
+        .map(|p| p.trim().to_lowercase())
+        .filter(|p| !p.is_empty())
+        .collect();
+
+    unique_pkgs.sort();
+    unique_pkgs.dedup();
+
+    if unique_pkgs.is_empty() {
+        return "empty".to_string();
+    }
+
+    let canonical_str = unique_pkgs.join("\n");
+    let mut hasher = Sha256::new();
+    hasher.update(canonical_str.as_bytes());
+    let full_hash = hex::encode(hasher.finalize());
+    full_hash[..16].to_string()
+}
+
 impl StorageManager {
     pub fn new(base_dir: Option<PathBuf>) -> Self {
         let raw = base_dir.unwrap_or_else(|| {
@@ -47,6 +71,10 @@ impl StorageManager {
 
     pub fn python_packages_dir(&self) -> PathBuf {
         self.cache_dir().join("python-packages")
+    }
+
+    pub fn get_python_package_dir(&self, hash: &str) -> PathBuf {
+        self.python_packages_dir().join(hash)
     }
 
     pub fn temp_dir(&self) -> PathBuf {
