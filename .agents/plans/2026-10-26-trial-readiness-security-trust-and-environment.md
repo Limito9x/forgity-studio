@@ -140,3 +140,4 @@
 3. Tại `RunPipelineModal`: Hiển thị rõ ràng checklist môi trường Runner, ngăn việc bấm chạy khi Runner offline.
 4. Mẫu email gửi thử đạt điểm spam < 1.0 trên Mail-Tester và vào thẳng Primary Inbox của Gmail/Outlook.
 5. Toàn bộ test TypeScript (`pnpm tsc`) và Backend tests (`dotnet test`) tiếp tục pass 100%.
+

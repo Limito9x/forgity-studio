@@ -1,4 +1,4 @@
-import { useMemo, memo, useEffect } from "react";
+import { useMemo, memo, useEffect, useState } from "react";
 import type { Node } from "@xyflow/react";
 import { useForm } from "react-hook-form";
 import { Sliders, CheckCircle2 } from "lucide-react";
@@ -17,6 +17,8 @@ import { NodeConfigDiagnosticsBanner } from "./inspector/NodeConfigDiagnosticsBa
 import { NodeConfigStructSelector } from "./inspector/NodeConfigStructSelector";
 import { NodeConfigModeSelector } from "./inspector/NodeConfigModeSelector";
 import { NodeConfigWiredInputs } from "./inspector/NodeConfigWiredInputs";
+import { useCustomNodeSource } from "../../hooks/useCustomNodeSource";
+import { InspectScriptCodeDialog } from "../../dialogs/InspectScriptCodeDialog";
 
 interface NodeConfigInspectorProps {
   pipelineId?: string;
@@ -46,6 +48,10 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
 
   const data = (node?.data as unknown as CustomPipelineNodeData) || {};
   const definition = useNodeDefinition(data.kind, data.refId);
+
+  const [isSourceDialogOpen, setIsSourceDialogOpen] = useState(false);
+  const isCustomNode = Boolean(definition?.id) && (data.kind === "Custom" || definition?.source === "Custom");
+  const { data: sourceData } = useCustomNodeSource(definition?.id, isSourceDialogOpen);
 
   // Contract-driven check: No hardcoded title/string guessing
   const isLifecycleEntry =
@@ -149,6 +155,8 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
         executor={data.executor}
         isLifecycleEntry={isLifecycleEntry}
         isReadOnly={isReadOnly}
+        canViewSource={isCustomNode}
+        onViewSource={() => setIsSourceDialogOpen(true)}
         onDelete={() => onDeleteNode(node.id)}
         onClose={onClose}
       />
@@ -255,6 +263,17 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
           </div>
         )}
       </ScrollArea>
+
+      {/* Script Source Inspection Dialog */}
+      {isCustomNode && (
+        <InspectScriptCodeDialog
+          isOpen={isSourceDialogOpen}
+          onClose={() => setIsSourceDialogOpen(false)}
+          fileName={sourceData?.fileName || `${data.label || data.refId || "script"}.py`}
+          executor={sourceData?.executor || data.executor || "Python"}
+          scriptContent={sourceData?.content}
+        />
+      )}
     </div>
   );
 }, (prev, next) => {

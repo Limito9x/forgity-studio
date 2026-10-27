@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useDropzone } from "react-dropzone";
 import {
   Dialog,
@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   UploadCloud,
   FileJson,
@@ -20,15 +21,28 @@ import {
   Code2,
   RotateCcw,
   Layers,
+  Sparkles,
+  Check,
+  Eye,
+  Download,
+  ShieldAlert,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { appConfig } from "@/config/appConfig";
 import {
   useValidatePackageMutation,
   useImportPackageMutation,
   type PipelinePackageDto,
   type ValidatePipelinePackageResponseDto,
 } from "../hooks/usePipelineExportImport";
+import type { PipelinePackageScriptDto } from "@/gen/model";
+import {
+  generatePipelineSecurityAuditPrompt,
+  downloadScriptFile,
+} from "../utils/pipelineSecurityAudit";
+import { InspectScriptCodeDialog } from "./InspectScriptCodeDialog";
 
 interface ImportPipelineDialogProps {
   projectId: string;
@@ -48,6 +62,9 @@ export function ImportPipelineDialog({
   const [validationResult, setValidationResult] =
     useState<ValidatePipelinePackageResponseDto | null>(null);
   const [namePrefix, setNamePrefix] = useState<string>("");
+  const [isTrusted, setIsTrusted] = useState(false);
+  const [copiedAuditPrompt, setCopiedAuditPrompt] = useState(false);
+  const [inspectingScript, setInspectingScript] = useState<PipelinePackageScriptDto | null>(null);
 
   const validateMutation = useValidatePackageMutation();
   const importMutation = useImportPackageMutation(projectId);
@@ -57,6 +74,9 @@ export function ImportPipelineDialog({
     setPackageData(null);
     setValidationResult(null);
     setNamePrefix("");
+    setIsTrusted(false);
+    setCopiedAuditPrompt(false);
+    setInspectingScript(null);
   }, []);
 
   const handleClose = () => {
@@ -86,6 +106,7 @@ export function ImportPipelineDialog({
 
         setSelectedFile(file);
         setPackageData(parsed);
+        setIsTrusted(false);
 
         // Run Pre-flight validation on Backend
         const res = await validateMutation.mutateAsync({
@@ -107,6 +128,35 @@ export function ImportPipelineDialog({
     disabled: validateMutation.isPending || importMutation.isPending,
   });
 
+  const hasNewCustomScripts = useMemo(() => {
+    return validationResult?.scripts.some((s) => !s.alreadyExists) ?? false;
+  }, [validationResult]);
+
+  const handleCopyAllForAiAudit = () => {
+    if (!packageData?.scripts || packageData.scripts.length === 0) {
+      toast.error("No scripts found in this package to audit.");
+      return;
+    }
+
+    const prompt = generatePipelineSecurityAuditPrompt(
+      packageData.scripts,
+      selectedFile?.name || "Pipeline Bundle"
+    );
+
+    navigator.clipboard.writeText(prompt);
+    setCopiedAuditPrompt(true);
+    toast.success(
+      `Copied AI security audit prompt for ${packageData.scripts.length} script(s)! Paste into ChatGPT/Claude to audit.`,
+      { duration: 4000 }
+    );
+    setTimeout(() => setCopiedAuditPrompt(false), 2500);
+  };
+
+  const handleDownloadScript = (script: PipelinePackageScriptDto) => {
+    downloadScriptFile(script.fileName, script.scriptContent);
+    toast.success(`Downloaded ${script.fileName}`);
+  };
+
   const handleConfirmImport = async () => {
     if (!packageData) return;
 
@@ -126,29 +176,30 @@ export function ImportPipelineDialog({
   };
 
   return (
-    <Dialog
-      isOpen={isOpen}
-      onOpenChange={(open) => {
-        if (!open && !importMutation.isPending) {
-          handleClose();
-        }
-      }}
-      className="sm:max-w-2xl"
-    >
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-2 text-base font-semibold">
-          <UploadCloud className="size-5 text-primary" />
-          <span>Import Pipeline Package</span>
-        </DialogTitle>
-        <p className="text-xs text-muted-foreground">
-          Import single or batch pipelines with automatic SubPipeline & script dependencies resolution.
-        </p>
-      </DialogHeader>
+    <>
+      <Dialog
+        isOpen={isOpen}
+        onOpenChange={(open) => {
+          if (!open && !importMutation.isPending) {
+            handleClose();
+          }
+        }}
+        className="sm:max-w-2xl"
+      >
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+            <UploadCloud className="size-5 text-primary" />
+            <span>Import Pipeline Package</span>
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground">
+            Import standalone or multi-pipeline bundles into {appConfig.name} with automated dependency resolution.
+          </p>
+        </DialogHeader>
 
-      {/* Step 1: Dropzone (When no file is selected yet) */}
-      {!validationResult && (
-        <div className="py-2">
-          <div
+        {/* Step 1: Dropzone (When no file is selected yet) */}
+        {!validationResult && (
+          <div className="py-2">
+            <div
               {...getRootProps()}
               className={cn(
                 "border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-colors duration-200",
@@ -184,9 +235,9 @@ export function ImportPipelineDialog({
           </div>
         )}
 
-      {/* Step 2: Pre-flight Review Screen */}
-      {validationResult && (
-        <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
+        {/* Step 2: Pre-flight Review Screen */}
+        {validationResult && (
+          <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
             {/* Package Summary Header */}
             <div className="bg-muted/40 p-3.5 rounded-lg border flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -260,7 +311,7 @@ export function ImportPipelineDialog({
               <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5" /> Pipelines to Import ({validationResult.pipelines.length})
               </div>
-              <div className="space-y-1.5 max-h-[180px] overflow-y-auto border rounded-lg p-2 bg-card">
+              <div className="space-y-1.5 max-h-[160px] overflow-y-auto border rounded-lg p-2 bg-card">
                 {validationResult.pipelines.map((p) => {
                   const displayName = namePrefix.trim()
                     ? `${namePrefix.trim()} ${p.name}`
@@ -313,44 +364,132 @@ export function ImportPipelineDialog({
               </div>
             </div>
 
-            {/* Custom Scripts Dependencies (if any) */}
+            {/* Custom Scripts Dependencies & Trust Gate */}
             {validationResult.scripts.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <Code2 className="w-3.5 h-3.5" /> Bundled Custom Scripts ({validationResult.scripts.length})
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Code2 className="w-3.5 h-3.5" /> Bundled Custom Scripts ({validationResult.scripts.length})
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/10"
+                    onPress={handleCopyAllForAiAudit}
+                  >
+                    {copiedAuditPrompt ? (
+                      <>
+                        <Check className="size-3.5 text-emerald-500" />
+                        Prompt Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="size-3.5 text-primary" />
+                        Copy All for AI Audit
+                      </>
+                    )}
+                  </Button>
                 </div>
-                <div className="grid grid-cols-2 gap-2 border rounded-lg p-2 bg-card max-h-[130px] overflow-y-auto">
-                  {validationResult.scripts.map((s) => (
-                    <div
-                      key={s.key}
-                      className="p-2 rounded border bg-muted/20 flex items-center justify-between text-xs"
-                    >
-                      <div className="truncate mr-2">
-                        <div className="font-mono font-medium text-[11px] truncate">{s.fileName}</div>
-                        <div className="text-[10px] text-muted-foreground uppercase">{s.executor}</div>
+
+                <div className="grid grid-cols-2 gap-2 border rounded-lg p-2 bg-card max-h-[140px] overflow-y-auto">
+                  {validationResult.scripts.map((s) => {
+                    const matchedPackageScript = packageData?.scripts?.find(
+                      (ps) => ps.key === s.key || ps.fileName === s.fileName
+                    );
+
+                    return (
+                      <div
+                        key={s.key}
+                        className="p-2 rounded border bg-muted/20 flex items-center justify-between text-xs group"
+                      >
+                        <div className="truncate mr-2">
+                          <div className="font-mono font-medium text-[11px] truncate flex items-center gap-1">
+                            <span>{s.fileName}</span>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground uppercase">{s.executor}</div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {s.alreadyExists ? (
+                            <Badge variant="secondary" className="text-[10px] h-4 py-0 text-emerald-600 bg-emerald-50 border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3 mr-0.5" /> Reused
+                            </Badge>
+                          ) : (s as any).hasScriptContent === false ? (
+                            <Badge variant="outline" className="text-[10px] h-4 py-0 text-amber-600 bg-amber-500/10 border-amber-500/30">
+                              <AlertTriangle className="w-3 h-3 mr-0.5" /> Missing
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] h-4 py-0 text-primary border-primary/30">
+                              New
+                            </Badge>
+                          )}
+
+                          {matchedPackageScript && (
+                            <div className="flex items-center gap-0.5">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-6 text-muted-foreground hover:text-foreground"
+                                onPress={() => setInspectingScript(matchedPackageScript)}
+                                title="Inspect Script Source Code"
+                              >
+                                <Eye className="size-3" />
+                              </Button>
+
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-6 text-muted-foreground hover:text-foreground"
+                                onPress={() => handleDownloadScript(matchedPackageScript)}
+                                title="Download .py file"
+                              >
+                                <Download className="size-3" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      {s.alreadyExists ? (
-                        <Badge variant="secondary" className="text-[10px] h-4 py-0 text-emerald-600 bg-emerald-50 border-emerald-200">
-                          <CheckCircle2 className="w-3 h-3 mr-1" /> Reused
-                        </Badge>
-                      ) : (s as any).hasScriptContent === false ? (
-                        <Badge variant="outline" className="text-[10px] h-4 py-0 text-amber-600 bg-amber-500/10 border-amber-500/30">
-                          <AlertTriangle className="w-3 h-3 mr-1" /> Missing Code
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[10px] h-4 py-0 text-primary border-primary/30">
-                          New Node
-                        </Badge>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
+
+                {/* Trust Gate Acknowledgment Box */}
+                {hasNewCustomScripts && (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 space-y-2 animate-in fade-in duration-150">
+                    <div className="flex items-start gap-2.5">
+                      <ShieldAlert className="size-4.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <div className="space-y-0.5">
+                        <div className="text-xs font-semibold text-amber-950 dark:text-amber-200">
+                          Security & Script Trust Gate
+                        </div>
+                        <p className="text-[11px] text-amber-900/80 dark:text-amber-300/80 leading-relaxed">
+                          This pipeline contains <strong>custom Python code</strong> that will execute on your local workstation DCC environment via {appConfig.name} Runner. You can review the scripts or use the 1-click AI audit prompt above before granting execution trust.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1 border-t border-amber-500/20">
+                      <Checkbox
+                        isSelected={isTrusted}
+                        onChange={setIsTrusted}
+                        id="trust-gate-checkbox"
+                      />
+                      <label
+                        htmlFor="trust-gate-checkbox"
+                        className="text-xs font-medium text-amber-950 dark:text-amber-100 cursor-pointer select-none"
+                      >
+                        I have inspected the bundled Python scripts and trust their execution on this machine.
+                      </label>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
 
-      <DialogFooter className="pt-3 border-t flex flex-row items-center justify-between sm:justify-between w-full">
+        <DialogFooter className="pt-3 border-t flex flex-row items-center justify-between sm:justify-between w-full">
           <Button
             type="button"
             variant="outline"
@@ -366,13 +505,22 @@ export function ImportPipelineDialog({
               type="button"
               size="sm"
               onPress={handleConfirmImport}
-              isDisabled={!validationResult.isValid || importMutation.isPending}
+              isDisabled={
+                !validationResult.isValid ||
+                importMutation.isPending ||
+                (hasNewCustomScripts && !isTrusted)
+              }
               className="gap-1.5"
             >
               {importMutation.isPending ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   Importing Package...
+                </>
+              ) : hasNewCustomScripts ? (
+                <>
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  Trust & Import {validationResult.packageMetadata.totalPipelines} Pipeline(s)
                 </>
               ) : (
                 <>
@@ -384,5 +532,17 @@ export function ImportPipelineDialog({
           )}
         </DialogFooter>
       </Dialog>
-    );
-  }
+
+      {/* Script Source Code Inspector Modal */}
+      {inspectingScript && (
+        <InspectScriptCodeDialog
+          isOpen={Boolean(inspectingScript)}
+          onClose={() => setInspectingScript(null)}
+          fileName={inspectingScript.fileName}
+          executor={inspectingScript.executor}
+          scriptContent={inspectingScript.scriptContent}
+        />
+      )}
+    </>
+  );
+}
