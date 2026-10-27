@@ -105,7 +105,7 @@ public class PythonScriptSchemaParserTests
     [Fact]
     public void Parse_ClassifyMaterialManifest_ShouldExtractCleanPinsAndPythonExecutor()
     {
-        var filePath = @"d:\FullStack\Automation\workers\pipelines\ai\classify_material_manifest.py";
+        var filePath = @"d:\FullStack\Automation\pipeline-scripts\ai\classify_material_manifest.py";
         if (File.Exists(filePath))
         {
             var content = File.ReadAllText(filePath);
@@ -128,7 +128,7 @@ public class PythonScriptSchemaParserTests
     [Fact]
     public void Parse_ClassifyMeshTypes_ShouldExtractCleanPinsAndPythonExecutor()
     {
-        var filePath = @"d:\FullStack\Automation\workers\pipelines\ai\classify_mesh_types.py";
+        var filePath = @"d:\FullStack\Automation\pipeline-scripts\ai\classify_mesh_types.py";
         if (File.Exists(filePath))
         {
             var content = File.ReadAllText(filePath);
@@ -153,7 +153,7 @@ public class PythonScriptSchemaParserTests
     [Fact]
     public void Parse_ExportFbx_ShouldNotContainRootFolderPin()
     {
-        var filePath = @"d:\FullStack\Automation\workers\pipelines\blender\export_fbx.py";
+        var filePath = @"d:\FullStack\Automation\pipeline-scripts\blender\export_fbx.py";
         if (File.Exists(filePath))
         {
             var content = File.ReadAllText(filePath);

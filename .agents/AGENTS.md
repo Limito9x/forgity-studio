@@ -15,7 +15,8 @@ Dự án gồm 3 phần độc lập nhưng liên kết chặt chẽ và chia s�
 - **`packages/proto/`**: Nguồn chân lý duy nhất (Single Source of Truth) cho các hợp đồng gRPC Protobuf (`agent.proto`, `execution_state.proto`).
 - **`api/` (Backend Core)**: .NET 10 Modular Monolith, Vertical Slice Architecture (VSA), FastEndpoints, Wolverine, EF Core, PostgreSQL, RabbitMQ, gRPC.
 - **`web/` (Frontend & Desktop)**: Tauri v2 + React 19, Vite, Tailwind CSS, Shadcn (React Aria Components), TanStack Router/Query, Orval API Client.
-- **`workers/` (Pipeline Worker Daemon)**: Python 3.12+ Worker, RabbitMQ Consumer, gRPC Client, Subprocess Headless Executors cho Blender và Unreal Engine.
+- **`runner/` (Native Rust Runner Daemon)**: Rust Host Daemon độc lập (`forgity-runner`), Windows Job Object containment, Named Pipe IPC, zero-RAM S3 streaming, CLI cleaner.
+- **`pipeline-scripts/` (Kho Scripts Nghiệp Vụ DCC & Python)**: Toàn bộ script tools phẳng theo Executor (`blender/`, `unreal/`, `daz/`, `ai/`, `presets/`), độc lập với Runner binary.
 
 ---
 
@@ -35,9 +36,9 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
    👉 Đọc [rules/frontend.md](file:///d:/FullStack/Automation/.agents/rules/frontend.md)
    - _Sử dụng `pnpm`, Không sửa `src/gen`, React Aria Shadcn stack, Custom hooks bọc API, Temporal API, `pnpm tsc`._
 
-4. **Khi thao tác với Worker (`workers/`)**:
-   👉 Đọc [rules/workers.md](file:///d:/FullStack/Automation/.agents/rules/workers.md)
-   - _Không xóa hay import trực tiếp Stage Runners, BaseSubprocessExecutor, Dọn rác RAM engine, RabbitMQ contracts._
+4. **Khi thao tác với Runner (`runner/`) & Scripts (`pipeline-scripts/`)**:
+   👉 Đọc [rules/runner.md](file:///d:/FullStack/Automation/.agents/rules/runner.md)
+   - _Native Rust Daemon, Windows Job Object containment, Named Pipe IPC, Single guest runner, Phẳng hóa scripts, Dọn rác CLI._
 
 ---
 
@@ -64,7 +65,7 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 | :--- | :--- | :--- |
 | **Pipeline Engine Lifecycle** | [.agents/playbooks/pipeline-engine.md](file:///d:/FullStack/Automation/.agents/playbooks/pipeline-engine.md) | Luồng Run -> DAG Planner -> Memory/Entity/State Store -> Phân đoạn DotNet / RunnerSegment -> RabbitMQ -> Worker Subprocess -> Cancel gọn -> SignalR. |
 | **Pipeline Canvas & File Sync** | [.agents/playbooks/pipeline-canvas-sync.md](file:///d:/FullStack/Automation/.agents/playbooks/pipeline-canvas-sync.md) | Cơ chế Autosave Debounce 600ms, Sync toàn đồ thị (SavePipelineGraph), Quy ước File Pin: Draft `{ assetId, originalName }` -> DB `{ assetLinkId }`. |
-| **Worker Runtime & Storage** | [.agents/playbooks/worker-runtime.md](file:///d:/FullStack/Automation/.agents/playbooks/worker-runtime.md) | Quản lý runtime storage (`cache/scripts`, `cache/assets`, `temp/`, `logs/`), lock `.storage.lock`, Script resolver theo SHA-256 hash, Background cleanup daemon. |
+| **Runner Runtime & Storage** | [.agents/playbooks/runner-runtime.md](file:///d:/FullStack/Automation/.agents/playbooks/runner-runtime.md) | Quản lý runtime storage (`cache/scripts`, `cache/assets`, `cache/python-packages`, `temp/`, `logs/`), lock `.storage.lock`, Windows Job Object, Named Pipe IPC, CLI cleanup daemon. |
 | **Resource & GameplayTags Lifecycle** | [.agents/playbooks/resource-repository-lifecycle.md](file:///d:/FullStack/Automation/.agents/playbooks/resource-repository-lifecycle.md) | Vòng đời Repository -> Resource -> ResourceVersion -> Mount Locations, Inspection JSON metadata, Phân rã TagLink theo SubPath, TagPanel Dnd & Shift-Click. |
 | **Files & Storage Lifecycle** | [.agents/playbooks/files-storage-lifecycle.md](file:///d:/FullStack/Automation/.agents/playbooks/files-storage-lifecycle.md) | Vòng đời StorageProfile (Studio Cloud vs BYOS), Asset (CAS Deduplication) vs AssetLink (Zero-byte copy), Presigned Upload 2 pha, Batch Cross-Storage Piped Streaming 8MB chunk & Job Tracker. |
 

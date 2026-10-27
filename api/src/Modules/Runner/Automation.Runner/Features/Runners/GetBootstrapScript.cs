@@ -193,9 +193,6 @@ echo ""[Automation Studio] Downloading runner...""";
         direct = Path.Combine(AppContext.BaseDirectory, "Scripts", scriptName);
         if (File.Exists(direct)) return direct;
 
-        direct = Path.Combine(AppContext.BaseDirectory, "workers", "scripts", scriptName);
-        if (File.Exists(direct)) return direct;
-
         // 2. Scan upwards to locate runner/scripts/scriptName
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir != null)
