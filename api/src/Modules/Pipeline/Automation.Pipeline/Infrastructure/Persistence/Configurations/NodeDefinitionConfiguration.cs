@@ -51,5 +51,17 @@ public class NodeDefinitionConfiguration : IEntityTypeConfiguration<Domain.Entit
                 c => c == null ? 0 : JsonSerializer.Serialize(c, jsonOptions).GetHashCode(),
                 c => JsonSerializer.Deserialize<List<PinDefinition>>(JsonSerializer.Serialize(c, jsonOptions), jsonOptions)!
             ));
+
+        builder.Property(x => x.Dependencies)
+            .HasColumnType("jsonb")
+            .HasConversion(
+                v => JsonSerializer.Serialize(v, jsonOptions),
+                v => JsonSerializer.Deserialize<List<ScriptDependencyDto>>(v, jsonOptions) ?? new List<ScriptDependencyDto>()
+            )
+            .Metadata.SetValueComparer(new ValueComparer<List<ScriptDependencyDto>>(
+                (c1, c2) => JsonSerializer.Serialize(c1, jsonOptions) == JsonSerializer.Serialize(c2, jsonOptions),
+                c => c == null ? 0 : JsonSerializer.Serialize(c, jsonOptions).GetHashCode(),
+                c => JsonSerializer.Deserialize<List<ScriptDependencyDto>>(JsonSerializer.Serialize(c, jsonOptions), jsonOptions)!
+            ));
     }
 }

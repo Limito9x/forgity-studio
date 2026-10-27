@@ -1,8 +1,7 @@
 using Automation.Pipeline.BuildTime.Parsers;
+using Automation.Pipeline.Domain.ValueObjects;
 
 namespace Automation.Pipeline.BuildTime.Services;
-
-public record ScriptDependencyDto(string Module, string PackageName);
 
 public interface IScriptSchemaAnalyzer
 {

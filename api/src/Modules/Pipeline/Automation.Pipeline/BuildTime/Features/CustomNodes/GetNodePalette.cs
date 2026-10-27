@@ -132,7 +132,11 @@ public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext
                 pInputs,
                 pOutputs,
                 node.Id,
-                null
+                null,
+                false,
+                null,
+                true,
+                node.Dependencies
             ));
         }
 
@@ -237,5 +241,6 @@ public record NodePaletteItemDto(
     string? Description = null,
     bool HasDynamicPins = false,
     NodeCapabilitiesDto? Capabilities = null,
-    bool IsVisibleInPalette = true
+    bool IsVisibleInPalette = true,
+    IReadOnlyList<ScriptDependencyDto>? Dependencies = null
 );
