@@ -46,6 +46,18 @@
      - *"Environment Incomplete (Missing Blender/Unreal)"* (thiếu phần mềm).
      - *"Execute Run"* (tất cả đều xanh).
 
+### 2.3. Phase 3B: Runner Dynamic Cache Discovery & Recursive Storage Cleaner (`runner/`)
+1. **Dynamic Cache Discovery (`runner/src/storage/cache.rs` & `cleaner.rs`)**:
+   - Mở rộng `StorageManager`: Thêm `cache_dir()` và `python_packages_dir()` (`cache/python-packages/`).
+   - `StorageCleaner` tự động `read_dir` thư mục `cache/` quét mọi phân vùng, không còn hardcode cố định.
+2. **Recursive Cleanup & Accurate Size Calculation**:
+   - Hàm `get_path_size_recursive(&Path)` tính toán chính xác số bytes và item count của toàn bộ thư mục con trước khi xóa.
+   - Dùng `remove_dir_all` để dọn sạch triệt để cả các thư mục con rác (`__pycache__` hay package modules) thay vì bị lỗi do `remove_file`.
+3. **Per-Folder Retention Policy**:
+   - Chế độ **Maintenance (`forgity-runner clean`)**: Xóa `temp/`, log cũ hơn 7 ngày, và tự động prune các thư mục `python-packages/<hash>` không được dùng tới quá 7 ngày.
+   - Chế độ **Full Purge (`forgity-runner clean --all`)**: Xóa sạch toàn bộ assets, scripts, python-packages và temp.
+   - Bổ sung unit test `test_cleaner_dynamic_cache_discovery_and_purge` trong Rust passed 100%.
+
 ---
 
 ## 3. Ma Trận Đối Chiếu Trước & Sau (Before vs After)
@@ -55,6 +67,7 @@
 | **Kiểm tra Runner trước khi chạy** | Không kiểm tra; cho phép gửi lệnh ngay cả khi Runner tắt. | Preflight Checklist kiểm tra Realtime: Status, Heartbeat, DCC Versions. |
 | **Xử lý thiếu DCC / Python** | Treo vô hạn ở `WaitingForRunner`. | Khóa cứng nút bấm, hiển thị rõ phần mềm còn thiếu. |
 | **Lưu trữ Dependencies** | Bị chôn vùi trong `metadata` JSON tự do. | Trường dữ liệu `Dependencies (jsonb)` chuẩn hóa trong `NodeDefinition`. |
+| **Runner Cache Cleanup** | Hardcode 2 thư mục cố định; lỗi `remove_file` khi gặp subfolder/`__pycache__`. | Tự động dò quét toàn bộ `cache/`, dọn đệ quy `remove_dir_all`, prune `python-packages` theo tuổi. |
 | **Trải nghiệm Trial User** | Dễ gặp lỗi, không rõ nguyên nhân vì sao graph không chạy. | Giao diện thông báo rõ ràng, an tâm tuyệt đối trước khi bấm Run. |
 
 ---
@@ -64,3 +77,4 @@
 1. Bổ sung `Dependencies` vào message dispatch `StepExecution` qua RabbitMQ.
 2. Nâng cấp Runner Rust để cài đặt isolated packages vào `%USERPROFILE%\.automation-runner\cache\python-packages\<hash>\` qua `pip install --target`.
 3. Guest Runner (`stage_runner_guest.py`) tự động tiêm thư mục cache bằng `site.addsitedir()`.
+

@@ -100,3 +100,4 @@ Các script nghiệp vụ DCC được lưu trữ phẳng theo từng Executor t
 - `pipeline-scripts/daz/`: Script phân tích phả hệ Daz Studio (`daz_inspector.py`).
 - `pipeline-scripts/ai/`: Script phân tích vai trò `classify_mesh_types.py`, `classify_material_manifest.py`.
 - `pipeline-scripts/presets/`: Preset chuyển giao DCC.
+
