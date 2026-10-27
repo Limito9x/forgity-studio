@@ -171,13 +171,14 @@ def main(
     export_map: Optional[Union[Dict[str, str], List[str], str]] = None,
     output_dir: str = "",
     prefix: str = "",
-    preset_path: str = ""
+    preset_path: str = "",
+    **kwargs
 ) -> Dict[str, Any]:
     """
     Batch export modular scene meshes to FBX and auto-inspect material slots/textures.
 
     Args:
-        export_map: Mapping object_target -> filename, list of object names, or empty for all scene meshes.
+        export_map: Mapping of object target to filename or slot category, list of object names, or empty for all scene meshes. Supports receiving cloth_map, manifest, or clothes.
         output_dir: Directory where FBX files will be saved.
         prefix: Optional prefix prepended to output filenames and manifest keys (e.g. 'Eva_').
         preset_path: Optional path to Blender FBX export preset file.
@@ -187,20 +188,33 @@ def main(
             "export_map": {object_key: export_filepath},
             "manifest": {object_key: {asset_name, file_path, slot_count, slots}},
             "total_exported": int,
-            "exported_files": [export_filepath]
+            "exported_files": [export_filepath],
+            "metadata_update_map": {file_path: metadata_json_string}
         }
     """
-    # 1. Normalize export_map
-    if isinstance(export_map, str) and export_map.strip().startswith("{"):
-        import json
+    import json
+
+    # 1. Resolve raw_source from export_map or supported kwargs aliases
+    raw_source = export_map if export_map is not None else (
+        kwargs.get("cloth_map") or kwargs.get("manifest") or kwargs.get("clothes") or kwargs.get("mesh_names")
+    )
+
+    if isinstance(raw_source, str) and raw_source.strip().startswith(("{", "[")):
         try:
-            export_map = json.loads(export_map)
+            raw_source = json.loads(raw_source)
         except Exception:
             pass
 
+    # If raw_source is a wrapper dict containing cloth_map or export_map
+    if isinstance(raw_source, dict):
+        if "cloth_map" in raw_source and isinstance(raw_source["cloth_map"], dict):
+            raw_source = raw_source["cloth_map"]
+        elif "export_map" in raw_source and isinstance(raw_source["export_map"], dict):
+            raw_source = raw_source["export_map"]
+
     flat_map: Dict[str, str] = {}
-    if isinstance(export_map, list):
-        for item in export_map:
+    if isinstance(raw_source, list):
+        for item in raw_source:
             if isinstance(item, dict):
                 flat_map.update(item)
             elif isinstance(item, str) and ":" in item:
@@ -209,9 +223,9 @@ def main(
             elif isinstance(item, str) and item.strip():
                 k = item.strip()
                 flat_map[k] = f"{k}.fbx"
-    elif isinstance(export_map, dict):
-        flat_map = dict(export_map)
-    elif not export_map and hasattr(bpy, "data"):
+    elif isinstance(raw_source, dict):
+        flat_map = dict(raw_source)
+    elif not raw_source and hasattr(bpy, "data"):
         # Auto-detect all mesh objects in scene if export_map omitted
         for obj in bpy.data.objects:
             if obj.type == 'MESH':
@@ -304,10 +318,25 @@ def main(
             print(f"[batch_export_fbx] Error exporting '{object_target}': {e}", flush=True)
             raise RuntimeError(f"Failed to export '{object_target}': {e}")
 
+    # Build metadata_update_map for UpdateResourceMetadataTool (key: FilePath / FileName -> value: Metadata JSON)
+    metadata_update_map: Dict[str, str] = {}
+    for final_asset_name, item_meta in manifest.items():
+        clean_path = item_meta.get("file_path", "")
+        file_name = item_meta.get("file_name", "")
+        try:
+            meta_json = json.dumps(item_meta, indent=2, ensure_ascii=False)
+            if clean_path:
+                metadata_update_map[clean_path] = meta_json
+            if file_name and file_name not in metadata_update_map:
+                metadata_update_map[file_name] = meta_json
+        except Exception as ex:
+            print(f"[batch_export_fbx] Warning: failed to serialize manifest for '{final_asset_name}': {ex}", flush=True)
+
     exported_files = list(export_paths.values())
     return {
         "export_map": export_paths,
         "manifest": manifest,
         "total_exported": len(manifest),
-        "exported_files": exported_files
+        "exported_files": exported_files,
+        "metadata_update_map": metadata_update_map
     }
