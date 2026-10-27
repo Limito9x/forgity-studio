@@ -58,6 +58,19 @@
    - Chế độ **Full Purge (`forgity-runner clean --all`)**: Xóa sạch toàn bộ assets, scripts, python-packages và temp.
    - Bổ sung unit test `test_cleaner_dynamic_cache_discovery_and_purge` trong Rust passed 100%.
 
+### 2.4. Phase 3C: End-to-End Isolated Dynamic Dependencies Pipeline (Completed)
+1. **Backend Message Dispatch Contract (`AgentContracts.cs` & `RunnerSegmentDispatcher.cs`)**:
+   - `StepExecution` mang theo `dependencies: List<string>`.
+   - `RunnerSegmentDispatcher.cs` tự động trích xuất `Dependencies` từ `NodeDefinition` và gán vào từng Step khi gửi qua RabbitMQ.
+2. **Deterministic Specification Hasher & Pip Installer (`runner/src/storage/cache.rs` & `dispatcher.rs`)**:
+   - Hàm `compute_dependencies_hash(&[String])`: Chuẩn hóa, lọc trùng, sắp xếp từ điển (Lexicographical sort) và tính SHA-256 (16 hex chars).
+   - `StageDispatcher` kiểm tra `cache/python-packages/<hash>`:
+     - Nếu đã có: Tái sử dụng ngay 0ms, không tốn mạng hay thời gian cài đặt.
+     - Nếu chưa có: Tự động chạy `python -m pip install --target <pkg_dir> <deps>` một lần duy nhất.
+3. **Unified Single Source of Truth via `task.json` & Subprocess Site Injection (`stage_runner_guest.py`)**:
+   - Đường dẫn gói `site_packages_path` được ghi trực tiếp vào `task.json` (không làm ô nhiễm biến môi trường hệ điều hành).
+   - `stage_runner_guest.py` nạp động vào runtime DCC bằng `site.addsitedir(site_packages_path)`, cho phép script import mọi thư viện bên ngoài an toàn tuyệt đối.
+
 ---
 
 ## 3. Ma Trận Đối Chiếu Trước & Sau (Before vs After)
@@ -68,13 +81,14 @@
 | **Xử lý thiếu DCC / Python** | Treo vô hạn ở `WaitingForRunner`. | Khóa cứng nút bấm, hiển thị rõ phần mềm còn thiếu. |
 | **Lưu trữ Dependencies** | Bị chôn vùi trong `metadata` JSON tự do. | Trường dữ liệu `Dependencies (jsonb)` chuẩn hóa trong `NodeDefinition`. |
 | **Runner Cache Cleanup** | Hardcode 2 thư mục cố định; lỗi `remove_file` khi gặp subfolder/`__pycache__`. | Tự động dò quét toàn bộ `cache/`, dọn đệ quy `remove_dir_all`, prune `python-packages` theo tuổi. |
+| **Isolated Package Delivery** | Chưa có; người dùng phải tự pip install vào DCC hoặc hệ thống. | Tự động tải vào `cache/python-packages/<hash>`, nạp sạch qua `task.json` & `site.addsitedir`. |
 | **Trải nghiệm Trial User** | Dễ gặp lỗi, không rõ nguyên nhân vì sao graph không chạy. | Giao diện thông báo rõ ràng, an tâm tuyệt đối trước khi bấm Run. |
 
 ---
 
-## 4. Kế Hoạch Tiếp Nối (Phase 5: Runner Isolated Execution)
-
-1. Bổ sung `Dependencies` vào message dispatch `StepExecution` qua RabbitMQ.
-2. Nâng cấp Runner Rust để cài đặt isolated packages vào `%USERPROFILE%\.automation-runner\cache\python-packages\<hash>\` qua `pip install --target`.
-3. Guest Runner (`stage_runner_guest.py`) tự động tiêm thư mục cache bằng `site.addsitedir()`.
+## 4. Kết Luận & Nghiệm Thu
+Phase 3 (kết hợp cả Phase 3B và 3C) đã hoàn tất 100% mục tiêu:
+- Frontend: Preflight Checklist, Environment Verification, Dynamic Dependencies preview, Hard-block Run button.
+- Backend: First-class Dependencies contract trong DB, Palette, và Message Dispatcher.
+- Runner: Dynamic Cache Discovery, Recursive Storage Cleaner, Deterministic Specification Hashing, Automated Pip Target Installer, and Unified `task.json` Site Injection.
 

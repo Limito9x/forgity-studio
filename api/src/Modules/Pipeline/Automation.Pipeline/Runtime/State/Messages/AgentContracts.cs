@@ -68,6 +68,9 @@ public class StepExecution
 
     [JsonPropertyName("outputs")]
     public List<string> Outputs { get; set; } = [];
+
+    [JsonPropertyName("dependencies")]
+    public List<string> Dependencies { get; set; } = [];
 }
 
 public class StageTaskMessage
