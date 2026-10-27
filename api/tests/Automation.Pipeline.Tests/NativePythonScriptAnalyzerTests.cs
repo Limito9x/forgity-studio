@@ -122,7 +122,7 @@ public class NativePythonScriptAnalyzerTests
         string? scriptPath = null;
         for (int i = 0; i < 6 && dir != null; i++)
         {
-            var p = Path.Combine(dir.FullName, "workers", "pipelines", "ai", "classify_mesh_types.py");
+            var p = Path.Combine(dir.FullName, "pipeline-scripts", "ai", "classify_mesh_types.py");
             if (File.Exists(p)) { scriptPath = p; break; }
             dir = dir.Parent;
         }

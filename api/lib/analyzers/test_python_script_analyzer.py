@@ -228,7 +228,7 @@ def broken_syntax(
     def test_real_pipeline_script(self):
         script_path = os.path.join(
             os.path.dirname(__file__),
-            "../../../workers/pipelines/ai/classify_mesh_types.py"
+            "../../../pipeline-scripts/ai/classify_mesh_types.py"
         )
         if os.path.isfile(script_path):
             with open(script_path, "r", encoding="utf-8") as f:
