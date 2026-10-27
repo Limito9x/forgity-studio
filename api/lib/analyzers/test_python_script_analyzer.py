@@ -225,6 +225,24 @@ def broken_syntax(
         self.assertEqual(result["inputs"], [])
         self.assertEqual(result["outputs"], [])
 
+    def test_union_dict_string_resolves_to_map(self):
+        code = '''
+from typing import Union, Dict, Any, Optional
+
+def main(
+    raw_manifest: Union[Dict[str, Any], str],
+    contracts: Optional[Dict[str, Any]] = None,
+    options: Dict[str, Any] | str = "{}"
+):
+    return {"status": "ok"}
+'''
+        result = self.analyzer.analyze(code, "union_test.py")
+        inputs_by_name = {inp["name"]: inp for inp in result["inputs"]}
+
+        self.assertEqual(inputs_by_name["raw_manifest"]["cardinality"], "Map")
+        self.assertEqual(inputs_by_name["contracts"]["cardinality"], "Map")
+        self.assertEqual(inputs_by_name["options"]["cardinality"], "Map")
+
     def test_real_pipeline_script(self):
         script_path = os.path.join(
             os.path.dirname(__file__),

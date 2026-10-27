@@ -26,16 +26,30 @@ def normalize_type_and_cardinality(annotation_node: Optional[ast.AST]) -> Tuple[
                 non_none = [e for e in slice_node.elts if not _is_none(e)]
                 if len(non_none) == 1:
                     return normalize_type_and_cardinality(non_none[0])
+                # Prioritize Map or Array over scalar fallback (e.g. Union[Dict[str, Any], str] -> Map)
+                for candidate in non_none:
+                    c_type, c_card, c_opts = normalize_type_and_cardinality(candidate)
+                    if c_card in ("Map", "Array"):
+                        return c_type, c_card, c_opts
+                if non_none:
+                    return normalize_type_and_cardinality(non_none[0])
             else:
                 return normalize_type_and_cardinality(slice_node)
 
-    # 3. Python 3.10+ pipe union: e.g. str | None
+    # 3. Python 3.10+ pipe union: e.g. str | None or dict | str
     if isinstance(annotation_node, ast.BinOp) and isinstance(annotation_node.op, ast.BitOr):
         left, right = annotation_node.left, annotation_node.right
         if _is_none(right):
             return normalize_type_and_cardinality(left)
         if _is_none(left):
             return normalize_type_and_cardinality(right)
+        l_type, l_card, l_opts = normalize_type_and_cardinality(left)
+        r_type, r_card, r_opts = normalize_type_and_cardinality(right)
+        if l_card in ("Map", "Array"):
+            return l_type, l_card, l_opts
+        if r_card in ("Map", "Array"):
+            return r_type, r_card, r_opts
+        return l_type, l_card, l_opts
 
     # 4. List / Sequence / Set -> Array
     if isinstance(annotation_node, ast.Subscript):
