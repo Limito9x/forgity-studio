@@ -110,11 +110,10 @@ def extract_cloth_type(
     cloth_types_map: Optional[Union[Dict[str, str], str, List[Any]]] = None
 ) -> str:
     """
-    Extract semantic cloth type with 3-tier priority:
-      1. cloth_types_map (explicit mapping or list from classify_mesh_types)
-      2. Resource tags / manifest cloth_type
-      3. Precise keyword matching on item name
-    Returns empty string if item is not a recognized clothing asset.
+    Extract semantic cloth type strictly from explicit inputs or metadata:
+      1. Explicit cloth_types_map (from classify_mesh_types AI node or user mapping)
+      2. Item's own metadata (cloth_type field) or resource tags
+    Returns empty string if item does not have a cloth_type (no guesswork/heuristics).
     """
     # 1. Check explicit cloth_types mapping
     if isinstance(cloth_types_map, (str, list, tuple)):
@@ -154,25 +153,7 @@ def extract_cloth_type(
         if c in VALID_CLOTH_TYPES:
             return c
 
-    # 3. Fallback: Precise keyword detection on item name
-    name_lower = f"{item_key} {item_data.get('raw_name', '')} {item_data.get('asset_name', '')}".lower()
-
-    if any(w in name_lower for w in ["panty", "panties", "underwear", "briefs", "thong"]):
-        return "Panty"
-    if any(w in name_lower for w in ["bra", "bikini_top"]):
-        return "Bra"
-    if any(w in name_lower for w in ["shorts", "pant", "bottom", "skirt", "jeans", "trouser", "legging"]):
-        return "Bottom"
-    if any(w in name_lower for w in ["shirt", "top", "jacket", "hoodie", "sweater", "coat", "vest", "tshirt"]):
-        return "Top"
-    if any(w in name_lower for w in ["shoe", "boot", "sneaker", "heel", "sandal", "sock"]):
-        return "Shoes"
-    if any(w in name_lower for w in ["hair", "wig"]):
-        return "Hair"
-    if any(w in name_lower for w in ["glove", "mitt"]):
-        return "Gloves"
-
-    # Return empty string if no clothing keywords match — never blindly force "Top" or "Bottom"
+    # Strictly return empty string if no cloth_type provided — no keyword guessing
     return ""
 
 
@@ -436,26 +417,14 @@ def main(
     for item_key, (cloth_type, item_data) in valid_cloth_items.items():
         mesh_path = item_data.get("skeletal_mesh") or item_data.get("mesh_path") or ""
         base_name = item_data.get("base_name") or item_key
-        display_name = item_data.get("display_name") or format_display_name(item_key)
+        display_name = item_data.get("display_name") or item_data.get("base_name") or format_display_name(item_key)
 
         clean_item_stem = sanitize_asset_name(os.path.splitext(os.path.basename(item_key))[0])
-        short_stem = clean_item_stem
-        if resolved_char_name:
-            char_lower = resolved_char_name.lower().strip()
-            for p_part in [f"{char_lower}_outfit_duf_", f"{char_lower}_outfit_", f"{char_lower}_"]:
-                if short_stem.lower().startswith(p_part):
-                    short_stem = short_stem[len(p_part):]
-                    break
-        for generic_p in ["outfit_duf_", "outfit_"]:
-            if short_stem.lower().startswith(generic_p):
-                short_stem = short_stem[len(generic_p):]
-                break
-
         safe_type = cloth_type.lower()
         if prefix:
-            row_name = f"{prefix}_{safe_type}_{short_stem}"
+            row_name = f"{prefix}_{safe_type}_{clean_item_stem}"
         else:
-            row_name = f"{safe_type}_{short_stem}"
+            row_name = f"{safe_type}_{clean_item_stem}"
 
         # Build Material Slots Map conforming to ST_MaterialParams
         slots_source = item_data.get("material_slots") or item_data.get("slot_bindings") or {}
