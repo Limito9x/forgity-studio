@@ -5,27 +5,17 @@ Runs inside Unreal Engine via Python API (Unreal Engine 5.x) or Agent Worker Dry
 
 Consumes:
   1. objects_map (or batch_items): Dictionary or List of asset bindings produced by setup_asset_materials.py.
-     Structure:
-       {
-         "<object_name>": {
-           "skeletal_mesh": "/Game/.../MeshPath",
-           "material_slots": {
-             "SlotName": {
-               "material_instance": "/Game/.../MI_Path",
-               "color_param_name": "Tint_Color",
-               "default_color": {"R": 0.0, "G": 0.5, "B": 1.0, "A": 1.0}
-             }
-           }
-         }
-       }
   2. cloth_types: Optional mapping of object_name -> cloth_type (e.g. {"G9 Base Shorts": "Bottom", "G9 Base Shirt": "Top"})
-  3. datatable_directory: Destination folder in Content Browser (e.g. '/Game/Characters/Genesis9/Eva/Database')
+  3. datatable_directory: Destination folder in Content Browser (e.g. '/Game/Characters/Eva/Database')
   4. datatable_name: Name of the DataTable (e.g. 'DT_EvaWardrobe')
-  5. datatable_path: Optional full path overriding directory & name (e.g. '/Game/Characters/Genesis9/Eva/Database/DT_EvaWardrobe')
+  5. datatable_path: Optional full path overriding directory & name (e.g. '/Game/Characters/Eva/Database/DT_EvaWardrobe')
   6. struct_path: Path to UScriptStruct / UserDefinedStruct (default: '/Game/Characters/Database/ST_AppearanceItem.ST_AppearanceItem')
   7. character_name: Character identifier (default: 'Eva')
+  8. should_register: Master boolean flag (from Start Pipeline or user configuration) to skip or allow registration.
 
 Performs:
+  - If should_register is False: immediately skips execution and returns status: "skipped" without touching any DataTable.
+  - Inspects items to ensure only valid modular clothing items (Top, Bottom, Shoes, Hair...) are registered; skips Body/non-cloth items.
   - Ensures target DataTable exists, creating it from struct_path if necessary.
   - Dynamically adapts to either UserDefinedStruct GUID keys or friendly property names.
   - Reads existing rows into memory to prevent overwriting unrelated wardrobe items (Safe Upsert).
@@ -121,9 +111,10 @@ def extract_cloth_type(
 ) -> str:
     """
     Extract semantic cloth type with 3-tier priority:
-      1. cloth_types_map (explicit mapping or list)
-      2. Resource tags / manifest category
-      3. Heuristic keyword matching
+      1. cloth_types_map (explicit mapping or list from classify_mesh_types)
+      2. Resource tags / manifest cloth_type
+      3. Precise keyword matching on item name
+    Returns empty string if item is not a recognized clothing asset.
     """
     # 1. Check explicit cloth_types mapping
     if isinstance(cloth_types_map, (str, list, tuple)):
@@ -163,7 +154,7 @@ def extract_cloth_type(
         if c in VALID_CLOTH_TYPES:
             return c
 
-    # 3. Fallback: Heuristic keyword detection on item name
+    # 3. Fallback: Precise keyword detection on item name
     name_lower = f"{item_key} {item_data.get('raw_name', '')} {item_data.get('asset_name', '')}".lower()
 
     if any(w in name_lower for w in ["panty", "panties", "underwear", "briefs", "thong"]):
@@ -181,7 +172,8 @@ def extract_cloth_type(
     if any(w in name_lower for w in ["glove", "mitt"]):
         return "Gloves"
 
-    return "Bottom" if "short" in name_lower else "Top"
+    # Return empty string if no clothing keywords match — never blindly force "Top" or "Bottom"
+    return ""
 
 
 def detect_field_keys(sample_row: Dict[str, Any]) -> tuple:
@@ -226,7 +218,7 @@ def detect_field_keys(sample_row: Dict[str, Any]) -> tuple:
     return item_keys, param_keys
 
 
-def ensure_datatable_exists(datatable_path: str, struct_path: str = "") -> Any:
+def ensure_datatable_exists(datatable_path: str, struct_path: str = "", character_name: str = "Eva") -> Any:
     """Ensure DataTable asset exists, create it from struct_path if necessary."""
     if not HAS_UNREAL:
         return None
@@ -243,7 +235,7 @@ def ensure_datatable_exists(datatable_path: str, struct_path: str = "") -> Any:
     if not row_struct:
         fallback_structs = [
             "/Game/Characters/Database/ST_AppearanceItem.ST_AppearanceItem",
-            "/Game/Characters/Eva/Data/ST_AppearanceItem.ST_AppearanceItem",
+            f"/Game/Characters/{character_name}/Data/ST_AppearanceItem.ST_AppearanceItem",
             "/Game/Blueprints/Appearance/ST_AppearanceItem.ST_AppearanceItem",
         ]
         for candidate in fallback_structs:
@@ -274,11 +266,32 @@ def main(
     datatable_directory: str = "",
     datatable_name: str = "",
     struct_path: str = "/Game/Characters/Database/ST_AppearanceItem.ST_AppearanceItem",
+    should_register: bool = True,
     **kwargs
 ) -> Dict[str, Any]:
     """
     Main entry point for batch registration of modular cloth assets into Wardrobe DataTable.
+
+    Args:
+        objects_map: Asset material bindings dictionary from setup_asset_materials.
+        cloth_types: Optional explicit mapping of mesh name to cloth type.
+        datatable_directory: Destination folder in Content Browser.
+        datatable_name: Name of the DataTable.
+        struct_path: Unreal row struct path.
+        should_register: Master boolean flag to skip or allow registration.
     """
+    # 0. Master Switch: Circuit breaker for user intent or body-only pipelines
+    if not should_register:
+        print("[register_appearance_datatable] ⏭️ Skipped registration: 'should_register' is False.", flush=True)
+        return {
+            "status": "skipped",
+            "message": "Skipped registration because should_register is False",
+            "datatable_path": "",
+            "items_registered_count": 0,
+            "total_rows_in_datatable": 0,
+            "registered_rows": []
+        }
+
     # Read optional configuration from kwargs
     datatable_path = kwargs.get("datatable_path", "")
     character_name = kwargs.get("character_name") or "Eva"
@@ -286,6 +299,7 @@ def main(
     color_param_name = kwargs.get("color_param_name") or "Tint_Color"
     row_name_prefix = kwargs.get("row_name_prefix")
     batch_items = kwargs.get("batch_items")
+
     # 1. Normalize input items (objects_map or fallback batch_items)
     raw_input = objects_map if objects_map is not None else batch_items
     items_dict: Dict[str, Any] = {}
@@ -316,9 +330,36 @@ def main(
 
     if not items_dict:
         print("[register_appearance_datatable] Warning: No items provided in objects_map.", flush=True)
-        return {"status": "skipped", "message": "No items provided"}
+        return {
+            "status": "skipped",
+            "message": "No items provided",
+            "datatable_path": "",
+            "items_registered_count": 0,
+            "total_rows_in_datatable": 0,
+            "registered_rows": []
+        }
 
-    # 2. Resolve DataTable Path
+    # 2. Filter clothing items: Skip body meshes or non-cloth assets cleanly
+    valid_cloth_items: Dict[str, tuple[str, Dict[str, Any]]] = {}
+    for item_key, item_data in items_dict.items():
+        c_type = extract_cloth_type(item_key, item_data, cloth_types)
+        if not c_type:
+            print(f"[register_appearance_datatable] ⏭️ Skipping non-clothing item '{item_key}' (no cloth_type found).", flush=True)
+            continue
+        valid_cloth_items[item_key] = (c_type, item_data)
+
+    if not valid_cloth_items:
+        print("[register_appearance_datatable] ⏭️ No valid clothing items found in input. Skipping registration.", flush=True)
+        return {
+            "status": "skipped",
+            "message": "No valid clothing items found in input",
+            "datatable_path": "",
+            "items_registered_count": 0,
+            "total_rows_in_datatable": 0,
+            "registered_rows": []
+        }
+
+    # 3. Resolve DataTable Path
     if datatable_path and datatable_path.strip():
         final_dt_path = _clean_ue_path(datatable_path)
     else:
@@ -326,14 +367,14 @@ def main(
         resolved_dir = datatable_directory.strip() if datatable_directory else ""
         if not resolved_dir:
             # Check if mesh path provides directory hint
-            for v in items_dict.values():
-                mesh_p = v.get("skeletal_mesh") or v.get("mesh_path") or ""
+            for _, item_data in valid_cloth_items.values():
+                mesh_p = item_data.get("skeletal_mesh") or item_data.get("mesh_path") or ""
                 if mesh_p and mesh_p.startswith("/Game/"):
                     char_root = mesh_p.split("/Outfits")[0] if "/Outfits" in mesh_p else os.path.dirname(mesh_p)
                     resolved_dir = f"{char_root}/Database"
                     break
             if not resolved_dir:
-                resolved_dir = f"/Game/Characters/Genesis9/{character_name}/Database"
+                resolved_dir = f"/Game/Characters/{character_name}/Database"
 
         # Resolve table name
         resolved_name = datatable_name.strip() if datatable_name else f"DT_{character_name}Wardrobe"
@@ -342,17 +383,17 @@ def main(
     def_color = default_color or {"R": 0.0, "G": 0.5, "B": 1.0, "A": 1.0}
     prefix = row_name_prefix or f"{character_name}_outfit"
 
-    print(f"[register_appearance_datatable] Registering {len(items_dict)} asset(s) to DataTable: '{final_dt_path}'...", flush=True)
+    print(f"[register_appearance_datatable] Registering {len(valid_cloth_items)} clothing asset(s) to DataTable: '{final_dt_path}'...", flush=True)
     print(f"  Struct Path: '{struct_path}'", flush=True)
 
-    # 3. Load or create DataTable and retrieve existing rows
+    # 4. Load or create DataTable and retrieve existing rows
     existing_rows_dict: Dict[str, Dict[str, Any]] = {}
     dt_asset = None
     item_guid_keys = dict(DEFAULT_ITEM_GUID_KEYS)
     param_guid_keys = dict(DEFAULT_PARAM_GUID_KEYS)
 
     if HAS_UNREAL:
-        dt_asset = ensure_datatable_exists(final_dt_path, struct_path)
+        dt_asset = ensure_datatable_exists(final_dt_path, struct_path, character_name)
         if dt_asset:
             try:
                 raw_json = unreal.DataTableFunctionLibrary.export_data_table_to_json_string(dt_asset)
@@ -370,24 +411,23 @@ def main(
             except Exception as e:
                 print(f"[register_appearance_datatable] Note: Could not export existing rows ({e}). Proceeding fresh.", flush=True)
 
-    # 4. Upsert each item in RAM
+    # 5. Upsert each valid clothing item in RAM
     registered_rows: List[Dict[str, Any]] = []
 
-    for item_key, item_data in items_dict.items():
-        cloth_type = extract_cloth_type(item_key, item_data, cloth_types)
+    for item_key, (cloth_type, item_data) in valid_cloth_items.items():
         mesh_path = item_data.get("skeletal_mesh") or item_data.get("mesh_path") or ""
         base_name = item_data.get("base_name") or item_key
         display_name = item_data.get("display_name") or format_display_name(item_key)
 
-        # Unique row name (e.g. Eva_outfit_bottom_G9_Base_Shorts)
         clean_item_stem = sanitize_asset_name(os.path.splitext(os.path.basename(item_key))[0])
         short_stem = clean_item_stem
-        for p_part in ["eva_outfit_duf_", "eva_outfit_", "outfit_duf_", "outfit_"]:
+        char_lower = character_name.lower().strip()
+        for p_part in [f"{char_lower}_outfit_duf_", f"{char_lower}_outfit_", "outfit_duf_", "outfit_"]:
             if short_stem.lower().startswith(p_part):
                 short_stem = short_stem[len(p_part):]
                 break
 
-        safe_type = cloth_type.lower() if cloth_type and "system.collections" not in cloth_type.lower() else "item"
+        safe_type = cloth_type.lower()
         row_name = f"{prefix}_{safe_type}_{short_stem}" if prefix else f"{short_stem}"
 
         # Build Material Slots Map conforming to ST_MaterialParams
@@ -438,7 +478,7 @@ def main(
         action_label = "➕ Added" if is_new else "🔄 Updated"
         print(f"  {action_label} row: '{row_name}' [ClothType: {cloth_type}, Mesh: '{mesh_path}', Slots: {len(mat_slots_dict)}]", flush=True)
 
-    # 5. Commit all rows in 1 single transaction
+    # 6. Commit all rows in 1 single transaction
     full_rows_list = list(existing_rows_dict.values())
     full_json_str = json.dumps(full_rows_list, indent=2)
 

@@ -388,9 +388,6 @@ def main(
             or raw_obj_meta.get("cloth_type")
             or obj_data.get("cloth_type")
         )
-        if not cloth_type:
-            has_cloth = any(s["material_tag"] == "Cloth" for s in formatted_slots)
-            cloth_type = "Cloth" if has_cloth else None
 
         resolved_manifest[asset_name] = {
             "asset_name": asset_name,

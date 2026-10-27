@@ -658,7 +658,7 @@ def main(
 
     # Normalize mesh paths map
     mesh_map: Dict[str, str] = {}
-    raw_meshes = mesh_paths if mesh_paths is not None else mesh_uasset_path
+    raw_meshes = mesh_paths if mesh_paths is not None else kwargs.get("mesh_uasset_path")
     if isinstance(raw_meshes, dict):
         mesh_map = {str(k).strip(): str(v).strip() for k, v in raw_meshes.items() if v}
     elif isinstance(raw_meshes, list):
@@ -676,8 +676,8 @@ def main(
         mesh_map["*"] = single_p
 
     # Destination resolution: priority to explicit destination_path, then destination_root
-    chosen_dest = destination_path or destination_root
-    destination_root = _clean_ue_path(chosen_dest or "/Game/Assets")
+    chosen_dest = destination_path or kwargs.get("destination_root") or "/Game/Assets"
+    destination_root = _clean_ue_path(chosen_dest)
 
     # If destination_root is still default "/Game/Assets", auto-infer from mesh_map directory if available!
     if destination_root == "/Game/Assets" and mesh_map:
@@ -892,14 +892,20 @@ def main(
             "material_slots": formatted_slots
         }
 
-    print(f"[setup_asset_materials] Batch setup complete. Processed {len(batch_results)} object(s), created {len(all_created_mics)} MIC(s).", flush=True)
+    has_clothes = any(
+        bool(res.get("cloth_type")) and str(res.get("cloth_type")).strip().lower() not in ["none", "body", "character", "skin", ""]
+        for res in batch_results
+    )
+
+    print(f"[setup_asset_materials] Batch setup complete. Processed {len(batch_results)} object(s), created {len(all_created_mics)} MIC(s). (has_clothes={has_clothes})", flush=True)
 
     return {
         "asset_name": asset_name,
         "batch_results": batch_results,
         "objects_map": objects_map,
         "created_instances": all_created_mics,
-        "imported_textures": list(imported_textures_cache.values())
+        "imported_textures": list(imported_textures_cache.values()),
+        "has_clothes": has_clothes
     }
 
 
