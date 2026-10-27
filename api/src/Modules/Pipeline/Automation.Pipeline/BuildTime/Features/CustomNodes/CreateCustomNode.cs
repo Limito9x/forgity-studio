@@ -18,7 +18,8 @@ public record CreateCustomNodeCommand(
     string? OriginalFileName,
     List<PinDefinition>? Inputs,
     List<PinDefinition>? Outputs,
-    string? ContentHash = null
+    string? ContentHash = null,
+    List<ScriptDependencyDto>? Dependencies = null
 );
 
 public class CreateCustomNodeValidator : AbstractValidator<CreateCustomNodeCommand>
@@ -88,7 +89,8 @@ public class CreateCustomNodeHandler(
             string.IsNullOrWhiteSpace(command.Label) ? command.Name.Trim() : command.Label.Trim(),
             string.IsNullOrWhiteSpace(command.Executor) ? "blender" : command.Executor.Trim().ToLowerInvariant(),
             SanitizePins(command.Inputs),
-            SanitizePins(command.Outputs)
+            SanitizePins(command.Outputs),
+            command.Dependencies
         );
 
         db.NodeDefinitions.Add(node);
@@ -110,7 +112,8 @@ public class CreateCustomNodeHandler(
             ScriptAssetLinkId = linked.Value.AssetLinkId,
             ContentHash = linked.Value.HashSha256,
             AssetId = linked.Value.AssetId,
-            OriginalFileName = linked.Value.OriginalName
+            OriginalFileName = linked.Value.OriginalName,
+            Dependencies = node.Dependencies
         };
 
         return Result.Ok(dto);
@@ -133,5 +136,6 @@ public record CreateCustomNodeResponseDto(
     Guid? ScriptAssetLinkId = null,
     string? ContentHash = null,
     Guid? AssetId = null,
-    string? OriginalFileName = null
+    string? OriginalFileName = null,
+    IReadOnlyList<ScriptDependencyDto>? Dependencies = null
 );

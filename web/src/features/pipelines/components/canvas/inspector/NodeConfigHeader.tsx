@@ -9,8 +9,6 @@ interface NodeConfigHeaderProps {
   executor?: string | null;
   isLifecycleEntry: boolean;
   isReadOnly: boolean;
-  canViewSource?: boolean;
-  onViewSource?: () => void;
   onDelete: () => void;
   onClose: () => void;
 }
@@ -21,8 +19,6 @@ export const NodeConfigHeader = memo(function NodeConfigHeader({
   executor,
   isLifecycleEntry,
   isReadOnly,
-  canViewSource = false,
-  onViewSource,
   onDelete,
   onClose,
 }: NodeConfigHeaderProps) {
@@ -66,17 +62,6 @@ export const NodeConfigHeader = memo(function NodeConfigHeader({
       </div>
 
       <div className="flex items-center gap-1.5">
-        {canViewSource && (
-          <button
-            type="button"
-            onClick={onViewSource}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 transition-colors"
-            title="Inspect Python source code, scan AST security flags, and copy AI prompt"
-          >
-            <FileCode className="h-3.5 w-3.5" />
-            <span>Source</span>
-          </button>
-        )}
         {isReadOnly && (
           <Badge
             variant="outline"

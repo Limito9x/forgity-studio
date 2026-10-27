@@ -17,7 +17,7 @@ export function useCustomNodeSource(nodeDefinitionId?: string, enabled = false) 
     queryFn: async () => {
       if (!nodeDefinitionId) throw new Error("Missing nodeDefinitionId");
       return await customInstance<CustomNodeSourceDto>({
-        url: `/api/custom/${nodeDefinitionId}/source`,
+        url: `/api/pipeline/nodes/custom/${nodeDefinitionId}/source`,
         method: "GET",
       });
     },

@@ -20,7 +20,8 @@ public record BatchUpsertItem(
     Guid? AssetId,
     List<PinDefinition>? Inputs,
     List<PinDefinition>? Outputs,
-    EdgeReconciliationStrategy Strategy = EdgeReconciliationStrategy.KeepCompatiblePins
+    EdgeReconciliationStrategy Strategy = EdgeReconciliationStrategy.KeepCompatiblePins,
+    List<ScriptDependencyDto>? Dependencies = null
 );
 
 public record BatchUpsertCustomNodesCommand(
@@ -152,7 +153,8 @@ public class BatchUpsertCustomNodesHandler(
             string.IsNullOrWhiteSpace(item.Label) ? item.Name.Trim() : item.Label.Trim(),
             string.IsNullOrWhiteSpace(item.Executor) ? "blender" : item.Executor.Trim().ToLowerInvariant(),
             SanitizePins(item.Inputs),
-            SanitizePins(item.Outputs)
+            SanitizePins(item.Outputs),
+            item.Dependencies
         );
 
         if (!isUpdated) db.NodeDefinitions.Add(node);

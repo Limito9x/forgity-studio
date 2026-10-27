@@ -27,6 +27,8 @@ import {
   Server,
   AlertTriangle,
   Boxes,
+  ShieldCheck,
+  PackageCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -129,19 +131,56 @@ export function RunPipelineModal({
       const config = configs.find(
         (c: any) => c.executorKey?.toLowerCase() === execKey || c.id?.toLowerCase() === execKey
       );
-      const isAvailable = Boolean(config && config.isEnabled !== false);
+      // Native Python runtime is inherently available if the runner agent is online
+      const isAvailable = execKey === "python"
+        ? isSelectedAgentOnline || Boolean(config && config.isEnabled !== false)
+        : Boolean(config && config.isEnabled !== false);
+
       return {
         executorKey: execKey,
         isAvailable,
-        version: config?.version || null,
+        version: config?.version || (execKey === "python" ? "3.10+" : null),
         path: config?.executablePath || null,
       };
     });
-  }, [selectedAgent, requiredExecutors]);
+  }, [selectedAgent, requiredExecutors, isSelectedAgentOnline]);
 
   const hasMissingExecutors = useMemo(() => {
     return executorReadiness.some((item) => !item.isAvailable);
   }, [executorReadiness]);
+
+  // Aggregate external dependencies declared across nodes
+  const aggregatedDependencies = useMemo(() => {
+    const set = new Set<string>();
+    nodes.forEach((n: any) => {
+      const data = n.data || {};
+      const def = data.definition || data.nodeDefinition;
+      // 1. From node definition
+      if (Array.isArray(def?.dependencies)) {
+        def.dependencies.forEach((d: any) => {
+          const pkg = typeof d === "string" ? d : d?.packageName || d?.module;
+          if (pkg) set.add(pkg);
+        });
+      }
+      // 2. From node data directly
+      if (Array.isArray(data.dependencies)) {
+        data.dependencies.forEach((d: any) => {
+          const pkg = typeof d === "string" ? d : d?.packageName || d?.module;
+          if (pkg) set.add(pkg);
+        });
+      }
+    });
+    return Array.from(set);
+  }, [nodes]);
+
+  // Hard-block execution gate if external runner is required but environment is unready
+  const isBlockedByEnvironment = useMemo(() => {
+    if (!requiresExternalRunner) return false;
+    if (!selectedAgent) return true;
+    if (!isSelectedAgentOnline) return true;
+    if (hasMissingExecutors) return true;
+    return false;
+  }, [requiresExternalRunner, selectedAgent, isSelectedAgentOnline, hasMissingExecutors]);
 
   // Derived inputs: strictly rely on unified parameters (kind === "Input" or 1)
   const pipelineInputs = useMemo(() => {
@@ -427,12 +466,28 @@ export function RunPipelineModal({
                 </Select>
 
                 {!isSelectedAgentOnline && (
-                  <div className="flex items-start gap-2.5 p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-amber-900 dark:text-amber-200">
-                    <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                  <div className="flex items-start gap-2.5 p-2.5 rounded-lg border border-destructive/30 bg-destructive/10 text-xs text-destructive">
+                    <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
                     <div className="space-y-0.5">
                       <p className="font-semibold text-[11px]">Runner is currently Offline</p>
                       <p className="text-[11px] text-muted-foreground leading-relaxed">
-                        This pipeline requires external DCC execution ({requiredExecutors.join(", ") || "Blender/Unreal"}). Tasks will queue until {selectedAgent?.name || "the runner"} connects.
+                        Execution is locked because the selected runner is offline. Please launch the runner daemon on your workstation before starting this pipeline.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {hasMissingExecutors && isSelectedAgentOnline && (
+                  <div className="flex items-start gap-2.5 p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-amber-900 dark:text-amber-200">
+                    <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <p className="font-semibold text-[11px]">Missing Required DCC Environments</p>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        The runner does not have executable paths configured for:{" "}
+                        <strong className="text-foreground">
+                          {executorReadiness.filter((i) => !i.isAvailable).map((i) => i.executorKey).join(", ")}
+                        </strong>
+                        . Configure paths in Runner Settings to enable execution.
                       </p>
                     </div>
                   </div>
@@ -461,7 +516,7 @@ export function RunPipelineModal({
                             "text-[10px] px-2 py-0.5 font-mono gap-1",
                             item.isAvailable
                               ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400"
-                              : "border-amber-500/40 bg-amber-500/5 text-amber-600 dark:text-amber-400"
+                              : "border-destructive/40 bg-destructive/5 text-destructive"
                           )}
                           title={item.path ? `Path: ${item.path}` : "Executable path not detected on runner"}
                         >
@@ -471,6 +526,36 @@ export function RunPipelineModal({
                         </Badge>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* Dynamic Python Dependencies (Sandbox via site.addsitedir) */}
+                {aggregatedDependencies.length > 0 && (
+                  <div className="space-y-1.5 pt-1.5 border-t border-border/50">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <PackageCheck className="size-3 text-sky-500" />
+                        <span>Dynamic Python Dependencies ({aggregatedDependencies.length})</span>
+                      </div>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-medium normal-case text-[10px] flex items-center gap-1">
+                        <ShieldCheck className="size-3" />
+                        Isolated sandbox
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {aggregatedDependencies.map((pkg) => (
+                        <Badge
+                          key={pkg}
+                          variant="secondary"
+                          className="text-[10px] px-2 py-0.5 font-mono bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20"
+                        >
+                          {pkg}
+                        </Badge>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground italic">
+                      Packages will be loaded in an isolated directory via <code className="font-mono text-[9px] bg-muted px-1 rounded">site.addsitedir</code> without modifying global system environments.
+                    </p>
                   </div>
                 )}
               </div>
@@ -524,14 +609,23 @@ export function RunPipelineModal({
             <Button
               size="sm"
               type="submit"
-              isDisabled={isSubmitting}
-              className="gap-1.5"
+              isDisabled={isSubmitting || isBlockedByEnvironment}
+              className={cn(
+                "gap-1.5 min-w-[120px]",
+                isBlockedByEnvironment && "opacity-60 cursor-not-allowed"
+              )}
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   <span>Triggering...</span>
                 </>
+              ) : !selectedAgent && requiresExternalRunner ? (
+                <span>Select a Runner</span>
+              ) : !isSelectedAgentOnline && requiresExternalRunner ? (
+                <span>Runner Offline</span>
+              ) : hasMissingExecutors ? (
+                <span>Environment Incomplete</span>
               ) : (
                 <>
                   <Play className="h-3.5 w-3.5 fill-current" />
