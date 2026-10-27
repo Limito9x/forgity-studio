@@ -12,6 +12,7 @@ public static class SendEmailCommandHandler
             subject: command.Subject,
             body: command.Body,
             isHtml: command.IsHtml,
+            plainTextBody: command.PlainTextBody,
             ct: ct
         );
     }

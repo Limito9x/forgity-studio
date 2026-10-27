@@ -125,8 +125,8 @@
 | **B1** | **Phase 1: Import Security & Trust Gate + 1-Click AI Multi-Script Audit Prompt** | ~40 phút | Frontend (`ImportPipelineDialog.tsx`) |
 | **B2** | **Phase 2: Nâng cấp `ScriptCodeViewerTab` (Download, AI Prompt, AST Flags) & Canvas Drawer** | ~35 phút | Frontend (`ScriptCodeViewerTab.tsx`, `NodeConfigInspector.tsx`) |
 | **B3** | **Phase 3: Pre-flight Runner Environment Readiness Gate** | ~35 phút | Frontend (`RunPipelineModal.tsx`) |
-| **B4** | **Phase 4: Email Beta Invite Template & DNS Anti-Spam Checklist** | ~20 phút | Backend/Template |
-| **B5** | **Phase 5: Runner Isolated Packages Injection (`site.addsitedir`)** | ~1 giờ | Runner / DCC Subprocess |
+| **B4** | **Phase 4: Email Beta Invite Template & Anti-Spam Multipart MIME** | Hoàn thành *(27/10/2026)* | Backend/Template |
+| **B5** | **Phase 5: Runner Isolated Packages Injection (site.addsitedir)** | Hoàn thành *(27/10/2026)* | Runner / DCC Subprocess |
 
 ---
 

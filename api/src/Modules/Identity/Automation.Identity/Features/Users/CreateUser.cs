@@ -111,9 +111,10 @@ public class CreateUserHandler(
 
         var emailCommand = new SendEmailCommand(
             To: recipient,
-            Subject: "Welcome to Our System - Accept Your Invitation",
-            Body: $"<p>Hello {user.FirstName},</p><p>You have been invited to join our system. Please click the link below to set up your password and activate your account:</p><p><a href=\"{inviteLink}\">Accept Invitation</a></p>",
-            IsHtml: true
+            Subject: "Welcome to Forgity Studio - Accept Your Invitation",
+            Body: $"<p>Hello {user.FirstName},</p><p>You have been invited to join Forgity Studio. Please click the link below to set up your password and activate your account:</p><p><a href=\"{inviteLink}\">Accept Invitation</a></p>",
+            IsHtml: true,
+            PlainTextBody: $"Hello {user.FirstName},\n\nYou have been invited to join Forgity Studio. Please click the link below to set up your password and activate your account:\n{inviteLink}\n\nForgity Studio"
         );
 
         await bus.SendAsync(emailCommand);
