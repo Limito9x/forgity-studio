@@ -258,7 +258,10 @@ def main(
             self.assertIn("provider", inputs_by_name)
             self.assertIn("model", inputs_by_name)
             # Options detected either from Literal or Docstring
-            self.assertEqual(inputs_by_name["provider"]["options"], ["gemini", "openai", "ollama"])
+            self.assertEqual(
+                inputs_by_name["provider"]["options"],
+                ["groq", "gemini", "ollama", "openai", "deepseek", "openrouter"]
+            )
 
             output_names = [out["name"] for out in result["outputs"]]
             self.assertIn("body_meshes", output_names)
