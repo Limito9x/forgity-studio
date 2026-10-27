@@ -67,7 +67,8 @@ public class ForgotPasswordHandler(
             To: recipient,
             Subject: "Reset Password",
             Body: $"<p>You requested a password reset. Please click the link below to reset your password:</p><p><a href=\"{resetLink}\">Reset Password</a></p>",
-            IsHtml: true
+            IsHtml: true,
+            PlainTextBody: $"You requested a password reset for Forgity Studio. Please visit the link below to reset your password:\n{resetLink}\n\nIf you did not make this request, you can safely ignore this email."
         );
 
         await bus.SendAsync(emailCommand);
