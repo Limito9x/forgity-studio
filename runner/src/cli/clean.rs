@@ -10,9 +10,9 @@ pub async fn run_clean(all: bool, days: u64) -> Result<()> {
     println!("{}", "════════════════════════════════════════════════════════\n".cyan().bold());
 
     if all {
-        println!("   Mode: {} (Purging temp, logs, and all cached assets/scripts)", "FULL PURGE".red().bold());
+        println!("   Mode: {} (Purging temp, logs, and all cached assets/scripts/packages)", "FULL PURGE".red().bold());
     } else {
-        println!("   Mode: {} (Clearing temp files & logs older than {} days)", "MAINTENANCE".green().bold(), days);
+        println!("   Mode: {} (Clearing temp files, stale packages & logs older than {} days)", "MAINTENANCE".green().bold(), days);
     }
     println!();
 
@@ -23,6 +23,9 @@ pub async fn run_clean(all: bool, days: u64) -> Result<()> {
 
     println!("   {} Temporary items removed  : {}", "✓".green().bold(), report.temp_files_deleted.to_string().cyan());
     println!("   {} Outdated log files purged: {}", "✓".green().bold(), report.log_files_deleted.to_string().cyan());
+    if report.python_packages_deleted > 0 {
+        println!("   {} Python packages pruned   : {}", "✓".green().bold(), report.python_packages_deleted.to_string().cyan());
+    }
     if all {
         println!("   {} Cached assets/scripts    : {}", "✓".green().bold(), report.cache_files_deleted.to_string().cyan());
     }

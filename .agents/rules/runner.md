@@ -60,3 +60,4 @@ Hệ thống đã **khai tử hoàn toàn Python Worker Daemon** cũ và chuyể
 - Khi chỉnh sửa code trong `runner/src/`:
   - Kiểm tra compile: `cargo check` bên trong thư mục `runner/`.
   - Build release binary: `cargo build --release` ➔ sinh file `runner/target/release/forgity-runner.exe`.
+
