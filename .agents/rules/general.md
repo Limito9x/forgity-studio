@@ -36,6 +36,7 @@ Những quy tắc này áp dụng cho toàn bộ workspace Monorepo `Automation/
 
 ## 3. Ngôn Ngữ & Quy Ước Hiển Thị (Language Conventions)
 
+- **Thương Hiệu & Đặt Tên (Branding SSOT):** Tên thương mại & sản phẩm chính thức trên UI, thông báo, nhãn, tài liệu người dùng và trao đổi với User là **Forgity** hoặc **Forgity Studio** (được định nghĩa tại `web/src/config/appConfig.ts`). Tên namespace C# giữ nguyên tiền tố kỹ thuật `Automation.*`. Không dùng tên cũ "Automation Studio" cho sản phẩm.
 - **UI & Code:** Toàn bộ văn bản hiển thị cho người dùng (UI text, nhãn, thông báo lỗi, placeholder), tài liệu commit, và tên biến/hàm/lớp PHẢI viết bằng **tiếng Anh**.
 - **Agent Chat & Plans:** Khi User viết tiếng Việt, Agent phản hồi bằng **tiếng Việt**. Tất cả tài liệu kế hoạch (`implementation_plan.md`, `walkthrough.md`) viết bằng **tiếng Việt**.
 - **Comments & Logs:** Có thể viết bằng **tiếng Việt** hoặc **tiếng Anh**.
