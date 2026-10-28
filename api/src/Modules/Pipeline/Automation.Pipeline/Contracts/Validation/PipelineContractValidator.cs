@@ -37,6 +37,18 @@ public class PipelineContractValidator(
         // 1. Kiểm tra từng Node theo ResolvedNodeContract
         foreach (var (nodeId, contract) in contracts)
         {
+            var nodeEntity = pipeline.Nodes.FirstOrDefault(n => n.Id == nodeId);
+            if (string.Equals(contract.RefId, "SetVariable", StringComparison.OrdinalIgnoreCase) &&
+                nodeEntity?.ParentId.HasValue == true)
+            {
+                diagnostics.Add(new PipelineDiagnostic(
+                    PipelineDiagnosticCode.InvalidStagePlacement,
+                    PipelineDiagnosticSeverity.Error,
+                    $"SetVariable node '{contract.Label}' must be placed at the Root/Core level, outside of any Stage.",
+                    NodeId: nodeId,
+                    NodeLabel: contract.Label
+                ));
+            }
             if (contract.IsDefinitionMissing)
             {
                 diagnostics.Add(new PipelineDiagnostic(
@@ -218,7 +230,8 @@ public class PipelineContractValidator(
                 var allowsFlexibleCardinality =
                     tgtContract.Capabilities?.ViewVariant == "Collection" ||
                     tgtContract.Capabilities?.InspectorMode == "FormatTemplate" ||
-                    tgtContract.RefId is "MakeArray" or "FormatString" or "GetArrayItem";
+                    tgtContract.RefId is "MakeArray" or "FormatString" or "GetArrayItem" ||
+                    (srcPin.Cardinality == PinCardinality.Single && tgtPin.Cardinality == PinCardinality.Array);
 
                 // Kiểm tra Cardinality
                 if (srcPin.Cardinality != tgtPin.Cardinality && !allowsFlexibleCardinality)

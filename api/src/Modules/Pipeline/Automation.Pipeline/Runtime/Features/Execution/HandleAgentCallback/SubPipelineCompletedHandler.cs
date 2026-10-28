@@ -150,7 +150,23 @@ public class SubPipelineCompletedHandler(
             parent.MarkFailed(failReason, failSnapshot);
         }
 
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to persist status change for Parent Execution {ParentId}. Attempting fallback.", parent.Id);
+            try
+            {
+                parent.TruncateErrorMessage(1900);
+                await db.SaveChangesAsync(ct);
+            }
+            catch (Exception fallbackEx)
+            {
+                logger.LogError(fallbackEx, "Fallback save also failed for Parent Execution {ParentId}", parent.Id);
+            }
+        }
 
         if (hubContext != null)
         {

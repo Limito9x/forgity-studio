@@ -2,12 +2,11 @@ using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Contracts.StructRegistry;
 using Automation.Pipeline.Contracts.Tools;
-using Automation.Pipeline.Contracts.Tools.Collections;
-using Automation.Pipeline.Contracts.Tools.Construct;
-using Automation.Pipeline.Contracts.Tools.Deconstruct;
+using Automation.Pipeline.Contracts.Tools.Struct;
 using Automation.Pipeline.Contracts.Tools.Utility;
 using Automation.Pipeline.Contracts.Tools.Variables;
 using Automation.Pipeline.Contracts.Tools.Workspaces;
+using Automation.Pipeline.Contracts.Tools.Content;
 using Automation.Content.Contracts;
 using Automation.DynamicForms.Contracts;
 using Automation.Repository.Contracts;
@@ -25,29 +24,20 @@ public class PinContractScannerTests
         var mockStructRegistry = Substitute.For<IEntityStructRegistry>();
         var mockWorkspaceApi = Substitute.For<IRepositoryApi>();
         var mockContentApi = Substitute.For<IContentApi>();
-        var mockSchemaApi = Substitute.For<ISchemaApi>();
 
         return
         [
             new FormatStringTool(),
-            new MakeArrayTool(),
-            new AppendStringTool(),
-            new MakeMapTool(),
-            new GetByPathTool(),
-            new BreakContentItemTool(mockContentApi, mockSchemaApi, NullLogger<BreakContentItemTool>.Instance),
             new BreakStructTool(mockStructRegistry),
-            new MakeStructTool(mockStructRegistry),
-            new CastToStructTool(mockStructRegistry),
             new AssignResourcesToContentTool(mockWorkspaceApi, mockContentApi, NullLogger<AssignResourcesToContentTool>.Instance),
             new QueryWorkstationResourcesTool(mockWorkspaceApi, null, NullLogger<QueryWorkstationResourcesTool>.Instance),
             new FilterResourcesTool(null, NullLogger<FilterResourcesTool>.Instance),
             new ResolveResourcesTool(null, mockWorkspaceApi, NullLogger<ResolveResourcesTool>.Instance),
-            new GetResourceContentTool(mockWorkspaceApi, mockContentApi),
             new SyncLocalChangeToRepositoryTool(mockWorkspaceApi, NullLogger<SyncLocalChangeToRepositoryTool>.Instance),
             new UpdateResourceMetadataTool(mockWorkspaceApi),
-            new GetRepositoryInfoTool(mockWorkspaceApi, NullLogger<GetRepositoryInfoTool>.Instance),
             new SetVariableTool(),
-            new GetVariableTool()
+            new GetVariableTool(),
+            new LookupContentMapTool()
         ];
     }
 
@@ -72,10 +62,6 @@ public class PinContractScannerTests
         var breakStruct = new BreakStructTool(mockStructRegistry);
         breakStruct.Inputs.Select(p => p.Id).Should().Equal("Target");
         breakStruct.Outputs.Should().BeEmpty();
-
-        var makeStruct = new MakeStructTool(mockStructRegistry);
-        makeStruct.Inputs.Select(p => p.Id).Should().Equal("StructType");
-        makeStruct.Outputs.Should().BeEmpty();
     }
 
     [Fact]
@@ -110,29 +96,10 @@ public class PinContractScannerTests
     {
         var mockStructRegistry = Substitute.For<IEntityStructRegistry>();
 
-        var makeArray = new MakeArrayTool();
-        makeArray.Capabilities.Should().NotBeNull();
-        makeArray.Capabilities!.ViewVariant.Should().Be("Collection");
-        makeArray.Capabilities!.PinAddMode.Should().Be("Sequence");
-        makeArray.Capabilities!.CanAddPin.Should().BeTrue();
-        makeArray.Capabilities!.CanRemovePin.Should().BeTrue();
-
-        var appendString = new AppendStringTool();
-        appendString.Capabilities.Should().NotBeNull();
-        appendString.Capabilities!.ViewVariant.Should().Be("Collection");
-        appendString.Capabilities!.PinAddMode.Should().Be("Alpha");
-        appendString.Capabilities!.CanAddPin.Should().BeTrue();
-        appendString.Capabilities!.CanRemovePin.Should().BeTrue();
-
         var breakStruct = new BreakStructTool(mockStructRegistry);
         breakStruct.Capabilities.Should().NotBeNull();
         breakStruct.Capabilities!.ViewVariant.Should().Be("Struct");
         breakStruct.Capabilities!.InspectorMode.Should().Be("StructSelector");
-
-        var makeStruct = new MakeStructTool(mockStructRegistry);
-        makeStruct.Capabilities.Should().NotBeNull();
-        makeStruct.Capabilities!.ViewVariant.Should().Be("Struct");
-        makeStruct.Capabilities!.InspectorMode.Should().Be("StructSelector");
 
         var formatString = new FormatStringTool();
         formatString.Capabilities.Should().NotBeNull();

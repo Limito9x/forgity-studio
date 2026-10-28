@@ -19,7 +19,7 @@ public class AssignResourcesToContentTool(
     public string Key => "AssignResourcesToContent";
     public IReadOnlyList<string> Aliases => ["AssignResources"];
     public string Label => "Assign Resources to Content";
-    public string? Category => "Workspace & Content";
+    public string? Category => "Content & Publishing";
     public string? Description => "Binds a list of Resource items to a designated Content Item (supports finding or auto-creating by Type and Name).";
     public bool IsPure => false;
     public bool HasDynamicPins => true;

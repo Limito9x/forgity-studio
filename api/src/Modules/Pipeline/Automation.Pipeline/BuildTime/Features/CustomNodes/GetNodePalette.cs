@@ -33,34 +33,11 @@ public class GetNodePaletteEndpoint(IMessageBus bus)
 [NonTransactional]
 public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext db)
 {
-    private static readonly HashSet<string> HiddenToolKeys = new(StringComparer.OrdinalIgnoreCase)
+        private static readonly HashSet<string> HiddenToolKeys = new(StringComparer.OrdinalIgnoreCase)
     {
         "Start",
-        "BeginExecute",
-        // 23 Zombie / 0-usage tools cleaned from Palette:
-        "ForEachLoop",
-        "MakeMap",
-        "GetMapItem",
-        "SetMapItem",
-        "GetMapKeys",
-        "GetMapValues",
-        "MergeMaps",
-        "ZipToMap",
-        "RemapKeys",
-        "GetArrayItem",
-        "GetCollectionCount",
-        "FilterArray",
-        "SortArray",
-        "SliceArray",
-        "Aggregate",
-        "Branch",
-        "Switch",
-        "Select",
         "GetVariable",
-        "SetVariable",
-        "AssignTag",
-        "InspectModel",
-        "GetTagValueFromInspection"
+        "SetVariable"
     };
 
     public async Task<Result<IReadOnlyList<NodePaletteItemDto>>> HandleAsync(

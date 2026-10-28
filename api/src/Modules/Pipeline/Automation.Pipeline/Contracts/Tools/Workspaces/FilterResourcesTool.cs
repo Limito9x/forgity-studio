@@ -19,7 +19,7 @@ public class FilterResourcesTool(
     public string Key => "FilterResources";
     public IReadOnlyList<string> Aliases => ["SelectResource", "FilterResourceList"];
     public string Label => "Filter Resources";
-    public string? Category => "Workspaces";
+    public string? Category => "Workspaces & Resources";
     public string? Description => "Filters an in-memory collection of Resource entity references by file extension and keyword, outputting the first match and filtered array.";
     public bool IsPure => true;
 

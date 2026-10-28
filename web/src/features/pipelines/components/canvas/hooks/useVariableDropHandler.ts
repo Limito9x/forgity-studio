@@ -6,6 +6,7 @@ import type { NodePaletteItemDto, PinDefinition } from "@/gen/model";
 import type { CustomPipelineNodeData } from "../nodes/types";
 
 interface UseVariableDropHandlerArgs {
+  nodes: Node[];
   paletteItems: NodePaletteItemDto[];
   graphId: string;
   setNodes: Dispatch<SetStateAction<Node[]>>;
@@ -15,6 +16,7 @@ interface UseVariableDropHandlerArgs {
 }
 
 export function useVariableDropHandler({
+  nodes,
   paletteItems,
   graphId,
   setNodes,
@@ -27,7 +29,26 @@ export function useVariableDropHandler({
     varName: string;
     screenPos: { x: number; y: number };
     flowPos: { x: number; y: number };
+    isInsideStage: boolean;
   } | null>(null);
+
+  // Helper to test if a flow coordinate is inside any Stage container
+  const findStageAtPosition = useCallback(
+    (pos: { x: number; y: number }) => {
+      return nodes.find((n) => {
+        if (n.type !== "scopeContainer") return false;
+        const w = (n.style?.width as number) || (n.measured?.width as number) || 520;
+        const h = (n.style?.height as number) || (n.measured?.height as number) || 380;
+        return (
+          pos.x >= n.position.x &&
+          pos.x <= n.position.x + w &&
+          pos.y >= n.position.y &&
+          pos.y <= n.position.y + h
+        );
+      });
+    },
+    [nodes]
+  );
 
   // Spawn Get/Set Variable Node at specific coordinates
   const handleSpawnVariableNodeAt = useCallback(
@@ -37,13 +58,26 @@ export function useVariableDropHandler({
       position: { x: number; y: number }
     ) => {
       const isGet = toolKey === "GetVariable";
+      const targetStage = findStageAtPosition(position);
+
+      if (!isGet && targetStage) {
+        toast.error("Set Variable must be placed in Core (Root Canvas), not inside a Stage.");
+        return;
+      }
+
       const newNodeId = crypto.randomUUID();
 
       if (isGet) {
+        // If dropped inside a stage container, make it a child of that stage with relative coordinates
+        const nodePos = targetStage
+          ? { x: position.x - targetStage.position.x, y: position.y - targetStage.position.y }
+          : position;
+
         const newNode: Node = {
           id: newNodeId,
           type: "capsuleNode",
-          position,
+          position: nodePos,
+          parentId: targetStage ? targetStage.id : undefined,
           data: {
             refId: "GetVariable",
             key: varName,
@@ -86,7 +120,7 @@ export function useVariableDropHandler({
       setIsDirty(true);
       toast.success(`Spawned '${label}' node`);
     },
-    [paletteItems, graphId, setNodes, setSelectedNodeId, setIsDirty]
+    [findStageAtPosition, paletteItems, graphId, setNodes, setSelectedNodeId, setIsDirty]
   );
 
   const handleSpawnCapsule = useCallback(
@@ -161,6 +195,8 @@ export function useVariableDropHandler({
         if (!varName) return;
 
         const flowPos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+        const targetStage = findStageAtPosition(flowPos);
+        const isInsideStage = !!targetStage;
 
         // If dropped item is an Input parameter, spawn an Input Capsule directly
         if (
@@ -169,10 +205,15 @@ export function useVariableDropHandler({
           String(itemData.kind).toLowerCase() === "input"
         ) {
           const newNodeId = crypto.randomUUID();
+          const nodePos = targetStage
+            ? { x: flowPos.x - targetStage.position.x, y: flowPos.y - targetStage.position.y }
+            : flowPos;
+
           const newNode: Node = {
             id: newNodeId,
             type: "capsuleNode",
-            position: flowPos,
+            position: nodePos,
+            parentId: targetStage ? targetStage.id : undefined,
             data: {
               refId: "GetInput",
               key: varName,
@@ -196,19 +237,32 @@ export function useVariableDropHandler({
         if (e.ctrlKey) {
           handleSpawnVariableNodeAt("GetVariable", varName, flowPos);
         } else if (e.altKey) {
+          if (isInsideStage) {
+            toast.error("Set Variable must be placed in Core (Root Canvas), not inside a Stage.");
+            return;
+          }
           handleSpawnVariableNodeAt("SetVariable", varName, flowPos);
         } else {
           setVarDropState({
             varName,
             screenPos: { x: e.clientX, y: e.clientY },
             flowPos,
+            isInsideStage,
           });
         }
       } catch {
         // Ignore malformed drop
       }
     },
-    [screenToFlowPosition, handleSpawnVariableNodeAt, graphId, setNodes, setSelectedNodeId, setIsDirty]
+    [
+      screenToFlowPosition,
+      findStageAtPosition,
+      handleSpawnVariableNodeAt,
+      graphId,
+      setNodes,
+      setSelectedNodeId,
+      setIsDirty,
+    ]
   );
 
   return {

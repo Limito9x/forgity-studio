@@ -1,4 +1,4 @@
-using Automation.Pipeline.Contracts.Tools.Deconstruct;
+using Automation.Pipeline.Contracts.Tools.Struct;
 using Automation.Pipeline.Contracts.NodeContract;
 using Automation.Pipeline.Contracts.Validation;
 using Automation.Pipeline.Constants;

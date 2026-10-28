@@ -82,10 +82,24 @@ public class PipelineExecution : BaseEntity
     {
         Status = ExecutionStatus.Failed;
         FinishedAt = DateTimeOffset.UtcNow;
-        ErrorMessage = error;
+        const int maxSafe = 32768;
+        const string suffix = "... [truncated]";
+        ErrorMessage = error?.Length > maxSafe
+            ? error[..(maxSafe - suffix.Length)] + suffix
+            : error;
         if (state != null)
         {
             ExecutionState = state;
+        }
+    }
+
+    public void TruncateErrorMessage(int maxLength = 1900)
+    {
+        const string suffix = "... [truncated]";
+        if (ErrorMessage != null && ErrorMessage.Length > maxLength)
+        {
+            var take = Math.Max(0, maxLength - suffix.Length);
+            ErrorMessage = ErrorMessage[..take] + suffix;
         }
     }
 
