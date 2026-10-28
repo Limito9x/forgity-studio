@@ -8,7 +8,7 @@ import { z } from "zod";
 import { useLogin } from "../hooks/useLogin";
 import { useNavigate, useSearch, Link } from "@tanstack/react-router";
 import { getAuthState } from "@/stores/authStore";
-import { Workflow, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import forgityLogo from "@/assets/forgity.svg";
 import { appConfig } from "@/config/appConfig";
 import { Form } from "@/components/form/Form";

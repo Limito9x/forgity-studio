@@ -121,32 +121,36 @@ export function ImportPipelineDialog({
     [projectId, validateMutation]
   );
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { "application/json": [".json"] },
     multiple: false,
     disabled: validateMutation.isPending || importMutation.isPending,
   });
 
+  const packageScripts = useMemo(() => {
+    return packageData?.dependencies?.customScripts ?? (packageData as any)?.scripts ?? [];
+  }, [packageData]);
+
   const hasNewCustomScripts = useMemo(() => {
     return validationResult?.scripts.some((s) => !s.alreadyExists) ?? false;
   }, [validationResult]);
 
   const handleCopyAllForAiAudit = () => {
-    if (!packageData?.scripts || packageData.scripts.length === 0) {
+    if (!packageScripts || packageScripts.length === 0) {
       toast.error("No scripts found in this package to audit.");
       return;
     }
 
     const prompt = generatePipelineSecurityAuditPrompt(
-      packageData.scripts,
+      packageScripts,
       selectedFile?.name || "Pipeline Bundle"
     );
 
     navigator.clipboard.writeText(prompt);
     setCopiedAuditPrompt(true);
     toast.success(
-      `Copied AI security audit prompt for ${packageData.scripts.length} script(s)! Paste into ChatGPT/Claude to audit.`,
+      `Copied AI security audit prompt for ${packageScripts.length} script(s)! Paste into ChatGPT/Claude to audit.`,
       { duration: 4000 }
     );
     setTimeout(() => setCopiedAuditPrompt(false), 2500);
@@ -394,8 +398,8 @@ export function ImportPipelineDialog({
 
                 <div className="grid grid-cols-2 gap-2 border rounded-lg p-2 bg-card max-h-[140px] overflow-y-auto">
                   {validationResult.scripts.map((s) => {
-                    const matchedPackageScript = packageData?.scripts?.find(
-                      (ps) => ps.key === s.key || ps.fileName === s.fileName
+                    const matchedPackageScript = packageScripts.find(
+                      (ps: PipelinePackageScriptDto) => ps.key === s.key || ps.fileName === s.fileName
                     );
 
                     return (
@@ -432,7 +436,7 @@ export function ImportPipelineDialog({
                                 size="icon"
                                 className="size-6 text-muted-foreground hover:text-foreground"
                                 onPress={() => setInspectingScript(matchedPackageScript)}
-                                title="Inspect Script Source Code"
+                                aria-label="Inspect Script Source Code"
                               >
                                 <Eye className="size-3" />
                               </Button>
@@ -442,7 +446,7 @@ export function ImportPipelineDialog({
                                 size="icon"
                                 className="size-6 text-muted-foreground hover:text-foreground"
                                 onPress={() => handleDownloadScript(matchedPackageScript)}
-                                title="Download .py file"
+                                aria-label="Download .py file"
                               >
                                 <Download className="size-3" />
                               </Button>

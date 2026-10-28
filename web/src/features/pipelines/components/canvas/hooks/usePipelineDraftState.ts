@@ -104,10 +104,10 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto, structCat
         let initialOutputs = n.outputs || [];
         if (isStart) {
           const isEventTrigger =
-            graph.triggerType === 1 ||
-            graph.triggerType === 2 ||
-            (graph.triggerType as unknown) === "OnResourceCreated" ||
-            (graph.triggerType as unknown) === "OnResourceVersionUpdated";
+            (graph.triggerType as any) === 1 ||
+            (graph.triggerType as any) === 2 ||
+            (graph.triggerType as any) === "OnResourceCreated" ||
+            (graph.triggerType as any) === "OnResourceVersionUpdated";
 
           if (isEventTrigger) {
             const hasResources = initialOutputs.some(
@@ -236,10 +236,10 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto, structCat
       );
 
       const isEventTrigger =
-        graph.triggerType === 1 ||
-        graph.triggerType === 2 ||
-        (graph.triggerType as unknown) === "OnResourceCreated" ||
-        (graph.triggerType as unknown) === "OnResourceVersionUpdated";
+            (graph.triggerType as any) === 1 ||
+            (graph.triggerType as any) === 2 ||
+            (graph.triggerType as any) === "OnResourceCreated" ||
+            (graph.triggerType as any) === "OnResourceVersionUpdated";
 
       setNodes((currentNodes) => {
         let hasChanges = false;
@@ -289,8 +289,7 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto, structCat
 
             const nextOutputs = [...systemPins, ...eventPins, ...paramPins];
             const nextLabel = isEventTrigger
-              ? graph.triggerType === 2 ||
-                (graph.triggerType as unknown) === "OnResourceVersionUpdated"
+              ? (graph.triggerType as any) === 2 || (graph.triggerType as any) === "OnResourceVersionUpdated"
                 ? "On Resource Version Updated"
                 : "On Resource Created"
               : "Start Pipeline";

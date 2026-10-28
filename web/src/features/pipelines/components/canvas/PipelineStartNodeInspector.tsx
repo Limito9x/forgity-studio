@@ -17,7 +17,7 @@ import { useRepositories } from "@/features/repositories/hooks/useRepositories";
 import { TagsInput } from "@/components/custom-ui/inputs/tags-input/TagsInput";
 import { getPinVisual, formatPinTypeLabel } from "./nodes/types";
 import { toast } from "sonner";
-import type { PipelineTriggerType } from "@/gen/model";
+import { PipelineTriggerType } from "@/gen/model";
 
 interface PipelineStartNodeInspectorProps {
   pipelineId: string;
@@ -50,26 +50,26 @@ export function PipelineStartNodeInspector({
 
   const updateTriggerMutation = useUpdatePipelineTrigger(pipelineId);
 
-  const currentTypeNum: PipelineTriggerType =
-    triggerType === 1 || triggerType === "OnResourceCreated"
-      ? 1
-      : triggerType === 2 || triggerType === "OnResourceVersionUpdated"
-        ? 2
-        : 0;
+  const normalizedTriggerType: PipelineTriggerType =
+    (triggerType as any) === 1 || triggerType === PipelineTriggerType.OnResourceCreated
+      ? PipelineTriggerType.OnResourceCreated
+      : (triggerType as any) === 2 || triggerType === PipelineTriggerType.OnResourceVersionUpdated
+        ? PipelineTriggerType.OnResourceVersionUpdated
+        : PipelineTriggerType.Manual;
 
   const [selectedTriggerKey, setSelectedTriggerKey] = useState<string>(
-    String(currentTypeNum),
+    normalizedTriggerType,
   );
 
   useEffect(() => {
-    setSelectedTriggerKey(String(currentTypeNum));
-  }, [currentTypeNum]);
+    setSelectedTriggerKey(normalizedTriggerType);
+  }, [normalizedTriggerType]);
 
   const isEventTrigger =
-    selectedTriggerKey === "1" ||
-    selectedTriggerKey === "2" ||
-    currentTypeNum === 1 ||
-    currentTypeNum === 2;
+    selectedTriggerKey === PipelineTriggerType.OnResourceCreated ||
+    selectedTriggerKey === PipelineTriggerType.OnResourceVersionUpdated ||
+    normalizedTriggerType === PipelineTriggerType.OnResourceCreated ||
+    normalizedTriggerType === PipelineTriggerType.OnResourceVersionUpdated;
 
   const selectedRepositoryId = useMemo(() => {
     if (!triggerConfig || typeof triggerConfig !== "object") return null;
@@ -105,7 +105,7 @@ export function PipelineStartNodeInspector({
 
     try {
       await updateTriggerMutation.mutateAsync({
-        triggerType: currentTypeNum,
+        triggerType: normalizedTriggerType,
 
         triggerConfig: updatedConfig,
       });
@@ -130,7 +130,7 @@ export function PipelineStartNodeInspector({
 
     try {
       await updateTriggerMutation.mutateAsync({
-        triggerType: currentTypeNum,
+        triggerType: normalizedTriggerType,
 
         triggerConfig: updatedConfig,
       });
@@ -169,18 +169,18 @@ export function PipelineStartNodeInspector({
 
               setSelectedTriggerKey(keyStr);
 
-              const val = Number(keyStr) as PipelineTriggerType;
+              const val = keyStr as PipelineTriggerType;
 
               try {
                 await updateTriggerMutation.mutateAsync({
                   triggerType: val,
 
-                  triggerConfig: val === 0 ? null : triggerConfig || {},
+                  triggerConfig: val === PipelineTriggerType.Manual ? null : triggerConfig || {},
                 });
 
                 toast.success("Trigger type updated");
               } catch {
-                setSelectedTriggerKey(String(currentTypeNum));
+                setSelectedTriggerKey(normalizedTriggerType);
 
                 toast.error("Failed to update trigger");
               }
@@ -193,9 +193,9 @@ export function PipelineStartNodeInspector({
             </SelectTrigger>
 
             <SelectContent>
-              <SelectItem id="0">Manual / API Trigger</SelectItem>
+              <SelectItem id={PipelineTriggerType.Manual}>Manual / API Trigger</SelectItem>
 
-              <SelectItem id="1">
+              <SelectItem id={PipelineTriggerType.OnResourceCreated}>
                 Repository: On Resource / Draft Created
               </SelectItem>
 
