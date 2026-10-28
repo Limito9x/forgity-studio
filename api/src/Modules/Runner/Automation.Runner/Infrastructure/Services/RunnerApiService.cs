@@ -781,6 +781,78 @@ public class RunnerApiService(
             return Result.Fail<ExecuteCommandResponseDto>($"Failed to send execute command to Runner: {ex.Message}");
         }
     }
+
+    public Task<Result<IReadOnlyList<Guid>>> GetOnlineRunnerIdsAsync(CancellationToken ct = default)
+    {
+        var onlineIds = registry.GetAll().Select(c => c.RunnerId).Distinct().ToList();
+        return Task.FromResult(Result.Ok<IReadOnlyList<Guid>>(onlineIds));
+    }
+
+    public async Task<Result<RunnerDto?>> FindBestAvailableRunnerAsync(
+        string? executorKey = null,
+        Guid? studioId = null,
+        CancellationToken ct = default
+    )
+    {
+        var onlineConnections = registry.GetAll();
+        var onlineRunnerIds = onlineConnections.Select(c => c.RunnerId).Distinct().ToHashSet();
+
+        IQueryable<Domain.Entities.Runner> query = db.Runners
+            .AsNoTracking()
+            .Include(r => r.ExecutorConfigs);
+
+        if (studioId.HasValue && studioId.Value != Guid.Empty)
+        {
+            query = query.Where(r => r.Studios.Any(s => s.StudioId == studioId.Value && s.IsApproved));
+        }
+
+        var runners = await query.ToListAsync(ct);
+        if (runners.Count == 0)
+        {
+            return Result.Ok<RunnerDto?>(null);
+        }
+
+        // 1. Phân nhóm runners theo trạng thái Online
+        var onlineRunners = runners.Where(r => onlineRunnerIds.Contains(r.Id)).ToList();
+        var pool = onlineRunners.Count > 0 ? onlineRunners : runners;
+
+        // 2. Nếu có executorKey (ví dụ 'blender', 'unreal'), ưu tiên runner có cấu hình executor đó và enabled
+        if (!string.IsNullOrWhiteSpace(executorKey))
+        {
+            var matchingExecutors = pool.Where(r =>
+                r.ExecutorConfigs.Any(ec => ec.IsEnabled && string.Equals(ec.ExecutorKey, executorKey, StringComparison.OrdinalIgnoreCase))
+            ).ToList();
+
+            if (matchingExecutors.Count == 1)
+            {
+                var r = matchingExecutors[0];
+                return Result.Ok<RunnerDto?>(r.Adapt<RunnerDto>() with { IsOnline = onlineRunnerIds.Contains(r.Id) });
+            }
+
+            if (matchingExecutors.Count > 1)
+            {
+                var best = matchingExecutors.FirstOrDefault(r => onlineRunnerIds.Contains(r.Id)) ?? matchingExecutors[0];
+                return Result.Ok<RunnerDto?>(best.Adapt<RunnerDto>() with { IsOnline = onlineRunnerIds.Contains(best.Id) });
+            }
+        }
+
+        // 3. Nếu chỉ có đúng 1 runner online
+        if (onlineRunners.Count == 1)
+        {
+            var r = onlineRunners[0];
+            return Result.Ok<RunnerDto?>(r.Adapt<RunnerDto>() with { IsOnline = true });
+        }
+
+        // 4. Nếu toàn bộ studio/hệ thống chỉ có duy nhất 1 runner được đăng ký
+        if (runners.Count == 1)
+        {
+            var r = runners[0];
+            return Result.Ok<RunnerDto?>(r.Adapt<RunnerDto>() with { IsOnline = onlineRunnerIds.Contains(r.Id) });
+        }
+
+        return Result.Ok<RunnerDto?>(null);
+    }
+
 }
 
 // Backward-compatibility alias

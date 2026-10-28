@@ -375,6 +375,32 @@ public class RunnerSegmentDispatcher(
             }
         }
 
+        
+        // Fallback 5: Auto-assign single online or matching Runner (Zero-Config Trial & Local Workstation)
+        if (effectiveRunnerId == Guid.Empty && runnerApi != null)
+        {
+            try
+            {
+                var bestRunnerResult = await runnerApi.FindBestAvailableRunnerAsync(segment.Executor, null, ct);
+                if (bestRunnerResult != null && bestRunnerResult.IsSuccess && bestRunnerResult.Value != null)
+                {
+                    effectiveRunnerId = bestRunnerResult.Value.Id;
+                    logger.LogInformation(
+                        "RunnerSegmentDispatcher: Auto-resolved single available Runner {RunnerId} ('{RunnerName}', Online: {IsOnline}) for Stage '{StageName}' ({Executor})",
+                        effectiveRunnerId,
+                        bestRunnerResult.Value.Name,
+                        bestRunnerResult.Value.IsOnline,
+                        segment.StageName ?? segment.StageId?.ToString(),
+                        segment.Executor
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "RunnerSegmentDispatcher: Exception while resolving fallback available runner.");
+            }
+        }
+
         if (effectiveRunnerId == Guid.Empty)
         {
             var err = $"Worker Stage '{segment.StageName ?? segment.StageId?.ToString()}' ({segment.Executor}) cannot be dispatched because no Runner was assigned.";

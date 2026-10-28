@@ -275,9 +275,19 @@ export const ScopeContainerNode = memo(({ id, data, selected }: NodeProps) => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent placement="bottom end">
-                      <SelectItem id="auto" textValue="Auto Any Runner">
+                      <SelectItem
+                        id="auto"
+                        textValue={
+                          runners.length === 1
+                            ? `Auto (${runners[0].name || runners[0].machineKey})`
+                            : "Auto Any Runner"
+                        }
+                      >
                         <span className="flex items-center gap-1.5 font-medium text-amber-600 dark:text-amber-400">
-                          <Activity className="size-3" /> Auto Any Runner
+                          <Activity className="size-3" />
+                          {runners.length === 1
+                            ? `Auto (${runners[0].name || runners[0].machineKey})`
+                            : "Auto Any Runner"}
                         </span>
                       </SelectItem>
                       {runners.map((r) => (
