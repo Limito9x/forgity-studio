@@ -288,6 +288,15 @@ def main(
         "4. Assign each slot a semantic 'material_tag' (Cloth for clothing/fabrics, Skin for human body/face, Eye, Hair, Mouth, etc.).\n"
         "5. For each slot, map its available texture files to appropriate shader parameter names (NormalMap, BaseColorMap, etc.).\n"
         "6. In 'textures' and 'file_path', you MUST preserve the EXACT FULL FILE PATHS from the input metadata. Do NOT shorten, truncate, or convert them to relative paths.\n"
+        "7. DETERMINISTIC TEXTURE BINDING RULE:\n"
+        "   If 'texture_bindings' is present in a slot, PRIORITIZE the 'target_socket' and 'via_node' information over filename guessing:\n"
+        "   - 'target_socket': 'Base Color' or 'Color' -> BaseColorMap / Base Color parameter.\n"
+        "   - 'target_socket': 'Normal' or via_node: 'Normal Map' -> NormalMap / Normal parameter.\n"
+        "   - 'target_socket': 'Metallic' -> Metallic parameter or ORMMap.\n"
+        "   - 'target_socket': 'Roughness' -> Roughness parameter or ORMMap.\n"
+        "   - 'target_socket': 'Alpha' -> OpacityMap / Opacity parameter.\n"
+        "   - 'target_socket': 'Emission Color' or 'Emission' -> EmissiveMap / Emission parameter.\n"
+        "   If 'texture_bindings' is absent or empty, fall back to analyzing filenames (e.g. _diff, _norm, _orm, _mask, _roughness).\n"
         f"{contract_section}\n"
         "OUTPUT SCHEMA REQUIREMENT:\n"
         "You MUST return a JSON object with this exact top-level structure:\n"
@@ -376,6 +385,9 @@ def main(
                     known_raw_textures.extend([str(p).replace("\\", "/") for p in raw_slot_tex if p])
                 elif isinstance(raw_slot_tex, dict):
                     known_raw_textures.extend([str(p).replace("\\", "/") for p in raw_slot_tex.values() if p])
+                for b in raw_slot.get("texture_bindings", []):
+                    if isinstance(b, dict) and b.get("path"):
+                        known_raw_textures.append(str(b["path"]).replace("\\", "/"))
 
         def _resolve_to_full_path(candidate_p: str) -> str:
             if not candidate_p:
