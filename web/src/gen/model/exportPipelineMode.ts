@@ -10,6 +10,6 @@ export type ExportPipelineMode =
   (typeof ExportPipelineMode)[keyof typeof ExportPipelineMode];
 
 export const ExportPipelineMode = {
-  NUMBER_0: 0,
-  NUMBER_1: 1,
+  FullBackup: "FullBackup",
+  CleanTemplate: "CleanTemplate",
 } as const;

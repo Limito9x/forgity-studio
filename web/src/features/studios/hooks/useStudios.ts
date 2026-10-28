@@ -6,6 +6,7 @@ import * as StudiosApi from "@/gen/endpoints/studios/studios";
 export type {
   StudioDto,
   CreateStudioCommand,
+  UpdateStudioCommand,
   IReadOnlyListOfStudioDto,
 } from "@/gen/model";
 
@@ -27,5 +28,10 @@ export const useGetStudioById = (id?: string) => {
 
 export const useCreateStudio = createMutationHook(
   StudiosApi.useCreateStudio,
+  [StudiosApi.getGetStudiosQueryKey()]
+);
+
+export const useUpdateStudio = createMutationHook(
+  StudiosApi.useUpdateStudio,
   [StudiosApi.getGetStudiosQueryKey()]
 );

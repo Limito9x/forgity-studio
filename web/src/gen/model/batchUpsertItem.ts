@@ -25,4 +25,6 @@ export interface BatchUpsertItem {
   /** @nullable */
   outputs: unknown[] | null;
   strategy?: EdgeReconciliationStrategy;
+  /** @nullable */
+  dependencies?: unknown[] | null;
 }

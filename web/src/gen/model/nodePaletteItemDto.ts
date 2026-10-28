@@ -24,4 +24,6 @@ export interface NodePaletteItemDto {
   /** @nullable */
   capabilities?: NodeCapabilitiesDto | null;
   isVisibleInPalette?: boolean;
+  /** @nullable */
+  dependencies?: unknown[] | null;
 }

@@ -16,4 +16,5 @@ export const ExecutionStatus = {
   Succeeded: "Succeeded",
   Failed: "Failed",
   Cancelled: "Cancelled",
+  WaitingForSubPipeline: "WaitingForSubPipeline",
 } as const;
