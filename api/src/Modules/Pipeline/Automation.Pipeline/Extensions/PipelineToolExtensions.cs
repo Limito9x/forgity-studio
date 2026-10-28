@@ -1,5 +1,5 @@
-using Automation.Pipeline.Engine.StructRegistry;
-using Automation.Pipeline.Tools;
+using Automation.Pipeline.Contracts.StructRegistry;
+using Automation.Pipeline.Contracts.Tools;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Automation.Pipeline.Extensions;
@@ -26,7 +26,7 @@ public static class PipelineToolExtensions
             .GetTypes()
             .Where(t => typeof(IEntityStructDefinition).IsAssignableFrom(t)
                      && t is { IsClass: true, IsAbstract: false }
-                     && t != typeof(Automation.Pipeline.Engine.StructRegistry.Definitions.DynamicEntityStructDefinition));
+                     && t != typeof(Contracts.StructRegistry.Definitions.DynamicEntityStructDefinition));
 
         foreach (var structType in structTypes)
         {

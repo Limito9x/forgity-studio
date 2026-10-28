@@ -41,7 +41,7 @@ function mapExecutionStatus(status: number | string): ExecutionStatus {
     const s = status.toLowerCase();
     if (s === "pending") return ExecutionStatus.Pending;
     if (s === "running") return ExecutionStatus.Running;
-    if (s === "waitingforrunner" || s === "waitingforagent")
+    if (s === "waitingforrunner" || s === "waitingforagent" || s === "waitingforsubpipeline")
       return ExecutionStatus.WaitingForRunner;
     if (s === "succeeded" || s === "success") return ExecutionStatus.Succeeded;
     if (s === "failed" || s === "fail") return ExecutionStatus.Failed;
@@ -53,6 +53,7 @@ function mapExecutionStatus(status: number | string): ExecutionStatus {
     case 2:
       return ExecutionStatus.Running;
     case 3:
+    case 7:
       return ExecutionStatus.WaitingForRunner;
     case 4:
       return ExecutionStatus.Succeeded;

@@ -4,15 +4,12 @@ using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
-using Automation.Pipeline.Engine;
-using Automation.Pipeline.Engine.DataResolver;
-using Automation.Pipeline.Engine.DataResolver.Resolvers;
-using Automation.Pipeline.Engine.StructRegistry;
-using Automation.Pipeline.Features.Pipelines;
-using Automation.Pipeline.Features.Pipelines.Dtos;
-using Automation.Pipeline.Features.Pipelines.Services;
+using Automation.Pipeline.Runtime.DataResolver;
+using Automation.Pipeline.Runtime.DataResolver.Resolvers;
+using Automation.Pipeline.Contracts.StructRegistry;
+using Automation.Pipeline.BuildTime.Graph;
 using Automation.Pipeline.Infrastructure.Persistence;
-using Automation.Pipeline.Tools;
+using Automation.Pipeline.Contracts.Tools;
 using FluentResults;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +18,7 @@ using NSubstitute;
 using Wolverine;
 using Automation.SharedKernel.Domain.Events;
 using Automation.SharedKernel.Infrastructure.Persistence;
-using Automation.Pipeline.Features.Nodes;
+using Automation.Pipeline.BuildTime.Features.CustomNodes;
 using Xunit;
 using PipelineEntity = Automation.Pipeline.Domain.Entities.Pipeline;
 
@@ -53,7 +50,7 @@ public sealed class PipelineFileParameterTests : IDisposable
                 new() { Id = "EntityId", PrimitiveType = PinPrimitiveType.EntityRef }], Outputs = []
         });
         _db.SaveChanges();
-        _builder = new(_db, new EmptyTools(), Substitute.For<IEntityStructRegistry>(), _assets);
+        _builder = PipelineGraphDtoBuilder.Create(_db, new EmptyTools(), Substitute.For<IEntityStructRegistry>(), _assets);
         _assets.CreateLinkAsync(Arg.Any<AssetLinkRequestItem>(), Arg.Any<AssetLinkOwner>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(call =>
             {
@@ -360,6 +357,30 @@ public sealed class PipelineFileParameterTests : IDisposable
     {
         public IReadOnlyList<IResolverTool> GetAll() => [];
         public IResolverTool? GetByKey(string key) => null;
+    }
+
+    [Fact]
+    public async Task Palette_IncludesHiddenToolsAndProjectDefinitions_RegardlessOfExecutor()
+    {
+        var hidden = Substitute.For<IResolverTool>();
+        hidden.Key.Returns("GetVariable");
+        hidden.Label.Returns("Get variable");
+        hidden.Inputs.Returns(Array.Empty<Automation.Pipeline.Domain.ValueObjects.PinDefinition>());
+        hidden.Outputs.Returns(Array.Empty<Automation.Pipeline.Domain.ValueObjects.PinDefinition>());
+        hidden.HasDynamicPins.Returns(true);
+        var registry = Substitute.For<IToolRegistry>();
+        registry.GetAll().Returns(new[] { hidden });
+        var handler = new Automation.Pipeline.BuildTime.Features.CustomNodes.GetNodePaletteHandler(registry, _db);
+        var result = await handler.HandleAsync(new(_pipeline.ProjectId, "blender"), CancellationToken.None);
+        Assert.True(result.IsSuccess);
+        var tool = Assert.Single(result.Value, x => x.Key == "GetVariable");
+        Assert.False(tool.IsVisibleInPalette);
+        Assert.True(tool.HasDynamicPins);
+        Assert.Equal("Standard", tool.Capabilities!.ViewVariant);
+        Assert.Contains(result.Value, x => x.Key == "file-node" && x.Source == "Custom");
+        Assert.Contains(result.Value, x => x.Key == _pipeline.Id.ToString() && x.Source == "SubPipeline");
+        var other = await handler.HandleAsync(new(Guid.NewGuid()), CancellationToken.None);
+        Assert.DoesNotContain(other.Value, x => x.Source == "Custom" || x.Source == "SubPipeline");
     }
 
     private sealed class TestDb(DbContextOptions<PipelineDbContext> options) : PipelineDbContext(options)

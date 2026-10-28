@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { calculateFileHash, uploadAssetFlow } from "@/lib/upload-utils";
 import { useBatchUpsertCustomNodesMutation } from "./usePipelines";
 import type { AnalyzedCustomNodeDto, BatchUpsertItem } from "./usePipelines";
+import { EdgeReconciliationStrategy } from "@/gen/model";
 
 export interface ScriptSource {
   fileName: string;
@@ -17,7 +18,7 @@ export function useScriptBatchPublish(projectId: string) {
   const [isPublishing, setIsPublishing] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const publish = async (nodes: AnalyzedCustomNodeDto[], sources: Record<string, ScriptSource>, strategies: Record<string, number>) => {
+  const publish = async (nodes: AnalyzedCustomNodeDto[], sources: Record<string, ScriptSource>, strategies: Record<string, number | EdgeReconciliationStrategy>) => {
     if (busy.current) return new Set<string>();
     busy.current = true;
     setIsPublishing(true);
@@ -43,7 +44,7 @@ export function useScriptBatchPublish(projectId: string) {
           label: node.suggestedLabel || node.suggestedName || null,
           executor: node.executor, contentHash: source.contentHash,
           originalFileName: source.fileName, assetId,
-          inputs: node.inputs, outputs: node.outputs, strategy: strategies[node.key] ?? 0,
+          inputs: node.inputs, outputs: node.outputs, strategy: (strategies[node.key] === 1 || strategies[node.key] === EdgeReconciliationStrategy.UnpinAll ? EdgeReconciliationStrategy.UnpinAll : EdgeReconciliationStrategy.KeepCompatiblePins),
         } as BatchUpsertItem;
       }));
       const items: BatchUpsertItem[] = [];

@@ -51,6 +51,10 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                     b.Property<string>("DeletedBy")
                         .HasColumnType("text");
 
+                    b.Property<string>("Dependencies")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
                     b.Property<string>("Executor")
                         .IsRequired()
                         .HasColumnType("text");

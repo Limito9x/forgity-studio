@@ -28,6 +28,7 @@ import type {
   BatchUpsertCustomNodesResponseDto,
   CreateCustomNodeCommand,
   CreateCustomNodeResponseDto,
+  CustomNodeSourceResponseDto,
   DeleteCustomNodesBulkCommand,
   DeleteCustomNodesBulkResult,
   ErrorResponse,
@@ -602,6 +603,157 @@ export const useUpdateCustomNode = <TError = void, TContext = unknown>(
 > => {
   return useMutation(getUpdateCustomNodeMutationOptions(options), queryClient);
 };
+export const getCustomNodeSource = (id: string, signal?: AbortSignal) => {
+  return customInstance<CustomNodeSourceResponseDto>({
+    url: `/api/pipeline/nodes/custom/${id}/source`,
+    method: "GET",
+    signal,
+  });
+};
+
+export const getGetCustomNodeSourceQueryKey = (id: string) => {
+  return [`/api/pipeline/nodes/custom/${id}/source`] as const;
+};
+
+export const getGetCustomNodeSourceQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCustomNodeSource>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCustomNodeSource>>,
+        TError,
+        TData
+      >
+    >;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCustomNodeSourceQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCustomNodeSource>>
+  > = ({ signal }) => getCustomNodeSource(id, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: id !== null && id !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCustomNodeSource>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetCustomNodeSourceQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCustomNodeSource>>
+>;
+export type GetCustomNodeSourceQueryError = void;
+
+export function useGetCustomNodeSource<
+  TData = Awaited<ReturnType<typeof getCustomNodeSource>>,
+  TError = void,
+>(
+  id: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCustomNodeSource>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCustomNodeSource>>,
+          TError,
+          Awaited<ReturnType<typeof getCustomNodeSource>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetCustomNodeSource<
+  TData = Awaited<ReturnType<typeof getCustomNodeSource>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCustomNodeSource>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCustomNodeSource>>,
+          TError,
+          Awaited<ReturnType<typeof getCustomNodeSource>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetCustomNodeSource<
+  TData = Awaited<ReturnType<typeof getCustomNodeSource>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCustomNodeSource>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useGetCustomNodeSource<
+  TData = Awaited<ReturnType<typeof getCustomNodeSource>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCustomNodeSource>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetCustomNodeSourceQueryOptions(id, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 export const getNodePalette = (
   params?: GetNodePaletteParams,
   signal?: AbortSignal,

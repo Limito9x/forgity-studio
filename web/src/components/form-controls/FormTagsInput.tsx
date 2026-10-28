@@ -10,12 +10,16 @@ export interface FormTagsInputProps<T extends FieldValues>
     OmitFormProps<Omit<TagsInputProps, "value" | "onChange">> {
     transformTag?: (tag: string) => string;
     renderTagLabel?: (tag: string) => React.ReactNode;
+    options?: string[];
+    allowCustom?: boolean;
 }
 
 export function FormTagsInput<T extends FieldValues>({
     disabled,
     transformTag,
     renderTagLabel,
+    options,
+    allowCustom,
     ...rest
 }: FormTagsInputProps<T>) {
     return (
@@ -25,11 +29,13 @@ export function FormTagsInput<T extends FieldValues>({
                 <TagsInput
                     {...fieldProps}
                     ref={ref}
-                    value={value || []}
+                    value={Array.isArray(value) ? value : (value ? [String(value)] : [])}
                     onChange={onChange}
                     disabled={disabled}
                     transformTag={transformTag}
                     renderTagLabel={renderTagLabel}
+                    options={options}
+                    allowCustom={allowCustom}
                     id={rest.id}
                 />
             )}
@@ -41,6 +47,9 @@ export interface FormTagsProperties {
     required?: boolean;
     requiredMsg?: string;
     disabled?: boolean;
+    options?: string[];
+    allowCustom?: boolean;
+    placeholder?: string;
 }
 
 declare module "@/lib/field-registry" {

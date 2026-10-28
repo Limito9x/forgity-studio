@@ -13,3 +13,23 @@ global using Mapster;
 
 global using P = Automation.Pipeline.Constants.PipelinePermissions;
 
+global using Automation.Pipeline.Domain.Entities;
+global using Automation.Pipeline.Domain.Enums;
+global using Automation.Pipeline.Domain.ValueObjects;
+global using Automation.Pipeline.Constants;
+global using Automation.Pipeline.Contracts.NodeContract;
+global using Automation.Pipeline.Contracts.Validation;
+global using Automation.Pipeline.Contracts.StructRegistry;
+global using Automation.Pipeline.Contracts.Tools;
+global using Automation.Pipeline.Contracts.Tools.Attributes;
+global using Automation.Pipeline.BuildTime.Graph;
+global using Automation.Pipeline.BuildTime.Features.Authoring;
+global using Automation.Pipeline.BuildTime.Features.Authoring.Dtos;
+global using Automation.Pipeline.BuildTime.Features.Packaging.Dtos;
+global using Automation.Pipeline.Runtime.Planner;
+global using Automation.Pipeline.Runtime.Planner.Models;
+global using Automation.Pipeline.Runtime.State;
+global using Automation.Pipeline.Runtime.State.Messages;
+global using Automation.Pipeline.Runtime.State.EntityStore;
+global using Automation.Pipeline.Runtime.Orchestrator;
+global using Automation.Pipeline.Runtime.DataResolver;

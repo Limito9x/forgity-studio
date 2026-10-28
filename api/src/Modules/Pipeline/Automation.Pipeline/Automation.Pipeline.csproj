@@ -32,7 +32,12 @@
     </ItemGroup>
 
     <ItemGroup>
+        <None Include="$(MSBuildThisFileDirectory)..\..\..\..\lib\**\*" CopyToOutputDirectory="PreserveNewest" Link="lib\%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+
+    <ItemGroup>
         <InternalsVisibleTo Include="Automation.Api" />
+        <InternalsVisibleTo Include="Automation.Pipeline.Tests" />
     </ItemGroup>
 
 </Project>

@@ -26,4 +26,6 @@ export interface AnalyzedCustomNodeDto {
   inputPinDiffs: IReadOnlyListOfPinDiffItem;
   outputPinDiffs: IReadOnlyListOfPinDiffItem;
   impactReport: ScriptImpactReportDto;
+  /** @nullable */
+  dependencies?: unknown[] | null;
 }

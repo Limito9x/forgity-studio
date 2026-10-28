@@ -24,7 +24,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="..\..\..\..\..\workers\scripts\*" Link="Scripts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="..\..\..\..\..\runner\scripts\*" Link="Scripts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 
 </Project>

@@ -1,0 +1,48 @@
+# Auto detect text files and normalize line endings to LF on commit
+* text=auto eol=lf
+
+# .NET / C# / Solution files on Windows
+*.cs text eol=crlf
+*.sln text eol=crlf
+*.csproj text eol=crlf
+*.props text eol=crlf
+*.targets text eol=crlf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Web / Frontend / Scripts / Configs
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+*.html text eol=lf
+*.svg text eol=lf
+*.py text eol=lf
+*.proto text eol=lf
+*.sh text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+*.sql text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.blend binary
+*.blend1 binary
+*.fbx binary
+*.duf binary
+*.dll binary
+*.exe binary
+*.pdb binary
+*.so binary
+*.dylib binary
+
