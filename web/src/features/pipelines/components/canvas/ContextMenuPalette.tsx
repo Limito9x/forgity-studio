@@ -146,7 +146,7 @@ export function ContextMenuPalette({
         item.label.toLowerCase() !== "return" &&
         (!currentPipelineId || (
           item.key.toLowerCase() !== currentPipelineId.toLowerCase() &&
-          item.customNodeId?.toLowerCase() !== currentPipelineId.toLowerCase()
+          item.id?.toLowerCase() !== currentPipelineId.toLowerCase()
         ))
     );
 

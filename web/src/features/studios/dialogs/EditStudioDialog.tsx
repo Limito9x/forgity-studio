@@ -12,12 +12,12 @@ export interface EditStudioDialogPayload {
 export function EditStudioDialog({
   open,
   onOpenChange,
-  payload,
+  data,
 }: DialogProps<EditStudioDialogPayload | undefined>) {
   const { studio: activeStudio } = useCurrentStudio();
   const updateStudio = useUpdateStudio();
 
-  const targetStudio = payload?.studio ?? activeStudio;
+  const targetStudio = data?.studio ?? activeStudio;
 
   if (!targetStudio) {
     return null;
@@ -44,7 +44,6 @@ export function EditStudioDialog({
             {
               id: targetStudio.id,
               data: {
-                id: targetStudio.id,
                 name: values.name,
                 description: values.description || undefined,
               },
