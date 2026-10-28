@@ -9,6 +9,8 @@ import { useLogin } from '../hooks/useLogin'
 import { useNavigate, useSearch, Link } from '@tanstack/react-router'
 import { getAuthState } from '@/stores/authStore'
 import { Workflow, ArrowUpRight } from 'lucide-react'
+import forgityLogo from "@/assets/forgity.svg"
+import { appConfig } from "@/config/appConfig"
 import { Form } from '@/components/form/Form'
 import { FormInput } from '@/components/form-controls/FormInput'
 import { AuthBrandingPanel } from './AuthBrandingPanel'
@@ -61,10 +63,10 @@ export function LoginForm({
             <Form id="login-form" form={form} onSubmit={onSubmit} className="flex flex-col gap-5">
               <div className="flex flex-col items-center gap-2 text-center">
                 <div className="flex items-center gap-2.5 font-semibold text-lg text-foreground tracking-tight">
-                  <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-                    <Workflow className="size-5" />
+                  <div className="flex size-9 items-center justify-center rounded-xl border border-border/60 bg-card p-1 shadow-xs overflow-hidden">
+                    <img src={forgityLogo} alt={appConfig.shortName} className="size-full object-contain rounded-md" />
                   </div>
-                  <span>Forgity Studio</span>
+                  <span>{appConfig.name}</span>
                 </div>
                 <h1 className="text-xl font-bold mt-1 text-foreground">Sign in to Studio</h1>
                 <p className="text-balance text-muted-foreground text-xs">
