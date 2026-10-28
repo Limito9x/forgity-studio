@@ -26,6 +26,7 @@ import type {
   ErrorResponse,
   IReadOnlyListOfStudioDto,
   StudioDto,
+  UpdateStudioCommand,
 } from "../../model";
 
 import { customInstance } from "../../../lib/api-client";
@@ -374,3 +375,82 @@ export function useGetStudioById<
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+export const updateStudio = (
+  id: string,
+  updateStudioCommand: UpdateStudioCommand,
+  signal?: AbortSignal,
+) => {
+  return customInstance<StudioDto>({
+    url: `/api/studios/${id}`,
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    data: updateStudioCommand,
+    signal,
+  });
+};
+
+export const getUpdateStudioMutationOptions = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateStudio>>,
+    TError,
+    { id: string; data: UpdateStudioCommand },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateStudio>>,
+  TError,
+  { id: string; data: UpdateStudioCommand },
+  TContext
+> => {
+  const mutationKey = ["updateStudio"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateStudio>>,
+    { id: string; data: UpdateStudioCommand }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateStudio(id, data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateStudioMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateStudio>>
+>;
+export type UpdateStudioMutationBody = UpdateStudioCommand;
+export type UpdateStudioMutationError = ErrorResponse | void;
+
+export const useUpdateStudio = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateStudio>>,
+      TError,
+      { id: string; data: UpdateStudioCommand },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateStudio>>,
+  TError,
+  { id: string; data: UpdateStudioCommand },
+  TContext
+> => {
+  return useMutation(getUpdateStudioMutationOptions(options), queryClient);
+};

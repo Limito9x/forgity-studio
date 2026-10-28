@@ -51,3 +51,25 @@ export const GetStudioByIdResponse = /*#__PURE__*/ zod.object({
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 })
 
+export const UpdateStudioParams = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid()
+})
+
+export const updateStudioBodyNameMin = 0;
+export const updateStudioBodyNameMax = 255;
+
+
+
+export const UpdateStudioBody = /*#__PURE__*/ zod.object({
+  "name": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(updateStudioBodyNameMin)).check(/*#__PURE__*/ zod.maxLength(updateStudioBodyNameMax)),
+  "description": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+})
+
+export const UpdateStudioResponse = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "name": /*#__PURE__*/ zod.string(),
+  "slug": /*#__PURE__*/ zod.string(),
+  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
+})
+
