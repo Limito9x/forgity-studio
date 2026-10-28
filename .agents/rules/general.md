@@ -36,6 +36,7 @@ Những quy tắc này áp dụng cho toàn bộ workspace Monorepo `Automation/
 
 ## 3. Ngôn Ngữ & Quy Ước Hiển Thị (Language Conventions)
 
+- **Thương Hiệu & Đặt Tên (Branding SSOT):** Tên thương mại & sản phẩm chính thức trên UI, thông báo, nhãn, tài liệu người dùng và trao đổi với User là **Forgity** hoặc **Forgity Studio** (được định nghĩa tại `web/src/config/appConfig.ts`). Tên namespace C# giữ nguyên tiền tố kỹ thuật `Automation.*`. Không dùng tên cũ "Automation Studio" cho sản phẩm.
 - **UI & Code:** Toàn bộ văn bản hiển thị cho người dùng (UI text, nhãn, thông báo lỗi, placeholder), tài liệu commit, và tên biến/hàm/lớp PHẢI viết bằng **tiếng Anh**.
 - **Agent Chat & Plans:** Khi User viết tiếng Việt, Agent phản hồi bằng **tiếng Việt**. Tất cả tài liệu kế hoạch (`implementation_plan.md`, `walkthrough.md`) viết bằng **tiếng Việt**.
 - **Comments & Logs:** Có thể viết bằng **tiếng Việt** hoặc **tiếng Anh**.
@@ -67,11 +68,13 @@ Khi thực hiện tác vụ, hãy xác định khu vực mã nguồn đang thao 
    - Agent cùng User thống nhất một Master Plan tổng quát lưu tại `.agents/plans/<date>-<topic>.md`.
    - Master Plan phải phân chia rõ ràng các Phase độc lập, có ranh giới và mục tiêu nghiệm thu cụ thể.
 
-2. **Tầng 2 - Lập Implementation Plan Chi Tiết Từng Phase (BẮT BUỘC):**
+2. **Tầng 2 - Đối Chiếu Trước/Sau & Lập Implementation Plan Chi Tiết Từng Phase (BẮT BUỘC):**
    - **Trước khi can thiệp mã nguồn của bất kỳ Phase nào**, Agent **TUYỆT ĐỐI KHÔNG ĐƯỢC tự ý code ngay**.
+   - **Bảng Đối Chiếu Trước & Sau (Before vs After Matrix):** Ở giai đoạn thảo luận chuẩn bị lên Implementation Plan và ngay trong Plan, Agent BẮT BUỘC phải trình bày **Bảng đối chiếu Trước & Sau thực hiện** theo từng hạng mục (chỉ rõ điểm đứt gãy/hạn chế hiện tại `TRƯỚC` và kiến trúc chuẩn hóa `SAU`).
    - Agent BẮT BUỘC phải trình bày một **Implementation Plan chi tiết riêng cho Phase đó** gồm:
+     * Bảng đối chiếu **Trước & Sau (Before vs After)** cho từng hạng mục kiến trúc / luồng dữ liệu.
      * Danh sách file sẽ tạo / sửa đổi kèm đường dẫn tuyệt đối dạng markdown link.
-     * Đặc tả hợp đồng dữ liệu / method / consumer / UI component (Before vs After).
+     * Đặc tả hợp đồng dữ liệu / method / consumer / UI component.
      * Ranh giới đỏ (Redlines), các giả định kiến trúc và xử lý edge cases.
      * Tiêu chí nghiệm thu và các bước kiểm thử (Build / Unit test / Manual verification).
 
@@ -92,3 +95,21 @@ Khi thực hiện tác vụ, hãy xác định khu vực mã nguồn đang thao 
 - **Triệt Để Tuân Thủ YAGNI (You Aren't Gonna Need It):** Chỉ cài đặt đúng và đủ các tính năng nằm trong phạm vi của Phase hiện tại. Không suy diễn, không tự ý mở rộng phạm vi ("tiện tay làm thêm"), không nhét các tính năng mà hệ sinh thái chưa sẵn sàng hỗ trợ.
 - **Không Monkey-Patch UI Primitives:** Khi gặp lỗi type hoặc thuộc tính (ví dụ: `title` vs `aria-label`), KHÔNG ĐƯỢC hack, monkey-patch, thêm `any` hoặc nới lỏng props của các component UI dùng chung trong `components/ui/`. Phải giải quyết đúng chuẩn mực ở tầng gọi component (call-site).
 
+---
+
+## 8. Quy Chuẩn Sửa Đổi Mã Nguồn Bằng Native Tool (Source Code Modification Standard)
+
+- **BẮT BUỘC Dùng Native Tools (`edit_file` / `write_file`):** Mọi thao tác sửa đổi file mã nguồn phải đi qua `edit_file` (cho sửa đổi từng phần) hoặc `write_file` (cho tạo mới / ghi đè toàn bộ file).
+- **TUYỆT ĐỐI CẤM Dùng Script Phụ Trợ (Python / PowerShell / Node.js) Để Sửa Code:** Nghiêm cấm tạo script trong `scratch/` hoặc chạy script shell để ghi đè file code. Thao tác này làm mất tính minh bạch của Diff UI trực quan trên IDE của User và tiềm ẩn rủi ro sai lệch encoding / format.
+- **Kỹ Thuật Chọn Anchor Với `edit_file`:**
+  - Luôn chọn đoạn `Target` ngắn, có ngữ cảnh neo độc nhất (unique anchors) từ 3–8 dòng.
+  - Hạn chế copy-paste block quá dài (hàng chục dòng) để tránh lỗi lệch line-ending giữa CRLF (`\r\n`) và LF (`\n`) trên môi trường Windows.
+  - Nếu cần thay đổi toàn bộ file hoặc file cấu hình lớn, sử dụng `write_file` kèm cờ `Overwrite: true`.
+
+---
+
+## 9. Quy Chuẩn Vòng Đời Kế Hoạch & Lưu Trữ Theo Tháng (Plan Lifecycle & Monthly Archiving)
+
+- **Thư Mục Gốc `.agents/plans/` Tinh Gọn:** Chỉ lưu giữ duy nhất `BACKLOG.md`, `README.md` và các Active Plans đang triển khai (tối đa 1–3 file).
+- **Lưu Trữ (Archive) Định Kỳ Theo Tháng:** Toàn bộ kế hoạch kỹ thuật sau khi đã nghiệm thu và hoàn thành BẮT BUỘC phải di chuyển vào kho lưu trữ theo tháng: `.agents/plans/archive/YYYY-MM/` và cập nhật chỉ mục tương ứng tại `README.md`.
+- **Sổ Bộ Backlog 2 Tầng:** `BACKLOG.md` duy trì ngắn gọn (chỉ chứa các mục Active & High-priority Next Up); các ý tưởng dài hạn chưa xếp lịch được chuyển vào kho `ICEBOX.md` để tránh làm phình to context window của Agent.

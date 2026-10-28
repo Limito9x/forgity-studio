@@ -18,6 +18,7 @@ export type StageCreationOption = {
 
 interface ContextMenuPaletteProps {
   projectId: string;
+  currentPipelineId?: string;
   position: { x: number; y: number } | null;
   targetStage?: ScopeContainerNodeData | null;
   onClose: () => void;
@@ -27,6 +28,7 @@ interface ContextMenuPaletteProps {
 
 export function ContextMenuPalette({
   projectId,
+  currentPipelineId,
   position,
   targetStage,
   onClose,
@@ -127,7 +129,7 @@ export function ContextMenuPalette({
     []
   );
 
-  // Filtered items (Server already handles scoped executor filtering)
+  // Executor and visibility filtering use the shared definition query cache.
   const filteredItems = useMemo(() => {
     // On root canvas (no stage selected), standalone tools are not allowed; only Stages can be spawned
     if (!targetStage) {
@@ -138,8 +140,14 @@ export function ContextMenuPalette({
       (item) =>
         item.key.toLowerCase() !== "start" &&
         item.key.toLowerCase() !== "beginexecute" &&
+        item.key.toLowerCase() !== "return" &&
         item.label.toLowerCase() !== "start" &&
-        item.label.toLowerCase() !== "start pipeline"
+        item.label.toLowerCase() !== "start pipeline" &&
+        item.label.toLowerCase() !== "return" &&
+        (!currentPipelineId || (
+          item.key.toLowerCase() !== currentPipelineId.toLowerCase() &&
+          item.id?.toLowerCase() !== currentPipelineId.toLowerCase()
+        ))
     );
 
     const q = search.trim().toLowerCase();

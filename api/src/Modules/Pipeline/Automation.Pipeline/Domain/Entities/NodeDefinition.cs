@@ -12,6 +12,7 @@ public class NodeDefinition : BaseEntity
     public List<PinDefinition> Inputs { get; set; } = new();
     public List<PinDefinition> Outputs { get; set; } = new();
     public string Executor { get; set; } = string.Empty;
+    public List<ScriptDependencyDto> Dependencies { get; set; } = new();
 
     public string ContentHash { get; set; } = string.Empty;
     public string SemanticVersion { get; set; } = "1.0.0";
@@ -45,7 +46,8 @@ public class NodeDefinition : BaseEntity
         string label,
         string executor,
         List<PinDefinition> inputs,
-        List<PinDefinition> outputs
+        List<PinDefinition> outputs,
+        List<ScriptDependencyDto>? dependencies = null
     )
     {
         Name = name;
@@ -53,6 +55,7 @@ public class NodeDefinition : BaseEntity
         Executor = executor;
         Inputs = inputs;
         Outputs = outputs;
+        if (dependencies != null) Dependencies = dependencies;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 

@@ -17,7 +17,13 @@ public class MailKitEmailSender : IEmailSender
         _logger = logger;
     }
 
-    public async Task SendAsync(string to, string subject, string body, bool isHtml = true, CancellationToken ct = default)
+    public async Task SendAsync(
+        string to,
+        string subject,
+        string body,
+        bool isHtml = true,
+        string? plainTextBody = null,
+        CancellationToken ct = default)
     {
         var host = _config["Smtp:Host"] ?? "localhost";
         var portStr = _config["Smtp:Port"] ?? "25";
@@ -33,14 +39,24 @@ public class MailKitEmailSender : IEmailSender
         message.Subject = subject;
 
         var bodyBuilder = new BodyBuilder();
+
+        // 1. Plain text body (crucial for anti-spam filters & non-HTML clients)
+        if (!string.IsNullOrWhiteSpace(plainTextBody))
+        {
+            bodyBuilder.TextBody = plainTextBody;
+        }
+        else if (!isHtml)
+        {
+            bodyBuilder.TextBody = body;
+        }
+
+        // 2. HTML body
         if (isHtml)
         {
             bodyBuilder.HtmlBody = body;
         }
-        else
-        {
-            bodyBuilder.TextBody = body;
-        }
+
+        // MimeKit automatically constructs multipart/alternative when both TextBody and HtmlBody are set
         message.Body = bodyBuilder.ToMessageBody();
 
         try
@@ -60,7 +76,12 @@ public class MailKitEmailSender : IEmailSender
             await client.SendAsync(message, ct);
             await client.DisconnectAsync(true, ct);
 
-            _logger.LogInformation("Email sent successfully to {To} with subject {Subject}", to, subject);
+            _logger.LogInformation(
+                "Email sent successfully to {To} with subject {Subject} (Multipart: {HasPlainAndHtml})",
+                to,
+                subject,
+                !string.IsNullOrWhiteSpace(bodyBuilder.TextBody) && !string.IsNullOrWhiteSpace(bodyBuilder.HtmlBody)
+            );
         }
         catch (System.Exception ex)
         {
@@ -70,6 +91,3 @@ public class MailKitEmailSender : IEmailSender
         }
     }
 }
-
-
-

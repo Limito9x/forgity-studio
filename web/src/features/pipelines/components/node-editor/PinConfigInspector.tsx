@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type { PinDefinition } from "@/gen/model";
 import {
   STATIC_PIN_CATALOGUE,
@@ -10,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Sliders, X } from "lucide-react";
+import { Sliders, X, ListFilter, AlignLeft, Tags, LayoutTemplate } from "lucide-react";
+import { TagsInput } from "@/components/custom-ui/inputs/tags-input/TagsInput";
 
 interface PinConfigInspectorProps {
   selectedPin: {
@@ -46,12 +48,119 @@ export function PinConfigInspector({
 
   const normType: NormalizedPinType = normalizePinType(pin.primitiveType);
 
+  const parsedMetadata = useMemo<Record<string, any>>(() => {
+    if (!pin.metadata) return {};
+    try {
+      return typeof pin.metadata === "object"
+        ? (pin.metadata as Record<string, any>)
+        : JSON.parse(String(pin.metadata));
+    } catch {
+      return {};
+    }
+  }, [pin.metadata]);
+
+  const pinOptions: string[] = useMemo(() => {
+    return Array.isArray(parsedMetadata.options) ? parsedMetadata.options : [];
+  }, [parsedMetadata]);
+
   const currentCardinality = (() => {
     const c = String(pin.cardinality ?? "").toLowerCase();
     if (c === "array" || c === "1") return "Array";
     if (c === "map" || c === "2") return "Map";
     return "Single";
   })();
+
+  const isCollection =
+    currentCardinality === "Array" ||
+    String(pin.primitiveType ?? "").includes("[]");
+
+  const controlType = useMemo<"auto" | "select" | "textarea" | "tagsInput">(() => {
+    const t = String(parsedMetadata.type || "").toLowerCase();
+    if (t === "textarea" || parsedMetadata.multiline) {
+      return "textarea";
+    }
+    if (t === "tagsinput" || t === "tags") {
+      return "tagsInput";
+    }
+    if (t === "select" || t === "combobox" || Array.isArray(parsedMetadata.options)) {
+      return isCollection ? "tagsInput" : "select";
+    }
+    return "auto";
+  }, [parsedMetadata, isCollection]);
+
+  const updateMetadata = (updates: Record<string, any> | null) => {
+    if (!updates || Object.keys(updates).length === 0) {
+      onUpdatePin({ ...pin, metadata: undefined });
+      return;
+    }
+    onUpdatePin({ ...pin, metadata: JSON.stringify(updates) });
+  };
+
+  const handleControlTypeChange = (newType: string) => {
+    if (newType === "auto") {
+      const nextMeta = { ...parsedMetadata };
+      delete nextMeta.type;
+      delete nextMeta.options;
+      delete nextMeta.rows;
+      delete nextMeta.allowCustom;
+      delete nextMeta.multiline;
+      updateMetadata(Object.keys(nextMeta).length > 0 ? nextMeta : null);
+      return;
+    }
+
+    if (newType === "select") {
+      updateMetadata({
+        ...parsedMetadata,
+        type: isCollection ? "tagsInput" : "select",
+        options: pinOptions.length > 0 ? pinOptions : ["default_option"],
+        allowCustom: parsedMetadata.allowCustom ?? true,
+      });
+      return;
+    }
+
+    if (newType === "textarea") {
+      const nextMeta = { ...parsedMetadata };
+      delete nextMeta.options;
+      updateMetadata({
+        ...nextMeta,
+        type: "textarea",
+        rows: parsedMetadata.rows || 4,
+      });
+      return;
+    }
+
+    if (newType === "tagsInput") {
+      updateMetadata({
+        ...parsedMetadata,
+        type: "tagsInput",
+        options: pinOptions,
+        allowCustom: parsedMetadata.allowCustom ?? true,
+      });
+    }
+  };
+
+  const handleOptionsChange = (newOptions: string[]) => {
+    updateMetadata({
+      ...parsedMetadata,
+      type: isCollection ? "tagsInput" : (parsedMetadata.type || "select"),
+      options: newOptions,
+    });
+  };
+
+  const handleToggleAllowCustom = (checked: boolean) => {
+    updateMetadata({
+      ...parsedMetadata,
+      allowCustom: checked,
+    });
+  };
+
+  const handleRowsChange = (newRows: number) => {
+    updateMetadata({
+      ...parsedMetadata,
+      type: "textarea",
+      rows: newRows,
+    });
+  };
 
   return (
     <Card className="h-full flex flex-col shadow-xs border bg-card">
@@ -140,41 +249,39 @@ export function PinConfigInspector({
           </Select>
         </div>
 
-        {/* Entity Target for EntityRef */}
+        {/* Struct Type for EntityRef */}
         {normType === "EntityRef" && (
           <div className="space-y-1.5 animate-in fade-in duration-150">
-            <Label className="text-xs font-semibold">Entity Target</Label>
+            <Label className="text-xs font-semibold">Struct Type</Label>
             <Select
-              selectedKey={pin.entityTarget || "Resource"}
+              selectedKey={pin.structType || "Resource"}
               onSelectionChange={(key) =>
-                onUpdatePin({ ...pin, entityTarget: String(key) })
+                onUpdatePin({ ...pin, structType: String(key) })
               }
             >
               <SelectTrigger className="text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem id="Resource">Resource (Files, Models, Textures)</SelectItem>
-                <SelectItem id="Workspace">Workspace (Folder Root)</SelectItem>
-                <SelectItem id="ContentType">Content Type (Dynamic Schema)</SelectItem>
-                <SelectItem id="Agent">Agent (Runner Worker)</SelectItem>
-                <SelectItem id="Tag">Tag / Metadata Group</SelectItem>
-                <SelectItem id="variable">Pipeline Variable (Runtime Store)</SelectItem>
+                <SelectItem id="Resource">Resource</SelectItem>
+                <SelectItem id="Workstation">Workstation</SelectItem>
+                <SelectItem id="Repository">Repository</SelectItem>
+                <SelectItem id="Runner">Runner</SelectItem>
+                <SelectItem id="ContentItem">ContentItem</SelectItem>
+                <SelectItem id="ContentType">ContentType</SelectItem>
+                <SelectItem id="Tag">Tag</SelectItem>
               </SelectContent>
             </Select>
           </div>
         )}
 
-        {/* Cardinality (Single vs Array vs Map) */}
+        {/* Cardinality (Single vs Array) */}
         <div className="space-y-1.5">
-          <Label className="text-xs font-semibold">Cardinality (Data Structure)</Label>
+          <Label className="text-xs font-semibold">Cardinality</Label>
           <Select
             selectedKey={currentCardinality}
             onSelectionChange={(key) =>
-              onUpdatePin({
-                ...pin,
-                cardinality: String(key) as any,
-              })
+              onUpdatePin({ ...pin, cardinality: String(key) as any })
             }
           >
             <SelectTrigger className="text-xs">
@@ -182,11 +289,110 @@ export function PinConfigInspector({
             </SelectTrigger>
             <SelectContent>
               <SelectItem id="Single">Single Value</SelectItem>
-              <SelectItem id="Array">Array / List ([])</SelectItem>
-              <SelectItem id="Map">Map / Dictionary (Key-Value)</SelectItem>
+              <SelectItem id="Array">Array / List of Values</SelectItem>
+              <SelectItem id="Map">Key-Value Map</SelectItem>
             </SelectContent>
           </Select>
         </div>
+
+        {/* UI Control & Preset Mode Section (Form Registry Integration) */}
+        {isInput && (
+          <div className="space-y-3 p-3 rounded-lg border border-primary/20 bg-primary/5">
+            <div className="flex items-center gap-1.5">
+              <LayoutTemplate className="size-3.5 text-primary" />
+              <Label className="text-xs font-semibold text-primary">
+                UI Control & Preset Mode
+              </Label>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[11px] text-muted-foreground">Form Control Type</Label>
+              <Select
+                selectedKey={controlType}
+                onSelectionChange={(key) => handleControlTypeChange(String(key))}
+              >
+                <SelectTrigger className="h-8 text-xs bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem id="auto">Auto / Default (Based on Data Type)</SelectItem>
+                  <SelectItem id="select">
+                    <div className="flex items-center gap-1.5">
+                      <ListFilter className="size-3 text-primary" />
+                      <span>Preset Options {isCollection ? "(Multi-Select Chips)" : "(Dropdown / Combobox)"}</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem id="textarea">
+                    <div className="flex items-center gap-1.5">
+                      <AlignLeft className="size-3 text-primary" />
+                      <span>Multiline Text (Textarea)</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem id="tagsInput">
+                    <div className="flex items-center gap-1.5">
+                      <Tags className="size-3 text-primary" />
+                      <span>Tags Input (String List)</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Sub-config for Preset Dropdown or TagsInput */}
+            {(controlType === "select" || controlType === "tagsInput") && (
+              <div className="space-y-2.5 pt-2 border-t border-primary/10 animate-in fade-in duration-150">
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-medium text-foreground">
+                    Preset Options List
+                  </Label>
+                  <TagsInput
+                    value={pinOptions}
+                    onChange={handleOptionsChange}
+                    placeholder="Type option and press Enter..."
+                    className="text-xs bg-background"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    {isCollection
+                      ? "Presets that users can quickly toggle on/off as multi-select chips."
+                      : "Options available in dropdown/combobox for this pin."}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <div className="space-y-0.5">
+                    <Label className="text-[11px] font-medium">Allow Custom Values</Label>
+                    <p className="text-[10px] text-muted-foreground">
+                      {isCollection
+                        ? "Allow typing free-text tags beyond presets"
+                        : "Allow free-text input beyond presets"}
+                    </p>
+                  </div>
+                  <Switch
+                    isSelected={parsedMetadata.allowCustom ?? true}
+                    onChange={handleToggleAllowCustom}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Sub-config for Multiline Textarea */}
+            {controlType === "textarea" && (
+              <div className="space-y-1.5 pt-2 border-t border-primary/10 animate-in fade-in duration-150">
+                <Label className="text-[11px] font-medium text-foreground">
+                  Visible Rows (Height)
+                </Label>
+                <Input
+                  type="number"
+                  min={2}
+                  max={20}
+                  className="h-8 text-xs bg-background"
+                  value={parsedMetadata.rows || 4}
+                  onChange={(e) => handleRowsChange(Number(e.target.value) || 4)}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Input specific fields */}
         {isInput && (
@@ -210,22 +416,45 @@ export function PinConfigInspector({
             {/* Default Value */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Default Fallback Value</Label>
-              <Input
-                className="font-mono text-xs"
-                placeholder="Optional (e.g. 4096 or 'default_val')"
-                value={
-                  pin.defaultValue !== null && pin.defaultValue !== undefined
-                    ? String(pin.defaultValue)
-                    : ""
-                }
-                onChange={(e) => {
-                  const val = e.target.value;
-                  onUpdatePin({
-                    ...pin,
-                    defaultValue: val === "" ? null : val,
-                  });
-                }}
-              />
+              {controlType === "select" && pinOptions.length > 0 && !isCollection ? (
+                <Select
+                  selectedKey={String(pin.defaultValue || pinOptions[0] || "")}
+                  onSelectionChange={(key) =>
+                    onUpdatePin({
+                      ...pin,
+                      defaultValue: String(key),
+                    })
+                  }
+                >
+                  <SelectTrigger className="text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pinOptions.map((opt) => (
+                      <SelectItem key={opt} id={opt}>
+                        {opt}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  className="font-mono text-xs"
+                  placeholder="Optional (e.g. 4096 or 'default_val')"
+                  value={
+                    pin.defaultValue !== null && pin.defaultValue !== undefined
+                      ? String(pin.defaultValue)
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    onUpdatePin({
+                      ...pin,
+                      defaultValue: val === "" ? null : val,
+                    });
+                  }}
+                />
+              )}
             </div>
           </>
         )}

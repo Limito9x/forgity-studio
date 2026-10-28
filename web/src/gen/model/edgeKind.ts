@@ -9,6 +9,6 @@
 export type EdgeKind = (typeof EdgeKind)[keyof typeof EdgeKind];
 
 export const EdgeKind = {
-  NUMBER_1: 1,
-  NUMBER_2: 2,
+  Exec: "Exec",
+  Data: "Data",
 } as const;

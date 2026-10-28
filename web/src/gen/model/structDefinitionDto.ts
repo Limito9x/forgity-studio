@@ -11,4 +11,5 @@ export interface StructDefinitionDto {
   structType: string;
   label: string;
   outputPins: IReadOnlyListOfPinDefinition;
+  sampleJson?: unknown;
 }

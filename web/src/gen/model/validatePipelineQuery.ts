@@ -10,4 +10,10 @@ import type { DictionaryOfStringAndObject } from "./dictionaryOfStringAndObject"
 export interface ValidatePipelineQuery {
   /** @nullable */
   runtimeInputs?: DictionaryOfStringAndObject | null;
+  /** @nullable */
+  nodes?: unknown[] | null;
+  /** @nullable */
+  edges?: unknown[] | null;
+  /** @nullable */
+  parameters?: unknown[] | null;
 }

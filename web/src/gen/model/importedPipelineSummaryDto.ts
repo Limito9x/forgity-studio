@@ -11,4 +11,7 @@ export interface ImportedPipelineSummaryDto {
   pipelineId: string;
   name: string;
   isRoot: boolean;
+  isValid?: boolean;
+  /** @nullable */
+  diagnostics?: unknown[] | null;
 }

@@ -9,6 +9,6 @@
 export type PinKind = (typeof PinKind)[keyof typeof PinKind];
 
 export const PinKind = {
-  NUMBER_0: 0,
-  NUMBER_1: 1,
+  Data: "Data",
+  Exec: "Exec",
 } as const;

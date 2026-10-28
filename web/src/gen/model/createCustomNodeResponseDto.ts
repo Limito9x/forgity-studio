@@ -25,4 +25,6 @@ export interface CreateCustomNodeResponseDto {
   assetId?: string | null;
   /** @nullable */
   originalFileName?: string | null;
+  /** @nullable */
+  dependencies?: unknown[] | null;
 }

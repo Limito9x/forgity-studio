@@ -21,4 +21,6 @@ export interface PipelineGraphDto {
   triggerConfig?: unknown;
   /** @nullable */
   fileResults?: unknown[] | null;
+  /** @nullable */
+  diagnostics?: unknown[] | null;
 }

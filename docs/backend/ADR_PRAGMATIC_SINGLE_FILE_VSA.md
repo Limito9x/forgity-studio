@@ -1,6 +1,9 @@
 # Architecture Decision Record (ADR): Pragmatic Single-File VSA & Mapster-First Paradigm
 
-- **Mã tài liệu**: ADR-005
+> [!NOTE]
+> Tài liệu này đã được quy hoạch và chuẩn hóa vào sổ bộ ADR tập trung tại [docs/adr/ADR-002-pragmatic-single-file-vsa.md](file:///d:/FullStack/Automation/docs/adr/ADR-002-pragmatic-single-file-vsa.md).
+
+- **Mã tài liệu**: ADR-002 *(Đã chuyển sang docs/adr/)*
 - **Trạng thái**: Đã phê duyệt & Áp dụng bắt buộc (Accepted & Enforced)
 - **Ngày quyết định**: 2026-09-24
 - **Phạm vi**: Toàn bộ Backend .NET Core (`api/`)

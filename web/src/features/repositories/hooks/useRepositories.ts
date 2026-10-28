@@ -21,6 +21,7 @@ import type {
   SyncLocalChangesResultDto,
   PublishResourceVersionCommand,
   ResourceVersionStatus,
+  WorkstationRootDto,
 } from "@/gen/model";
 import { useMutation } from "@tanstack/react-query";
 
@@ -32,6 +33,7 @@ export type {
   ResourceVersionDto,
   ResourceVersionLocationDto,
   WorkspaceResourceDto,
+  WorkstationRootDto,
   CreateRepositoryCommand,
   UpdateRepositoryRequest,
   AttachRunnerToRepositoryCommand,
@@ -44,6 +46,18 @@ export type {
 
 export const useRepositories = (projectId: string) => {
   return RepositoriesApi.useGetRepositories(
+    { projectId },
+    {
+      query: {
+        enabled: !!projectId,
+        placeholderData: keepPreviousData,
+      },
+    },
+  );
+};
+
+export const useProjectWorkstations = (projectId: string) => {
+  return RepositoriesApi.useGetProjectWorkstations(
     { projectId },
     {
       query: {
@@ -221,4 +235,17 @@ export const useDownloadResourceVersion = () => {
       return res;
     },
   });
+};
+
+export const useDeleteResource = (repositoryId?: string) => {
+  const queryKeys = [
+    ["resources"],
+    ...(repositoryId
+      ? [
+          ["repositories", repositoryId, "resources"],
+          [`/api/repositories/${repositoryId}/resources`],
+        ]
+      : []),
+  ];
+  return createMutationHook(ResourcesApi.useDeleteResource, queryKeys)();
 };

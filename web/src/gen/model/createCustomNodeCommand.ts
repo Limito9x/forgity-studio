@@ -28,4 +28,6 @@ export interface CreateCustomNodeCommand {
   outputs: unknown[] | null;
   /** @nullable */
   contentHash?: string | null;
+  /** @nullable */
+  dependencies?: unknown[] | null;
 }

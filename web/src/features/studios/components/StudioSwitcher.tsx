@@ -109,7 +109,7 @@ export function StudioSwitcher() {
             </DropdownMenuItem>
 
             <DropdownMenuItem
-              onAction={() => navigate({ to: "/system/settings" })}
+              onAction={() => openDialog("edit-studio", { studio: currentStudio })}
               className="flex items-center gap-2 cursor-pointer py-2 text-muted-foreground"
             >
               <div className="flex aspect-square size-6 items-center justify-center rounded shrink-0">

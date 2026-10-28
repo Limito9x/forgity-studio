@@ -39,4 +39,8 @@ export interface WorkspaceResourceDto {
   lockedByRunnerName?: string | null;
   /** @nullable */
   lockedAt?: string | null;
+  /** @nullable */
+  holdingRunnerId?: string | null;
+  /** @nullable */
+  holdingRunnerName?: string | null;
 }

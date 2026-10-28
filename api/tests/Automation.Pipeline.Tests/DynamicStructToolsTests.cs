@@ -1,11 +1,15 @@
 using System.Text.Json;
 using Automation.Pipeline.Domain.Enums;
-using Automation.Pipeline.Engine.StructRegistry;
-using Automation.Pipeline.Engine.StructRegistry.Definitions;
-using Automation.Pipeline.Tools;
-using Automation.Pipeline.Tools.Construct;
-using Automation.Pipeline.Tools.Deconstruct;
+using Automation.Pipeline.Contracts.StructRegistry;
+using Automation.Pipeline.Contracts.StructRegistry.Definitions;
+using Automation.Pipeline.Contracts.Tools;
+using Automation.Pipeline.Contracts.Tools.Construct;
+using Automation.Pipeline.Contracts.Tools.Deconstruct;
+using Automation.Pipeline.Constants;
+using Automation.Runner.Contracts;
 using FluentAssertions;
+using FluentResults;
+using NSubstitute;
 using Xunit;
 
 namespace Automation.Pipeline.Tests;
@@ -169,46 +173,46 @@ public class DynamicStructToolsTests
     }
 
     [Fact]
-    public async Task BreakStructTool_ShouldResolveAndUnpack_TaggedAssetStaticStruct()
+    public async Task BreakStructTool_ShouldResolveAndUnpack_RunnerStaticStruct()
     {
-        var staticDefs = new List<IEntityStructDefinition> { new TaggedAssetStructDefinition() };
+        var runnerId = Guid.NewGuid();
+        var runnerApi = Substitute.For<IRunnerApi>();
+        runnerApi.GetRunnerByIdAsync(runnerId, Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new RunnerDto(
+                runnerId,
+                "Render-Node-01",
+                "MACHINE-01",
+                true,
+                DateTimeOffset.UtcNow,
+                DateTimeOffset.UtcNow,
+                true,
+                "Windows",
+                "Intel i9-14900K"
+            )));
+
+        var staticDefs = new List<IEntityStructDefinition> { new RunnerStructDefinition(runnerApi) };
         var registry = new EntityStructRegistry(staticDefs, null);
         var breakTool = new BreakStructTool(registry);
 
         // 1. Check resolve pins
-        var (inputs, outputs) = breakTool.ResolvePins(new Dictionary<string, object?> { ["StructType"] = "TaggedAsset" });
-        outputs.Should().Contain(p => p.Id == "AssetName" && p.PrimitiveType == PinPrimitiveType.String);
-        outputs.Should().Contain(p => p.Id == "FilePath" && p.PrimitiveType == PinPrimitiveType.Path);
-        outputs.Should().Contain(p => p.Id == "TagMap" && p.Cardinality == PinCardinality.Map);
-        outputs.Should().Contain(p => p.Id == "ResourceTags" && p.Cardinality == PinCardinality.Array);
+        var (inputs, outputs) = breakTool.ResolvePins(new Dictionary<string, object?> { ["StructType"] = WellKnownStructTypes.Runner });
+        outputs.Should().Contain(p => p.Id == "RunnerName" && p.PrimitiveType == PinPrimitiveType.String);
+        outputs.Should().Contain(p => p.Id == "OsPlatform" && p.PrimitiveType == PinPrimitiveType.String);
+        outputs.Should().Contain(p => p.Id == "CpuModel" && p.PrimitiveType == PinPrimitiveType.String);
 
-        // 2. Unpack asset dictionary (similar to BuildTagMapFromResourceTool output)
-        var assetObj = new Dictionary<string, object?>
-        {
-            ["resource_id"] = "res-123",
-            ["version_id"] = "ver-456",
-            ["asset_name"] = "Hero_Model",
-            ["relative_path"] = "Characters/Hero.fbx",
-            ["file_path"] = "D:/Project/Characters/Hero.fbx",
-            ["resource_tags"] = new[] { "Character", "Hero" },
-            ["tag_map"] = new Dictionary<string, object> { ["material"] = "M_Hero" },
-            ["path_map"] = new Dictionary<string, object> { ["Characters/Hero.fbx"] = "Hero" },
-            ["metadata"] = "{}"
-        };
-
+        // 2. Unpack runner entity ref
         var breakInputs = new Dictionary<string, object>
         {
-            ["Target"] = assetObj,
-            ["StructType"] = "TaggedAsset"
+            ["Target"] = $"Runner:{runnerId}",
+            ["StructType"] = WellKnownStructTypes.Runner
         };
 
         var breakResult = await breakTool.ExecuteAsync(breakInputs, _context);
 
-        breakResult["AssetName"].Should().Be("Hero_Model");
-        breakResult["FilePath"].Should().Be("D:/Project/Characters/Hero.fbx");
-        breakResult["RelativePath"].Should().Be("Characters/Hero.fbx");
-        breakResult["ResourceTags"].Should().BeAssignableTo<IEnumerable<string>>();
-        breakResult["TagMap"].Should().BeAssignableTo<IDictionary<string, object>>();
+        breakResult["RunnerName"].Should().Be("Render-Node-01");
+        breakResult["MachineKey"].Should().Be("MACHINE-01");
+        breakResult["OsPlatform"].Should().Be("Windows");
+        breakResult["CpuModel"].Should().Be("Intel i9-14900K");
     }
 }
 

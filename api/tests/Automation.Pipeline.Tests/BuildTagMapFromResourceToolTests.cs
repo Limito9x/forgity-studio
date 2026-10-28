@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Automation.Pipeline.Domain.ValueObjects;
-using Automation.Pipeline.Tools;
-using Automation.Pipeline.Tools.Tags;
+using Automation.Pipeline.Contracts.Tools;
+using Automation.Pipeline.Contracts.Tools.Tags;
 using Automation.Repository.Contracts;
 using Automation.Repository.Contracts.Dtos;
 using Automation.Tag.Contracts.Dtos;

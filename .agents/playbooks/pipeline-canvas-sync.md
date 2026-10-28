@@ -1,5 +1,59 @@
 # Pipeline Playbook: Custom Nodes & Canvas Graph Sync
 
+## Mental model: definition → instance → resolve → validate
+
+> Cập nhật 24/10/2026. Hệ thống đã hoàn tất toàn bộ chuỗi **Phase B + R1 + R2 + R3 (Canvas Diagnostics UI) + R4 (Package Validation)**. Xem thêm chi tiết tại [Node Resolution & Validation Lifecycle](../plans/2026-10-22-node-resolution-and-validation-lifecycle.md) và [BL-001 Plan](../plans/2026-10-24-bl-001-canvas-inspector-diagnostics-ui.md).
+
+### Luồng resolve hiện tại (Sau R1 + R2)
+
+1. Palette cung cấp definition dùng chung và pins ban đầu khi tạo node. Khi tải graph, dùng pins backend trả về cho từng instance; refetch palette không thay thế các pins này.
+2. Với các node Struct (`BreakStruct`, `MakeStruct`, `CastToStruct`), trạng thái khởi tạo chưa chọn `StructType` (`Not selected`) chỉ có input `StructType` (hoặc `[Source, StructType]` và `[IsValid]` với `CastToStruct`) và hiển thị cảnh báo `"Select a Struct Type in Inspector"`. Khi người dùng đổi `StructType` sang loại khác, `applyNodeConfigUpdate` tự động xóa các giá trị cấu hình phụ thuộc (`Target` hoặc các field của struct cũ) và dọn dây nối vào `Target` để không bao giờ giữ nhầm ID/connection của loại cũ.
+3. Mỗi dynamic tool trên Backend khai báo `Capabilities.SchemaConfigKeys` (ví dụ `["StructType"]`, `["Template"]`, `["DynamicPins"]`, `["Path"]`, `["VariableName"]`). `PipelineNodeRouter` truyền `projectId` (từ `usePipelineFormScope`) và `schemaConfigKeys` vào `useNodePinResolver`.
+4. `useNodePinResolver` chỉ tính `schemaSignature` trên các khóa trong `SchemaConfigKeys` và áp dụng **Debounce 300ms** kèm `AbortController` (`signal`). Việc chỉnh sửa các giá trị dữ liệu runtime (`Target`, `Item_1`, biến `{folder}`...) không làm đổi `schemaSignature` nên **không phát sinh request `/resolve-pins` dư thừa**.
+5. Khi nhận kết quả từ `/resolve-pins`, hook dùng `arePinListsEqual` để so sánh toàn diện schema (`id`, `label`, `kind`, `primitiveType`, `cardinality`, `structType`, `isRequired`, `defaultValue`, `metadata`) — nhận diện chính xác cả khi một pin giữ nguyên `id` (như `Target` hoặc `Result`) nhưng đổi `structType` hoặc `cardinality`. Việc dọn orphan edges tách biệt rõ hai tập `validInputPinIds` (`edge.target === id`) và `validOutputPinIds` (`edge.source === id`).
+
+### Định hướng tiếp theo — R3 & R4 (chưa triển khai)
+
+**Resolve trả lời “node có những chân nào”; validation trả lời “graph còn thiếu hoặc sai điều gì”.** Hai việc dùng cùng định nghĩa backend nhưng có đầu vào khác nhau: resolve cần config/context; validation còn cần edges, parameters và dependencies của project.
+
+```text
+Definition backend → khởi tạo instance
+Đổi cấu hình ảnh hưởng schema (SchemaConfigKeys) → debounce 300ms → backend resolve → cập nhật instance pins
+Đổi dữ liệu input → cập nhật config instance (không gọi resolve)
+Snapshot graph + connections + project context → backend validate → diagnostics trên Canvas
+```
+
+- Validation backend kiểm tra thiếu config, pin bắt buộc chưa có nguồn, kết nối sai type và dependency thiếu. Pin đã nối dây hoặc lấy giá trị từ parameter hợp lệ không bị kết luận thiếu chỉ vì config rỗng. Không gọi thực thi tool để kiểm tra.
+- Diagnostics dự kiến có code, severity, message và vị trí node/pin/edge. Canvas hiển thị cảnh báo trên view hiện có; không tạo một loại node thay thế. Chưa kiểm tra/đang kiểm tra/kết quả cũ phải phân biệt với hợp lệ; không lưu cờ `isValid` như dữ liệu gốc.
+- `ValidatePipeline` hiện đọc graph đã lưu và gọi planner, trả `IsValid`, `CycleNodeIds`, `UnresolvedPins`. Muốn cảnh báo đúng draft đang sửa cần thiết kế validation trên snapshot tương ứng; không gắn kết quả DB cũ lên draft mới như đã được kiểm tra.
+- Import cần remap rồi validate trong project đích; không tin trạng thái hợp lệ ở project nguồn. Export template có thể chưa đủ dữ liệu chạy; chính sách chặn Run/Export/Save cần chốt riêng. Không tự xóa pins/config/edges để che lỗi.
+
+### Mental Model: Hợp Đồng Trung Gian (`ResolvedNodeContract`), `Config` vs `Metadata` & Định Danh Node
+
+> Xem chi tiết kiến trúc tại [2026-10-23-contracts-validation-buildtime-runtime-architecture.md](../plans/2026-10-23-contracts-validation-buildtime-runtime-architecture.md).
+
+1. **Bước Chuẩn Hóa Từ Node Thô DB Sang Hợp Đồng Đầy Đủ (`ResolvedNodeContract`)**:
+   - Bản ghi `PipelineNode` trong Database chỉ lưu dữ liệu thô (`Id`, `RefId`, `Kind`, `Config`, `Metadata`).
+   - Thay vì để Build-Time (`PipelineGraphDtoBuilder`), Runtime (`ExecStepFactory`) và Export (`ExportPipelineBundle`) tự viết `switch-case` rời rạc để đoán nghĩa của Node, hệ thống sử dụng **`INodeContractResolver`** kèm **`NodeContractResolutionContext`** (nạp sẵn 1 lần `Parameters`, `CustomDefinitions`, `SubPipelines` để chống $N+1$ query).
+   - Kết quả trả ra là một Map `IReadOnlyDictionary<Guid, ResolvedNodeContract>` nắm giữ toàn bộ các Node trong đồ thị kèm hợp đồng đã phân giải đầy đủ (`Inputs`, `Outputs` đã chạy qua `ResolvePins`, `StructType`, `Executor`, `IsPure`, `IsDefinitionMissing`). Cả **Build-Time**, **Validation**, và **Runtime** đều tra cứu $O(1)$ từ Map này.
+2. **Ranh Giới Giữa `Config` và `Metadata` Trên `PipelineNode`**:
+   - **`Config` (`ConfigValues` — Dữ liệu & Hợp đồng)**: Lưu giá trị đầu vào của các chân Input Pin (khi không nối dây) và các khóa cấu hình Schema (`SchemaConfigKeys` như `StructType`, `Template`, `DynamicPins`). `Config` trực tiếp quyết định hình dáng `Inputs`/`Outputs` động khi resolve và giá trị thực thi khi chạy.
+   - **`Metadata` (UI & Vỏ bọc Stage)**: Lưu thuộc tính hiển thị trên Canvas (ví dụ: tên hiển thị tùy chỉnh của instance node `customLabel`, trạng thái thu gọn, màu sắc) và thông tin cấu hình khung **Stage Container** (`name`, `executorKey`, `targetRunnerId`).
+3. **Hai Tầng Định Danh Node (`Label` Hiển Thị vs `RefId` / `DefinitionLabel` Gốc)**:
+   - Mỗi Node trên Canvas có:
+     - **Định danh khuôn mẫu (`RefId` / `DefinitionLabel`)**: Cho biết Node thuộc loại Tool/Script/SubPipeline nào (ví dụ `BreakStruct`, `FormatString`, hoặc `Key` của Custom Node / Pipeline). Luôn giữ nguyên để hiển thị ở dòng phụ (subtitle/badge) dưới tên node.
+     - **Tên hiển thị của Instance (`Label`)**: Mặc định lấy từ `DefinitionLabel`, nhưng khi người dùng đổi tên riêng cho node trên Canvas (lưu trong `Metadata["label"]`), `Label` sẽ mang tên tùy chỉnh đó trong khi bên dưới vẫn giữ nguyên `RefId` / `DefinitionLabel`.
+
+## Node definitions và instance pins — hiện tại, cập nhật 23/10/2026
+
+- GetNodePalette trả đầy đủ định nghĩa built-in/custom/subpipeline trong project kèm `Capabilities` (`ViewVariant`, `InspectorMode`, `PinAddMode`, `ProtectedPinIds`, `SchemaConfigKeys`); `isVisibleInPalette` quyết định có hiện trên menu. Menu lọc executor ở client, hidden tool vẫn render được trên graph cũ.
+- useNodePalette cache theo project, staleTime Infinity, không refetch khi focus. Mutation definition và thay đổi parameters subpipeline invalidate cache. Query graph/definitions bắt đầu song song; chỉ mount Canvas draft khi cả hai đã có dữ liệu, lỗi definitions có Retry.
+- NodeDefinitionsProvider tra theo source/kind + refId (custom hỗ trợ key hoặc ID). Router, Inspector và Collection đọc trực tiếp definition; không sao chép capabilities/isDynamic vào node data. Refetch cập nhật context mà không remount/reset draft.
+- Graph chứa config và resolved inputs/outputs của từng instance; Graph DTO không có Capabilities/IsDynamic. Palette pins chỉ khởi tạo node mới. Backend resolve config khi đọc graph hoặc gọi resolve-pins; view render instance pins.
+- PipelineNodeRouter chọn Start/Return/FlowControl theo kind, các node khác theo viewVariant. FormatString dùng Standard và vẫn resolve. Collection chỉ bổ sung nút theo capabilities/protectedPinIds (không còn ngoại lệ tên pin `"Separator"`). Missing Definition giữ config/pins/edges, không gọi resolver.
+- Inspector dựa hoàn toàn vào `definition.capabilities.inspectorMode === "StructSelector"` (không còn fallback theo tên tool) và ẩn pin `StructType` trùng lặp trong danh sách inputs thông thường. Đã xóa toàn bộ hàm chết `getStructPins` và hook thừa `useDynamicPins`.
+- Kiểm chứng: backend 181 pass/4 skipped; frontend definition/resolver helper tests 6 pass; typecheck/build pass. Các phần autosave bên dưới mô tả lịch sử 600ms; cấu hình hiện tại là 1000ms.
+
 > **Phạm vi:** Tài liệu hướng dẫn và kỹ thuật mô tả cốt lõi cách vận hành cho:
 > 1. Vòng đời Custom Script & Node Ingestion (Phân tích, Upload, Executor, Publish).
 > 2. Cấu trúc Đồ thị Pipeline Canvas (Nodes, Edges, Containers/Stages, Parameters).
@@ -160,3 +214,7 @@ File được truyền vào Input Pin của Node (ví dụ file FBX, preset, scr
 2. **Không upload file khi chưa Publish:** Trong trang Ingestion Script, tuyệt đối không gọi API upload binary khi người dùng chỉ mới chọn file phân tích.
 3. **Giữ nguyên định dạng File Pin:** Phân biệt rõ Draft `{ assetId, originalName }` ở UI và Persisted `{ assetLinkId }` ở Backend DB.
 4. **Luôn sử dụng `ResolveOrCloneLinkAsync`:** Khi xử lý `assetLinkId` trên node config, luôn dùng `ResolveOrCloneLinkAsync` để tự động bảo đảm tính sở hữu link cho node mới mà không gây đứt gãy đồ thị.
+5. **Workstation Struct & Physical Mount Path (BL-009 / BL-010):**
+   - Struct `Workstation` đại diện cho cặp `(Repository, Runner)` cụ thể và ánh xạ đường dẫn vật lý `RootPath`.
+   - Node `FilterResourcesTool` cho phép lọc dynamic danh sách resource theo extension, keyword, workstation, trả về cả single `Resource` pin (cắm trực tiếp `BreakStruct`) và `Resources` array.
+   - Các tool Workspace như `SyncLocalChangeToRepositoryTool` và `UpdateResourceMetadataTool` nhận trực tiếp pin `Workstation` và đường dẫn tuyệt đối `FullPath`, tự động trích xuất `RootPath` để chuẩn hóa sang POSIX relative path trước khi đồng bộ hoặc ghi metadata. Loại bỏ hoàn toàn sự phụ thuộc vào các node cắt chuỗi trung gian.

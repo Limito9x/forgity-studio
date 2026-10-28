@@ -5,7 +5,7 @@ import type { Connection, Edge, Node } from "@xyflow/react";
 import { toast } from "sonner";
 import { isExecHandle } from "./canvasUtils";
 import { isExecPin } from "../nodes/types";
-import { getStructPins } from "../constants/structPins";
+import type { StructDefinitionDto } from "@/gen/model";
 
 interface UseCanvasConnectionRulesArgs {
   nodes: Node[];
@@ -13,6 +13,7 @@ interface UseCanvasConnectionRulesArgs {
   setEdges: Dispatch<SetStateAction<Edge[]>>;
   setNodes: Dispatch<SetStateAction<Node[]>>;
   setIsDirty: (dirty: boolean) => void;
+  structCatalogue?: StructDefinitionDto[];
 }
 
 function isNodeHandleExec(
@@ -42,6 +43,7 @@ export function useCanvasConnectionRules({
   setEdges,
   setNodes,
   setIsDirty,
+  structCatalogue,
 }: UseCanvasConnectionRulesArgs) {
   // Two-tier Strict Connection Validation
   const isValidConnection = useCallback(
@@ -154,73 +156,57 @@ export function useCanvasConnectionRules({
           // 1. Kiểm tra nếu sourceNode là CapsuleNode (Parameter / Variable)
           if (sourceNode?.type === "capsuleNode") {
             const cData = sourceNode.data as any;
-            if (cData.structType && typeof cData.structType === "string" && cData.structType.trim()) {
-              inferredStructType = cData.structType.trim();
-            } else {
-              const capsuleText = `${cData.category || ""} ${cData.label || ""} ${cData.key || ""}`.toLowerCase();
-              if (capsuleText.includes("repository") || capsuleText.includes("workspace") || capsuleText.includes("repo")) {
-                inferredStructType = "Repository";
-              } else if (capsuleText.includes("resource")) {
-                inferredStructType = "Resource";
-              } else if (capsuleText.includes("inspection")) {
-                inferredStructType = "Inspection";
-              } else if (capsuleText.includes("taggedasset")) {
-                inferredStructType = "TaggedAsset";
-              }
-            }
+            inferredStructType = cData.structType?.trim() || "";
           }
 
-          // 2. Nếu chưa tìm được từ capsule, kiểm tra các outputs của sourceNode
+          // 2. Nếu chưa tìm được từ capsule, đọc trực tiếp từ Output Pin của sourceNode
           if (!inferredStructType) {
             const sourcePins = (sourceNode?.data as any)?.outputs || [];
             const sourcePin = sourcePins.find((p: any) => p.id === params.sourceHandle);
-            
-            if (sourcePin?.entityTarget && typeof sourcePin.entityTarget === "string") {
-              const targetLower = sourcePin.entityTarget.toLowerCase();
-              if (targetLower === "repository" || targetLower === "workspace") inferredStructType = "Repository";
-              else if (targetLower === "resource") inferredStructType = "Resource";
-              else inferredStructType = sourcePin.entityTarget;
-            } else {
-              const pinText = `${sourcePin?.id || ""} ${sourcePin?.label || ""} ${(sourcePin?.metadata as any) || ""}`.toLowerCase();
-              if (pinText.includes("repository") || pinText.includes("workspace") || pinText.includes("repo")) {
-                inferredStructType = "Repository";
-              } else if (pinText.includes("inspection")) {
-                inferredStructType = "Inspection";
-              } else if (pinText.includes("taggedasset")) {
-                inferredStructType = "TaggedAsset";
-              } else if (pinText.includes("resource")) {
-                inferredStructType = "Resource";
-              } else if (sourcePin?.metadata && typeof sourcePin.metadata === "string" && sourcePin.metadata.trim()) {
-                inferredStructType = sourcePin.metadata.trim();
-              }
-            }
+            inferredStructType =
+              sourcePin?.structType?.trim() ||
+              sourcePin?.entityTarget?.trim() ||
+              (typeof sourcePin?.metadata === "string" ? sourcePin.metadata.trim() : "");
           }
 
-          if (!inferredStructType) {
-            inferredStructType = "Resource";
+          if (inferredStructType) {
+            const sDef = structCatalogue?.find(
+              (s: StructDefinitionDto) => s.structType?.toLowerCase() === inferredStructType.toLowerCase()
+            );
+
+            setNodes((nds) =>
+              nds.map((n) => {
+                if (n.id !== params.target) return n;
+                const nodeData = n.data as any;
+                const currentConfig = nodeData.configValues || {};
+                const { Target: _t, target: _tl, ...restConfig } = currentConfig;
+                const updatedConfig = { ...restConfig, StructType: inferredStructType };
+
+                const nextInputs = sDef
+                  ? [
+                      {
+                        id: "Target",
+                        label: `Target (${sDef.structType})`,
+                        primitiveType: "EntityRef",
+                        structType: sDef.structType,
+                        isRequired: true,
+                      },
+                    ]
+                  : nodeData.inputs;
+                const nextOutputs = sDef?.outputPins || nodeData.outputs;
+
+                return {
+                  ...n,
+                  data: {
+                    ...n.data,
+                    configValues: updatedConfig,
+                    inputs: nextInputs,
+                    outputs: nextOutputs,
+                  },
+                };
+              })
+            );
           }
-
-          const dynamicPins = getStructPins(inferredStructType);
-
-          setNodes((nds) =>
-            nds.map((n) => {
-              if (n.id !== params.target) return n;
-              const nodeData = n.data as any;
-              const currentConfig = nodeData.configValues || {};
-              const updatedConfig = { ...currentConfig, StructType: inferredStructType };
-              const execOutputs = (nodeData.outputs || []).filter(isExecPin);
-              const nextOutputs = dynamicPins.length > 0 ? [...execOutputs, ...dynamicPins] : nodeData.outputs;
-
-              return {
-                ...n,
-                data: {
-                  ...n.data,
-                  configValues: updatedConfig,
-                  outputs: nextOutputs,
-                },
-              };
-            })
-          );
         }
       }
     },

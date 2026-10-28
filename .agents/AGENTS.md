@@ -1,6 +1,12 @@
-# Automation Studio - Master Agent Instructions
+# Forgity Studio - Master Agent Instructions
 
-Chào mừng đến với Monorepo **Automation Studio**. Tài liệu này đóng vai trò là **Master Router** và **Chỉ mục trung tâm (Master Index)** định hướng cho các Agent khi làm việc trong toàn bộ workspace này.
+> Pipeline Canvas definitions (22/10/2026): xem cập nhật đầu `playbooks/pipeline-canvas-sync.md`. Palette là nguồn định nghĩa chung; graph giữ config/resolved pins, không chứa capabilities. Phase B qua kiểm tra tự động, chờ UI; Phase C chưa triển khai.
+
+> Node lifecycle (22/10/2026): [plan khởi tạo, resolve và validation](plans/2026-10-22-node-resolution-and-validation-lifecycle.md) ghi nhận hướng tiếp nối Phase B. Xem mental model đầu [Canvas playbook](playbooks/pipeline-canvas-sync.md); phân biệt resolve schema với validation graph. R1–R4 là lộ trình chưa triển khai.
+
+> **QUY CHUẨN THƯƠNG HIỆU & ĐẶT TÊN (BRANDING SSOT)**: Tên sản phẩm chính thức trên UI, thông báo, tài liệu và trao đổi người dùng là **Forgity** hoặc **Forgity Studio** (được định nghĩa tại `web/src/config/appConfig.ts`). Tên namespace solution C# giữ nguyên tiền tố kỹ thuật `Automation.*`. Tuyệt đối không dùng tên cũ "Automation Studio" khi trao đổi hoặc viết tài liệu người dùng.
+
+Chào mừng đến với Monorepo **Forgity Studio**. Tài liệu này đóng vai trò là **Master Router** và **Chỉ mục trung tâm (Master Index)** định hướng cho các Agent khi làm việc trong toàn bộ workspace này.
 
 ---
 
@@ -11,7 +17,8 @@ Dự án gồm 3 phần độc lập nhưng liên kết chặt chẽ và chia s�
 - **`packages/proto/`**: Nguồn chân lý duy nhất (Single Source of Truth) cho các hợp đồng gRPC Protobuf (`agent.proto`, `execution_state.proto`).
 - **`api/` (Backend Core)**: .NET 10 Modular Monolith, Vertical Slice Architecture (VSA), FastEndpoints, Wolverine, EF Core, PostgreSQL, RabbitMQ, gRPC.
 - **`web/` (Frontend & Desktop)**: Tauri v2 + React 19, Vite, Tailwind CSS, Shadcn (React Aria Components), TanStack Router/Query, Orval API Client.
-- **`workers/` (Pipeline Worker Daemon)**: Python 3.12+ Worker, RabbitMQ Consumer, gRPC Client, Subprocess Headless Executors cho Blender và Unreal Engine.
+- **`runner/` (Native Rust Runner Daemon)**: Rust Host Daemon độc lập (`forgity-runner`), Windows Job Object containment, Named Pipe IPC, zero-RAM S3 streaming, CLI cleaner.
+- **`pipeline-scripts/` (Kho Scripts Nghiệp Vụ DCC & Python)**: Toàn bộ script tools phẳng theo Executor (`blender/`, `unreal/`, `daz/`, `ai/`, `presets/`), độc lập với Runner binary.
 
 ---
 
@@ -31,13 +38,28 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
    👉 Đọc [rules/frontend.md](file:///d:/FullStack/Automation/.agents/rules/frontend.md)
    - _Sử dụng `pnpm`, Không sửa `src/gen`, React Aria Shadcn stack, Custom hooks bọc API, Temporal API, `pnpm tsc`._
 
-4. **Khi thao tác với Worker (`workers/`)**:
-   👉 Đọc [rules/workers.md](file:///d:/FullStack/Automation/.agents/rules/workers.md)
-   - _Không xóa hay import trực tiếp Stage Runners, BaseSubprocessExecutor, Dọn rác RAM engine, RabbitMQ contracts._
+4. **Khi thao tác với Runner (`runner/`) & Scripts (`pipeline-scripts/`)**:
+   👉 Đọc [rules/runner.md](file:///d:/FullStack/Automation/.agents/rules/runner.md)
+   - _Native Rust Daemon, Windows Job Object containment, Named Pipe IPC, Single guest runner, Phẳng hóa scripts, Dọn rác CLI._
 
 ---
 
-## 3. Chỉ Mục Cẩm Nang Vận Hành Cốt Lõi (Core Operational Playbooks - MANDATORY)
+## 3. Chỉ Mục Quyết Định Kiến Trúc (Architecture Decision Records - ADR)
+
+> **QUY TẮC BẢO TOÀN KIẾN TRÚC:** Trước khi đề xuất thay đổi lớn về mặt thiết kế hoặc cấu trúc hệ thống, Agent **BẮT BUỘC** phải đọc các ADR tương ứng dưới đây để hiểu rõ bối cảnh lịch sử, những lỗ hổng đã gặp phải trong quá khứ và các đánh đổi (trade-offs) đã được thống nhất. Tuyệt đối không tự ý refactor ngược lại các quyết sách này.
+
+| Mã ADR | Tiêu đề quyết định | Đường dẫn tài liệu | Tóm tắt lý do & quyết sách cốt lõi |
+| :--- | :--- | :--- | :--- |
+| **Index** | **Toàn bộ ADRs** | [docs/adr/README.md](file:///d:/FullStack/Automation/docs/adr/README.md) | Thư mục trung tâm và quy chuẩn các Quyết định Kiến trúc. |
+| **ADR-001** | **Modular Monolith** | [docs/adr/ADR-001-modular-monolith-architecture.md](file:///d:/FullStack/Automation/docs/adr/ADR-001-modular-monolith-architecture.md) | Phân tách module độc lập theo Bounded Context, giao tiếp qua Contracts API & Wolverine In-Process Bus, DB Schema cô lập hoàn toàn. |
+| **ADR-002** | **Pragmatic Single-File VSA** | [docs/adr/ADR-002-pragmatic-single-file-vsa.md](file:///d:/FullStack/Automation/docs/adr/ADR-002-pragmatic-single-file-vsa.md) | Xóa bỏ bùng nổ thư mục 4 tầng của Clean Architecture; gom Command, Validator, Endpoint, Handler vào 1 file phẳng; POCO Entity + Mapster. |
+| **ADR-003** | **CAS Deduplication & Zero-Byte Linking** | [docs/adr/ADR-003-cas-deduplication-and-zero-byte-linking.md](file:///d:/FullStack/Automation/docs/adr/ADR-003-cas-deduplication-and-zero-byte-linking.md) | Tách rời nhị phân vật lý (Asset - SHA-256) và tham chiếu logic (AssetLink); Presigned upload 2 pha; Piped streaming 8MB chunk không tốn RAM. |
+| **ADR-004** | **Unified Node Contract Resolver (SSOT)** | [docs/adr/ADR-004-unified-node-contract-resolver.md](file:///d:/FullStack/Automation/docs/adr/ADR-004-unified-node-contract-resolver.md) | Hợp nhất 4 nơi tự tính toán chân pin về một cổng `INodeContractResolver` duy nhất; sửa lỗi StructType; loại bỏ Type Path; O(1) runtime pin lookup. |
+| **ADR-005** | **Transient Graph Ingestion & Structural Gate** | [docs/adr/ADR-005-transient-graph-ingestion-and-structural-gate.md](file:///d:/FullStack/Automation/docs/adr/ADR-005-transient-graph-ingestion-and-structural-gate.md) | Dựng đồ thị in-memory qua `TransientPipelineGraphFactory`; ranh giới chặn cứng lỗi cấu trúc và cảnh báo cấu hình dạng Draft; HTTP 422 preflight run gate. |
+
+---
+
+## 4. Chỉ Mục Cẩm Nang Vận Hành Cốt Lõi (Core Operational Playbooks - MANDATORY)
 
 > **QUY TẮC SỐNG:** Trước khi can thiệp vào bất kỳ module/feature nào, Agent **BẮT BUỘC** phải đọc Playbook tương ứng dưới đây để nắm trọn vẹn luồng dữ liệu (Data Lifecycle) từ A đến Z. Sau khi sửa đổi code, Agent **BẮT BUỘC** phải cập nhật lại Playbook để tài liệu luôn phản ánh đúng 100% thực tế.
 
@@ -45,19 +67,19 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 | :--- | :--- | :--- |
 | **Pipeline Engine Lifecycle** | [.agents/playbooks/pipeline-engine.md](file:///d:/FullStack/Automation/.agents/playbooks/pipeline-engine.md) | Luồng Run -> DAG Planner -> Memory/Entity/State Store -> Phân đoạn DotNet / RunnerSegment -> RabbitMQ -> Worker Subprocess -> Cancel gọn -> SignalR. |
 | **Pipeline Canvas & File Sync** | [.agents/playbooks/pipeline-canvas-sync.md](file:///d:/FullStack/Automation/.agents/playbooks/pipeline-canvas-sync.md) | Cơ chế Autosave Debounce 600ms, Sync toàn đồ thị (SavePipelineGraph), Quy ước File Pin: Draft `{ assetId, originalName }` -> DB `{ assetLinkId }`. |
-| **Worker Runtime & Storage** | [.agents/playbooks/worker-runtime.md](file:///d:/FullStack/Automation/.agents/playbooks/worker-runtime.md) | Quản lý runtime storage (`cache/scripts`, `cache/assets`, `temp/`, `logs/`), lock `.storage.lock`, Script resolver theo SHA-256 hash, Background cleanup daemon. |
+| **Runner Runtime & Storage** | [.agents/playbooks/runner-runtime.md](file:///d:/FullStack/Automation/.agents/playbooks/runner-runtime.md) | Quản lý runtime storage (`cache/scripts`, `cache/assets`, `cache/python-packages`, `temp/`, `logs/`), lock `.storage.lock`, Windows Job Object, Named Pipe IPC, CLI cleanup daemon. |
 | **Resource & GameplayTags Lifecycle** | [.agents/playbooks/resource-repository-lifecycle.md](file:///d:/FullStack/Automation/.agents/playbooks/resource-repository-lifecycle.md) | Vòng đời Repository -> Resource -> ResourceVersion -> Mount Locations, Inspection JSON metadata, Phân rã TagLink theo SubPath, TagPanel Dnd & Shift-Click. |
 | **Files & Storage Lifecycle** | [.agents/playbooks/files-storage-lifecycle.md](file:///d:/FullStack/Automation/.agents/playbooks/files-storage-lifecycle.md) | Vòng đời StorageProfile (Studio Cloud vs BYOS), Asset (CAS Deduplication) vs AssetLink (Zero-byte copy), Presigned Upload 2 pha, Batch Cross-Storage Piped Streaming 8MB chunk & Job Tracker. |
 
 ---
 
-## 4. Chỉ Mục Tài Liệu Kiến Trúc Tham Khảo (Architecture Reference Index)
+## 5. Chỉ Mục Tài Liệu Kiến Trúc Tham Khảo (Architecture Reference Index)
 
 | Phạm vi       | Đường dẫn tài liệu                                                                                                             | Mô tả nội dung                                                        |
 | :------------ | :----------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------- |
 | **Tổng quan** | [docs/architecture/system_overview.md](file:///d:/FullStack/Automation/docs/architecture/system_overview.md)                   | Kiến trúc tổng thể liên thông Web <-> API <-> Workers.                |
 | **Backend**   | [docs/backend/ARCHITECTURE.md](file:///d:/FullStack/Automation/docs/backend/ARCHITECTURE.md)                                   | Triết lý kiến trúc Modular Monolith & VSA của Backend.                |
-| **Backend**   | [docs/backend/ADR_PRAGMATIC_SINGLE_FILE_VSA.md](file:///d:/FullStack/Automation/docs/backend/ADR_PRAGMATIC_SINGLE_FILE_VSA.md) | Quyết định kiến trúc: Pragmatic Single-File VSA & Mapster-First POCO. |
+| **Backend**   | [docs/adr/ADR-002-pragmatic-single-file-vsa.md](file:///d:/FullStack/Automation/docs/adr/ADR-002-pragmatic-single-file-vsa.md) | Quyết định kiến trúc: Pragmatic Single-File VSA & Mapster-First POCO. |
 | **Backend**   | [docs/backend/FILES_STORAGE_ARCHITECTURE.md](file:///d:/FullStack/Automation/docs/backend/FILES_STORAGE_ARCHITECTURE.md)       | Kiến trúc Hệ thống Lưu trữ & Vòng đời Tệp (Multi-storage, Zero-byte Copy, Piped Streaming). |
 | **Backend**   | [docs/backend/PIPELINE_ENGINE_ARCHITECTURE.md](file:///d:/FullStack/Automation/docs/backend/PIPELINE_ENGINE_ARCHITECTURE.md)   | Thiết kế Pipeline Engine, DAG, Stages, Steps trong Backend.           |
 | **Backend**   | [docs/backend/PIPELINE_PIN_SYSTEM.md](file:///d:/FullStack/Automation/docs/backend/PIPELINE_PIN_SYSTEM.md)                     | Hệ thống Pin, Data Types, Dynamic Forms của Pipeline.                 |
@@ -67,13 +89,14 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 | **Frontend**  | [docs/frontend/patterns/users.md](file:///d:/FullStack/Automation/docs/frontend/patterns/users.md)                             | Mẫu thiết kế chuẩn cho Feature Resource Page (Table + Dialogs).       |
 | **Frontend**  | [docs/frontend/patterns/filter.md](file:///d:/FullStack/Automation/docs/frontend/patterns/filter.md)                           | Mẫu thiết kế hệ thống Filter Panel & Adapters.                        |
 | **Frontend**  | [docs/frontend/patterns/pipelines_canvas.md](file:///d:/FullStack/Automation/docs/frontend/patterns/pipelines_canvas.md)       | Mẫu thiết kế Canvas đồ thị, Scoped Registry, Node Inspector.          |
+| **Frontend**  | [docs/frontend/patterns/design_patterns_catalog.md](file:///d:/FullStack/Automation/docs/frontend/patterns/design_patterns_catalog.md) | Sổ tay Design Patterns thực chiến (Facade, Strategy/Adapter, Registry, Domain Composition). |
 | **Pipeline**  | [docs/pipelines/SCRIPT_NODE_GUIDELINES.md](file:///d:/FullStack/Automation/docs/pipelines/SCRIPT_NODE_GUIDELINES.md)           | Quy chuẩn viết Script Node Python, AST Schema Ingestion & DCC Templates. |
 | **Worker**    | [docs/workers/WORKER_ARCHITECTURE.md](file:///d:/FullStack/Automation/docs/workers/WORKER_ARCHITECTURE.md)                     | Kiến trúc Worker: Host Subprocess vs Guest Stage Runners.             |
 | **Vận hành**  | [docs/ops/database_backup_restore.md](file:///d:/FullStack/Automation/docs/ops/database_backup_restore.md)                     | Hướng dẫn Vận hành: Sao lưu (Backup) & Phục hồi (Restore) PostgreSQL Docker. |
 
 ---
 
-## 5. Chỉ Mục Kỹ Năng Tự Động Hóa (Skills Index)
+## 6. Chỉ Mục Kỹ Năng Tự Động Hóa (Skills Index)
 
 ### Kỹ Năng Backend (`api/`)
 
@@ -99,36 +122,26 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 
 ---
 
-## 6. Workflows
+## 7. Workflows
 
 - [build-dotnet](file:///d:/FullStack/Automation/.agents/workflows/build-dotnet.md): Quy trình build và kiểm tra Backend .NET.
 - [suggest-fix-template](file:///d:/FullStack/Automation/.agents/workflows/suggest-fix-template.md): Mẫu đề xuất sửa lỗi tự động.
 
 ---
 
-## 7. Kế Hoạch Kỹ Thuật (Plans)
+## 8. Kế Hoạch Kỹ Thuật (Engineering Plans)
 
-> **LƯU Ý:** Toàn bộ Kế hoạch kỹ thuật BẮT BUỘC lưu trữ tập trung tại `.agents/plans/`. Tuyệt đối không tạo file kế hoạch ngoài thư mục này.
+> **QUY TẮC LƯU TRỮ & TRA CỨU:**
+> - Toàn bộ Kế hoạch kỹ thuật **BẮT BUỘC** lưu trữ tập trung tại `.agents/plans/`. Chỉ giữ lại các Active Plans và `BACKLOG.md` tại thư mục này.
+> - Kế hoạch đã hoàn thành được di chuyển vào kho lưu trữ theo tháng: `.agents/plans/archive/YYYY-MM/`.
+> - **Sổ bộ Tồn đọng & Định hướng (Backlog)**: [plans/BACKLOG.md](file:///d:/FullStack/Automation/.agents/plans/BACKLOG.md).
+> - Danh mục toàn bộ 25+ kế hoạch lịch sử đã hoàn thành được lưu trữ tại [plans/README.md](file:///d:/FullStack/Automation/.agents/plans/README.md).
 
-- [refactor-repository-trigger-deprecate-platform](file:///d:/FullStack/Automation/.agents/plans/2026-10-02-refactor-repository-trigger-deprecate-platform.md): Kế hoạch loại bỏ module Platform, chuẩn hóa Repository Trigger, batch Resource list & bổ sung RunnerId.
-- [daz-to-blender-unreal-pipeline-upgrade](file:///d:/FullStack/Automation/.agents/plans/2026-10-03-daz-to-blender-unreal-pipeline-upgrade.md): Kế hoạch nâng cấp Pipeline DAZ -> Blender -> Unreal Engine (Queue Isolation, AI Tagging, Lightweight Native Bake).
-- [deploy-readiness-batch-first](file:///d:/FullStack/Automation/.agents/plans/2026-10-06-deploy-readiness-batch-first.md): Kế hoạch chuẩn bị triển khai & tối ưu xử lý hàng loạt Batch-First.
-- [unreal-batch-first-refactor](file:///d:/FullStack/Automation/.agents/plans/unreal-batch-first-refactor.md): Kế hoạch tái cấu trúc Unreal Engine Subprocess sang cơ chế Batch-First.
-- [pipeline-file-draft-sync](file:///d:/FullStack/Automation/.agents/plans/2026-10-08-pipeline-file-draft-sync.md): Kế hoạch đồng bộ file parameter trong cấu hình node của Pipeline Canvas.
-- [pipeline-export-import-bundle](file:///d:/FullStack/Automation/.agents/plans/2026-10-08-pipeline-export-import-bundle.md): Kế hoạch xuất nhập Pipeline dạng Unified Package Bundle hỗ trợ Batch, giải quyết phụ thuộc đệ quy SubPipeline, Content Types & Custom Scripts.
-- [pipeline-soft-delete-archive](file:///d:/FullStack/Automation/.agents/plans/2026-10-08-pipeline-soft-delete-archive.md): Kế hoạch Soft Delete (Archive), Partial Unique Index chống trùng tên trong đống Active, và bảo vệ toàn vẹn Node, Edge và Execution history.
-- [fix-pipeline-import-export-and-exec-edges](file:///d:/FullStack/Automation/.agents/plans/2026-10-09-fix-pipeline-import-export-and-exec-edges.md): Kế hoạch hoàn thiện Import/Export Custom Node Library (Asset storage link & Key remapping) và khắc phục triệt để lỗi không nối được dây Exec trên Canvas.
-- [refactor-resource-lifecycle-draft-publish](file:///d:/FullStack/Automation/.agents/plans/2026-10-11-refactor-resource-lifecycle-draft-publish.md): Kế hoạch Tái cấu trúc Vòng đời Resource (Local Register / Draft vs Publish In-place), Cơ chế Smart Collaborative Lock bảo vệ tệp 3D và Tầng lưu trữ Studio Storage Profile.
-- [phase-3-3-publish-pipeline-e2e](file:///d:/FullStack/Automation/.agents/plans/2026-10-12-phase-3-3-publish-pipeline-e2e.md): Kế hoạch kỹ thuật chi tiết Phase 3.3 - Luồng Publish End-to-End từ Web <-> API <-> Runner Daemon, Streaming Upload S3/MinIO & Download Asset.
-- [deploy-hardening-runner-security-storage-bundle](file:///d:/FullStack/Automation/.agents/plans/2026-10-12-deploy-hardening-runner-security-storage-bundle.md): Kế hoạch Chuẩn bị Triển khai (Deploy Hardening) - Bảo mật Dynamic RabbitMQ Runner, Độc lập Storage Profile Import/Export Bundle & Chuẩn hóa Runner Packaging / Versioning.
-- [batch-cross-storage-asset-migration](file:///d:/FullStack/Automation/.agents/plans/2026-10-13-batch-cross-storage-asset-migration.md): Kế hoạch Kỹ thuật Di chuyển Dữ liệu Lưu trữ Hàng loạt (Batch Cross-Storage Asset Migration) - Piped Streaming Zero-Disk Buffer, Deduplication SHA-256 & Background Job Progress Pipeline.
-- [investigate-pipeline-realtime-tracking-desync](file:///d:/FullStack/Automation/.agents/plans/2026-10-16-investigate-pipeline-realtime-tracking-desync.md): Kế hoạch Khắc phục Triệt để Luồng Đồng bộ Tiến độ Pipeline Real-time (Web Canvas <-> SignalR <-> RabbitMQ <-> Runner).
-- [trial-user-readiness-backlog](file:///d:/FullStack/Automation/.agents/plans/2026-10-17-trial-user-readiness-backlog.md): Kế hoạch Chuẩn Bị Toàn Diện Cho Trial User (Branding, Bulk Beta Onboarding, Node Tools Tinh Gọn, Landing Page & Growth Strategy).
-- [rust-runner-daemon-migration](file:///d:/FullStack/Automation/.agents/plans/2026-10-18-rust-runner-daemon-migration.md): Kế hoạch Kỹ Thuật Xây Dựng Rust Runner Daemon Siêu Nhẹ (Forgity Runner Native, Single Binary, <15MB RAM, Windows Job Object Process Isolation).
-- [runner-detach-and-cancel-execution](file:///d:/FullStack/Automation/.agents/plans/2026-10-18-runner-detach-and-cancel-execution.md): Kế hoạch Kỹ Thuật Bổ sung Cancel Pipeline Execution trên Canvas và Triển khai Cơ chế Detach Runner 2 Cấp độ (Repository & Studio).
-- [refactor-runner-software-settings-dialog](file:///d:/FullStack/Automation/.agents/plans/2026-10-18-refactor-runner-software-settings-dialog.md): Kế hoạch Tinh Giản & Tối Ưu Triệt Để Giao Diện Cấu Hình Runner Software (Compact Rows, Auto-Save on Select, Xóa Bỏ Headless Flags Ảo).
-- [runner-detail-page-and-attached-repositories](file:///d:/FullStack/Automation/.agents/plans/2026-10-18-runner-detail-page-and-attached-repositories.md): Kế hoạch Xây Dựng Trang Chi Tiết Máy Trạm (Runner Detail Page `/runners/:id`) Đẳng Cấp Studio Grade & Hệ Thống Quản Trị Attached Repositories Đa Dự Án.
-- [standardize-pipeline-tools-and-tagmap](file:///d:/FullStack/Automation/.agents/plans/2026-10-19-standardize-pipeline-tools-and-tagmap.md): Kế hoạch Kỹ Thuật Chuẩn Hóa Server Pipeline Tools, Tái Cấu Trúc TagMap Batch-First & Thanh Lọc 23 Zombie Tools.
-- [generic-runner-env-and-remote-control](file:///d:/FullStack/Automation/.agents/plans/2026-10-21-generic-runner-env-and-remote-control.md): Kế hoạch Kỹ Thuật Biến Môi Trường Generic cho Runner ([env]), Quản Trị Từ Xa Phong Cách PaaS & Global CLI (forgity setup).
+### Kế hoạch đang thực hiện (Active):
+- [**trial-readiness-security-trust-and-environment (26/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/2026-10-26-trial-readiness-security-trust-and-environment.md): Chuẩn Hóa Trial Readiness — Pipeline Script Trust Gate (1-Prompt AI Audit), Script Viewer & Pre-flight Environment Check & Email Deliverability (`BL-022`).
+- [**bl-014-form-registry-advanced-pin-inputs (26/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/2026-10-26-bl-014-form-registry-advanced-pin-inputs.md): Form-Registry-Driven Advanced Pin Inputs & Preset Mode (Multiline Textarea, Dropdown Presets with TagsInput, allowCustom Combobox).
+- [**topology-aware-resolver-and-trial-readiness (24/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/2026-10-24-topology-aware-resolver-and-trial-readiness.md): Topology-Aware Contract Resolution (Auto-Infer Struct Pin từ Incoming Edge), Xử Lý File Unbound (BL-005), Cảnh Báo Trạng Thái Runner Khi Chạy & Làm Sạch DB Cho Trial User.
 
-
+### Kế hoạch vừa hoàn thành gần nhất (Đã Archive):
+- [**bl-025-subpipeline-suspend-resume (26/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/archive/2026-10/2026-10-26-bl-025-subpipeline-suspend-resume.md): Sub-Pipeline (Macro) Suspend/Resume tuần tự, WaitingForSubPipeline, Wolverine callback hoàn tất child → resume parent, lan truyền fail/timeout, cascade cancel đệ quy.
+- [**bl-024-native-python-script-analyzer-sidecar (26/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/archive/2026-10/2026-10-25-bl-024-native-python-script-analyzer-sidecar.md): Native Python Script Analyzer Sidecar (Subprocess AST Ingestion, Automated Dependency Discovery, Full-width Markdown Description & Literal Dropdown Mapping tại `api/lib/analyzers/`).

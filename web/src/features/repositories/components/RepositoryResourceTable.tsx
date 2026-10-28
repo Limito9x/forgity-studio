@@ -12,11 +12,12 @@ import {
 import { BaseTable } from "@/components/table/BaseTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Layers, Unlink, FileCode } from "lucide-react";
+import { Search, Layers, Unlink, FileCode, Trash2, Cpu } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { AssignContentSidePanel } from "./drawers/AssignContentSidePanel";
 import { useRepositoryResourceTable } from "../hooks/useRepositoryResourceTable";
-import type { WorkspaceResourceDto } from "@/gen/model";
+import type { WorkspaceResourceDto, RepositoryRunnerDto } from "@/gen/model";
 
 interface RepositoryResourceTableProps {
   data: WorkspaceResourceDto[];
@@ -24,6 +25,7 @@ interface RepositoryResourceTableProps {
   isLoading: boolean;
   projectId: string;
   repositoryId: string;
+  runners?: RepositoryRunnerDto[];
 }
 
 export function RepositoryResourceTable({
@@ -32,9 +34,11 @@ export function RepositoryResourceTable({
   isLoading,
   projectId,
   repositoryId,
+  runners = [],
 }: RepositoryResourceTableProps) {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [selectedRunnerFilter, setSelectedRunnerFilter] = useState<string>("ALL");
   const [activeDragItem, setActiveDragItem] = useState<{
     id: string;
     resourceIds: string[];
@@ -42,16 +46,20 @@ export function RepositoryResourceTable({
   } | null>(null);
 
   const filteredData = useMemo(() => {
-    if (!search.trim()) return data;
+    let result = data;
+    if (selectedRunnerFilter !== "ALL") {
+      result = result.filter((r) => r.holdingRunnerId === selectedRunnerFilter);
+    }
+    if (!search.trim()) return result;
     const q = search.toLowerCase();
-    return data.filter(
+    return result.filter(
       (r) =>
         (r.displayName && r.displayName.toLowerCase().includes(q)) ||
         (r.relativePath && r.relativePath.toLowerCase().includes(q)) ||
         (r.contentName && r.contentName.toLowerCase().includes(q)) ||
         (r.contentTypeName && r.contentTypeName.toLowerCase().includes(q))
     );
-  }, [data, search]);
+  }, [data, search, selectedRunnerFilter]);
 
   const handleOpenAssignPanel = useCallback((_resourceId?: string) => {
     setIsPanelOpen(true);
@@ -63,7 +71,9 @@ export function RepositoryResourceTable({
     selectedRowIds,
     setRowSelection,
     handleBatchUnlink,
+    handleBatchDelete,
     assignMutation,
+    deleteMutation,
   } = useRepositoryResourceTable({
     data: filteredData,
     totalCount: filteredData.length,
@@ -154,14 +164,54 @@ export function RepositoryResourceTable({
         <div className="flex-1 min-w-0 space-y-3">
           {/* Table Toolbar & Search */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="relative w-full sm:w-80">
-              <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search name, path, content..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 text-xs"
-              />
+            <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+              <div className="relative w-full sm:w-72">
+                <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search name, path, content..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9 text-xs"
+                />
+              </div>
+
+              {/* Workstation Machine Filter Pills */}
+              {runners && runners.length > 1 && (
+                <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border/50 text-xs shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRunnerFilter("ALL")}
+                    className={cn(
+                      "px-2.5 py-1 rounded-md font-medium transition-all text-xs cursor-pointer",
+                      selectedRunnerFilter === "ALL"
+                        ? "bg-background text-foreground shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    All Machines
+                  </button>
+                  {runners.map((r) => {
+                    const isSelected = selectedRunnerFilter === r.runnerId;
+                    return (
+                      <button
+                        key={r.runnerId}
+                        type="button"
+                        onClick={() => setSelectedRunnerFilter(r.runnerId)}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium transition-all text-xs cursor-pointer",
+                          isSelected
+                            ? "bg-background text-foreground shadow-xs font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                        title={r.rootPath}
+                      >
+                        <Cpu className="size-3 text-emerald-500" />
+                        <span>{r.runner?.name || "Runner"}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
@@ -180,13 +230,24 @@ export function RepositoryResourceTable({
 
                   <Button
                     size="sm"
-                    variant="destructive"
+                    variant="outline"
                     onClick={handleBatchUnlink}
                     isDisabled={assignMutation.isPending}
                     className="h-8 text-xs gap-1 px-2.5 cursor-pointer"
                   >
                     <Unlink className="size-3.5" />
                     Unlink ({selectedRowIds.length})
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={handleBatchDelete}
+                    isDisabled={deleteMutation.isPending}
+                    className="h-8 text-xs gap-1 px-2.5 cursor-pointer"
+                  >
+                    <Trash2 className="size-3.5" />
+                    Delete ({selectedRowIds.length})
                   </Button>
                 </div>
               )}

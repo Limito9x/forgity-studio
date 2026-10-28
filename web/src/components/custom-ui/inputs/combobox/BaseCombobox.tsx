@@ -14,9 +14,10 @@ interface SharedComboboxProps<T> {
     className?: string;
     renderOption?: (item: OptionItem<T>) => ReactNode;
     onSearch?: (searchTerm: string) => void;
-    disabled?: boolean
-    isLoading?: boolean
-    id?: string
+    disabled?: boolean;
+    isLoading?: boolean;
+    id?: string;
+    allowCustom?: boolean;
 }
 
 export interface BaseSingleComboboxProps<T> extends SharedComboboxProps<T> {
@@ -43,13 +44,17 @@ export function BaseCombobox<T>(props: BaseComboboxProps<T>) {
         placeholder = "Select option...",
         onSearch,
         className,
-        id
+        id,
+        disabled,
+        isLoading,
+        allowCustom
     } = props;
 
     return (
         <ComboboxProvider value={{
             items, getItemValue, emptyText,
-            renderOption, placeholder, onSearch, className, id
+            renderOption, placeholder, onSearch, className, id,
+            disabled, isLoading, allowCustom
         }}>
             {/* Sử dụng props.multiple để TypeScript tự động narrow (thu hẹp) type của value và onValueChange */}
             {props.multiple ? (

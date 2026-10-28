@@ -15,7 +15,7 @@ export function SingleCombobox<T>({
     className,
 }: SingleComboboxProps<T>) {
     const anchor = useComboboxAnchor();
-    const { items, onSearch, id, getItemValue } = useComboboxContext<T>();
+    const { items, onSearch, id, getItemValue, isLoading, disabled, allowCustom } = useComboboxContext<T>();
 
     const selectedKey = (() => {
         if (value == null) {
@@ -28,7 +28,7 @@ export function SingleCombobox<T>({
         }
 
         if (typeof value === 'string' || typeof value === 'number') {
-            return value;
+            return String(value);
         }
 
         return null;
@@ -52,7 +52,20 @@ export function SingleCombobox<T>({
             return item.value === key;
         });
 
-        onValueChange(selectedItem ? selectedItem.value : null);
+        if (selectedItem) {
+            onValueChange(selectedItem.value);
+        } else if (allowCustom) {
+            onValueChange(String(key) as unknown as T);
+        } else {
+            onValueChange(null);
+        }
+    };
+
+    const handleInputChange = (text: string) => {
+        onSearch?.(text);
+        if (allowCustom && onValueChange) {
+            onValueChange((text || null) as unknown as T);
+        }
     };
 
     return (
@@ -61,12 +74,14 @@ export function SingleCombobox<T>({
             menuTrigger="focus"
             items={items}
             value={selectedKey}
-            onInputChange={onSearch}
+            allowsCustomValue={allowCustom}
+            onInputChange={handleInputChange}
             onChange={handleSelectionChange}
             id={id}
+            isDisabled={disabled || isLoading}
         >
             <div ref={anchor} className={cn("w-full", className)}>
-                <ComboboxInput placeholder={placeholder} showTrigger showClear />
+                <ComboboxInput placeholder={placeholder} showTrigger showClear isLoading={isLoading} disabled={disabled} />
             </div>
 
             <BaseComboboxContent anchor={anchor} />
