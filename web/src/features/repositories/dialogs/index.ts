@@ -5,6 +5,8 @@ import type { UpdateRepositoryDialogData } from "./UpdateRepositoryDialog";
 import type { DeleteRepositoryDialogData } from "./DeleteRepositoryDialog";
 import type { AttachRunnerToRepositoryDialogData } from "./AttachRunnerDialog";
 import type { DetachRunnerFromRepositoryDialogData } from "./DetachRunnerDialog";
+import type { DeleteResourceDialogData } from "./DeleteResourceDialog";
+
 declare module "@/lib/dialog-registry" {
   interface GlobalDialogRegistry {
     "create-repository": CreateRepositoryDialogData;
@@ -12,6 +14,7 @@ declare module "@/lib/dialog-registry" {
     "delete-repository": DeleteRepositoryDialogData;
     "attach-runner-to-repository": AttachRunnerToRepositoryDialogData;
     "detach-runner-from-repository": DetachRunnerFromRepositoryDialogData;
+    "delete-resource": DeleteResourceDialogData;
   }
 }
 
@@ -33,6 +36,12 @@ const DeleteRepositoryDialog = lazy(() =>
   }))
 );
 
+const DeleteResourceDialog = lazy(() =>
+  import("./DeleteResourceDialog").then((m) => ({
+    default: m.DeleteResourceDialog,
+  }))
+);
+
 import { AttachRunnerDialog } from "./AttachRunnerDialog";
 import { DetachRunnerDialog } from "./DetachRunnerDialog";
 
@@ -49,6 +58,11 @@ registerDialog({
 registerDialog({
   id: "delete-repository",
   component: DeleteRepositoryDialog,
+});
+
+registerDialog({
+  id: "delete-resource",
+  component: DeleteResourceDialog,
 });
 
 registerDialog({

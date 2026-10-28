@@ -17,4 +17,6 @@ export interface PipelinePackageItemPreviewDto {
   edgeCount: number;
   hasNameConflict: boolean;
   suggestedName: string;
+  /** @nullable */
+  diagnostics?: unknown[] | null;
 }

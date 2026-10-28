@@ -10,7 +10,7 @@ export type PipelineTriggerType =
   (typeof PipelineTriggerType)[keyof typeof PipelineTriggerType];
 
 export const PipelineTriggerType = {
-  NUMBER_0: 0,
-  NUMBER_1: 1,
-  NUMBER_2: 2,
+  Manual: "Manual",
+  OnResourceCreated: "OnResourceCreated",
+  OnResourceVersionUpdated: "OnResourceVersionUpdated",
 } as const;

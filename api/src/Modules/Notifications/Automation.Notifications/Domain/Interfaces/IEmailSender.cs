@@ -5,8 +5,11 @@ namespace Automation.Notifications.Domain.Interfaces;
 
 public interface IEmailSender
 {
-    Task SendAsync(string to, string subject, string body, bool isHtml = true, CancellationToken ct = default);
+    Task SendAsync(
+        string to,
+        string subject,
+        string body,
+        bool isHtml = true,
+        string? plainTextBody = null,
+        CancellationToken ct = default);
 }
-
-
-

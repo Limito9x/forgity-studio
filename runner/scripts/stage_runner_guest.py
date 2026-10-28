@@ -315,6 +315,16 @@ def main():
 
     steps = task_data.get("steps", [])
     resolved_data = task_data.get("resolved_data", {})
+
+    # Inject isolated python dependencies if provided
+    site_packages = task_data.get("site_packages_path")
+    if site_packages and os.path.isdir(site_packages):
+        try:
+            import site
+            site.addsitedir(site_packages)
+            print(f"[GuestRunner] Injected isolated site-packages from: {site_packages}", flush=True)
+        except Exception as se:
+            sys.stderr.write(f"WARNING: Could not inject site-packages: {se}\n")
     all_step_outputs = {}
     overall_success = True
     error_msg = None

@@ -28,6 +28,7 @@ export const useRunners = () => {
   return RunnersApi.useGetRunners<RunnerDto[]>(undefined, {
     query: {
       placeholderData: keepPreviousData,
+      staleTime: 60_000,
       select: (data: any) => data as unknown as RunnerDto[],
     },
   });
@@ -40,6 +41,7 @@ export const useStudioRunners = (studioId?: string) => {
       query: {
         enabled: !!studioId,
         placeholderData: keepPreviousData,
+      staleTime: 60_000,
         select: (data: any) => {
           const list = Array.isArray(data) ? data : data?.items || [];
           return list
@@ -76,6 +78,7 @@ export const useDiscoverRunnerFolder = (
       query: {
         enabled: !!id,
         placeholderData: keepPreviousData,
+      staleTime: 60_000,
       },
     }
   );

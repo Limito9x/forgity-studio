@@ -23,7 +23,9 @@ public class ResourceItemConfiguration : IEntityTypeConfiguration<Domain.Entitie
 
         builder.HasIndex(x => x.Extension);
         builder.HasIndex(x => x.ContentId);
-        builder.HasIndex(x => new { x.RepositoryId, x.RelativePath }).IsUnique();
+        builder.HasIndex(x => new { x.RepositoryId, x.RelativePath })
+            .IsUnique()
+            .HasFilter("\"DeletedAt\" IS NULL");
         builder.HasIndex(x => new { x.RepositoryId, x.DisplayName });
     }
 }

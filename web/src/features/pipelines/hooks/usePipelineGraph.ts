@@ -1,3 +1,5 @@
+import { useQueryClient } from "@tanstack/react-query";
+import * as NodeApi from "@/gen/endpoints/pipeline-nodes/pipeline-nodes";
 import { keepPreviousData } from "@tanstack/react-query";
 import { createMutationHook } from "@/lib/query-utils";
 import * as PipelinesApi from "@/gen/endpoints/pipelines/pipelines";
@@ -14,6 +16,9 @@ import type {
   RunPipelineRequest,
   ValidatePipelineQuery,
   ValidatePipelineResponse,
+  PipelineDiagnostic,
+  PipelineDiagnosticSeverity,
+  PipelineDiagnosticCode,
   PipelineExecutionDto,
   NodeExecutionDto,
   PipelineSummaryDto,
@@ -50,6 +55,9 @@ export type {
   RunPipelineRequest,
   ValidatePipelineQuery,
   ValidatePipelineResponse,
+  PipelineDiagnostic,
+  PipelineDiagnosticSeverity,
+  PipelineDiagnosticCode,
   PipelineExecutionDto,
   NodeExecutionDto,
   PipelineSummaryDto,
@@ -119,7 +127,10 @@ export const useCreatePipeline = (projectId?: string) => {
 };
 
 export const useSavePipelineGraph = (pipelineId?: string) => {
-  const mutation = PipelinesApi.useSavePipelineGraph();
+  const queryClient = useQueryClient();
+  const mutation = PipelinesApi.useSavePipelineGraph({ mutation: { onSuccess: (_result, variables) => {
+    if (variables.data.parameters) void queryClient.invalidateQueries({ queryKey: NodeApi.getGetNodePaletteQueryKey() });
+  } } });
   return {
     ...mutation,
     mutate: (data: SavePipelineGraphData, options?: any) =>

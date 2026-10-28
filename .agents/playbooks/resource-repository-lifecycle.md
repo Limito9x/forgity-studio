@@ -91,6 +91,12 @@ flowchart TD
   }
   ```
 
+### 2.6. Workstation-Scoped Root & Holding Runner Ownership
+- **Bản chất**: Trong quá trình sản xuất 3D (WIP/Draft), tệp dữ liệu rất nặng và luôn cư trú cục bộ trên một máy trạm vật lý (`HoldingRunner`).
+- **Gốc làm việc vật lý**: Cặp `[Repository - Runner]` (`RepositoryRunner`). Khi chọn tài nguyên, hệ thống gom trực tiếp thành danh sách các cặp Workstation Root (`Repo @ Runner`), triệt tiêu việc phải chọn 2 bước rời rạc.
+- **Auto-Routing trong Pipeline Engine**: Khi kích hoạt Pipeline với đầu vào là Resource/Draft, `RunnerSegmentDispatcher` tự động truy vấn `HoldingRunnerId` để điều hướng job về đúng máy trạm sở hữu tệp mà không cần người dùng chọn Runner thủ công.
+- **Break Struct Direct FullPath**: Tool `BreakStructTool` và `ResourceStructDefinition` nhả trực tiếp các chân cắm `FullPath`, `DirectoryPath`, `MountPath`, `HoldingRunnerId` từ bộ nhớ cache `ExecutionEntityStore` (0ms), loại bỏ hoàn toàn việc ghép chuỗi thủ công qua các node `Get Repo Info` + `Format String`.
+
 ---
 
 ## 3. Hệ Thống GameplayTags & Metadata Annotation

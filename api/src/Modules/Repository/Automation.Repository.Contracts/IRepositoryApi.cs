@@ -40,6 +40,11 @@ public interface IRepositoryApi
         CancellationToken ct = default
     );
 
+    Task<Result<IReadOnlyList<Guid>>> GetAttachedRunnerIdsAsync(
+        Guid repositoryId,
+        CancellationToken ct = default
+    );
+
     Task<Result<Dictionary<string, Guid>>> ResolveResourceVersionIdsByPathsAsync(
         Guid repositoryId,
         IEnumerable<string> filePaths,
@@ -89,6 +94,16 @@ public interface IRepositoryApi
         CancellationToken ct = default
     );
 
+    Task<Result<WorkstationDto>> GetWorkstationByIdAsync(
+        Guid workstationId,
+        CancellationToken ct = default
+    );
+
+    Task<Result<IReadOnlyList<ResourceDto>>> QueryResourcesAsync(
+        ResourceQueryFilter filter,
+        CancellationToken ct = default
+    );
+
     Task<Result<string>> GetWorkspaceRootPathAsync(
         Guid workspaceId,
         Guid runnerId,
@@ -105,7 +120,10 @@ public record ResourceDto(
     string? FileHash,
     Guid? ContentId,
     string? MetadataJson = null,
-    Guid RepositoryId = default
+    Guid RepositoryId = default,
+    string? FullLocalPath = null,
+    string? MountPath = null,
+    Guid? RunnerId = null
 );
 
 
@@ -136,6 +154,7 @@ public record ResourceLocationInfoDto(
 {
     public Guid? AgentId => RunnerId;
     public string? AgentRootPath => RunnerRootPath;
+    public string? MountPath => RunnerRootPath;
 
     public string? FullLocalPath
     {
@@ -154,3 +173,27 @@ public record ResourceLocationInfoDto(
         }
     }
 }
+
+public record WorkstationDto(
+    Guid WorkstationId,
+    Guid RepositoryId,
+    string RepositoryName,
+    Guid RunnerId,
+    string RunnerName,
+    string RootPath,
+    bool IsRunnerActive = true
+)
+{
+    public Guid RepositoryRunnerId => WorkstationId;
+}
+
+
+public record ResourceQueryFilter(
+    Guid? RepositoryId = null,
+    Guid? RepositoryRunnerId = null,
+    Guid? RunnerId = null,
+    string? Extension = null,
+    string? Keyword = null,
+    IReadOnlyList<string>? TagPaths = null,
+    int Limit = 100
+);

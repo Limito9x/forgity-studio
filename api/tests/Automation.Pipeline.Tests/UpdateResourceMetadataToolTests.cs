@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Automation.Pipeline.Domain.ValueObjects;
-using Automation.Pipeline.Tools;
-using Automation.Pipeline.Tools.Workspaces;
+using Automation.Pipeline.Contracts.Tools;
+using Automation.Pipeline.Contracts.Tools.Workspaces;
 using Automation.Repository.Contracts;
 using FluentAssertions;
 using FluentResults;

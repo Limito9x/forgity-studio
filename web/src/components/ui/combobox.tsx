@@ -38,7 +38,7 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group"
-import { ChevronDownIcon, XIcon, CheckIcon } from "lucide-react"
+import { ChevronDownIcon, XIcon, CheckIcon, Loader2 } from "lucide-react"
 
 function ComboboxValue<T>({ ...props }: ComboBoxValueProps<T>) {
   return <ComboBoxValuePrimitive data-slot="combobox-value" {...props} />
@@ -94,29 +94,41 @@ function ComboboxInput({
   className,
   children,
   disabled = false,
+  isLoading = false,
   showTrigger = true,
   showClear = false,
   ...props
 }: React.ComponentProps<"input"> & {
+  disabled?: boolean
+  isLoading?: boolean
   showTrigger?: boolean
   showClear?: boolean
 }) {
+  const effectiveDisabled = disabled || isLoading
   return (
     <InputGroup className={cn("w-auto", className)}>
-      <InputGroupInput disabled={disabled} {...props} />
+      <InputGroupInput disabled={effectiveDisabled} {...props} />
       <InputGroupAddon align="inline-end">
-        {showTrigger && (
-          <InputGroupButton
-            size="icon-xs"
-            variant="ghost"
-            data-slot="combobox-trigger"
-            className="group-has-data-[slot=combobox-clear]/input-group:hidden data-pressed:bg-transparent [&_svg:not([class*='size-'])]:size-3.5"
-            isDisabled={disabled}
-          >
-            <ChevronDownIcon className="pointer-events-none size-3.5 text-muted-foreground" />
-          </InputGroupButton>
+        {isLoading ? (
+          <div className="flex items-center justify-center size-6 pointer-events-none">
+            <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <>
+            {showTrigger && (
+              <InputGroupButton
+                size="icon-xs"
+                variant="ghost"
+                data-slot="combobox-trigger"
+                className="group-has-data-[slot=combobox-clear]/input-group:hidden data-pressed:bg-transparent [&_svg:not([class*='size-'])]:size-3.5"
+                isDisabled={effectiveDisabled}
+              >
+                <ChevronDownIcon className="pointer-events-none size-3.5 text-muted-foreground" />
+              </InputGroupButton>
+            )}
+            {showClear && <ComboboxClear isDisabled={effectiveDisabled} />}
+          </>
         )}
-        {showClear && <ComboboxClear isDisabled={disabled} />}
       </InputGroupAddon>
       {children}
     </InputGroup>

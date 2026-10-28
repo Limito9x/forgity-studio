@@ -58,6 +58,7 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
   // Filter out Start node and SubPipeline from general library view
   const validNodes = useMemo(() => {
     return nodes.filter((node) => {
+      if (!node.isVisibleInPalette) return false;
       const isStart =
         node.key?.toLowerCase() === "start" ||
         node.key?.toLowerCase() === "beginexecute" ||

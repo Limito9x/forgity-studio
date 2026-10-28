@@ -1,3 +1,4 @@
+import { useNodePalette } from "../hooks/usePipelines";
 import { ReactFlowProvider } from "@xyflow/react";
 import { usePipelineGraph } from "../hooks/usePipelineGraph";
 import { PipelineCanvas } from "../components/canvas/PipelineCanvas";
@@ -15,6 +16,7 @@ interface PipelineEditorPageProps {
 
 export function PipelineEditorPage({ projectId, pipelineId }: PipelineEditorPageProps) {
   const { data: graph, isLoading, error } = usePipelineGraph(pipelineId);
+  useNodePalette(projectId);
   const { studioSlug } = useCurrentStudio();
 
   if (isLoading) {

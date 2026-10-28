@@ -6,8 +6,9 @@ using Automation.Files.Infrastructure.Persistence;
 using Automation.Files.Infrastructure.Storage;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
-using Automation.Pipeline.Features.Nodes;
+using Automation.Pipeline.BuildTime.Features.CustomNodes;
 using Automation.Pipeline.Infrastructure.Persistence;
+using Automation.Pipeline.BuildTime.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -34,6 +35,7 @@ public sealed class CustomScriptPublishTests : IDisposable
     private readonly RejectLinkSave _rejectLink = new();
     private const string Hash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     private readonly Dictionary<Guid, string> _hashes = [];
+    private readonly IScriptSchemaAnalyzer _analyzer = new HybridScriptSchemaAnalyzer(new NativePythonScriptAnalyzer(), NullLogger<HybridScriptSchemaAnalyzer>.Instance);
 
     public CustomScriptPublishTests()
     {
@@ -79,7 +81,7 @@ public sealed class CustomScriptPublishTests : IDisposable
         var old = await _files.AssetLinks.AsNoTracking().SingleAsync();
         var replacement = Item("script", await Asset(), "Renamed") with
         { Inputs = [new() { Id = "exec_in", Kind = PinKind.Exec },
-            new() { Id = "input", EntityTarget = "resource", AllowedExtensions = ".fbx", DefaultValue = 42 }] };
+            new() { Id = "input", StructType = "Resource", AllowedExtensions = ".fbx", DefaultValue = 42 }] };
         var result = await Publish(replacement);
         Assert.Empty(result.Value.Errors);
         Assert.Equal(id, result.Value.Results.Single().Id);
@@ -90,7 +92,7 @@ public sealed class CustomScriptPublishTests : IDisposable
         Assert.Equal("script.py", queried.Value.OriginalFileName);
         Assert.Equal(replacement.ContentHash, queried.Value.ContentHash);
         Assert.Equal(PinKind.Exec, queried.Value.Inputs[0].Kind);
-        Assert.Equal("resource", queried.Value.Inputs[1].EntityTarget);
+        Assert.Equal("Resource", queried.Value.Inputs[1].StructType);
         Assert.Equal(".fbx", queried.Value.Inputs[1].AllowedExtensions);
         Assert.Equal("42", JsonSerializer.Serialize(queried.Value.Inputs[1].DefaultValue));
     }
@@ -102,7 +104,7 @@ public sealed class CustomScriptPublishTests : IDisposable
             new NodeDefinition { ProjectId = _project, Key = "other", Name = "script" },
             new NodeDefinition { ProjectId = Guid.NewGuid(), Key = "script", Name = "script" });
         await _pipeline.SaveChangesAsync();
-        var result = await new AnalyzeCustomNodesBatchHandler(_pipeline)
+        var result = await new AnalyzeCustomNodesBatchHandler(_pipeline, _analyzer)
             .HandleAsync(new(_project, [new("script.py", "def main():\n    pass\n")]), CancellationToken.None);
         Assert.True(result.IsSuccess);
         Assert.False(Assert.Single(result.Value.Nodes).IsOverride);
@@ -114,7 +116,7 @@ public sealed class CustomScriptPublishTests : IDisposable
     [Fact]
     public async Task Analysis_DuplicateKeysRejectPreview()
     {
-        var result = await new AnalyzeCustomNodesBatchHandler(_pipeline)
+        var result = await new AnalyzeCustomNodesBatchHandler(_pipeline, _analyzer)
             .HandleAsync(new(_project, [new("script.py", ""), new("SCRIPT.py", "")]), CancellationToken.None);
         Assert.True(result.IsFailed);
         Assert.Empty(await _pipeline.NodeDefinitions.ToListAsync());
@@ -225,7 +227,7 @@ public sealed class CustomScriptPublishTests : IDisposable
     {
         await Publish(Item("script", await Asset()));
         var replacement = await Asset();
-        _bus.PublishAsync(Arg.Any<Automation.Pipeline.Features.Nodes.Events.NodeDefinitionPinsChangedEvent>())
+        _bus.PublishAsync(Arg.Any<Automation.Pipeline.BuildTime.Features.CustomNodes.Events.NodeDefinitionPinsChangedEvent>())
             .Returns(_ => throw new InvalidOperationException("Outbox failed."));
         var result = await Publish(Item("script", replacement, "Changed"), Item("new", await Asset()));
         Assert.Equal("script.py", Assert.Single(result.Value.Errors).FileName);

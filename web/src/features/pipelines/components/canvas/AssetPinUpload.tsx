@@ -112,16 +112,29 @@ export function AssetPinUpload({
             </div>
           </div>
 
-          <div className="flex items-center gap-1 shrink-0">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onPress={() => fileInputRef.current?.click()}
-              isDisabled={disabled || isUploading}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <Upload className="h-3 w-3" />
-            </Button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {isUnbound ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onPress={() => fileInputRef.current?.click()}
+                isDisabled={disabled || isUploading}
+                className="h-7 px-2 text-[11px] font-semibold border-amber-500/50 bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-200 gap-1 shadow-xs"
+              >
+                <Upload className="h-3 w-3" />
+                <span>Upload File</span>
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onPress={() => fileInputRef.current?.click()}
+                isDisabled={disabled || isUploading}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Upload className="h-3 w-3" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon-xs"

@@ -15,4 +15,6 @@ export interface ParseScriptResponseDto {
   description: string | null;
   inputs: IReadOnlyListOfPinDefinition;
   outputs: IReadOnlyListOfPinDefinition;
+  /** @nullable */
+  dependencies?: unknown[] | null;
 }

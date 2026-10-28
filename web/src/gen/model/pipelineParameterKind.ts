@@ -10,8 +10,8 @@ export type PipelineParameterKind =
   (typeof PipelineParameterKind)[keyof typeof PipelineParameterKind];
 
 export const PipelineParameterKind = {
-  NUMBER_1: 1,
-  NUMBER_2: 2,
-  NUMBER_3: 3,
-  NUMBER_4: 4,
+  Input: "Input",
+  Output: "Output",
+  Variable: "Variable",
+  Context: "Context",
 } as const;

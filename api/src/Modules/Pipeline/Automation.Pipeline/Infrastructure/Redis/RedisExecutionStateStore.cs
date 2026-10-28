@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using Automation.Pipeline.Engine;
-using Automation.Pipeline.Engine.Models;
+using Automation.Pipeline.Runtime.Planner.Models;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 
@@ -47,6 +46,12 @@ public class RedisExecutionStateStore : IExecutionStateStore
 
     private static string NodeStatusKey(Guid execId, Guid nodeId) =>
         $"exec:{execId}:node:{nodeId}:status";
+
+    private static string NodeErrorKey(Guid execId, Guid nodeId) =>
+        $"exec:{execId}:node:{nodeId}:error";
+
+    private static string NodeLogKey(Guid execId, Guid nodeId) =>
+        $"exec:{execId}:node:{nodeId}:log";
 
     private static string FullStateKey(Guid execId) =>
         $"exec:{execId}:state";
@@ -199,6 +204,70 @@ public class RedisExecutionStateStore : IExecutionStateStore
         if (db == null)
         {
             return _memoryFallback.TryGetValue(redisKey, out var s) ? s : null;
+        }
+
+        var val = await db.StringGetAsync(redisKey);
+        return val.HasValue ? val.ToString() : null;
+    }
+
+    public async Task SetNodeErrorAsync(Guid execId, Guid nodeId, string? errorMessage, CancellationToken ct = default)
+    {
+        var redisKey = NodeErrorKey(execId, nodeId);
+        var db = GetDatabase();
+        if (db == null)
+        {
+            if (errorMessage == null)
+                _memoryFallback.TryRemove(redisKey, out _);
+            else
+                _memoryFallback[redisKey] = errorMessage;
+            return;
+        }
+
+        if (errorMessage == null)
+            await db.KeyDeleteAsync(redisKey);
+        else
+            await db.StringSetAsync(redisKey, errorMessage, DefaultTtl);
+    }
+
+    public async Task<string?> GetNodeErrorAsync(Guid execId, Guid nodeId, CancellationToken ct = default)
+    {
+        var redisKey = NodeErrorKey(execId, nodeId);
+        var db = GetDatabase();
+        if (db == null)
+        {
+            return _memoryFallback.TryGetValue(redisKey, out var err) ? err : null;
+        }
+
+        var val = await db.StringGetAsync(redisKey);
+        return val.HasValue ? val.ToString() : null;
+    }
+
+    public async Task SetNodeLogAsync(Guid execId, Guid nodeId, string? log, CancellationToken ct = default)
+    {
+        var redisKey = NodeLogKey(execId, nodeId);
+        var db = GetDatabase();
+        if (db == null)
+        {
+            if (log == null)
+                _memoryFallback.TryRemove(redisKey, out _);
+            else
+                _memoryFallback[redisKey] = log;
+            return;
+        }
+
+        if (log == null)
+            await db.KeyDeleteAsync(redisKey);
+        else
+            await db.StringSetAsync(redisKey, log, DefaultTtl);
+    }
+
+    public async Task<string?> GetNodeLogAsync(Guid execId, Guid nodeId, CancellationToken ct = default)
+    {
+        var redisKey = NodeLogKey(execId, nodeId);
+        var db = GetDatabase();
+        if (db == null)
+        {
+            return _memoryFallback.TryGetValue(redisKey, out var l) ? l : null;
         }
 
         var val = await db.StringGetAsync(redisKey);

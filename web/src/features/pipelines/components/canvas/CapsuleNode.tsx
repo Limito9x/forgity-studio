@@ -3,7 +3,7 @@ import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
 import { Variable, Laptop, FolderGit2, PlayCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getPinVisual } from "./CustomPipelineNode";
+import { getPinVisual } from "./nodes/types";
 
 export interface CapsuleNodeData extends Record<string, unknown> {
   refId: string;

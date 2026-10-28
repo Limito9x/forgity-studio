@@ -7,9 +7,10 @@ export type StaticComboboxProps<TValue = unknown> = DistributiveOmit<
     BaseComboboxProps<TValue>,
     'items' | 'onSearch'
 > & {
-    options: OptionItem<TValue>[]
+    options: (OptionItem<TValue> | string)[]
     isLoading?: boolean
     loadingText?: string
+    allowCustom?: boolean
 }
 
 /**
@@ -23,11 +24,16 @@ export function StaticCombobox<TValue = unknown>({
     loadingText = 'Loading...',
     emptyText = 'No results found.',
     onValueChange,
+    allowCustom,
     ...rest
 }: StaticComboboxProps<TValue>) {
     const [search, setSearch] = useState('');
 
-    const filteredOptions = (options || []).filter(item => 
+    const normalizedOptions: OptionItem<TValue>[] = (options || []).map(opt =>
+        typeof opt === "string" ? { label: opt, value: opt as unknown as TValue } : opt
+    );
+
+    const filteredOptions = normalizedOptions.filter(item => 
         item.label.toLowerCase().includes(search.toLowerCase())
     );
 
@@ -38,6 +44,7 @@ export function StaticCombobox<TValue = unknown>({
             onValueChange={onValueChange as any}
             onSearch={setSearch}
             emptyText={isLoading ? loadingText : emptyText}
+            allowCustom={allowCustom}
         />
     )
 }

@@ -7,5 +7,12 @@
     },
     "table": {
         "caption": "Người dùng đã đăng ký trong hệ thống"
+    },
+    "actions": {
+        "deleteUser": "Xoá người dùng",
+        "deleteConfirm": "Bạn có chắc chắn muốn xoá người dùng này không? Hành động này không thể hoàn tác."
+    },
+    "messages": {
+        "deleteSuccess": "Xoá người dùng thành công"
     }
 }

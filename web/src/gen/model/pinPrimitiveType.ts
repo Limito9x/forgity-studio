@@ -10,10 +10,9 @@ export type PinPrimitiveType =
   (typeof PinPrimitiveType)[keyof typeof PinPrimitiveType];
 
 export const PinPrimitiveType = {
-  NUMBER_0: 0,
-  NUMBER_1: 1,
-  NUMBER_2: 2,
-  NUMBER_3: 3,
-  NUMBER_4: 4,
-  NUMBER_5: 5,
+  String: "String",
+  Number: "Number",
+  Boolean: "Boolean",
+  EntityRef: "EntityRef",
+  Asset: "Asset",
 } as const;

@@ -10,6 +10,6 @@ export type EdgeReconciliationStrategy =
   (typeof EdgeReconciliationStrategy)[keyof typeof EdgeReconciliationStrategy];
 
 export const EdgeReconciliationStrategy = {
-  NUMBER_0: 0,
-  NUMBER_1: 1,
+  KeepCompatiblePins: "KeepCompatiblePins",
+  UnpinAll: "UnpinAll",
 } as const;

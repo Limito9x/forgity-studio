@@ -1,7 +1,6 @@
-using Automation.Pipeline.Engine;
-using Automation.Pipeline.Engine.DataResolver;
-using Automation.Pipeline.Engine.Messages;
-using Automation.Pipeline.Features.Pipelines.HandleAgentCallback;
+using Automation.Pipeline.Runtime.DataResolver;
+using Automation.Pipeline.Runtime.State.Messages;
+using Automation.Pipeline.Runtime.Features.Execution.HandleAgentCallback;
 using Automation.Pipeline.Hubs;
 using FluentAssertions;
 using Microsoft.AspNetCore.SignalR;
@@ -57,7 +56,7 @@ public class StepProgressConsumerTests
 
         // 2. MemoryStore not called because Outputs is null
         await _memoryStore.DidNotReceive().SetNodeAllOutputsAsync(
-            Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Dictionary<string, object?>>(), Arg.Any<Automation.Pipeline.Engine.Models.ScopeContext?>(), Arg.Any<CancellationToken>()
+            Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Dictionary<string, object?>>(), Arg.Any<ScopeContext?>(), Arg.Any<CancellationToken>()
         );
 
         // 3. Realtime SignalR: Client proxy receives PipelineNodeExecutionUpdated
@@ -162,7 +161,7 @@ public class StepProgressConsumerTests
 
         // Assert - No store or SignalR calls
         await _stateStore.DidNotReceive().SetNodeStatusAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
-        await _memoryStore.DidNotReceive().SetNodeAllOutputsAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Dictionary<string, object?>>(), Arg.Any<Automation.Pipeline.Engine.Models.ScopeContext?>(), Arg.Any<CancellationToken>());
+        await _memoryStore.DidNotReceive().SetNodeAllOutputsAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<Dictionary<string, object?>>(), Arg.Any<ScopeContext?>(), Arg.Any<CancellationToken>());
         await _clientProxy.DidNotReceive().SendCoreAsync(Arg.Any<string>(), Arg.Any<object?[]>(), Arg.Any<CancellationToken>());
     }
 }

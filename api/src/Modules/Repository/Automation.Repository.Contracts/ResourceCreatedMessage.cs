@@ -11,7 +11,8 @@ public record ResourcesCreatedEvent(
     Guid ProjectId,
     Guid RepositoryId,
     Guid RunnerId,
-    List<ResourceVersionCreatedInfo> ResourceVersions
+    List<ResourceVersionCreatedInfo> ResourceVersions,
+    Guid? WorkstationId = null
 )
 {
     public Guid WorkspaceId => RepositoryId;

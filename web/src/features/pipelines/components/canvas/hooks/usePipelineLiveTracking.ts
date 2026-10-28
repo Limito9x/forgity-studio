@@ -7,7 +7,7 @@ import {
 } from "../../../hooks/usePipelineGraph";
 import { usePipelineSignalR } from "../../../hooks/usePipelineSignalR";
 import { ExecutionStatus } from "@/gen/model/executionStatus";
-import type { CustomPipelineNodeData } from "../CustomPipelineNode";
+import type { CustomPipelineNodeData } from "../nodes/types";
 
 interface UsePipelineLiveTrackingArgs {
   pipelineId: string;

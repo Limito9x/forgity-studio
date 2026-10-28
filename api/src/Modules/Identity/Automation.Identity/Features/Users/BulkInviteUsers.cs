@@ -202,12 +202,19 @@ public class BulkInviteUsersHandler(
                     personalNote: command.PersonalNote,
                     discordUrl: command.DiscordUrl
                 );
+                var plainTextBody = BetaInviteEmailTemplate.RenderPlainText(
+                    email: email,
+                    inviteLink: inviteLink,
+                    personalNote: command.PersonalNote,
+                    discordUrl: command.DiscordUrl
+                );
 
                 var emailCommand = new SendEmailCommand(
                     To: recipient,
                     Subject: "Welcome to Forgity Studio - Closed Beta Invitation",
                     Body: htmlBody,
-                    IsHtml: true
+                    IsHtml: true,
+                    PlainTextBody: plainTextBody
                 );
 
                 await bus.SendAsync(emailCommand);

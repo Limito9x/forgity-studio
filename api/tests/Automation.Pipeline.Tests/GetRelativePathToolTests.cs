@@ -1,6 +1,6 @@
 using Automation.Pipeline.Domain.Enums;
-using Automation.Pipeline.Tools;
-using Automation.Pipeline.Tools.Utility;
+using Automation.Pipeline.Contracts.Tools;
+using Automation.Pipeline.Contracts.Tools.Utility;
 using Xunit;
 
 namespace Automation.Pipeline.Tests;

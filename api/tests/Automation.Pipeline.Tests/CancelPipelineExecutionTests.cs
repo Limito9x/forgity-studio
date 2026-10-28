@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
-using Automation.Pipeline.Features.Pipelines;
 using Automation.Pipeline.Hubs;
 using Automation.Pipeline.Infrastructure.Persistence;
 using Automation.Runner.Contracts;
