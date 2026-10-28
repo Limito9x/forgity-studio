@@ -127,7 +127,23 @@ public class StageResultConsumer(
             }
 
             execution.MarkFailed(err, failSnapshot);
-            await db.SaveChangesAsync(ct);
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to persist MarkFailed for Execution {ExecutionId}. Attempting fallback with truncated error.", execution.Id);
+                try
+                {
+                    execution.TruncateErrorMessage(1900);
+                    await db.SaveChangesAsync(ct);
+                }
+                catch (Exception fallbackEx)
+                {
+                    logger.LogError(fallbackEx, "Fallback save also failed for Execution {ExecutionId}", execution.Id);
+                }
+            }
 
             if (subPipelineNotifier != null)
             {

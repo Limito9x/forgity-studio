@@ -22,7 +22,7 @@ public class QueryWorkstationResourcesTool(
     public string Key => "QueryWorkstationResources";
     public IReadOnlyList<string> Aliases => ["GetWorkstationResources", "FetchResources", "QueryResources"];
     public string Label => "Query Workstation Resources";
-    public string? Category => "Workspaces";
+    public string? Category => "Workspaces & Resources";
     public string? Description => "Queries resources from a Workstation (Repository + Runner) and populates Resource entity references into the pipeline DAG.";
     public bool IsPure => false;
 

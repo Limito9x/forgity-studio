@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { GripVertical, Pencil, Trash2, Pill, Zap } from "lucide-react";
+import { GripVertical, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -12,7 +12,7 @@ interface ParameterRowItemProps {
   onEdit: (param: PipelineParameterDto) => void;
   onDelete: (key: string) => void;
   onSpawnCapsule: (key: string, kind: "Variable" | "Runner" | "Repository" | "Workspace" | "Context", type: any) => void;
-  onSpawnAction: (toolKey: "SetVariable", varName: string) => void;
+  onSpawnAction?: (toolKey: "SetVariable", varName: string) => void;
 }
 
 export const ParameterRowItem = memo(function ParameterRowItem({
@@ -21,7 +21,6 @@ export const ParameterRowItem = memo(function ParameterRowItem({
   onEdit,
   onDelete,
   onSpawnCapsule,
-  onSpawnAction,
 }: ParameterRowItemProps) {
   const style = getTypeStyle(param.type, param.cardinality, param.structType);
 
@@ -149,27 +148,10 @@ export const ParameterRowItem = memo(function ParameterRowItem({
         <p className="text-[10px] text-muted-foreground line-clamp-2 pl-5">{param.description}</p>
       )}
 
-      {/* Action Buttons: 💊 Capsule Getter | ⚡ Action Setter */}
+      {/* Drag Hint & Edit/Delete Actions */}
       <div className="flex items-center justify-between pt-1 border-t border-border/30 pl-5">
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-5 px-1.5 text-[10px] gap-1 text-violet-400 hover:text-violet-300 hover:bg-violet-500/10"
-            onPress={() => onSpawnCapsule(param.key, "Variable", param.type)}
-          >
-            <Pill className="w-2.5 h-2.5" />
-            <span>Get</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-5 px-1.5 text-[10px] gap-1 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10"
-            onPress={() => onSpawnAction("SetVariable", param.key)}
-          >
-            <Zap className="w-2.5 h-2.5" />
-            <span>Set</span>
-          </Button>
+        <div className="flex items-center gap-1 text-[10px] text-muted-foreground/60 select-none group-hover:text-muted-foreground transition-colors">
+          <span>Drag to canvas</span>
         </div>
 
         <div className="flex items-center gap-0.5">

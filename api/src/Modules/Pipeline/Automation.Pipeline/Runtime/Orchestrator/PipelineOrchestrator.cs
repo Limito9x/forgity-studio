@@ -49,6 +49,27 @@ public class PipelineOrchestrator(
         }
     }
 
+    private async Task SafeSaveFailedExecutionAsync(PipelineExecution execution, CancellationToken ct)
+    {
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Failed to persist MarkFailed for Execution {ExecutionId}. Attempting fallback with truncated error.", execution.Id);
+            try
+            {
+                execution.TruncateErrorMessage(1900);
+                await db.SaveChangesAsync(ct);
+            }
+            catch (Exception fallbackEx)
+            {
+                logger?.LogError(fallbackEx, "Fallback save also failed for Execution {ExecutionId}", execution.Id);
+            }
+        }
+    }
+
     public async Task<Result<PipelineExecution>> ExecuteOrResumeAsync(
         Guid executionId,
         Dictionary<string, object?>? runtimeInputs = null,
@@ -214,7 +235,7 @@ public class PipelineOrchestrator(
             {
                 var cycleError = $"Pipeline contains cycle involving nodes: {string.Join(", ", plan.CycleNodeIds)}";
                 execution.MarkFailed(cycleError, execution.ExecutionState ?? JsonDocument.Parse("{}"));
-                await db.SaveChangesAsync(ct);
+                await SafeSaveFailedExecutionAsync(execution, ct);
 
                 if (hubContext != null)
                 {
@@ -233,7 +254,7 @@ public class PipelineOrchestrator(
             {
                 var unresolvedMsg = $"Pipeline execution has {plan.UnresolvedPins.Count} unresolved required pin(s): {string.Join(", ", plan.UnresolvedPins.Select(p => $"{p.NodeLabel}.{p.PinLabel}"))}";
                 execution.MarkFailed(unresolvedMsg, execution.ExecutionState ?? JsonDocument.Parse("{}"));
-                await db.SaveChangesAsync(ct);
+                await SafeSaveFailedExecutionAsync(execution, ct);
 
                 if (hubContext != null)
                 {
@@ -250,7 +271,7 @@ public class PipelineOrchestrator(
 
             var generalPlanError = "Pipeline execution plan is invalid.";
             execution.MarkFailed(generalPlanError, execution.ExecutionState ?? JsonDocument.Parse("{}"));
-            await db.SaveChangesAsync(ct);
+            await SafeSaveFailedExecutionAsync(execution, ct);
 
             if (hubContext != null)
             {
@@ -302,7 +323,7 @@ public class PipelineOrchestrator(
                     var err = subRes.Errors.FirstOrDefault()?.Message ?? "SubPipeline execution failed";
                     var failSnapshot = await CaptureExecutionStateSnapshotAsync(execution, ct);
                     execution.MarkFailed(err, failSnapshot);
-                    await db.SaveChangesAsync(ct);
+                    await SafeSaveFailedExecutionAsync(execution, ct);
 
                     if (hubContext != null)
                     {
@@ -341,7 +362,7 @@ public class PipelineOrchestrator(
                     var err = dotNetRes.Errors.FirstOrDefault()?.Message ?? "DotNet segment execution failed";
                     var failSnapshot = await CaptureExecutionStateSnapshotAsync(execution, ct);
                     execution.MarkFailed(err, failSnapshot);
-                    await db.SaveChangesAsync(ct);
+                    await SafeSaveFailedExecutionAsync(execution, ct);
 
                     if (hubContext != null)
                     {
@@ -373,7 +394,7 @@ public class PipelineOrchestrator(
                     var err = agentRes.Errors.FirstOrDefault()?.Message ?? "Agent dispatch failed";
                     var failSnapshot = await CaptureExecutionStateSnapshotAsync(execution, ct);
                     execution.MarkFailed(err, failSnapshot);
-                    await db.SaveChangesAsync(ct);
+                    await SafeSaveFailedExecutionAsync(execution, ct);
 
                     if (hubContext != null)
                     {

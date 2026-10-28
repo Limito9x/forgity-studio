@@ -438,6 +438,7 @@ public class TransientPipelineGraphFactory(
             PipelineDiagnosticCode.DagCycleDetected => true,
             PipelineDiagnosticCode.IncompatiblePinType => true,
             PipelineDiagnosticCode.DanglingEdgePin => true,
+            PipelineDiagnosticCode.InvalidStagePlacement => true,
             PipelineDiagnosticCode.MissingNodeDefinition =>
                 diagnostic.NodeId.HasValue &&
                 nodesById.TryGetValue(diagnostic.NodeId.Value, out var node) &&

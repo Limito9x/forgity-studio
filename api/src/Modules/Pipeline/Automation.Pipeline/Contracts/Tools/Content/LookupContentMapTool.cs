@@ -15,16 +15,16 @@ namespace Automation.Pipeline.Contracts.Tools.Content;
 /// Tự động lấy ProjectId từ ToolExecutionContext mà không cần chân cắm ProjectId trên Canvas.
 /// </summary>
 public class LookupContentMapTool(
-    IContentApi contentApi,
-    ISchemaApi schemaApi,
-    PipelineDbContext db,
-    ILogger<LookupContentMapTool> logger
+    IContentApi? contentApi = null,
+    ISchemaApi? schemaApi = null,
+    PipelineDbContext? db = null,
+    ILogger<LookupContentMapTool>? logger = null
 ) : IResolverTool
 {
     public string Key => "LookupContentMap";
     public IReadOnlyList<string> Aliases => ["GetContentMapByKeys", "GetContentMapByNames", "FindContentItems"];
     public string Label => "Lookup Content Map";
-    public string? Category => "Content & Struct";
+    public string? Category => "Content & Publishing";
     public string? Description => "Queries project ContentItems by key, name, or ContentType, resolving their dynamic schema properties (such as master material contracts).";
     public bool IsPure => true;
     public bool HasDynamicPins => true;
@@ -145,6 +145,7 @@ public class LookupContentMapTool(
             Id = "ContentIds",
             Label = "Content IDs",
             PrimitiveType = PinPrimitiveType.EntityRef,
+            StructType = WellKnownStructTypes.ContentItem,
             Cardinality = PinCardinality.Array,
             IsRequired = false
         }

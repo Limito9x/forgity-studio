@@ -239,8 +239,7 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("ErrorMessage")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
+                        .HasColumnType("text");
 
                     b.Property<JsonDocument>("ExecutionState")
                         .HasColumnType("jsonb");

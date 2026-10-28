@@ -22,7 +22,7 @@ public class PipelineExecutionConfiguration
 
         builder.Property(x => x.CurrentBatchId).HasMaxLength(100);
 
-        builder.Property(x => x.ErrorMessage).HasMaxLength(2000);
+        builder.Property(x => x.ErrorMessage).HasColumnType("text");
 
         builder
             .HasOne(x => x.ParentExecution)

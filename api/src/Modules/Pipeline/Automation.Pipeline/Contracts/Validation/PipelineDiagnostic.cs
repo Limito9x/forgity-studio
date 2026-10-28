@@ -18,7 +18,8 @@ public enum PipelineDiagnosticCode
     DanglingEdgePin,
     IncompatiblePinType,
     OrphanNode,
-    UnconnectedReturnOutput
+    UnconnectedReturnOutput,
+    InvalidStagePlacement
 }
 
 public sealed record PipelineDiagnostic(
@@ -41,4 +42,3 @@ public sealed record UnresolvedPinError(
     string NodeLabel,
     string PinName,
     string PrimitiveType);
-

@@ -122,6 +122,7 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
 
   // 4. Blackboard Variable Drag & Drop
   const dnd = useVariableDropHandler({
+    nodes: draft.nodes,
     paletteItems,
     graphId: graph.id,
     setNodes: draft.setNodes,
@@ -335,6 +336,7 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
                 <VariableDropMenu
                   varName={currentVarDrop.varName}
                   position={currentVarDrop.screenPos}
+                  isInsideStage={currentVarDrop.isInsideStage}
                   onSelect={(action) => {
                     const toolKey = action === "Get" ? "GetVariable" : "SetVariable";
                     dnd.handleSpawnVariableNodeAt(toolKey, currentVarDrop.varName, currentVarDrop.flowPos);
