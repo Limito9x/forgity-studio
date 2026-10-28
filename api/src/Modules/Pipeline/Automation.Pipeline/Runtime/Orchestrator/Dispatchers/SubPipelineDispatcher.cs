@@ -125,10 +125,33 @@ public class SubPipelineDispatcher(
         db.PipelineExecutions.Add(childExecution);
         await db.SaveChangesAsync(ct);
 
-        var childInputs = new Dictionary<string, object?>(
-            subResolvedInputs,
-            StringComparer.OrdinalIgnoreCase
-        );
+        // 1. Inherit runtime inputs from parent execution (e.g. targetRunnerId, runnerId, environment configs)
+        var childInputs = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        if (execution.ExecutionState != null)
+        {
+            var doc = execution.ExecutionState;
+            if (doc.RootElement.TryGetProperty("RuntimeInputs", out var rInputs) || doc.RootElement.TryGetProperty("runtimeInputs", out rInputs))
+            {
+                foreach (var prop in rInputs.EnumerateObject())
+                {
+                    childInputs[prop.Name] = prop.Value.ValueKind switch
+                    {
+                        System.Text.Json.JsonValueKind.String => prop.Value.GetString(),
+                        System.Text.Json.JsonValueKind.Number => prop.Value.TryGetInt64(out var l) ? l : prop.Value.GetDouble(),
+                        System.Text.Json.JsonValueKind.True => true,
+                        System.Text.Json.JsonValueKind.False => false,
+                        System.Text.Json.JsonValueKind.Null => null,
+                        _ => prop.Value.GetRawText()
+                    };
+                }
+            }
+        }
+
+        // 2. Overwrite with explicit pin inputs connected to the SubPipeline node
+        foreach (var (k, v) in subResolvedInputs)
+        {
+            childInputs[k] = v;
+        }
 
         logger.LogInformation(
             "Executing Sub-Pipeline [{ChildName}] ({ChildPipelineId}) under Execution {ExecutionId}",

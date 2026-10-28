@@ -102,6 +102,16 @@ public interface IRunnerApi
         CancellationToken ct = default
     );
 
+    Task<Result<RunnerDto?>> FindBestAvailableRunnerAsync(
+        string? executorKey = null,
+        Guid? studioId = null,
+        CancellationToken ct = default
+    );
+
+    Task<Result<IReadOnlyList<Guid>>> GetOnlineRunnerIdsAsync(
+        CancellationToken ct = default
+    );
+
     // Compatibility methods for previous IAgentApi callers
     Task<Result<RunnerDto>> GetAgentByIdAsync(Guid agentId, CancellationToken ct = default)
         => GetRunnerByIdAsync(agentId, ct);
