@@ -1,4 +1,4 @@
-# Kế Hoạch Định Hướng Kỹ Thuật: Automation Studio MCP Server (BL-028)
+# Kế Hoạch Định Hướng Kỹ Thuật: Forgity Studio MCP Server (BL-028)
 ## Tích Hợp Model Context Protocol — Biến AI Agent Thành Kỹ Sư Tự Động Hóa Pipeline 3D/VFX
 
 > **Mã định danh**: `BL-028`  
@@ -10,9 +10,9 @@
 
 ## 1. Tầm Nhìn & Giá Trị Cốt Lõi (Vision)
 
-Khi Automation Studio phát triển và thu hút cộng đồng kỹ sư kỹ thuật, Technical Artist (TA) và Lead Pipeline 3D/VFX, rào cản lớn nhất của người dùng mới là **phải tự tay kéo thả và cấu hình từng Node trên Canvas** cho một quy trình thủ công phức tạp (vốn có thể gồm 20-30 bước giữa Blender, Unreal, ZBrush, Photoshop).
+Khi Forgity Studio phát triển và thu hút cộng đồng kỹ sư kỹ thuật, Technical Artist (TA) và Lead Pipeline 3D/VFX, rào cản lớn nhất của người dùng mới là **phải tự tay kéo thả và cấu hình từng Node trên Canvas** cho một quy trình thủ công phức tạp (vốn có thể gồm 20-30 bước giữa Blender, Unreal, ZBrush, Photoshop).
 
-Bằng cách xây dựng **Automation Studio MCP Server (Model Context Protocol)**, các AI Agent hiện đại (như Claude Desktop, Antigravity, Cursor, Windsurf, v.v.) có thể kết nối trực tiếp vào studio và đóng vai trò như một **Lead Pipeline Engineer AI**:
+Bằng cách xây dựng **Forgity Studio MCP Server (Model Context Protocol)**, các AI Agent hiện đại (như Claude Desktop, Antigravity, Cursor, Windsurf, v.v.) có thể kết nối trực tiếp vào Forgity Studio và đóng vai trò như một **Lead Pipeline Engineer AI**:
 1. **Lắng nghe quy trình làm việc thủ công của con người**: Nghệ sĩ chỉ cần mô tả:  
    *"Mỗi khi dựng model xong, tôi phải nạp file Blender, tách các mesh tóc/áo/da, export FBX theo quy ước tên `SM_{Name}`, đưa vào Unreal Engine để gán Master Material và sinh DataTable ngoại hình."*
 2. **Tự động tổng hợp Pipeline đồ thị (Autonomous DAG Synthesis)**: AI Agent tự động chọn đúng các Tool Nodes trong Studio Palette, nối dây chân Pin (Dataflow & FlowPins), đóng khung vào các Stage (`blender`, `unreal`), thiết lập cấu hình và sinh ra một Pipeline hoàn chỉnh sẵn sàng chạy trên Canvas.
@@ -26,7 +26,7 @@ Hệ thống MCP sẽ cung cấp 4 nhóm công cụ chính qua giao thức MCP (
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│             Automation Studio MCP Server               │
+│             Forgity Studio MCP Server               │
 ├────────────────────┬───────────────────────────────────┤
 │ 1. Script Deck     │ • ingest_python_script            │
 │                    │ • get_node_palette                │
@@ -106,3 +106,4 @@ Hệ thống MCP sẽ cung cấp 4 nhóm công cụ chính qua giao thức MCP (
      }
      ```
    - Dán vào Claude Desktop hoặc Antigravity là lập tức có trợ lý ảo toàn quyền điều khiển Studio.
+

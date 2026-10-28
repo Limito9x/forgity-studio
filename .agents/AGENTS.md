@@ -1,10 +1,12 @@
-# Automation Studio - Master Agent Instructions
+# Forgity Studio - Master Agent Instructions
 
 > Pipeline Canvas definitions (22/10/2026): xem cập nhật đầu `playbooks/pipeline-canvas-sync.md`. Palette là nguồn định nghĩa chung; graph giữ config/resolved pins, không chứa capabilities. Phase B qua kiểm tra tự động, chờ UI; Phase C chưa triển khai.
 
 > Node lifecycle (22/10/2026): [plan khởi tạo, resolve và validation](plans/2026-10-22-node-resolution-and-validation-lifecycle.md) ghi nhận hướng tiếp nối Phase B. Xem mental model đầu [Canvas playbook](playbooks/pipeline-canvas-sync.md); phân biệt resolve schema với validation graph. R1–R4 là lộ trình chưa triển khai.
 
-Chào mừng đến với Monorepo **Automation Studio**. Tài liệu này đóng vai trò là **Master Router** và **Chỉ mục trung tâm (Master Index)** định hướng cho các Agent khi làm việc trong toàn bộ workspace này.
+> **QUY CHUẨN THƯƠNG HIỆU & ĐẶT TÊN (BRANDING SSOT)**: Tên sản phẩm chính thức trên UI, thông báo, tài liệu và trao đổi người dùng là **Forgity** hoặc **Forgity Studio** (được định nghĩa tại `web/src/config/appConfig.ts`). Tên namespace solution C# giữ nguyên tiền tố kỹ thuật `Automation.*`. Tuyệt đối không dùng tên cũ "Automation Studio" khi trao đổi hoặc viết tài liệu người dùng.
+
+Chào mừng đến với Monorepo **Forgity Studio**. Tài liệu này đóng vai trò là **Master Router** và **Chỉ mục trung tâm (Master Index)** định hướng cho các Agent khi làm việc trong toàn bộ workspace này.
 
 ---
 
