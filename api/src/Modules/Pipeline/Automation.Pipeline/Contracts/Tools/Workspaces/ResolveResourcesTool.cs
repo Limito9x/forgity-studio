@@ -21,7 +21,7 @@ public class ResolveResourcesTool(
 {
     public string Key => "ResolveResources";
     public string Label => "Resolve Resources";
-    public string? Category => "Workspaces";
+    public string? Category => "Workspaces & Resources";
     public string? Description => "Resolves a batch of Resource entity refs into their absolute physical full paths on the workstation disk and metadata map.";
     public bool IsPure => false;
 

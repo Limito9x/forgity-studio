@@ -110,7 +110,7 @@ def _get_file_hash(file_path: str) -> str:
         return ""
 
 
-def resolve_texture_preset(param_name: str, texture_type_dict: Dict[str, str]) -> Dict[str, Any]:
+def resolve_texture_preset(param_name: str, texture_type_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
     Resolve texture preset using Contract dictionary as single source of truth.
     Falls back gracefully to keyword matching if parameter is not registered in dictionary.
@@ -122,8 +122,18 @@ def resolve_texture_preset(param_name: str, texture_type_dict: Dict[str, str]) -
         p_low = param_name.lower()
         for k, v in texture_type_dict.items():
             if str(k).lower() == p_low:
-                tex_type = str(v)
+                tex_type = v
                 break
+
+    # If already a resolved rich preset dict (from inspect_uasset_materials), use it directly
+    if isinstance(tex_type, dict):
+        return {
+            "compression": tex_type.get("compression", "TC_DEFAULT"),
+            "srgb": bool(tex_type.get("srgb", True)),
+            "vt": bool(tex_type.get("vt", True)),
+            "semantic": tex_type.get("semantic", "BASE_COLOR"),
+            "lod_group": "TEXTUREGROUP_CHARACTER"
+        }
 
     if tex_type:
         key = str(tex_type).upper().strip()
@@ -273,9 +283,16 @@ def apply_texture_settings(tex_asset, preset: Dict[str, Any]):
     if "srgb" in preset:
         tex_asset.set_editor_property("srgb", bool(preset["srgb"]))
 
-    if preset.get("vt", True):
+    # Respect Virtual Texture flag: if vt is explicitly False, do NOT force virtual texture streaming!
+    vt_flag = preset.get("vt")
+    if vt_flag is True:
         try:
             tex_asset.set_editor_property("virtual_texture_streaming", True)
+        except Exception:
+            pass
+    elif vt_flag is False:
+        try:
+            tex_asset.set_editor_property("virtual_texture_streaming", False)
         except Exception:
             pass
 
@@ -330,9 +347,15 @@ def create_single_mic(
     if not HAS_UNREAL:
         return mic_uasset_path
 
-    parent_mat = unreal.EditorAssetLibrary.load_asset(master_material_path) if master_material_path else None
-    if not parent_mat:
+    if not master_material_path:
+        return ""
+
+    if not unreal.EditorAssetLibrary.does_asset_exist(master_material_path):
         print(f"[setup_asset_materials] Warning: Master Material not found at '{master_material_path}'. Skipping MIC creation.", flush=True)
+        return ""
+
+    parent_mat = unreal.EditorAssetLibrary.load_asset(master_material_path)
+    if not parent_mat:
         return ""
 
     asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
@@ -398,14 +421,15 @@ def create_single_mic(
         for param_name, tex_path in texture_parameters.items():
             if not tex_path:
                 continue
+            if not unreal.EditorAssetLibrary.does_asset_exist(tex_path):
+                print(f"[setup_asset_materials] Warning: Texture asset not found at '{tex_path}'", flush=True)
+                continue
             tex_obj = unreal.EditorAssetLibrary.load_asset(tex_path)
             if tex_obj:
                 actual_param = _resolve_real_param_name(param_name)
                 unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(
                     mic_asset, actual_param, tex_obj
                 )
-            else:
-                print(f"[setup_asset_materials] Warning: Texture asset not found at '{tex_path}'", flush=True)
 
     unreal.MaterialEditingLibrary.update_material_instance(mic_asset)
     unreal.EditorAssetLibrary.save_loaded_asset(mic_asset)
@@ -466,6 +490,10 @@ def bind_materials_to_mesh(mesh_uasset_path: str, slot_to_mic_map: Dict[str, str
                     failed_slots.append({"slot": slot_name, "index": idx, "reason": "No matching MIC in bindings"})
                     continue
 
+                if not unreal.EditorAssetLibrary.does_asset_exist(mic_path):
+                    failed_slots.append({"slot": slot_name, "index": idx, "mic": mic_path, "reason": "MIC asset not found"})
+                    continue
+
                 mic_asset = unreal.EditorAssetLibrary.load_asset(mic_path)
                 if not mic_asset:
                     failed_slots.append({"slot": slot_name, "index": idx, "mic": mic_path, "reason": "MIC asset not found"})
@@ -490,6 +518,10 @@ def bind_materials_to_mesh(mesh_uasset_path: str, slot_to_mic_map: Dict[str, str
                 mic_path = _find_mic_for_slot(slot_name, idx)
                 if not mic_path:
                     failed_slots.append({"slot": slot_name, "index": idx, "reason": "No matching MIC in bindings"})
+                    continue
+
+                if not unreal.EditorAssetLibrary.does_asset_exist(mic_path):
+                    failed_slots.append({"slot": slot_name, "index": idx, "mic": mic_path, "reason": "MIC asset not found"})
                     continue
 
                 mic_asset = unreal.EditorAssetLibrary.load_asset(mic_path)

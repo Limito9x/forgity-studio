@@ -19,7 +19,7 @@ public class SyncLocalChangeToRepositoryTool(
     public string Key => "SyncLocalChangeToRepository";
     public IReadOnlyList<string> Aliases => ["SyncLocalChangeToWorkspace", "SyncLocalChanges", "SyncLocalChange"];
     public string Label => "Sync Local Change To Repository";
-    public string? Category => "Repository";
+    public string? Category => "Workspaces & Resources";
     public string? Description => "Detects and synchronizes newly created or modified local files from a workstation/runner back into the repository database.";
 
     public IReadOnlyList<PinDefinition> Inputs =>

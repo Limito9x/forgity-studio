@@ -3,7 +3,7 @@ import bpy
 import json
 import os
 import re
-from typing import Dict, List, Optional, Any, Set
+from typing import Dict, List, Optional, Any, Set, Tuple
 
 
 class MockOp:
@@ -45,12 +45,80 @@ def count_used_slot_indices(obj: Any) -> Set[int]:
     return {int(poly.material_index) for poly in obj.data.polygons if 0 <= int(poly.material_index) < total}
 
 
-def extract_material_textures(mat: Any, blend_dir: str = "") -> List[str]:
-    """Extract texture file paths actually linked in this material's node tree (Full Absolute Paths)."""
+def trace_image_node_destination(node: Any, max_depth: int = 4) -> Tuple[str, str]:
+    """
+    Traces downstream links from a ShaderNodeTexImage to find the immediate intermediate node
+    and the final target shader socket (e.g. Principled BSDF / Material Output).
+    Returns: (via_node, target_socket)
+    """
+    color_out = node.outputs.get("Color")
+    if not color_out or not color_out.links:
+        alpha_out = node.outputs.get("Alpha")
+        if alpha_out and alpha_out.links:
+            target = alpha_out.links[0]
+            return "Alpha", f"{target.to_node.name}.{target.to_socket.name}"
+        return "Unconnected", "None"
+
+    first_link = color_out.links[0]
+    next_node = first_link.to_node
+    next_socket = first_link.to_socket
+
+    via_node = next_node.type.replace("BSDF_", "").replace("SHADER_", "").title()
+    if next_node.type == 'NORMAL_MAP':
+        via_node = "Normal Map"
+        # Check downstream of Normal Map
+        norm_out = next_node.outputs.get("Normal")
+        if norm_out and norm_out.links:
+            dest = norm_out.links[0]
+            return via_node, f"{dest.to_node.name}.{dest.to_socket.name}"
+        return via_node, "Normal"
+    elif next_node.type == 'BUMP':
+        via_node = f"Bump ({next_socket.name})"
+        norm_out = next_node.outputs.get("Normal")
+        if norm_out and norm_out.links:
+            dest = norm_out.links[0]
+            return via_node, f"{dest.to_node.name}.{dest.to_socket.name}"
+        return via_node, "Normal"
+    elif next_node.type in ('SEPARATE_COLOR', 'SEPARATE_RGB'):
+        via_node = "Separate Color"
+        dest_sockets = []
+        for out_sock in next_node.outputs:
+            for l in out_sock.links:
+                dest_sockets.append(f"{out_sock.name}->{l.to_node.name}.{l.to_socket.name}")
+        return via_node, (", ".join(dest_sockets) if dest_sockets else "Unconnected")
+    elif next_node.type == 'BSDF_PRINCIPLED':
+        return "Direct", f"Principled BSDF.{next_socket.name}"
+    elif next_node.type == 'GROUP':
+        return f"Group ({next_node.name})", f"Group Input: {next_socket.name}"
+
+    # General traversal for Mix, Math, Invert, etc.
+    curr_node = next_node
+    depth = 0
+    while curr_node and depth < max_depth:
+        depth += 1
+        primary_out = next((o for o in curr_node.outputs if o.links), None)
+        if not primary_out:
+            break
+        dest_link = primary_out.links[0]
+        if dest_link.to_node.type == 'BSDF_PRINCIPLED':
+            return via_node, f"Principled BSDF.{dest_link.to_socket.name}"
+        elif dest_link.to_node.type == 'OUTPUT_MATERIAL':
+            return via_node, f"Material Output.{dest_link.to_socket.name}"
+        curr_node = dest_link.to_node
+
+    return via_node, f"{next_node.name}.{next_socket.name}"
+
+
+def extract_material_textures(mat: Any, blend_dir: str = "") -> Tuple[List[str], List[Dict[str, Any]]]:
+    """
+    Extract texture file paths and their rich semantic graph bindings (Full Absolute Paths).
+    Returns: (textures, texture_bindings)
+    """
     if not mat:
-        return []
+        return [], []
 
     textures: List[str] = []
+    bindings: List[Dict[str, Any]] = []
     seen_paths: Set[str] = set()
 
     if getattr(mat, "use_nodes", False) and mat.node_tree:
@@ -77,11 +145,22 @@ def extract_material_textures(mat: Any, blend_dir: str = "") -> List[str]:
             if not abs_path:
                 continue
 
+            colorspace = getattr(getattr(img, "colorspace_settings", None), "name", "sRGB")
+            via_node, target_socket = trace_image_node_destination(node)
+
+            binding_info = {
+                "path": abs_path,
+                "colorspace": colorspace,
+                "via_node": via_node,
+                "target_socket": target_socket,
+            }
+            bindings.append(binding_info)
+
             if abs_path not in seen_paths:
                 seen_paths.add(abs_path)
                 textures.append(abs_path)
 
-    return textures
+    return textures, bindings
 
 
 def inspect_selected_meshes(meshes: List[bpy.types.Object]) -> List[Dict[str, Any]]:
@@ -106,7 +185,7 @@ def inspect_selected_meshes(meshes: List[bpy.types.Object]) -> List[Dict[str, An
             seen_slot_keys.add(slot_key)
 
             is_used = slot_idx in used_indices if used_indices else True
-            textures = extract_material_textures(slot.material, blend_dir)
+            textures, texture_bindings = extract_material_textures(slot.material, blend_dir)
 
             slots_list.append({
                 "index": current_index,
@@ -115,7 +194,8 @@ def inspect_selected_meshes(meshes: List[bpy.types.Object]) -> List[Dict[str, An
                 "material_name": slot.material.name,
                 "is_used": is_used,
                 "source_object": obj.name,
-                "textures": textures
+                "textures": textures,
+                "texture_bindings": texture_bindings,
             })
             current_index += 1
 

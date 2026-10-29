@@ -2,7 +2,7 @@ using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Contracts.StructRegistry;
-namespace Automation.Pipeline.Contracts.Tools.Deconstruct;
+namespace Automation.Pipeline.Contracts.Tools.Struct;
 
 
 /// <summary>
@@ -12,7 +12,7 @@ public class BreakStructTool(IEntityStructRegistry structRegistry) : IResolverTo
 {
     public string Key => "BreakStruct";
     public string Label => "Break Struct";
-    public string? Category => "Data / Struct";
+    public string? Category => "Struct & Data";
     public string? Description => "Deconstructs a structured entity (Resource, Version, TaggedAsset, etc.) into its individual property pins.";
     public bool IsPure => true;
     public bool HasDynamicPins => true;

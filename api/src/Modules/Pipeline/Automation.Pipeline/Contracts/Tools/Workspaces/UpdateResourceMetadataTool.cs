@@ -17,7 +17,7 @@ public class UpdateResourceMetadataTool(
 {
     public string Key => "UpdateResourceMetadata";
     public string Label => "Update Resource Metadata";
-    public string? Category => "Workspace & Files";
+    public string? Category => "Workspaces & Resources";
     public string? Description => "Batch updates metadata for resources using a Map of Resource Version IDs or File Paths -> Metadata.";
     public bool IsPure => false;
 

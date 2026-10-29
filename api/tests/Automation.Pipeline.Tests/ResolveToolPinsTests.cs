@@ -3,8 +3,7 @@ using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Contracts.StructRegistry;
 using Automation.Pipeline.Contracts.StructRegistry.Definitions;
 using Automation.Pipeline.Contracts.Tools;
-using Automation.Pipeline.Contracts.Tools.Collections;
-using Automation.Pipeline.Contracts.Tools.Deconstruct;
+using Automation.Pipeline.Contracts.Tools.Struct;
 using Automation.Pipeline.Contracts.Tools.Utility;
 using Automation.Runner.Contracts;
 using FluentAssertions;
@@ -28,13 +27,11 @@ public class ResolveToolPinsTests
 
         var breakStructTool = new BreakStructTool(_structRegistry);
         var formatStringTool = new FormatStringTool();
-        var makeArrayTool = new MakeArrayTool();
 
         _toolRegistry = Substitute.For<IToolRegistry>();
         _toolRegistry.GetByKey(Arg.Any<string>()).Returns((IResolverTool?)null);
         _toolRegistry.GetByKey("BreakStruct").Returns(breakStructTool);
         _toolRegistry.GetByKey("FormatString").Returns(formatStringTool);
-        _toolRegistry.GetByKey("MakeArray").Returns(makeArrayTool);
 
         _handler = new ResolveToolPinsHandler(_toolRegistry, _structRegistry);
     }
