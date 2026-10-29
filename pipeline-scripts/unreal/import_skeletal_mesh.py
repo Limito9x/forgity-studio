@@ -9,7 +9,13 @@ Returns a clean dictionary mapping each mesh name directly to its imported UAsse
 
 import os
 import sys
-from typing import Dict, Any, List, Optional, Union, Tuple
+from typing import Dict, Any, List, Optional, Union, Tuple, Literal
+
+NormalImportMethodType = Literal[
+    "FBXNIM_IMPORT_NORMALS",
+    "FBXNIM_COMPUTE_NORMALS",
+    "FBXNIM_IMPORT_NORMALS_AND_TANGENTS"
+]
 
 try:
     import unreal
@@ -58,7 +64,8 @@ def import_fbx_skeletal_mesh(
     fbx_path: str,
     destination_path: str,
     mesh_name: str,
-    skeleton_path: str = ""
+    skeleton_path: str = "",
+    normal_import_method: str = "FBXNIM_IMPORT_NORMALS"
 ) -> Optional[str]:
     """Standard FBX Skeletal Mesh import using Unreal AssetImportTask and FbxImportUI."""
     try:
@@ -92,11 +99,20 @@ def import_fbx_skeletal_mesh(
                         "import_content_type", unreal.FBXImportContentType.FBXIT_GEOMETRY_AND_SKINNING
                     )
                 if hasattr(unreal, "FBXNormalImportMethod"):
+                    method_str = str(normal_import_method or "FBXNIM_IMPORT_NORMALS").upper()
+                    if "COMPUTE" in method_str:
+                        chosen_method = unreal.FBXNormalImportMethod.FBXNIM_COMPUTE_NORMALS
+                    elif "TANGENT" in method_str:
+                        chosen_method = unreal.FBXNormalImportMethod.FBXNIM_IMPORT_NORMALS_AND_TANGENTS
+                    else:
+                        chosen_method = unreal.FBXNormalImportMethod.FBXNIM_IMPORT_NORMALS
+
                     fbx_options.skeletal_mesh_import_data.set_editor_property(
-                        "normal_import_method", unreal.FBXNormalImportMethod.FBXNIM_COMPUTE_NORMALS
+                        "normal_import_method", chosen_method
                     )
-            except Exception:
-                pass
+                    print(f"[import_skeletal_mesh] Applied Normal Import Method: {chosen_method}", flush=True)
+            except Exception as ex_opt:
+                print(f"[import_skeletal_mesh] Warning configuring skeletal mesh import data: {ex_opt}", flush=True)
 
         task.set_editor_property("options", fbx_options)
 
@@ -168,6 +184,7 @@ def main(
     fbx_files: List[str],
     destination_path: str = "/Game/Meshes",
     skeleton_path: str = "",
+    normal_import_method: NormalImportMethodType = "FBXNIM_IMPORT_NORMALS",
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -177,6 +194,7 @@ def main(
         fbx_files: List of absolute file paths to FBX assets (e.g. ["D:/Exports/Top.fbx", "D:/Exports/Pants.fbx"]).
         destination_path: Unreal package destination path (e.g. /Game/Characters/Eva/Meshes).
         skeleton_path: Optional shared Skeleton asset path in Unreal Engine (e.g. /Game/Characters/Common/SK_Skeleton).
+        normal_import_method: FBX normal import method ("FBXNIM_IMPORT_NORMALS", "FBXNIM_COMPUTE_NORMALS", "FBXNIM_IMPORT_NORMALS_AND_TANGENTS"). Defaults to "FBXNIM_IMPORT_NORMALS" for organic character smoothing.
 
     Returns:
         Dictionary with:
@@ -197,7 +215,7 @@ def main(
             "material_slots": {}
         }
 
-    print(f"[import_skeletal_mesh] Batch importing {len(items)} mesh(es) into '{destination_path}' (Skeleton: '{skeleton_path or 'Auto-Create'}')...", flush=True)
+    print(f"[import_skeletal_mesh] Batch importing {len(items)} mesh(es) into '{destination_path}' (Skeleton: '{skeleton_path or 'Auto-Create'}', NormalMethod: '{normal_import_method}')...", flush=True)
 
     mesh_map: Dict[str, str] = {}
     material_slots: Dict[str, List[str]] = {}
@@ -221,7 +239,13 @@ def main(
             print(f"[import_skeletal_mesh] [Dry-Run] Simulated import '{clean_mesh_name}' -> '{target_uasset_path}'", flush=True)
             continue
 
-        imported_path = import_fbx_skeletal_mesh(file_path, destination_path, clean_mesh_name, skeleton_path)
+        imported_path = import_fbx_skeletal_mesh(
+            fbx_path=file_path,
+            destination_path=destination_path,
+            mesh_name=clean_mesh_name,
+            skeleton_path=skeleton_path,
+            normal_import_method=normal_import_method
+        )
 
         if imported_path and unreal.EditorAssetLibrary.does_asset_exist(imported_path):
             mesh_asset = unreal.EditorAssetLibrary.load_asset(imported_path)

@@ -222,6 +222,7 @@ def main(
         normalized_contracts = raw_contracts
 
     contract_summary: Dict[str, Any] = {}
+    contract_clean_whitelist: Dict[str, Dict[str, str]] = {}
     if normalized_contracts:
         for c_name, c_data in normalized_contracts.items():
             if isinstance(c_data, dict):
@@ -231,7 +232,16 @@ def main(
                         t_params = json.loads(t_params)
                     except Exception:
                         t_params = {}
-                contract_summary[c_name] = t_params if isinstance(t_params, dict) else {}
+                if isinstance(t_params, dict):
+                    contract_summary[c_name] = t_params
+                    # Build clean whitelist for prompt and guardrail
+                    wl = {}
+                    for p_k, p_v in t_params.items():
+                        if isinstance(p_v, dict):
+                            wl[p_k] = p_v.get("semantic") or p_v.get("sampler_type") or "TEXTURE"
+                        else:
+                            wl[p_k] = str(p_v)
+                    contract_clean_whitelist[c_name] = wl
 
     # 3. Setup AI Provider, Endpoint, Model & Client
     if not HAS_OPENAI:
@@ -266,14 +276,15 @@ def main(
 
     # 4. Build Prompts
     contract_section = ""
-    if contract_summary:
+    if contract_clean_whitelist:
         contract_section = (
             "\nPROJECT MASTER MATERIAL CONTRACTS:\n"
-            "Each contract defines expected shader parameters and their map type (e.g. BASE_COLOR, NORMAL, MASKS/ORM, ART, GRAYSCALE):\n"
-            f"{json.dumps(contract_summary, indent=2)}\n\n"
-            "RULES WHEN MATCHING CONTRACTS:\n"
+            "Each contract defines the exact allowed shader parameters and their map type (e.g. BASE_COLOR, NORMAL, MASKS/ORM, ART, GRAYSCALE):\n"
+            f"{json.dumps(contract_clean_whitelist, indent=2)}\n\n"
+            "CRITICAL RULES WHEN MATCHING CONTRACTS:\n"
             "- Set 'material_tag' to the matched contract key (Cloth, Skin, Eye, Hair, Mouth, etc.).\n"
-            "- In 'textures', map each texture file to the exact shader parameter name based on its texture type.\n"
+            "- In 'textures', you MUST use the EXACT parameter names defined in the whitelist above for that tag.\n"
+            "  For example, if contract 'Skin' has 'Skin_BaseColor', you MUST use 'Skin_BaseColor', NOT 'BaseColorMap' or 'Diffuse'.\n"
             "- If no contract matches a slot, use standard PBR parameter names (BaseColorMap, NormalMap, ORMMap, OpacityMap).\n"
         )
 
@@ -422,12 +433,51 @@ def main(
             s_tag = s.get("material_tag") or s.get("tag") or "Generic"
             s_textures = s.get("textures") or {}
 
-            # Normalize texture paths to full absolute paths via Reverse Lookup
+            # Deterministic Guardrail Gate: Snap AI params into Contract Whitelist
+            matched_contract_params = contract_summary.get(s_tag) or contract_summary.get(f"M_{s_tag}") or {}
+            if not matched_contract_params:
+                s_tag_lower = s_tag.lower()
+                for c_k, c_v in contract_summary.items():
+                    if c_k.lower() == s_tag_lower or c_k.lower().endswith(s_tag_lower):
+                        matched_contract_params = c_v
+                        break
+
+            allowed_keys = set(matched_contract_params.keys()) if matched_contract_params else set()
+
+            # Build semantic reverse lookup for auto-snapping generic AI keys (e.g. "BaseColorMap" -> "Skin_BaseColor")
+            semantic_to_param: Dict[str, str] = {}
+            if matched_contract_params:
+                for p_k, p_v in matched_contract_params.items():
+                    sem = (p_v.get("semantic") if isinstance(p_v, dict) else str(p_v)).upper()
+                    semantic_to_param[sem] = p_k
+
+            # Normalize texture paths to full absolute paths via Reverse Lookup + Guardrail
             clean_textures: Dict[str, str] = {}
             for param_k, tex_p in s_textures.items():
                 if not tex_p:
                     continue
-                clean_textures[str(param_k)] = _resolve_to_full_path(str(tex_p))
+                full_path = _resolve_to_full_path(str(tex_p))
+                target_key = str(param_k)
+
+                # Guardrail: Check conformance with contract
+                if allowed_keys and target_key not in allowed_keys:
+                    target_k_lower = target_key.lower()
+                    inferred_sem = None
+                    if any(c in target_k_lower for c in ["norm"]):
+                        inferred_sem = "NORMAL"
+                    elif any(c in target_k_lower for c in ["diff", "color", "base"]):
+                        inferred_sem = "BASE_COLOR"
+                    elif any(c in target_k_lower for c in ["orm", "mask", "rough", "metal", "spec"]):
+                        inferred_sem = "MASKS"
+                    elif any(c in target_k_lower for c in ["opacity", "alpha"]):
+                        inferred_sem = "GRAYSCALE"
+
+                    if inferred_sem and inferred_sem in semantic_to_param:
+                        snapped_k = semantic_to_param[inferred_sem]
+                        print(f"[classify_manifest:guardrail] Auto-snapped generic '{target_key}' -> '{snapped_k}' for slot '{s_name}' ({s_tag})", flush=True)
+                        target_key = snapped_k
+
+                clean_textures[target_key] = full_path
 
             formatted_slots.append({
                 "name": s_name,

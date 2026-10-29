@@ -110,7 +110,7 @@ def _get_file_hash(file_path: str) -> str:
         return ""
 
 
-def resolve_texture_preset(param_name: str, texture_type_dict: Dict[str, str]) -> Dict[str, Any]:
+def resolve_texture_preset(param_name: str, texture_type_dict: Dict[str, Any]) -> Dict[str, Any]:
     """
     Resolve texture preset using Contract dictionary as single source of truth.
     Falls back gracefully to keyword matching if parameter is not registered in dictionary.
@@ -122,8 +122,18 @@ def resolve_texture_preset(param_name: str, texture_type_dict: Dict[str, str]) -
         p_low = param_name.lower()
         for k, v in texture_type_dict.items():
             if str(k).lower() == p_low:
-                tex_type = str(v)
+                tex_type = v
                 break
+
+    # If already a resolved rich preset dict (from inspect_uasset_materials), use it directly
+    if isinstance(tex_type, dict):
+        return {
+            "compression": tex_type.get("compression", "TC_DEFAULT"),
+            "srgb": bool(tex_type.get("srgb", True)),
+            "vt": bool(tex_type.get("vt", True)),
+            "semantic": tex_type.get("semantic", "BASE_COLOR"),
+            "lod_group": "TEXTUREGROUP_CHARACTER"
+        }
 
     if tex_type:
         key = str(tex_type).upper().strip()
@@ -273,9 +283,16 @@ def apply_texture_settings(tex_asset, preset: Dict[str, Any]):
     if "srgb" in preset:
         tex_asset.set_editor_property("srgb", bool(preset["srgb"]))
 
-    if preset.get("vt", True):
+    # Respect Virtual Texture flag: if vt is explicitly False, do NOT force virtual texture streaming!
+    vt_flag = preset.get("vt")
+    if vt_flag is True:
         try:
             tex_asset.set_editor_property("virtual_texture_streaming", True)
+        except Exception:
+            pass
+    elif vt_flag is False:
+        try:
+            tex_asset.set_editor_property("virtual_texture_streaming", False)
         except Exception:
             pass
 
