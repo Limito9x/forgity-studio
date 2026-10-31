@@ -12,6 +12,7 @@ public class ContentDbContext : DbContext
 
     public DbSet<Domain.Entities.ContentType> ContentTypes => Set<Domain.Entities.ContentType>();
     public DbSet<Domain.Entities.ContentItem> ContentItems => Set<Domain.Entities.ContentItem>();
+    public DbSet<Domain.Entities.ContentAnchorLink> ContentAnchorLinks => Set<Domain.Entities.ContentAnchorLink>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -21,4 +22,3 @@ public class ContentDbContext : DbContext
         base.OnModelCreating(modelBuilder);
     }
 }
-

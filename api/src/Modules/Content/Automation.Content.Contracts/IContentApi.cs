@@ -26,4 +26,53 @@ public interface IContentApi
         bool createIfNotExists,
         CancellationToken ct = default
     );
+
+    /// <summary>
+    /// Smart-links resources by convention (token splitting on '_'):
+    /// Automatically resolves or creates ContentItem from Token[0] + ContentType,
+    /// and binds the resource to AnchorPath (Tokens[1..]).
+    /// </summary>
+    Task<Result<IReadOnlyList<ContentAnchorLinkDto>>> SmartLinkResourcesByConventionAsync(
+        Guid projectId,
+        string contentTypeKeyOrName,
+        IEnumerable<ResourceSmartLinkInput> resources,
+        CancellationToken ct = default
+    );
+
+    /// <summary>
+    /// Explicitly binds resources to a specific ContentItem and AnchorPath.
+    /// </summary>
+    Task<Result<IReadOnlyList<ContentAnchorLinkDto>>> AssignResourcesToAnchorAsync(
+        Guid projectId,
+        Guid contentItemId,
+        string? anchorPath,
+        IEnumerable<ResourceSmartLinkInput> resources,
+        CancellationToken ct = default
+    );
+
+    /// <summary>
+    /// Removes anchor links for the given resource IDs (optionally scoped to a contentItemId).
+    /// </summary>
+    Task<Result> UnlinkResourcesAsync(
+        IEnumerable<Guid> resourceIds,
+        Guid? contentItemId = null,
+        CancellationToken ct = default
+    );
+
+    /// <summary>
+    /// Gets all active anchor links for a set of resource IDs (for reverse lookup / badge rendering).
+    /// Returns dictionary mapping ResourceId to list of anchor links.
+    /// </summary>
+    Task<Result<IReadOnlyDictionary<Guid, IReadOnlyList<ContentAnchorLinkDto>>>> GetResourceAnchorLinksAsync(
+        IEnumerable<Guid> resourceIds,
+        CancellationToken ct = default
+    );
+
+    /// <summary>
+    /// Gets the hierarchical virtual tree of anchor links for a ContentItem.
+    /// </summary>
+    Task<Result<ContentAnchorTreeDto>> GetContentAnchorTreeAsync(
+        Guid contentItemId,
+        CancellationToken ct = default
+    );
 }

@@ -1,5 +1,8 @@
 # pyrefly: ignore [missing-import]
-import bpy
+try:
+    import bpy
+except ImportError:
+    bpy = None  # type: ignore
 import os
 import hashlib
 import re
@@ -33,13 +36,59 @@ def normalize_name(name: str) -> str:
     return name.lower().replace("-", "_").replace(" ", "_")
 
 
+def clean_asset_name(raw_name: str) -> str:
+    """
+    Clean raw Blender/DAZ object name into a concise, PascalCase canonical asset identifier.
+    Examples:
+        'BRZ US Bra Mesh' -> 'BrzUsBra'
+        'Iridessa Hair Genesis 9 Mesh' -> 'IridessaHair'
+        'Tactical_Combat_Shirt.001' -> 'TacticalCombatShirt'
+    """
+    if not raw_name:
+        return "UnnamedAsset"
+
+    cleaned = re.sub(r'\.\d{3}$', '', raw_name.strip())
+
+    # Remove DAZ figure boilerplate phrases (case-insensitive)
+    noise_patterns = [
+        r'\bfor\s+genesis\s*[2389]\s*(?:female|male|feminine|masculine)?\b',
+        r'\bgenesis\s*[2389]\s*(?:female|male|feminine|masculine)?\b',
+        r'\bg[2389][fm]?\b',
+    ]
+    for pat in noise_patterns:
+        cleaned = re.sub(pat, '', cleaned, flags=re.IGNORECASE)
+
+    # Strip trailing generic geometry words (Mesh, Shape, Object, Geometry)
+    while True:
+        next_cleaned = re.sub(
+            r'[\s_\-]+(?:mesh|shape|object|geometry)$',
+            '',
+            cleaned.strip(),
+            flags=re.IGNORECASE
+        )
+        if next_cleaned == cleaned:
+            break
+        cleaned = next_cleaned
+
+    # Split into alphanumeric tokens and format into PascalCase
+    tokens = [t for t in re.split(r'[^a-zA-Z0-9]+', cleaned) if t]
+    if tokens:
+        cleaned = ''.join(t.capitalize() for t in tokens)
+    else:
+        fallback_tokens = [t for t in re.split(r'[^a-zA-Z0-9]+', raw_name) if t]
+        cleaned = ''.join(t.capitalize() for t in fallback_tokens) or "UnnamedAsset"
+
+    return cleaned
+
+
 def find_matching_meshes(target_key: str) -> list:
     """
-    Find meshes in scene based on exact, normalized, substring, or custom property match.
+    Find meshes in scene based on exact, normalized, clean canonical, substring, or custom property match.
     """
     if not hasattr(bpy, "data"):
         return []
     target_norm = normalize_name(target_key)
+    target_clean = clean_asset_name(target_key).lower()
     all_meshes = [obj for obj in bpy.data.objects if obj.type == 'MESH']
 
     # 1. Exact match
@@ -52,10 +101,24 @@ def find_matching_meshes(target_key: str) -> list:
     if normalized:
         return normalized
 
-    # 3. Substring match
+    # 3. Clean canonical name match (handles DAZ 'Iridessa Hair Genesis 9' vs Blender 'Iridessa Hair Mesh')
+    if target_clean:
+        cleaned_exact = [obj for obj in all_meshes if clean_asset_name(obj.name).lower() == target_clean]
+        if cleaned_exact:
+            return cleaned_exact
+
+    # 4. Substring match (normalized or cleaned)
     substring = [
         obj for obj in all_meshes
-        if target_norm in normalize_name(obj.name) or normalize_name(obj.name) in target_norm
+        if target_norm in normalize_name(obj.name)
+        or normalize_name(obj.name) in target_norm
+        or (
+            target_clean
+            and (
+                target_clean in clean_asset_name(obj.name).lower()
+                or clean_asset_name(obj.name).lower() in target_clean
+            )
+        )
     ]
     if substring:
         return substring
@@ -297,16 +360,23 @@ def main(
                 flat_map[k.strip()] = v.strip()
             elif isinstance(item, str) and item.strip():
                 k = item.strip()
-                flat_map[k] = f"{k}.fbx"
+                flat_map[k] = ""
     elif isinstance(raw_source, dict):
         flat_map = dict(raw_source)
     elif not raw_source and hasattr(bpy, "data"):
         # Auto-detect all mesh objects in scene if export_map omitted
         for obj in bpy.data.objects:
             if obj.type == 'MESH':
-                flat_map[obj.name] = f"{obj.name}.fbx"
+                flat_map[obj.name] = ""
 
     print(f"[batch_export_fbx] Normalized export_map with {len(flat_map)} items (Prefix: '{prefix}').", flush=True)
+
+    output_dir = (output_dir or "").strip().strip('"').strip("'")
+    if output_dir and (
+        output_dir.lower().endswith((".blend", ".duf", ".fbx"))
+        or os.path.isfile(output_dir)
+    ):
+        output_dir = os.path.dirname(os.path.abspath(output_dir))
 
     if not output_dir:
         blend_file = getattr(bpy.data, "filepath", "") if hasattr(bpy, "data") else ""
@@ -333,22 +403,38 @@ def main(
     manifest: Dict[str, Any] = {}
     export_paths: Dict[str, str] = {}
 
-    print(f"[batch_export_fbx] Starting modular export for {len(flat_map)} item(s)...", flush=True)
+    print(f"[batch_export_fbx] Starting modular export for {len(flat_map)} item(s) into '{output_dir}'...", flush=True)
+
+    clean_prefix = re.sub(r'[\s\-]+', '_', prefix.strip()).strip('_')
 
     for object_target, raw_output_name in flat_map.items():
-        base_name = raw_output_name or f"{object_target}.fbx"
-        if not base_name.lower().endswith(".fbx"):
-            base_name += ".fbx"
+        clean_obj_name = clean_asset_name(object_target)
+        raw_val = (str(raw_output_name) if raw_output_name is not None else "").strip()
 
-        # Apply prefix to output filename if not already present
-        clean_prefix = prefix.strip()
-        stem_name = os.path.splitext(os.path.basename(base_name))[0]
-        if clean_prefix and not stem_name.startswith(clean_prefix):
-            final_filename = f"{clean_prefix}{base_name}"
-            final_asset_name = f"{clean_prefix}{stem_name}"
+        if raw_val.lower().endswith(".fbx"):
+            raw_stem = os.path.splitext(os.path.basename(raw_val))[0]
+            if normalize_name(raw_stem) == normalize_name(object_target):
+                base_stem = clean_obj_name
+            else:
+                base_stem = clean_asset_name(raw_stem)
+            cloth_type = ""
         else:
-            final_filename = base_name
-            final_asset_name = stem_name
+            base_stem = clean_obj_name
+            cloth_type = raw_val
+
+        # Apply prefix with guaranteed single underscore separator: {Prefix}_{CleanAssetName}
+        if clean_prefix:
+            if (
+                base_stem.lower().startswith(f"{clean_prefix.lower()}_")
+                or base_stem.lower() == clean_prefix.lower()
+            ):
+                final_asset_name = base_stem
+            else:
+                final_asset_name = f"{clean_prefix}_{base_stem}"
+        else:
+            final_asset_name = base_stem
+
+        final_filename = f"{final_asset_name}.fbx"
 
         target_meshes = find_matching_meshes(object_target)
         if not target_meshes:
@@ -363,7 +449,10 @@ def main(
         os.makedirs(os.path.dirname(os.path.abspath(export_path)), exist_ok=True)
 
         try:
-            print(f"[batch_export_fbx] Exporting '{final_asset_name}' to '{export_path}'...", flush=True)
+            print(
+                f"[batch_export_fbx] Exporting '{final_asset_name}' (source='{object_target}', slot='{cloth_type}') to '{export_path}'...",
+                flush=True
+            )
             if hasattr(bpy, "ops"):
                 bpy.ops.export_scene.fbx(filepath=export_path, **preset_options)
 
@@ -376,7 +465,9 @@ def main(
             manifest[final_asset_name] = {
                 "object": final_asset_name,
                 "asset_name": final_asset_name,
-                "cloth_type": stem_name,
+                "clean_asset_name": clean_obj_name,
+                "source_object_name": object_target,
+                "cloth_type": cloth_type,
                 "file_name": os.path.basename(export_path),
                 "file_path": export_path,
                 "local_path": export_path,
