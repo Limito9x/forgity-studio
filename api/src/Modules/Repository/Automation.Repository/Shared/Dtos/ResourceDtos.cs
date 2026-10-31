@@ -118,7 +118,8 @@ public record WorkspaceResourceDto(
     string? LockedByRunnerName = null,
     DateTimeOffset? LockedAt = null,
     Guid? HoldingRunnerId = null,
-    string? HoldingRunnerName = null
+    string? HoldingRunnerName = null,
+    string? AnchorPath = null
 );
 
 public record WorkspaceAgentResourceDto(

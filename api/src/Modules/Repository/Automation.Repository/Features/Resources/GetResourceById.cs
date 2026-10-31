@@ -1,3 +1,4 @@
+using Automation.Content.Contracts;
 using Automation.Repository.Constants;
 using Automation.Repository.Contracts.Extensions;
 using Automation.Repository.Infrastructure.Persistence;
@@ -40,7 +41,12 @@ public class GetResourceByIdEndpoint(IMessageBus bus) : EndpointWithoutRequest<R
 
 // 3. Handler
 [NonTransactional]
-public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi, IRunnerApi runnerApi)
+public class GetResourceByIdHandler(
+    RepositoryDbContext db,
+    ITagApi tagApi,
+    IRunnerApi runnerApi,
+    IContentApi contentApi
+)
 {
     public async Task<Result<ResourceItemDto>> HandleAsync(
         GetResourceByIdQuery query,
@@ -66,7 +72,7 @@ public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi, IRun
                 ? resourceTagResult.Value
                 : [];
 
-        // 3. Query Runner metadata for all attached locations
+        // 2. Query Runner metadata for all attached locations
         var allRunnerIds = resource
             .Versions.SelectMany(v => v.Locations)
             .Where(l => l.RepositoryRunner != null)
@@ -105,7 +111,6 @@ public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi, IRun
             .Versions.OrderByDescending(v => v.VersionNo)
             .Select(v =>
             {
-
                 var locationDtos = v
                     .Locations.Select(l =>
                     {
@@ -152,6 +157,14 @@ public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi, IRun
             lockedRunnerName = lockedRunner.Name;
         }
 
+        // 3. Resolve ContentId from ContentAnchorLinks
+        Guid? contentId = null;
+        var anchorRes = await contentApi.GetResourceAnchorLinksAsync([resource.Id], ct);
+        if (anchorRes.IsSuccess && anchorRes.Value.TryGetValue(resource.Id, out var links) && links.Count > 0)
+        {
+            contentId = links[0].ContentItemId;
+        }
+
         var dto = new ResourceItemDto(
             resource.Id,
             resource.Repository?.ProjectId ?? Guid.Empty,
@@ -159,7 +172,7 @@ public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi, IRun
             resource.DisplayName,
             resource.RelativePath,
             resource.Extension,
-            resource.ContentId,
+            contentId,
             resource.CreatedAt,
             versionDtos,
             resource.IsLocked,

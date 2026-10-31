@@ -9,7 +9,6 @@ public class ResourceItem : BaseEntity
 
     // Định danh duy nhất trong repository - không thể thay đổi
     public string RelativePath { get; set; } = string.Empty;
-    public Guid? ContentId { get; set; }
 
     // Smart Collaborative Lock
     public Guid? LockedByRunnerId { get; set; }
@@ -26,14 +25,12 @@ public class ResourceItem : BaseEntity
         Guid repositoryId,
         string displayName,
         string extension,
-        string relativePath,
-        Guid? contentId = null
+        string relativePath
     )
     {
         RepositoryId = repositoryId;
         DisplayName = displayName;
         Extension = extension;
-        ContentId = contentId;
         RelativePath = relativePath;
     }
 
@@ -100,16 +97,4 @@ public class ResourceItem : BaseEntity
 
     public bool HasOnLocal(Guid repositoryRunnerId) =>
         _versions.Any(x => x.Locations.Any(y => y.RepositoryRunnerId == repositoryRunnerId));
-
-    public void AssignContent(Guid? contentId)
-    {
-        ContentId = contentId;
-        UpdatedAt = DateTimeOffset.UtcNow;
-    }
-
-    public void RemoveContent()
-    {
-        ContentId = null;
-        UpdatedAt = DateTimeOffset.UtcNow;
-    }
 }

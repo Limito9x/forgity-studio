@@ -1,3 +1,4 @@
+using Automation.Content.Contracts;
 using Automation.Repository.Constants;
 using Automation.Repository.Infrastructure.Persistence;
 using FastEndpoints;
@@ -12,7 +13,8 @@ namespace Automation.Repository.Features.Resources;
 // 1. Command & Validator
 public record AssignResourcesContentCommand(
     List<Guid> ResourceIds,
-    Guid? ContentId
+    Guid? ContentId,
+    string? AnchorPath = null
 );
 
 public class AssignResourcesContentValidator : AbstractValidator<AssignResourcesContentCommand>
@@ -46,7 +48,7 @@ public class AssignResourcesContentEndpoint(IMessageBus bus)
 
 // 3. Handler
 [Transactional(typeof(RepositoryDbContext))]
-public class AssignResourcesContentHandler(RepositoryDbContext db)
+public class AssignResourcesContentHandler(RepositoryDbContext db, IContentApi contentApi)
 {
     public async Task<Result> HandleAsync(
         AssignResourcesContentCommand command,
@@ -59,6 +61,7 @@ public class AssignResourcesContentHandler(RepositoryDbContext db)
         }
 
         var resources = await db.ResourceItems
+            .Include(r => r.Repository)
             .Where(r => command.ResourceIds.Contains(r.Id))
             .ToListAsync(ct);
 
@@ -67,12 +70,37 @@ public class AssignResourcesContentHandler(RepositoryDbContext db)
             return Result.Fail("No resources found matching the specified IDs.");
         }
 
-        foreach (var resource in resources)
+        if (command.ContentId.HasValue)
         {
-            resource.AssignContent(command.ContentId);
-        }
+            var projectId = resources.FirstOrDefault()?.Repository?.ProjectId ?? Guid.Empty;
+            var smartInputs = resources.Select(r => new ResourceSmartLinkInput(
+                r.Id,
+                r.DisplayName,
+                r.RelativePath,
+                command.AnchorPath
+            )).ToList();
 
-        await db.SaveChangesAsync(ct);
+            var assignResult = await contentApi.AssignResourcesToAnchorAsync(
+                projectId,
+                command.ContentId.Value,
+                command.AnchorPath,
+                smartInputs,
+                ct
+            );
+
+            if (assignResult.IsFailed)
+            {
+                return Result.Fail(assignResult.Errors);
+            }
+        }
+        else
+        {
+            var unlinkResult = await contentApi.UnlinkResourcesAsync(command.ResourceIds, null, ct);
+            if (unlinkResult.IsFailed)
+            {
+                return Result.Fail(unlinkResult.Errors);
+            }
+        }
 
         return Result.Ok();
     }

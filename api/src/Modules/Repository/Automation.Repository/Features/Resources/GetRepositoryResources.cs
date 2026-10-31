@@ -101,10 +101,20 @@ public class GetRepositoryResourcesHandler(
                 .Select(c => c.Key)
                 .ToList();
 
+            var matchedResourceIds = new List<Guid>();
+            foreach (var cId in matchedContentIds)
+            {
+                var rRes = await contentApi.GetLinkedResourceIdsByContentIdAsync(cId, ct);
+                if (rRes.IsSuccess && rRes.Value.Count > 0)
+                {
+                    matchedResourceIds.AddRange(rRes.Value);
+                }
+            }
+
             baseQuery = baseQuery.Where(r =>
                 EF.Functions.ILike(r.DisplayName, $"%{kw}%")
                 || EF.Functions.ILike(r.RelativePath, $"%{kw}%")
-                || (r.ContentId != null && matchedContentIds.Contains(r.ContentId.Value))
+                || (matchedResourceIds.Count > 0 && matchedResourceIds.Contains(r.Id))
             );
         }
 
@@ -119,6 +129,18 @@ public class GetRepositoryResourcesHandler(
         if (pagedResult.IsFailed)
         {
             return pagedResult.ToResult();
+        }
+
+        // 3.1. Lấy thông tin Content Anchor Links cho các resource trong trang hiện tại
+        var pageResourceIds = pagedResult.Value.Items.Select(r => r.Id).ToList();
+        var anchorLinksMap = new Dictionary<Guid, IReadOnlyList<ContentAnchorLinkDto>>();
+        if (pageResourceIds.Count > 0)
+        {
+            var anchorResult = await contentApi.GetResourceAnchorLinksAsync(pageResourceIds, ct);
+            if (anchorResult.IsSuccess && anchorResult.Value != null)
+            {
+                anchorLinksMap = new Dictionary<Guid, IReadOnlyList<ContentAnchorLinkDto>>(anchorResult.Value);
+            }
         }
 
         // Lấy thông tin Runner cho các resource đang bị lock và các resource có holding location
@@ -163,17 +185,23 @@ public class GetRepositoryResourcesHandler(
                 var holdingRunnerId = holdingRunnerIdMap.TryGetValue(r.Id, out var hid) ? (Guid?)hid : null;
                 var holdingRunnerName = holdingRunnerId != null && runnerMap.TryGetValue(holdingRunnerId.Value, out var hr) ? hr.Name : null;
 
+                anchorLinksMap.TryGetValue(r.Id, out var links);
+                var primaryLink = links?.FirstOrDefault();
+                var contentId = primaryLink?.ContentItemId;
+                var contentName = primaryLink?.ContentItemName;
+                var anchorPath = primaryLink?.AnchorPath;
+
                 return new WorkspaceResourceDto(
                     Id: r.Id,
                     WorkspaceId: r.RepositoryId,
                     DisplayName: r.DisplayName,
                     RelativePath: r.RelativePath,
                     Extension: r.Extension,
-                    ContentId: r.ContentId,
-                    ContentName: r.ContentId != null && contentMap.TryGetValue(r.ContentId.Value, out var c) ? c.Name : null,
-                    ContentTypeName: r.ContentId != null && contentMap.TryGetValue(r.ContentId.Value, out var c2) ? c2.ContentTypeName : null,
-                    ContentTypeColor: r.ContentId != null && contentMap.TryGetValue(r.ContentId.Value, out var c3) ? c3.ContentTypeColor : null,
-                    ContentTypeIcon: r.ContentId != null && contentMap.TryGetValue(r.ContentId.Value, out var c4) ? c4.ContentTypeIcon : null,
+                    ContentId: contentId,
+                    ContentName: contentName,
+                    ContentTypeName: contentId != null && contentMap.TryGetValue(contentId.Value, out var c2) ? c2.ContentTypeName : null,
+                    ContentTypeColor: contentId != null && contentMap.TryGetValue(contentId.Value, out var c3) ? c3.ContentTypeColor : null,
+                    ContentTypeIcon: contentId != null && contentMap.TryGetValue(contentId.Value, out var c4) ? c4.ContentTypeIcon : null,
                     VersionCount: r.Versions.Count,
                     CreatedAt: r.CreatedAt,
                     LatestVersionId: r.Versions.OrderByDescending(v => v.VersionNo).Select(v => (Guid?)v.Id).FirstOrDefault(),
@@ -184,7 +212,8 @@ public class GetRepositoryResourcesHandler(
                     LockedByRunnerName: r.LockedByRunnerId != null && runnerMap.TryGetValue(r.LockedByRunnerId.Value, out var rn) ? rn.Name : null,
                     LockedAt: r.LockedAt,
                     HoldingRunnerId: holdingRunnerId,
-                    HoldingRunnerName: holdingRunnerName
+                    HoldingRunnerName: holdingRunnerName,
+                    AnchorPath: anchorPath
                 );
             })
             .ToList();

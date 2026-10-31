@@ -75,4 +75,12 @@ public interface IContentApi
         Guid contentItemId,
         CancellationToken ct = default
     );
+
+    /// <summary>
+    /// Gets all Resource IDs anchored to a specific ContentItem.
+    /// </summary>
+    Task<Result<IReadOnlyList<Guid>>> GetLinkedResourceIdsByContentIdAsync(
+        Guid contentItemId,
+        CancellationToken ct = default
+    );
 }

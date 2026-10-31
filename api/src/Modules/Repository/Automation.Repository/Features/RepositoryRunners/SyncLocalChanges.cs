@@ -149,7 +149,7 @@ public class SyncLocalChangesHandler(RepositoryDbContext dbContext, IMessageBus 
                 toAdd.Select(x => new ResourceVersionCreatedInfo(
                     x.LatestVersion!.Id,
                     x.Extension,
-                    x.ContentId,
+                    null,
                     x.RelativePath
                 ))
             );
@@ -198,7 +198,7 @@ public class SyncLocalChangesHandler(RepositoryDbContext dbContext, IMessageBus 
                     createdVersions.Add(new ResourceVersionCreatedInfo(
                         latestVersion.Id,
                         item.Extension,
-                        item.ContentId,
+                        null,
                         item.RelativePath
                     ));
                 }
@@ -217,7 +217,7 @@ public class SyncLocalChangesHandler(RepositoryDbContext dbContext, IMessageBus 
                     createdVersions.Add(new ResourceVersionCreatedInfo(
                         newVersion.Id,
                         item.Extension,
-                        item.ContentId,
+                        null,
                         item.RelativePath
                     ));
                 }

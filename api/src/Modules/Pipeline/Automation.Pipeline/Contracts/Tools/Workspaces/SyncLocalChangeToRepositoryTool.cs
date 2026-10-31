@@ -1,21 +1,32 @@
 using System.Collections;
 using System.Text.Json;
+using Automation.Content.Contracts;
 using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
+using Automation.Pipeline.Infrastructure.Persistence;
 using Automation.Repository.Contracts;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 namespace Automation.Pipeline.Contracts.Tools.Workspaces;
 
 /// <summary>
 /// Tool phát hiện và đồng bộ các thay đổi file cục bộ (paths) từ Workstation hoặc Repository Runner vào Database.
 /// Chấp nhận cả đường dẫn tuyệt đối (Full Physical Path trên Runner) lẫn đường dẫn tương đối (Relative Path).
+/// Hỗ trợ tùy chọn tự động liên kết Content Item theo quy ước dấu '_' (Smart Link) nếu ContentType được chỉ định.
 /// </summary>
 public class SyncLocalChangeToRepositoryTool(
     IRepositoryApi repositoryApi,
+    IContentApi? contentApi = null,
+    PipelineDbContext? pipelineDb = null,
     ILogger<SyncLocalChangeToRepositoryTool>? logger = null
 ) : IResolverTool
 {
+    public SyncLocalChangeToRepositoryTool(
+        IRepositoryApi repositoryApi,
+        ILogger<SyncLocalChangeToRepositoryTool>? logger
+    ) : this(repositoryApi, null, null, logger) { }
+
     public string Key => "SyncLocalChangeToRepository";
     public IReadOnlyList<string> Aliases => ["SyncLocalChangeToWorkspace", "SyncLocalChanges", "SyncLocalChange"];
     public string Label => "Sync Local Change To Repository";
@@ -43,6 +54,16 @@ public class SyncLocalChangeToRepositoryTool(
                 Cardinality = PinCardinality.Array,
                 IsRequired = true,
                 Description = "File paths to synchronize (accepts both Full Physical Paths and POSIX Relative Paths)"
+            },
+            new PinDefinition
+            {
+                Id = "ContentType",
+                Label = "Auto-Link Content Type (Optional)",
+                PrimitiveType = PinPrimitiveType.String,
+                Cardinality = PinCardinality.Single,
+                IsRequired = false,
+                Metadata = """{"type": "entity-select", "properties": {"entity": "ContentType"}}""",
+                Description = "If specified, newly synced resources matching convention (e.g. Eva_Outfit1_BrzUsBra.fbx) are automatically linked into the Content Anchor Tree."
             },
         };
 
@@ -254,6 +275,75 @@ public class SyncLocalChangeToRepositoryTool(
         {
             firstResource = resourceMap.Values.First();
             resourceList = resourceMap.Values.Distinct().ToList();
+        }
+
+        // 8. Tự động liên kết Smart Link nếu ContentType được cung cấp
+        var contentTypeRaw = inputs.GetValueOrDefault("ContentType")?.ToString()?.Trim();
+        if (!string.IsNullOrWhiteSpace(contentTypeRaw) && contentApi != null)
+        {
+            try
+            {
+                var projectId = context.ProjectId;
+                if (projectId == Guid.Empty && context.PipelineId != Guid.Empty && pipelineDb != null)
+                {
+                    projectId = await pipelineDb.Pipelines
+                        .AsNoTracking()
+                        .Where(p => p.Id == context.PipelineId)
+                        .Select(p => p.ProjectId)
+                        .FirstOrDefaultAsync(ct);
+                }
+
+                if (projectId == Guid.Empty)
+                {
+                    var pObj = inputs.GetValueOrDefault("ProjectId") ?? inputs.GetValueOrDefault("projectId");
+                    var parsed = EntityRefHelper.ExtractRefId(pObj);
+                    if (parsed.HasValue) projectId = parsed.Value;
+                }
+
+                var idsToQuery = versionIdList.Count > 0
+                    ? versionIdList
+                    : syncedDict.Values.Distinct().ToList();
+
+                if (projectId != Guid.Empty && idsToQuery.Count > 0)
+                {
+                    var resListResult = await repositoryApi.GetResourcesByIdsAsync(idsToQuery, ct);
+                    if (resListResult.IsSuccess && resListResult.Value.Count > 0)
+                    {
+                        var smartLinkInputs = resListResult.Value.Select(r => new ResourceSmartLinkInput(
+                            r.ResourceId,
+                            r.DisplayName,
+                            r.RelativePath
+                        )).ToList();
+
+                        var linkResult = await contentApi.SmartLinkResourcesByConventionAsync(
+                            projectId,
+                            contentTypeRaw,
+                            smartLinkInputs,
+                            ct
+                        );
+
+                        if (linkResult.IsSuccess)
+                        {
+                            logger?.LogInformation(
+                                "SyncLocalChangeToRepositoryTool: Auto-linked {Count} resources to Content Anchor Tree for ContentType '{ContentType}'",
+                                linkResult.Value.Count,
+                                contentTypeRaw
+                            );
+                        }
+                        else
+                        {
+                            logger?.LogWarning(
+                                "SyncLocalChangeToRepositoryTool: Smart link failed: {Errors}",
+                                string.Join(", ", linkResult.Errors.Select(e => e.Message))
+                            );
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "SyncLocalChangeToRepositoryTool: Error occurred during auto-linking resources");
+            }
         }
 
         return new Dictionary<string, object>

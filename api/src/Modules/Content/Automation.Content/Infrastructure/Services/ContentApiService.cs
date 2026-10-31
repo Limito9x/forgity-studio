@@ -1,4 +1,5 @@
 using Automation.Content.Contracts;
+using Automation.Content.Domain.Enums;
 using Automation.Content.Infrastructure.Persistence;
 using Automation.SharedKernel.Extensions.Strings;
 using FluentResults;
@@ -475,5 +476,20 @@ public class ContentApiService(ContentDbContext db) : IContentApi
         }
 
         return Result.Ok(new ContentAnchorTreeDto(contentItem.Id, contentItem.Name, roots));
+    }
+
+    public async Task<Result<IReadOnlyList<Guid>>> GetLinkedResourceIdsByContentIdAsync(
+        Guid contentItemId,
+        CancellationToken ct = default
+    )
+    {
+        var resourceIds = await db.ContentAnchorLinks
+            .AsNoTracking()
+            .Where(l => l.ContentItemId == contentItemId && l.TargetType == ContentLinkTargetType.Resource)
+            .Select(l => l.TargetId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        return Result.Ok<IReadOnlyList<Guid>>(resourceIds);
     }
 }
