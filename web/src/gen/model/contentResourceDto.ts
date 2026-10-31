@@ -17,4 +17,6 @@ export interface ContentResourceDto {
   latestSizeBytes: number;
   versionCount: number;
   createdAt: string;
+  /** @nullable */
+  anchorPath?: string | null;
 }

@@ -501,6 +501,14 @@ export function useRepositoryResourceTable({
                 <Folder className="size-3.5 text-muted-foreground shrink-0" />
 
                 <span className="truncate">{item.contentName}</span>
+                {item.anchorPath && item.anchorPath !== 'root' && (
+                  <span
+                    className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-muted/80 text-muted-foreground font-mono shrink-0 truncate max-w-[120px]"
+                    title={item.anchorPath}
+                  >
+                    {item.anchorPath}
+                  </span>
+                )}
 
               </div>
 

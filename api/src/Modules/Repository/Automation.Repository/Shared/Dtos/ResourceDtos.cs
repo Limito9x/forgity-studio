@@ -186,5 +186,6 @@ public record ContentResourceDto(
     int LatestVersionNo,
     long LatestSizeBytes,
     int VersionCount,
-    DateTimeOffset CreatedAt
+    DateTimeOffset CreatedAt,
+    string? AnchorPath = null
 );

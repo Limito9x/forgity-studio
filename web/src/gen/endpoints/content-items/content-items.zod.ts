@@ -8,6 +8,25 @@
 import * as zod from 'zod/mini';
 
 
+export const GetContentAnchorTreeParams = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid()
+})
+
+export const GetContentAnchorTreeResponse = /*#__PURE__*/ zod.object({
+  "contentItemId": /*#__PURE__*/ zod.uuid(),
+  "contentItemName": /*#__PURE__*/ zod.string(),
+  "roots": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "name": /*#__PURE__*/ zod.string(),
+  "fullPath": /*#__PURE__*/ zod.string(),
+  "isLeaf": /*#__PURE__*/ zod.boolean(),
+  "targetId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "targetType": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
+  "targetName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "metadataJson": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "children": /*#__PURE__*/ zod.unknown()
+}))
+})
+
 export const DeleteContentItemParams = /*#__PURE__*/ zod.object({
   "projectId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
   "contentTypeKey": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
