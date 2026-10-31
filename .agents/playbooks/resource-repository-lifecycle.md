@@ -179,3 +179,27 @@ Hệ thống cung cấp cơ chế sao lưu, di chuyển và tích hợp Gameplay
    - Hỗ trợ chiến lược xung đột (`ConflictStrategy`):
      - `Skip`: Bỏ qua nếu tag đã tồn tại (giữ nguyên màu sắc và mô tả cũ).
      - `Update`: Cập nhật màu sắc (`Color`) và mô tả (`Description`) của tag cũ theo file mới.
+
+
+---
+
+## 7. Repository Sync, Per-Resource Queue Dispatch & Smart Content Link (`BL-032`)
+
+Khi người dùng quét thay đổi (`CompareRepositoryResources`) và đồng bộ tệp (`SyncLocalChanges`) tại `RepositorySyncTab.tsx`:
+
+1. **Smart Content Link (Content Anchor Tree Ingestion)**:
+   - Nếu bật switch "Smart Content Link" và chọn `ContentType` (ví dụ `Character` hay `WardrobeItem`), lệnh sync gửi kèm `contentTypeId`.
+   - `SyncLocalChangesHandler` kích hoạt `IContentApi.SmartLinkResourcesByConventionAsync`:
+     - Tự động bóc tách quy ước đặt tên dấu gạch dưới `_` (VD: `Eva_Outfit1_Bra.fbx` $\rightarrow$ Content `Eva`, Anchor `outfit1/bra`).
+     - Tự động tạo `ContentItem` mới nếu chưa có và tạo `ContentLink` gắn trực tiếp vào cây điểm neo.
+   - Kết quả trả về `smartLinkedCount` được báo ngay trên toast thông báo.
+
+2. **Per-Resource Queue Dispatch (1 File = 1 Job Wolverine/RabbitMQ)**:
+   - Sự kiện `ResourceCreatedMessage` được gửi sang `ResourcesCreatedPipelineBridgeHandler` kèm danh sách `approvedPipelineIds`.
+   - Đối với mỗi Pipeline khớp điều kiện (`OnResourceCreated` / `OnResourceVersionUpdated`, khớp repo qua `allowAllRepositories` hoặc `repositoryIds`, và khớp đuôi file `extensions`):
+     - Chế độ **`Always`**: Tự động bắn lệnh thực thi `RunPipelineCommand` độc lập cho **từng file `ResourceVersion`**.
+     - Chế độ **`AskBefore`**: Chỉ kích hoạt nếu Pipeline nằm trong danh sách `approvedPipelineIds` được người dùng xác nhận trên giao diện.
+   - Mỗi job được truyền vào Start Node với 3 đầu ra:
+     - `Resource` (Single Struct/EntityRef) - Đầu ra chính cho tư duy 1-File-1-Job.
+     - `Resources` (Array 1 phần tử) - Bảo toàn tương thích ngược 100% với các pipeline cũ.
+     - `Workstation` (Single Struct) - Chứa RunnerId, RepositoryId, RootPath.
