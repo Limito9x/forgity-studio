@@ -34,9 +34,8 @@ import {
   Sparkles,
   Zap,
   AlertTriangle,
-  Layers,
 } from "lucide-react";
-import { usePipelines, type PipelineSummaryDto } from "@/features/pipelines/hooks/usePipelines";
+import { usePipelines } from "@/features/pipelines/hooks/usePipelines";
 import { useContentTypes } from "@/features/contentTypes/hooks/useContentTypes";
 import { PipelineTriggerType } from "@/gen/model";
 import { cn } from "@/lib/utils";
@@ -111,10 +110,11 @@ export function RepositorySyncTab({
     }
   }, [repositoryId]);
 
-  const handleContentTypeChange = (typeId: string) => {
-    setSelectedContentTypeId(typeId);
-    if (typeId) {
-      localStorage.setItem(`forgity_sync_content_type_${repositoryId}`, typeId);
+  const handleContentTypeChange = (typeId?: string) => {
+    const validId = typeId || "";
+    setSelectedContentTypeId(validId);
+    if (validId) {
+      localStorage.setItem(`forgity_sync_content_type_${repositoryId}`, validId);
     } else {
       localStorage.removeItem(`forgity_sync_content_type_${repositoryId}`);
     }
@@ -131,11 +131,11 @@ export function RepositorySyncTab({
 
   // Match Pipelines against selected files and repository scoping
   const { alwaysPipelines, askBeforePipelines } = useMemo(() => {
-    const always: MatchedPipeline[] = [];
-    const askBefore: MatchedPipeline[] = [];
+    const alwaysPipelines: MatchedPipeline[] = [];
+    const askBeforePipelines: MatchedPipeline[] = [];
 
     if (selectedItems.length === 0 || !repositoryId) {
-      return { always, askBefore };
+      return { alwaysPipelines, askBeforePipelines };
     }
 
     for (const pipeline of pipelines) {
@@ -202,13 +202,13 @@ export function RepositorySyncTab({
       };
 
       if (mode === "AskBefore") {
-        askBefore.push(entry);
+        askBeforePipelines.push(entry);
       } else {
-        always.push(entry);
+        alwaysPipelines.push(entry);
       }
     }
 
-    return { always, askBefore };
+    return { alwaysPipelines, askBeforePipelines };
   }, [pipelines, repositoryId, selectedItems]);
 
   // Track approved AskBefore pipeline IDs (default checked when newly matched)
@@ -669,7 +669,7 @@ export function RepositorySyncTab({
                     setIsSmartLinkEnabled(checked);
                     if (!checked) {
                       handleContentTypeChange("");
-                    } else if (contentTypes.length > 0 && !selectedContentTypeId) {
+                    } else if (contentTypes.length > 0 && !selectedContentTypeId && contentTypes[0].id) {
                       handleContentTypeChange(contentTypes[0].id);
                     }
                   }}
