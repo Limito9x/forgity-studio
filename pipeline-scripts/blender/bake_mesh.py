@@ -37,14 +37,14 @@ MAP_DEFS: Dict[str, Dict[str, Any]] = {
         "suffix": "BaseColor",
         "technique": "EMIT",
         "colorspace": "sRGB",
-        "sockets": ["Base Color", "BaseColor", "Color", "Diffuse Color"],
+        "sockets": ["Base Color", "BaseColor", "Color", "Diffuse Color", "Diffuse", "Albedo"],
         "default": (1.0, 1.0, 1.0, 1.0),
     },
     "roughness": {
         "suffix": "Roughness",
         "technique": "EMIT",
         "colorspace": "Non-Color",
-        "sockets": ["Roughness"],
+        "sockets": ["Roughness", "Glossy Roughness", "Roughness 1", "Specular Roughness"],
         "default": (0.5, 0.5, 0.5, 1.0),
     },
     "metallic": {
@@ -101,7 +101,69 @@ MAP_ALIASES: Dict[str, str] = {
 
 DEFAULT_MAPS = ["diffuse", "roughness", "normal"]
 
+# ---------------------------------------------------------------------------
+# Channel Packing Presets (Declarative Single Source of Truth)
+# ---------------------------------------------------------------------------
+CHANNEL_PACK_PRESETS: Dict[str, Dict[str, Any]] = {
+    "none": {
+        "suffix": "",
+        "channels": {},
+        "description": "No packing - export separate individual textures (BaseColor, Roughness, Normal)",
+    },
+    "ORM": {
+        "suffix": "ORM",
+        "channels": {
+            "R": ("ao", 1.0),
+            "G": ("roughness", 0.5),
+            "B": ("metallic", 0.0),
+            "A": 1.0,
+        },
+        "description": "Unreal Engine 5 PBR (R=AO, G=Roughness, B=Metallic)",
+    },
+    "ORMA": {
+        "suffix": "ORMA",
+        "channels": {
+            "R": ("ao", 1.0),
+            "G": ("roughness", 0.5),
+            "B": ("metallic", 0.0),
+            "A": ("alpha", 1.0),
+        },
+        "description": "Unreal Engine 5 with Opacity (R=AO, G=Roughness, B=Metallic, A=Alpha)",
+    },
+    "RMA": {
+        "suffix": "RMA",
+        "channels": {
+            "R": ("roughness", 0.5),
+            "G": ("metallic", 0.0),
+            "B": ("ao", 1.0),
+            "A": 1.0,
+        },
+        "description": "RMA Standard (R=Roughness, G=Metallic, B=AO)",
+    },
+    "MRA": {
+        "suffix": "MRA",
+        "channels": {
+            "R": ("metallic", 0.0),
+            "G": ("roughness", 0.5),
+            "B": ("ao", 1.0),
+            "A": 1.0,
+        },
+        "description": "MRA Standard (R=Metallic, G=Roughness, B=AO)",
+    },
+    "UNITY_MASK": {
+        "suffix": "MaskMap",
+        "channels": {
+            "R": ("metallic", 0.0),
+            "G": ("ao", 1.0),
+            "B": ("specular", 0.0),
+            "A": ("smoothness", 0.5),  # Inverted Roughness
+        },
+        "description": "Unity HDRP/URP Mask Map (R=Metallic, G=AO, B=Detail, A=Smoothness)",
+    },
+}
+
 PackModeType = Literal["none", "ORM", "ORMA", "RMA", "MRA", "UNITY_MASK"]
+NormalFormatType = Literal["directx", "opengl"]
 
 
 # ---------------------------------------------------------------------------
@@ -134,18 +196,9 @@ def _normalize_maps(raw: Optional[List[str]], pack_mode: str) -> List[str]:
         if norm in MAP_DEFS and norm not in canonical:
             canonical.append(norm)
 
-    # Automatically ensure underlying maps needed for packing presets are included
-    pack_upper = (pack_mode or "none").strip().upper()
-    if pack_upper in ("ORM", "ORMA", "RMA", "MRA", "UNITY_MASK"):
-        for req in ("roughness", "metallic"):
-            if req not in canonical:
-                canonical.append(req)
-        if req == "ao" or pack_upper != "none":
-            if "ao" not in canonical:
-                canonical.append("ao")
-    if pack_upper == "ORMA" and "alpha" not in canonical:
-        canonical.append("alpha")
-
+    # Note: We do NOT force-inject 'ao' or 'metallic' unless explicitly requested by the user.
+    # Channel packing presets (ORM, RMA, etc.) will cleanly fallback to default constants
+    # (AO=1.0, Metallic=0.0) via _get_channel() without wasting minutes raytracing unrequested maps.
     return canonical or list(DEFAULT_MAPS)
 
 
@@ -393,75 +446,45 @@ def _find_material_output(mat: Any) -> Optional[Any]:
     return active or next((n for n in nodes if n.type == 'OUTPUT_MATERIAL'), None)
 
 
-def _resolve_socket_source(socket: Any, visited_nodes: Optional[set] = None) -> Tuple[Optional[Any], Any]:
-    """
-    Recursively traces backwards through links, transparently unrolling MixShaders
-    and ShaderNodeGroups without altering the graph or needing UI windows.
-    Returns: (from_socket, default_val)
-    """
-    if visited_nodes is None:
-        visited_nodes = set()
+BAKE_NODE_PREFIX = "__ModernBake_"
+BAKE_IMAGE_PREFIX = "Bake_"
 
-    if not socket:
-        return None, None
+# Last-resort filename hints (only used when the shader graph gives no usable link).
+# DAZ vendor suffixes: D=diffuse, N=normal, R=roughness, S=specular, GR=glossy-roughness.
+CHANNEL_IMAGE_HINTS: Dict[str, Tuple[str, ...]] = {
+    "diffuse": ("basecolor", "base_color", "base color", "diffuse", "albedo", "_d_", "_d.", "d.png", "d.jpg"),
+    "roughness": ("roughness", "_gr", " gr", "r.png", "r.jpg", "_r_", "_r."),
+    "metallic": ("metallic", "metalness", "_m_", "_m."),
+    "alpha": ("opacity", "alpha", "cutout"),
+    "specular": ("specular", "s.png", "s.jpg"),
+}
 
-    if not socket.is_linked:
-        return None, getattr(socket, "default_value", None)
 
-    link = socket.links[0]
-    from_sock = link.from_socket
-    from_node = link.from_node
+def _is_bake_artifact(node: Any) -> bool:
+    """Never sample our own bake target / proxy nodes (prevents black self-feedback)."""
+    if (getattr(node, "name", "") or "").startswith(BAKE_NODE_PREFIX):
+        return True
+    img = getattr(node, "image", None)
+    return bool(img and (img.name or "").startswith(BAKE_IMAGE_PREFIX))
 
-    if from_node in visited_nodes:
-        return None, None
-    visited_nodes.add(from_node)
 
-    # 1. Direct Image Texture
-    if from_node.type == 'TEX_IMAGE':
-        return from_sock, None
-
-    # 2. Passthrough Nodes (Reroute, Gamma, RGB to BW, Math/MixRGB if primary)
-    if from_node.type == 'REROUTE' and from_node.inputs:
-        return _resolve_socket_source(from_node.inputs[0], visited_nodes)
-
-    # 3. ShaderNodeGroup: Dive into group internal nodes without ungrouping
-    if from_node.type == 'GROUP' and getattr(from_node, 'node_tree', None):
-        group_tree = from_node.node_tree
-        group_out = next((n for n in group_tree.nodes if n.type == 'GROUP_OUTPUT' and getattr(n, 'is_active_output', False)), None)
-        if not group_out:
-            group_out = next((n for n in group_tree.nodes if n.type == 'GROUP_OUTPUT'), None)
-
-        if group_out:
-            # Match matching group output socket
-            target_in_sock = next((s for s in group_out.inputs if s.identifier == from_sock.identifier or s.name == from_sock.name), None)
-            if target_in_sock and target_in_sock.is_linked:
-                internal_sock, internal_val = _resolve_socket_source(target_in_sock, visited_nodes.copy())
-                if internal_sock is not None:
-                    return internal_sock, None
-
-        # Fallback: check if the group node exposes an outer input with the same concept
-        return from_sock, getattr(from_sock, "default_value", None)
-
-    # 4. MixShader: Inspect primary non-transparent shader branch
-    if from_node.type == 'MIX_SHADER':
-        # inputs[1] and inputs[2] are shaders
-        s1 = from_node.inputs[1]
-        s2 = from_node.inputs[2]
-        if s2.is_linked and getattr(s2.links[0].from_node, 'type', '') != 'BSDF_TRANSPARENT':
-            return _resolve_socket_source(s2, visited_nodes)
-        elif s1.is_linked:
-            return _resolve_socket_source(s1, visited_nodes)
-
-    # 5. Direct socket output
-    return from_sock, getattr(from_sock, "default_value", None)
+def _match_input(node: Any, socket_names: List[str]) -> Optional[Any]:
+    """Exact (case-insensitive) socket name match, in MAP_DEFS priority order. No substring guessing."""
+    by_name = {s.name.lower(): s for s in node.inputs if getattr(s, "enabled", True)}
+    for name in socket_names:
+        sock = by_name.get(name.lower())
+        if sock is not None:
+            return sock
+    return None
 
 
 def _find_principled_bsdf(tree: Any) -> Optional[Any]:
+    """Prefer a ROOT-level Principled BSDF (Diffeomorphic wires textures there); dive into groups only as fallback."""
     if not tree or not hasattr(tree, "nodes"):
         return None
-    for n in tree.nodes:
-        if n.type == 'BSDF_PRINCIPLED':
-            return n
+    roots = [n for n in tree.nodes if n.type == 'BSDF_PRINCIPLED']
+    if roots:
+        return next((n for n in roots if n.outputs and n.outputs[0].is_linked), roots[0])
     for n in tree.nodes:
         if n.type == 'GROUP' and getattr(n, 'node_tree', None):
             nested = _find_principled_bsdf(n.node_tree)
@@ -470,81 +493,135 @@ def _find_principled_bsdf(tree: Any) -> Optional[Any]:
     return None
 
 
-def setup_emission_routing(mat: Any, map_type: str) -> Optional[Tuple[Any, Any]]:
+def _trace_to_texture(socket: Any, depth: int = 0) -> Optional[Any]:
+    """Follow a link chain (incl. into node groups) until an Image Texture node is found."""
+    if depth > 12 or not socket or not socket.is_linked:
+        return None
+    link = socket.links[0]
+    node, out = link.from_node, link.from_socket
+    if node.type == 'TEX_IMAGE':
+        return None if _is_bake_artifact(node) else node
+    if node.type == 'GROUP' and getattr(node, "node_tree", None):
+        g_out = next((n for n in node.node_tree.nodes if n.type == 'GROUP_OUTPUT'), None)
+        if g_out:
+            inner = next((s for s in g_out.inputs if s.identifier == out.identifier or s.name == out.name), None)
+            found = _trace_to_texture(inner, depth + 1)
+            if found:
+                return found
+    for inp in node.inputs:
+        if inp.is_linked:
+            found = _trace_to_texture(inp, depth + 1)
+            if found:
+                return found
+    return None
+
+
+def _set_constant(emit_node: Any, val: Any) -> bool:
+    if isinstance(val, (int, float)):
+        emit_node.inputs['Color'].default_value = (float(val), float(val), float(val), 1.0)
+        return True
+    if hasattr(val, '__len__') and len(val) >= 3:
+        emit_node.inputs['Color'].default_value = (val[0], val[1], val[2], 1.0)
+        return True
+    return False
+
+
+def setup_emission_routing(mat: Any, map_type: str) -> Optional[Tuple[Any, Any, List[Any]]]:
     """
-    Temporarily wires the target PBR channel into a temporary ShaderNodeEmission
-    connected directly to Material Output Surface.
-    Returns (emit_node, orig_surface_socket) for restoring after the bake pass.
+    Temporarily routes one PBR channel into an Emission shader on Material Output.Surface.
+
+    Resolution order (stops at first success). Candidate sockets come from the Principled BSDF
+    and from the group driving Material Output (DAZ Dual Lobe: "Roughness 1"); linked wins:
+      1. Candidate LINKED in the same tree -> link that exact upstream socket
+         (keeps DAZ Mix/Gamma/Math tints intact, e.g. GR texture -> Math -> Roughness).
+      2. Linked but upstream lives in another node tree -> proxy Image Texture of the traced image.
+      3. All UNLINKED -> constant (group value preferred; roughness <= 0.01 -> 0.5 guard).
+      4. No Principled at all -> filename hint scan (bake artifacts excluded) -> MAP_DEFS default.
+    Returns (emit_node, orig_surface_socket, proxy_nodes) for restore_emission_routing.
     """
     defs = MAP_DEFS.get(map_type)
-    if not defs:
-        return None
-
     out_node = _find_material_output(mat)
-    if not out_node:
-        return None
-
-    surface_in = out_node.inputs.get('Surface')
+    surface_in = out_node.inputs.get('Surface') if (defs and out_node) else None
     if not surface_in:
         return None
 
-    nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
-
+    tree = mat.node_tree
+    nodes, links = tree.nodes, tree.links
     orig_socket = surface_in.links[0].from_socket if surface_in.is_linked else None
 
-    # Resolve target PBR channel socket
-    target_socket = None
-    default_val = defs.get("default")
-
-    # Search for Principled BSDF in material
-    bsdf = _find_principled_bsdf(mat.node_tree)
-    if bsdf:
-        for s_name in defs.get("sockets", []):
-            if s_name in bsdf.inputs:
-                target_socket = bsdf.inputs[s_name]
-                break
-
-    # If no Principled socket was found, inspect surface source node inputs
-    if not target_socket and orig_socket:
-        from_node = orig_socket.node
-        for s_name in defs.get("sockets", []):
-            if s_name in from_node.inputs:
-                target_socket = from_node.inputs[s_name]
-                break
-
-    # Build emission proxy
     emit_node = nodes.new(type='ShaderNodeEmission')
-    emit_node.name = "__ModernBake_Emission__"
+    emit_node.name = BAKE_NODE_PREFIX + "Emission__"
     emit_node.inputs['Strength'].default_value = 1.0
+    color_in = emit_node.inputs['Color']
+    proxy_nodes: List[Any] = []
+    source = ""
 
-    wired = False
-    if target_socket:
-        resolved_sock, val = _resolve_socket_source(target_socket)
-        if resolved_sock:
-            try:
-                links.new(resolved_sock, emit_node.inputs['Color'])
-                wired = True
-            except Exception:
-                wired = False
-        elif val is not None:
-            if isinstance(val, (int, float)):
-                emit_node.inputs['Color'].default_value = (float(val), float(val), float(val), 1.0)
-            elif hasattr(val, '__len__') and len(val) >= 3:
-                emit_node.inputs['Color'].default_value = (val[0], val[1], val[2], 1.0)
-            wired = True
+    def _proxy_texture(tex_node: Any) -> None:
+        proxy = nodes.new(type='ShaderNodeTexImage')
+        proxy.name = BAKE_NODE_PREFIX + "ProxyTex__"
+        proxy.image = tex_node.image
+        proxy.interpolation = getattr(tex_node, "interpolation", "Linear")
+        links.new(proxy.outputs['Color'], color_in)
+        proxy_nodes.append(proxy)
 
-    if not wired and default_val is not None:
-        emit_node.inputs['Color'].default_value = default_val
+    bsdf = _find_principled_bsdf(tree)
+    s_names = defs.get("sockets", [])
 
+    # DAZ "Dual Lobe PBR" / Diffeomorphic groups drive Material Output directly and carry the real
+    # specular roughness on "Roughness 1/2", while the root Principled Roughness stays 0.0.
+    surface_node = orig_socket.node if orig_socket is not None else None
+    if surface_node is bsdf or getattr(surface_node, "type", "") not in ('GROUP', 'BSDF_PRINCIPLED'):
+        surface_node = None
+
+    p_sock = _match_input(bsdf, s_names) if bsdf else None
+    g_sock = _match_input(surface_node, s_names) if surface_node else None
+    linked = next((s for s in (p_sock, g_sock) if s is not None and s.is_linked), None)
+    sock = linked or g_sock or p_sock
+
+    if sock is not None and sock.is_linked:
+        upstream = sock.links[0].from_socket
+        if sock.node.id_data == tree and not _is_bake_artifact(upstream.node):
+            links.new(upstream, color_in)
+            source = f"linked {sock.node.name}.{sock.name} <- {upstream.node.name}"
+        else:
+            tex = _trace_to_texture(sock)
+            if tex:
+                _proxy_texture(tex)
+                source = f"proxy texture '{tex.image.name}' (nested {sock.node.name}.{sock.name})"
+
+    if not source and sock is not None and not sock.is_linked:
+        val = getattr(sock, "default_value", None)
+        if map_type == "roughness" and isinstance(val, (int, float)) and float(val) <= 0.01:
+            val = 0.5  # 0.0 roughness is almost always an uninitialized socket -> mirror-like skin
+        if _set_constant(emit_node, val):
+            source = f"constant {sock.node.name}.{sock.name}={val if isinstance(val, (int, float)) else tuple(val)[:3]}"
+
+    if not source and bsdf is None:
+        hints = CHANNEL_IMAGE_HINTS.get(map_type, ())
+        for n in nodes:
+            if n.type == 'TEX_IMAGE' and n.image and not _is_bake_artifact(n):
+                label = f"{n.image.name} {n.label} {n.name}".lower()
+                if any(h in label for h in hints):
+                    _proxy_texture(n)
+                    source = f"filename hint '{n.image.name}'"
+                    break
+
+    if not source and defs.get("default") is not None:
+        color_in.default_value = defs["default"]
+        source = f"MAP_DEFS default {defs['default']}"
+
+    print(f"[bake_mesh:emit] {mat.name} [{map_type}] <- {source or 'UNRESOLVED'}", flush=True)
     links.new(emit_node.outputs['Emission'], surface_in)
-    return emit_node, orig_socket
+    return emit_node, orig_socket, proxy_nodes
 
 
-def restore_emission_routing(mat: Any, route_info: Optional[Tuple[Any, Any]]) -> None:
+def restore_emission_routing(mat: Any, route_info: Optional[Tuple[Any, ...]]) -> None:
     if not route_info or not mat or not mat.node_tree:
         return
-    emit_node, orig_socket = route_info
+    emit_node = route_info[0]
+    orig_socket = route_info[1]
+    proxy_nodes = route_info[2] if len(route_info) > 2 else []
+
     nodes = mat.node_tree.nodes
     links = mat.node_tree.links
     out_node = _find_material_output(mat)
@@ -556,6 +633,12 @@ def restore_emission_routing(mat: Any, route_info: Optional[Tuple[Any, Any]]) ->
             pass
     if emit_node and emit_node.name in nodes:
         nodes.remove(emit_node)
+    for p_n in proxy_nodes:
+        if p_n and p_n.name in nodes:
+            try:
+                nodes.remove(p_n)
+            except Exception:
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -613,7 +696,7 @@ def cleanup_bake_targets(targets: List[Tuple[Any, Any, Any]]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# NumPy Channel Packing Engine
+# NumPy Channel Packing Engine (Data-Driven Preset Registry)
 # ---------------------------------------------------------------------------
 def execute_channel_packing(
     pack_mode: str,
@@ -624,10 +707,11 @@ def execute_channel_packing(
 ) -> Tuple[Optional[str], Optional[str]]:
     """
     Packs separate texture channels into industry-standard composite textures using fast NumPy memory views.
-    Returns (packed_type, packed_filepath) or (None, None).
+    Driven by declarative CHANNEL_PACK_PRESETS table.
     """
     mode = (pack_mode or "none").strip().upper()
-    if mode == "NONE":
+    preset = CHANNEL_PACK_PRESETS.get(mode) or CHANNEL_PACK_PRESETS.get(pack_mode)
+    if not preset or not preset.get("channels"):
         return None, None
 
     try:
@@ -638,60 +722,34 @@ def execute_channel_packing(
 
     n = resolution * resolution
 
-    def _get_channel(map_key: str, channel_idx: int, default_val: float) -> np.ndarray:
-        if map_key in temp_images and temp_images[map_key]:
-            px = np.empty(n * 4, dtype=np.float32)
-            temp_images[map_key].pixels.foreach_get(px)
-            if px.size == n * 4:
-                return px[channel_idx::4].copy()
-        return np.full(n, default_val, dtype=np.float32)
+    def _get_channel(spec: Any) -> np.ndarray:
+        if isinstance(spec, (int, float)):
+            return np.full(n, float(spec), dtype=np.float32)
+        if isinstance(spec, tuple):
+            map_key, default_val = spec
+            if map_key == "smoothness":
+                # Invert roughness for Unity MaskMap
+                r_arr = _get_channel(("roughness", default_val))
+                return 1.0 - r_arr
+            if map_key in temp_images and temp_images[map_key]:
+                px = np.empty(n * 4, dtype=np.float32)
+                temp_images[map_key].pixels.foreach_get(px)
+                if px.size == n * 4:
+                    return px[0::4].copy()
+            return np.full(n, default_val, dtype=np.float32)
+        return np.full(n, 1.0, dtype=np.float32)
 
+    channels = preset["channels"]
     packed_px = np.empty(n * 4, dtype=np.float32)
-    suffix = "ORM"
-    filename = f"{stem}_ORM.png"
+    packed_px[0::4] = _get_channel(channels.get("R", 1.0))
+    packed_px[1::4] = _get_channel(channels.get("G", 1.0))
+    packed_px[2::4] = _get_channel(channels.get("B", 1.0))
+    packed_px[3::4] = _get_channel(channels.get("A", 1.0))
 
-    if mode in ("ORM", "ORMA"):
-        # R=AO, G=Roughness, B=Metallic, A=Alpha/1.0
-        packed_px[0::4] = _get_channel("ao", 0, 1.0)
-        packed_px[1::4] = _get_channel("roughness", 0, 0.5)
-        packed_px[2::4] = _get_channel("metallic", 0, 0.0)
-        if mode == "ORMA":
-            packed_px[3::4] = _get_channel("alpha", 0, 1.0)
-            suffix = "ORMA"
-            filename = f"{stem}_ORMA.png"
-        else:
-            packed_px[3::4] = 1.0
-
-    elif mode == "RMA":
-        # R=Roughness, G=Metallic, B=AO, A=1.0
-        packed_px[0::4] = _get_channel("roughness", 0, 0.5)
-        packed_px[1::4] = _get_channel("metallic", 0, 0.0)
-        packed_px[2::4] = _get_channel("ao", 0, 1.0)
-        packed_px[3::4] = 1.0
-        suffix = "RMA"
-        filename = f"{stem}_RMA.png"
-
-    elif mode == "MRA":
-        # R=Metallic, G=Roughness, B=AO, A=1.0
-        packed_px[0::4] = _get_channel("metallic", 0, 0.0)
-        packed_px[1::4] = _get_channel("roughness", 0, 0.5)
-        packed_px[2::4] = _get_channel("ao", 0, 1.0)
-        packed_px[3::4] = 1.0
-        suffix = "MRA"
-        filename = f"{stem}_MRA.png"
-
-    elif mode == "UNITY_MASK":
-        # Unity HDRP / URP Mask Map (MODS):
-        # R = Metallic, G = AO, B = Specular/Detail (default 0), A = Smoothness (1.0 - Roughness)
-        rough = _get_channel("roughness", 0, 0.5)
-        packed_px[0::4] = _get_channel("metallic", 0, 0.0)
-        packed_px[1::4] = _get_channel("ao", 0, 1.0)
-        packed_px[2::4] = _get_channel("specular", 0, 0.0)
-        packed_px[3::4] = 1.0 - rough  # Smoothness inversion
-        suffix = "MaskMap"
-        filename = f"{stem}_MaskMap.png"
-
+    suffix = preset.get("suffix", mode)
+    filename = f"{stem}_{suffix}.png"
     out_filepath = os.path.join(output_dir, filename)
+
     packed_img = bpy.data.images.new(f"Bake_{stem}_{suffix}", width=resolution, height=resolution)
     packed_img.colorspace_settings.name = 'Non-Color'
     packed_img.pixels.foreach_set(packed_px)
@@ -699,6 +757,8 @@ def execute_channel_packing(
     packed_img.file_format = 'PNG'
     packed_img.save()
     bpy.data.images.remove(packed_img)
+    print(f"[bake_mesh:pack] Packed {mode} ({preset.get('description', '')}) -> '{out_filepath}'", flush=True)
+    return suffix.lower(), out_filepath
 
     print(f"[bake_mesh:pack] Packed {mode} -> '{out_filepath}'", flush=True)
     return suffix.lower(), out_filepath
@@ -834,13 +894,13 @@ def main(
     margin: float = 0.01,
     maps: Optional[List[str]] = None,
     resolution: int = 2048,
-    pack_mode: PackModeType = "ORM",
-    bake_orm: bool = False,
+    pack_mode: PackModeType = "none",
+    normal_format: NormalFormatType = "directx",
     output_dir: str = "",
     material_name: str = "",
     ao_samples: int = 32,
-    flip_normal_y: bool = True,
     ao_distance: float = 0.25,
+    **kwargs
 ) -> dict:
     """
     Modern Headless Mesh Baker (UV unwrap/pack + Cycles EMIT/NORMAL/AO + Channel Packing + Clean Unified PBR).
@@ -851,20 +911,26 @@ def main(
         margin: Island UV margin (0.01 = safe padding against bleeding).
         maps: List of maps to bake ('diffuse', 'roughness', 'normal', 'metallic', 'specular', 'alpha', 'ao').
         resolution: Texture resolution (1024, 2048, 4096).
-        pack_mode: Channel packing preset ('none', 'ORM', 'ORMA', 'RMA', 'MRA', 'UNITY_MASK').
-        bake_orm: Legacy flag backward compatibility (auto sets pack_mode to 'ORM').
+        pack_mode: Channel packing preset ('none', 'ORM', 'ORMA', 'RMA', 'MRA', 'UNITY_MASK'). Defaults to 'none' for separate maps.
+        normal_format: Target normal format ('directx' for Unreal Engine 5 Y-, 'opengl' for Unity/Blender Y+). Defaults to 'directx'.
         output_dir: Target texture directory.
         material_name: Unified output material name (default 'M_<Stem>').
         ao_samples: Monte Carlo raycast sample count for Ambient Occlusion.
-        flip_normal_y: Flip Green channel for DirectX / Unreal Engine 5 tangent normal.
         ao_distance: Maximum ray search radius in meters for Ambient Occlusion.
     """
     if not HAS_BPY:
         raise RuntimeError("Blender Python (bpy) is not available.")
 
     # Backward compatibility for legacy bake_orm parameter
-    if bake_orm and pack_mode == "none":
+    legacy_bake_orm = kwargs.get("bake_orm", False)
+    if legacy_bake_orm and pack_mode == "none":
         pack_mode = "ORM"
+
+    # Resolve DirectX vs OpenGL normal format with backward compatibility for flip_normal_y
+    if "flip_normal_y" in kwargs:
+        is_directx = bool(kwargs["flip_normal_y"])
+    else:
+        is_directx = (str(normal_format or "directx").lower() == "directx")
 
     targets = _normalize_targets(target_objects)
     selected_maps = _normalize_maps(maps, pack_mode)
@@ -959,15 +1025,15 @@ def main(
                 print(f"[bake_mesh:bake] {obj.name} normal -> '{out_filename}' (1spp)", flush=True)
                 bpy.ops.object.bake(type='NORMAL', normal_space='TANGENT', save_mode='INTERNAL')
 
-                # Optional DirectX Y- Invert (flips green channel via NumPy)
-                if flip_normal_y:
+                # Optional DirectX Y- Invert (flips green channel via NumPy for UE5)
+                if is_directx:
                     try:
                         import numpy as np
                         px = np.empty(resolution * resolution * 4, dtype=np.float32)
                         bake_img.pixels.foreach_get(px)
                         px[1::4] = 1.0 - px[1::4]  # Flip Green channel
                         bake_img.pixels.foreach_set(px)
-                        print(f"[bake_mesh:bake] Flipped normal Y- (DirectX / UE5 format)", flush=True)
+                        print(f"[bake_mesh:bake] Converted normal Y- (DirectX / UE5 format)", flush=True)
                     except Exception as ex:
                         print(f"[bake_mesh:bake] Warning: DirectX flip: {ex}", flush=True)
 
