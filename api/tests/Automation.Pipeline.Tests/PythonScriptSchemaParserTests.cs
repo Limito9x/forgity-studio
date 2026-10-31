@@ -115,7 +115,7 @@ public class PythonScriptSchemaParserTests
             result.SuggestedLabel.Should().Be("Classify Material Manifest");
             result.Inputs.Should().Contain(p => p.Id == "raw_manifest");
             result.Inputs.Should().NotContain(p => p.Id == "cloth_map");
-            result.Inputs.Should().Contain(p => p.Id == "provider");
+            result.Inputs.Should().Contain(p => p.Id == "endpoint");
             result.Inputs.Should().Contain(p => p.Id == "model");
             result.Inputs.Should().NotContain(p => p.Id == "folder_path");
             result.Inputs.Should().NotContain(p => p.Id == "api_key");
@@ -138,7 +138,7 @@ public class PythonScriptSchemaParserTests
             result.SuggestedLabel.Should().Be("Classify Mesh Types");
             result.Inputs.Should().Contain(p => p.Id == "raw_metadata" && p.Cardinality == PinCardinality.Single);
             result.Inputs.Should().Contain(p => p.Id == "contracts" && p.Cardinality == PinCardinality.Array);
-            result.Inputs.Should().Contain(p => p.Id == "provider");
+            result.Inputs.Should().Contain(p => p.Id == "endpoint");
             result.Inputs.Should().Contain(p => p.Id == "model");
 
             result.Outputs.Should().Contain(p => p.Id == "body_meshes" && p.Cardinality == PinCardinality.Array);
