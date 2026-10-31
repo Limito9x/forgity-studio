@@ -11,4 +11,6 @@ export interface AssignResourcesContentCommand {
   resourceIds: ListOfGuidOp34A29FC8B5EF;
   /** @nullable */
   contentId: string | null;
+  /** @nullable */
+  anchorPath?: string | null;
 }

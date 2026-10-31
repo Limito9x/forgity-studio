@@ -57,7 +57,8 @@ export function RepositoryResourceTable({
         (r.displayName && r.displayName.toLowerCase().includes(q)) ||
         (r.relativePath && r.relativePath.toLowerCase().includes(q)) ||
         (r.contentName && r.contentName.toLowerCase().includes(q)) ||
-        (r.contentTypeName && r.contentTypeName.toLowerCase().includes(q))
+        (r.contentTypeName && r.contentTypeName.toLowerCase().includes(q)) ||
+        (r.anchorPath && r.anchorPath.toLowerCase().includes(q))
     );
   }, [data, search, selectedRunnerFilter]);
 

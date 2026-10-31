@@ -27,6 +27,7 @@ export function AssignContentSidePanel({
 }: AssignContentSidePanelProps) {
   const [keyword, setKeyword] = useState("");
   const [selectedContentTypeId, setSelectedContentTypeId] = useState<string | null>(null);
+  const [customAnchorPath, setCustomAnchorPath] = useState("");
 
   // Fetch content types for project filter pills
   const { data: contentTypesData } = useContentTypes({ page: 1, pageSize: 50 }, projectId);
@@ -56,6 +57,7 @@ export function AssignContentSidePanel({
         data: {
           resourceIds: selectedResourceIds,
           contentId: contentId,
+          anchorPath: customAnchorPath.trim() || undefined,
         },
       },
       {
@@ -112,6 +114,16 @@ export function AssignContentSidePanel({
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             className="pl-8 h-8 text-xs bg-background"
+          />
+        </div>
+
+        {/* Optional Anchor Path Input */}
+        <div>
+          <Input
+            placeholder="Anchor path (e.g. Outfit1/Bra or empty for auto)..."
+            value={customAnchorPath}
+            onChange={(e) => setCustomAnchorPath(e.target.value)}
+            className="h-7 text-xs bg-background font-mono placeholder:font-sans"
           />
         </div>
 

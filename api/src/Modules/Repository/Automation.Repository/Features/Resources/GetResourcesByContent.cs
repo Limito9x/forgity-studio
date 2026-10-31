@@ -65,9 +65,18 @@ public class GetResourcesByContentHandler(RepositoryDbContext db, IContentApi co
             .OrderByDescending(r => r.CreatedAt)
             .ToListAsync(ct);
 
+        var anchorLinksResult = await contentApi.GetResourceAnchorLinksAsync(linkedIds, ct);
+        var anchorMap = anchorLinksResult.IsSuccess
+            ? anchorLinksResult.Value
+            : new Dictionary<Guid, IReadOnlyList<ContentAnchorLinkDto>>();
+
         var dtos = resources.Select(r =>
         {
             var latest = r.LatestVersion;
+            var anchorPath = anchorMap.TryGetValue(r.Id, out var links)
+                ? links.FirstOrDefault()?.AnchorPath
+                : null;
+
             return new ContentResourceDto(
                 Id: r.Id,
                 WorkspaceId: r.RepositoryId,
@@ -78,7 +87,8 @@ public class GetResourcesByContentHandler(RepositoryDbContext db, IContentApi co
                 LatestVersionNo: latest?.VersionNo ?? 0,
                 LatestSizeBytes: latest?.SizeBytes ?? 0,
                 VersionCount: r.Versions.Count,
-                CreatedAt: r.CreatedAt
+                CreatedAt: r.CreatedAt,
+                AnchorPath: anchorPath
             );
         }).ToList();
 

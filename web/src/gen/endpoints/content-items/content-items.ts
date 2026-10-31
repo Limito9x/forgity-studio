@@ -22,6 +22,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  ContentAnchorTreeDto,
   ContentItemDto,
   ContentItemExportPackageDto,
   CreateContentItemCommand,
@@ -57,6 +58,158 @@ const withQueryKey = <T extends object, K>(
   }
   return result;
 };
+
+export const getContentAnchorTree = (id: string, signal?: AbortSignal) => {
+  return customInstance<ContentAnchorTreeDto>({
+    url: `/api/contents/${id}/anchor-tree`,
+    method: "GET",
+    signal,
+  });
+};
+
+export const getGetContentAnchorTreeQueryKey = (id: string) => {
+  return [`/api/contents/${id}/anchor-tree`] as const;
+};
+
+export const getGetContentAnchorTreeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getContentAnchorTree>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getContentAnchorTree>>,
+        TError,
+        TData
+      >
+    >;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetContentAnchorTreeQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getContentAnchorTree>>
+  > = ({ signal }) => getContentAnchorTree(id, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: id !== null && id !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getContentAnchorTree>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetContentAnchorTreeQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getContentAnchorTree>>
+>;
+export type GetContentAnchorTreeQueryError = void;
+
+export function useGetContentAnchorTree<
+  TData = Awaited<ReturnType<typeof getContentAnchorTree>>,
+  TError = void,
+>(
+  id: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getContentAnchorTree>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getContentAnchorTree>>,
+          TError,
+          Awaited<ReturnType<typeof getContentAnchorTree>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetContentAnchorTree<
+  TData = Awaited<ReturnType<typeof getContentAnchorTree>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getContentAnchorTree>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getContentAnchorTree>>,
+          TError,
+          Awaited<ReturnType<typeof getContentAnchorTree>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetContentAnchorTree<
+  TData = Awaited<ReturnType<typeof getContentAnchorTree>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getContentAnchorTree>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useGetContentAnchorTree<
+  TData = Awaited<ReturnType<typeof getContentAnchorTree>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getContentAnchorTree>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetContentAnchorTreeQueryOptions(id, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
 
 export const deleteContentItem = (
   projectId: string | null,

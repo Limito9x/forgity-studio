@@ -432,7 +432,7 @@ export const ImportPipelinePackageResponse = /*#__PURE__*/ zod.object({
   "isRoot": /*#__PURE__*/ zod.boolean(),
   "isValid": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), importPipelinePackageResponsePipelinesItemIsValidDefault),
   "diagnostics": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
-  "code": /*#__PURE__*/ zod.enum(['DagCycleDetected', 'MissingNodeDefinition', 'UnselectedStructSchema', 'UnresolvedRequiredPin', 'DanglingEdgePin', 'IncompatiblePinType', 'OrphanNode', 'UnconnectedReturnOutput']),
+  "code": /*#__PURE__*/ zod.enum(['DagCycleDetected', 'MissingNodeDefinition', 'UnselectedStructSchema', 'UnresolvedRequiredPin', 'DanglingEdgePin', 'IncompatiblePinType', 'OrphanNode', 'UnconnectedReturnOutput', 'InvalidStagePlacement']),
   "severity": /*#__PURE__*/ zod.enum(['Error', 'Warning']),
   "message": /*#__PURE__*/ zod.string(),
   "nodeId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
@@ -622,7 +622,7 @@ export const ValidatePipelinePackageResponse = /*#__PURE__*/ zod.object({
   "hasNameConflict": /*#__PURE__*/ zod.boolean(),
   "suggestedName": /*#__PURE__*/ zod.string(),
   "diagnostics": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
-  "code": /*#__PURE__*/ zod.enum(['DagCycleDetected', 'MissingNodeDefinition', 'UnselectedStructSchema', 'UnresolvedRequiredPin', 'DanglingEdgePin', 'IncompatiblePinType', 'OrphanNode', 'UnconnectedReturnOutput']),
+  "code": /*#__PURE__*/ zod.enum(['DagCycleDetected', 'MissingNodeDefinition', 'UnselectedStructSchema', 'UnresolvedRequiredPin', 'DanglingEdgePin', 'IncompatiblePinType', 'OrphanNode', 'UnconnectedReturnOutput', 'InvalidStagePlacement']),
   "severity": /*#__PURE__*/ zod.enum(['Error', 'Warning']),
   "message": /*#__PURE__*/ zod.string(),
   "nodeId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
@@ -1017,7 +1017,7 @@ export const GetPipelineGraphResponse = /*#__PURE__*/ zod.object({
   "isSuccess": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean())
 }))),
   "diagnostics": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
-  "code": /*#__PURE__*/ zod.enum(['DagCycleDetected', 'MissingNodeDefinition', 'UnselectedStructSchema', 'UnresolvedRequiredPin', 'DanglingEdgePin', 'IncompatiblePinType', 'OrphanNode', 'UnconnectedReturnOutput']),
+  "code": /*#__PURE__*/ zod.enum(['DagCycleDetected', 'MissingNodeDefinition', 'UnselectedStructSchema', 'UnresolvedRequiredPin', 'DanglingEdgePin', 'IncompatiblePinType', 'OrphanNode', 'UnconnectedReturnOutput', 'InvalidStagePlacement']),
   "severity": /*#__PURE__*/ zod.enum(['Error', 'Warning']),
   "message": /*#__PURE__*/ zod.string(),
   "nodeId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
@@ -1178,7 +1178,7 @@ export const SavePipelineGraphResponse = /*#__PURE__*/ zod.object({
   "isSuccess": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean())
 }))),
   "diagnostics": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
-  "code": /*#__PURE__*/ zod.enum(['DagCycleDetected', 'MissingNodeDefinition', 'UnselectedStructSchema', 'UnresolvedRequiredPin', 'DanglingEdgePin', 'IncompatiblePinType', 'OrphanNode', 'UnconnectedReturnOutput']),
+  "code": /*#__PURE__*/ zod.enum(['DagCycleDetected', 'MissingNodeDefinition', 'UnselectedStructSchema', 'UnresolvedRequiredPin', 'DanglingEdgePin', 'IncompatiblePinType', 'OrphanNode', 'UnconnectedReturnOutput', 'InvalidStagePlacement']),
   "severity": /*#__PURE__*/ zod.enum(['Error', 'Warning']),
   "message": /*#__PURE__*/ zod.string(),
   "nodeId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
@@ -1335,7 +1335,7 @@ export const ValidatePipelineResponse = /*#__PURE__*/ zod.object({
   "reason": /*#__PURE__*/ zod.string()
 })),
   "diagnostics": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
-  "code": /*#__PURE__*/ zod.enum(['DagCycleDetected', 'MissingNodeDefinition', 'UnselectedStructSchema', 'UnresolvedRequiredPin', 'DanglingEdgePin', 'IncompatiblePinType', 'OrphanNode', 'UnconnectedReturnOutput']),
+  "code": /*#__PURE__*/ zod.enum(['DagCycleDetected', 'MissingNodeDefinition', 'UnselectedStructSchema', 'UnresolvedRequiredPin', 'DanglingEdgePin', 'IncompatiblePinType', 'OrphanNode', 'UnconnectedReturnOutput', 'InvalidStagePlacement']),
   "severity": /*#__PURE__*/ zod.enum(['Error', 'Warning']),
   "message": /*#__PURE__*/ zod.string(),
   "nodeId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),

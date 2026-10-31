@@ -106,3 +106,13 @@ export const useLookupContentItems = (
     });
 };
 
+export const useGetContentAnchorTree = (
+    contentId: string,
+    options?: { enabled?: boolean }
+) => {
+    return ContentItemsApi.useGetContentAnchorTree(contentId, {
+        query: {
+            enabled: !!contentId && (options?.enabled ?? true),
+        }
+    });
+};

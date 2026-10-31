@@ -205,7 +205,8 @@ export const GetRepositoryResourcesResponse = /*#__PURE__*/ zod.object({
   "lockedByRunnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "lockedAt": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
   "holdingRunnerId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
-  "holdingRunnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+  "holdingRunnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "anchorPath": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 }))),
   "totalCount": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
   "page": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),

@@ -18,4 +18,5 @@ export const PipelineDiagnosticCode = {
   IncompatiblePinType: "IncompatiblePinType",
   OrphanNode: "OrphanNode",
   UnconnectedReturnOutput: "UnconnectedReturnOutput",
+  InvalidStagePlacement: "InvalidStagePlacement",
 } as const;
