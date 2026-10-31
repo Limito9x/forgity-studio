@@ -60,9 +60,23 @@ public class AssignResourcesContentHandler(RepositoryDbContext db, IContentApi c
             return Result.Ok();
         }
 
+        // 1. UNLINK MODE: If ContentId is null, unlink the resources from Content.
+        // Unlinking removes records from ContentAnchorLinks and must succeed even if physical ResourceItems were deleted.
+        if (!command.ContentId.HasValue)
+        {
+            var unlinkResult = await contentApi.UnlinkResourcesAsync(command.ResourceIds, null, ct);
+            if (unlinkResult.IsFailed)
+            {
+                return Result.Fail(unlinkResult.Errors);
+            }
+
+            return Result.Ok();
+        }
+
+        // 2. ASSIGN MODE: Find the resource items (supporting both ResourceItem.Id and VersionId)
         var resources = await db.ResourceItems
             .Include(r => r.Repository)
-            .Where(r => command.ResourceIds.Contains(r.Id))
+            .Where(r => command.ResourceIds.Contains(r.Id) || r.Versions.Any(v => command.ResourceIds.Contains(v.Id)))
             .ToListAsync(ct);
 
         if (resources.Count == 0)
@@ -70,36 +84,25 @@ public class AssignResourcesContentHandler(RepositoryDbContext db, IContentApi c
             return Result.Fail("No resources found matching the specified IDs.");
         }
 
-        if (command.ContentId.HasValue)
-        {
-            var projectId = resources.FirstOrDefault()?.Repository?.ProjectId ?? Guid.Empty;
-            var smartInputs = resources.Select(r => new ResourceSmartLinkInput(
-                r.Id,
-                r.DisplayName,
-                r.RelativePath,
-                command.AnchorPath
-            )).ToList();
+        var projectId = resources.FirstOrDefault()?.Repository?.ProjectId ?? Guid.Empty;
+        var smartInputs = resources.Select(r => new ResourceSmartLinkInput(
+            r.Id,
+            r.DisplayName,
+            r.RelativePath,
+            command.AnchorPath
+        )).ToList();
 
-            var assignResult = await contentApi.AssignResourcesToAnchorAsync(
-                projectId,
-                command.ContentId.Value,
-                command.AnchorPath,
-                smartInputs,
-                ct
-            );
+        var assignResult = await contentApi.AssignResourcesToAnchorAsync(
+            projectId,
+            command.ContentId.Value,
+            command.AnchorPath,
+            smartInputs,
+            ct
+        );
 
-            if (assignResult.IsFailed)
-            {
-                return Result.Fail(assignResult.Errors);
-            }
-        }
-        else
+        if (assignResult.IsFailed)
         {
-            var unlinkResult = await contentApi.UnlinkResourcesAsync(command.ResourceIds, null, ct);
-            if (unlinkResult.IsFailed)
-            {
-                return Result.Fail(unlinkResult.Errors);
-            }
+            return Result.Fail(assignResult.Errors);
         }
 
         return Result.Ok();
