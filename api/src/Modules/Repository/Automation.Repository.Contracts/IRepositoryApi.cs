@@ -20,6 +20,8 @@ public interface IRepositoryApi
         Guid runnerId,
         List<string> targetPaths,
         string? notes = null,
+        List<Guid>? approvedPipelineIds = null,
+        Guid? contentTypeId = null,
         CancellationToken ct = default
     );
 
@@ -134,7 +136,8 @@ public record SyncLocalChangesResultDto(
     int ModifiedCount,
     int LocationRemoved,
     List<Guid> ResourceVersionIds,
-    Dictionary<string, Guid> SyncedResources
+    Dictionary<string, Guid> SyncedResources,
+    int SmartLinkedCount = 0
 )
 {
     public Guid WorkspaceId => RepositoryId;

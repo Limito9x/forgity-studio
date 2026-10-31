@@ -233,7 +233,7 @@ public class SyncLocalChangeToRepositoryTool(
             runnerId.Value,
             targetPaths,
             notes,
-            ct
+            ct: ct
         );
 
         if (result.IsFailed)
@@ -246,8 +246,10 @@ public class SyncLocalChangeToRepositoryTool(
         var resourceMap = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         var versionIdList = result.Value.ResourceVersionIds ?? new List<Guid>();
 
-        foreach (var (k, v) in syncedDict)
+        foreach (var pair in syncedDict)
         {
+            var k = pair.Key;
+            var v = pair.Value;
             if (string.IsNullOrWhiteSpace(k) || v == Guid.Empty)
                 continue;
 
