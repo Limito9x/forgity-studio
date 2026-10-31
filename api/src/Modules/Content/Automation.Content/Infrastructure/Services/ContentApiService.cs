@@ -364,7 +364,7 @@ public class ContentApiService(ContentDbContext db) : IContentApi
         }
 
         var query = db.ContentAnchorLinks
-            .Where(l => l.TargetType == Domain.Enums.ContentLinkTargetType.Resource && idList.Contains(l.TargetId));
+            .Where(l => idList.Contains(l.TargetId) || idList.Contains(l.Id));
 
         if (contentItemId.HasValue && contentItemId.Value != Guid.Empty)
         {
@@ -443,36 +443,85 @@ public class ContentApiService(ContentDbContext db) : IContentApi
 
         foreach (var link in links)
         {
-            var segments = link.AnchorPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            if (segments.Length == 0) continue;
+            var rawPath = (link.AnchorPath ?? "root").Trim().Trim('/');
+            if (string.IsNullOrEmpty(rawPath)) rawPath = "root";
+
+            var segments = rawPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length == 0) segments = ["root"];
 
             List<ContentAnchorNodeDto> currentChildren = roots;
             string currentPath = "";
 
-            for (int i = 0; i < segments.Length; i++)
+            if (segments.Length == 1)
             {
-                var seg = segments[i];
-                currentPath = string.IsNullOrEmpty(currentPath) ? seg : $"{currentPath}/{seg}";
-                var isLeaf = (i == segments.Length - 1);
-
-                var existingNode = currentChildren.FirstOrDefault(n => n.Name.Equals(seg, StringComparison.OrdinalIgnoreCase));
-                if (existingNode == null)
+                var folderName = segments[0];
+                var folderNode = currentChildren.FirstOrDefault(n => !n.IsLeaf && n.Name.Equals(folderName, StringComparison.OrdinalIgnoreCase));
+                if (folderNode == null)
                 {
-                    existingNode = new ContentAnchorNodeDto(
-                        seg,
-                        currentPath,
-                        isLeaf,
-                        isLeaf ? link.TargetId : null,
-                        isLeaf ? (int)link.TargetType : null,
-                        isLeaf ? seg : null,
-                        isLeaf ? link.MetadataJson : null,
+                    folderNode = new ContentAnchorNodeDto(
+                        folderName,
+                        folderName,
+                        false,
+                        null,
+                        null,
+                        null,
+                        null,
                         new List<ContentAnchorNodeDto>()
                     );
-                    currentChildren.Add(existingNode);
+                    currentChildren.Add(folderNode);
                 }
 
-                currentChildren = existingNode.Children;
+                folderNode.Children.Add(new ContentAnchorNodeDto(
+                    folderName,
+                    $"{folderName}/{link.Id}",
+                    true,
+                    link.TargetId,
+                    (int)link.TargetType,
+                    folderName,
+                    link.MetadataJson,
+                    new List<ContentAnchorNodeDto>()
+                ));
+                continue;
             }
+
+            for (int i = 0; i < segments.Length - 1; i++)
+            {
+                var folderName = segments[i];
+                currentPath = string.IsNullOrEmpty(currentPath) ? folderName : $"{currentPath}/{folderName}";
+
+                var folderNode = currentChildren.FirstOrDefault(n => !n.IsLeaf && n.Name.Equals(folderName, StringComparison.OrdinalIgnoreCase));
+                if (folderNode == null)
+                {
+                    folderNode = new ContentAnchorNodeDto(
+                        folderName,
+                        currentPath,
+                        false,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new List<ContentAnchorNodeDto>()
+                    );
+                    currentChildren.Add(folderNode);
+                }
+
+                currentChildren = folderNode.Children;
+            }
+
+            var leafName = segments[^1];
+            var leafPath = string.IsNullOrEmpty(currentPath) ? leafName : $"{currentPath}/{leafName}";
+
+            var leafNode = new ContentAnchorNodeDto(
+                leafName,
+                leafPath,
+                true,
+                link.TargetId,
+                (int)link.TargetType,
+                leafName,
+                link.MetadataJson,
+                new List<ContentAnchorNodeDto>()
+            );
+            currentChildren.Add(leafNode);
         }
 
         return Result.Ok(new ContentAnchorTreeDto(contentItem.Id, contentItem.Name, roots));
