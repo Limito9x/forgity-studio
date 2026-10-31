@@ -1,3 +1,4 @@
+using Automation.Content.Contracts;
 using Automation.Repository.Constants;
 using Automation.Repository.Infrastructure.Persistence;
 using Automation.Repository.Shared.Dtos;
@@ -37,18 +38,30 @@ public class GetResourcesByContentEndpoint(IMessageBus bus)
 
 // 3. Handler
 [NonTransactional]
-public class GetResourcesByContentHandler(RepositoryDbContext db)
+public class GetResourcesByContentHandler(RepositoryDbContext db, IContentApi contentApi)
 {
     public async Task<Result<List<ContentResourceDto>>> HandleAsync(
         GetResourcesByContentQuery query,
         CancellationToken ct
     )
     {
+        var linkedResult = await contentApi.GetLinkedResourceIdsByContentIdAsync(query.ContentId, ct);
+        if (linkedResult.IsFailed)
+        {
+            return Result.Fail<List<ContentResourceDto>>(linkedResult.Errors);
+        }
+
+        var linkedIds = linkedResult.Value;
+        if (linkedIds.Count == 0)
+        {
+            return Result.Ok(new List<ContentResourceDto>());
+        }
+
         var resources = await db.ResourceItems
             .AsNoTracking()
             .Include(r => r.Repository)
             .Include(r => r.Versions)
-            .Where(r => r.ContentId == query.ContentId)
+            .Where(r => linkedIds.Contains(r.Id))
             .OrderByDescending(r => r.CreatedAt)
             .ToListAsync(ct);
 

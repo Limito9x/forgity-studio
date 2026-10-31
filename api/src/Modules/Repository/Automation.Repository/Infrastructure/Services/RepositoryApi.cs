@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Automation.Content.Contracts;
 using Automation.Repository.Contracts;
 using Automation.Repository.Contracts.Extensions;
 using Automation.Repository.Infrastructure.Persistence;
@@ -15,6 +16,7 @@ public class RepositoryApi(
     RepositoryDbContext db,
     IMessageBus bus,
     ITagApi tagApi,
+    IContentApi? contentApi = null,
     Automation.Runner.Contracts.IRunnerApi? runnerApi = null,
     ILogger<RepositoryApi>? logger = null
 ) : IRepositoryApi
@@ -73,7 +75,7 @@ public class RepositoryApi(
                 version.FileHash,
                 runnerId,
                 rootPath,
-                version.Resource?.ContentId,
+                null,
                 version.Resource?.RepositoryId ?? Guid.Empty
             )
         );
@@ -107,7 +109,7 @@ public class RepositoryApi(
                 loc.Value.ResourceVersion.FileHash,
                 loc.Value.RepositoryRunner.RunnerId,
                 loc.Value.RepositoryRunner.RootPath,
-                loc.Value.ResourceVersion.Resource?.ContentId,
+                null,
                 loc.Value.ResourceVersion.Resource?.RepositoryId ?? Guid.Empty
             );
             result[loc.Key] = dto;
@@ -142,7 +144,7 @@ public class RepositoryApi(
                     latest.FileHash,
                     loc?.RepositoryRunner?.RunnerId,
                     loc?.RepositoryRunner?.RootPath,
-                    latest.Resource?.ContentId,
+                    null,
                     latest.Resource?.RepositoryId ?? Guid.Empty
                 );
                 result[group.Key.ToString()] = dto;
@@ -635,17 +637,32 @@ public class RepositoryApi(
             directIds.AddRange(fromVersionIds);
         }
 
-        if (directIds.Count > 0)
+        if (directIds.Count > 0 && contentApi != null)
         {
             var distinctIds = directIds.Distinct().ToList();
-            await db
-                .ResourceItems.Where(r => distinctIds.Contains(r.Id))
-                .ExecuteUpdateAsync(
-                    s =>
-                        s.SetProperty(r => r.ContentId, ContentId)
-                            .SetProperty(r => r.UpdatedAt, DateTimeOffset.UtcNow),
-                    ct
-                );
+            var resources = await db.ResourceItems
+                .Include(r => r.Repository)
+                .Where(r => distinctIds.Contains(r.Id))
+                .ToListAsync(ct);
+
+            var projectId = resources.FirstOrDefault()?.Repository?.ProjectId ?? Guid.Empty;
+            var smartInputs = resources.Select(r => new ResourceSmartLinkInput(
+                r.Id,
+                r.DisplayName,
+                r.RelativePath
+            )).ToList();
+
+            var assignRes = await contentApi.AssignResourcesToAnchorAsync(
+                projectId,
+                ContentId,
+                null,
+                smartInputs,
+                ct
+            );
+            if (assignRes.IsFailed)
+            {
+                return Result.Fail(assignRes.Errors);
+            }
         }
 
         return Result.Ok();
@@ -696,7 +713,7 @@ public class RepositoryApi(
                 item.Extension,
                 item.RelativePath,
                 fileHash,
-                item.ContentId,
+                null,
                 metaJson,
                 item.RepositoryId,
                 fullLocalPath,
@@ -819,7 +836,7 @@ public class RepositoryApi(
                 item.Extension,
                 item.RelativePath,
                 fileHash,
-                item.ContentId,
+                null,
                 metaJson,
                 item.RepositoryId,
                 fullLocalPath,
