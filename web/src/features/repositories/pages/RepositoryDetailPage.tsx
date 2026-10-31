@@ -263,6 +263,7 @@ export function RepositoryDetailPage(props: RepositoryDetailPageProps = {}) {
       {/* Tab 2: Changes & Sync (In-page Diff & Commit Center) */}
       {activeTab === "sync" && (
         <RepositorySyncTab
+          projectId={projectId || repository.projectId}
           repositoryId={repository.id}
           repositoryName={repository.name}
           runners={runners}
