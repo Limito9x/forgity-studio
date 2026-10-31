@@ -165,7 +165,7 @@ public class WorkstationAndResourceFilterToolsTests
             .Returns(Result.Ok(new WorkstationDto(wsId, repoId, "Repo", runnerId, "Runner", rootPath, true)));
 
         List<string>? capturedPaths = null;
-        _repositoryApi.SyncLocalChangesAsync(repoId, runnerId, Arg.Do<List<string>>(p => capturedPaths = p), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        _repositoryApi.SyncLocalChangesAsync(repoId, runnerId, Arg.Do<List<string>>(p => capturedPaths = p), Arg.Any<string>(), ct: Arg.Any<CancellationToken>())
             .Returns(Result.Ok(new SyncLocalChangesResultDto(repoId, runnerId, 1, 0, 0, [Guid.NewGuid()], new Dictionary<string, Guid> { ["Exports/character.fbx"] = Guid.NewGuid() })));
 
         var tool = new SyncLocalChangeToRepositoryTool(_repositoryApi);
@@ -195,7 +195,7 @@ public class WorkstationAndResourceFilterToolsTests
         _repositoryApi.GetWorkstationByIdAsync(wsId, Arg.Any<CancellationToken>())
             .Returns(Result.Ok(new WorkstationDto(wsId, repoId, "Repo", runnerId, "Runner", rootPath, true)));
 
-        _repositoryApi.SyncLocalChangesAsync(repoId, runnerId, Arg.Any<List<string>>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        _repositoryApi.SyncLocalChangesAsync(repoId, runnerId, Arg.Any<List<string>>(), Arg.Any<string>(), ct: Arg.Any<CancellationToken>())
             .Returns(Result.Ok(new SyncLocalChangesResultDto(repoId, runnerId, 1, 0, 0, [resId], new Dictionary<string, Guid> { ["Exports/Eva.fbx"] = resId })));
 
         var resourceDto = new ResourceDto(resId, Guid.NewGuid(), "Eva.fbx", ".fbx", "Exports/Eva.fbx", "hash", null, null, repoId, "D:/Mount/Exports/Eva.fbx", "D:/Mount", runnerId);

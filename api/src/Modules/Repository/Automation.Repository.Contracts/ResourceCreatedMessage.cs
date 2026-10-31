@@ -12,7 +12,9 @@ public record ResourcesCreatedEvent(
     Guid RepositoryId,
     Guid RunnerId,
     List<ResourceVersionCreatedInfo> ResourceVersions,
-    Guid? WorkstationId = null
+    Guid? WorkstationId = null,
+    List<Guid>? ApprovedPipelineIds = null,
+    Guid? SyncSessionId = null
 )
 {
     public Guid WorkspaceId => RepositoryId;

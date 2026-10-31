@@ -163,6 +163,8 @@ public class RepositoryApi(
         Guid runnerId,
         List<string> targetPaths,
         string? notes = null,
+        List<Guid>? approvedPipelineIds = null,
+        Guid? contentTypeId = null,
         CancellationToken ct = default
     )
     {
@@ -171,7 +173,9 @@ public class RepositoryApi(
             runnerId,
             notes,
             targetPaths,
-            null
+            null,
+            approvedPipelineIds,
+            contentTypeId
         );
 
         var result = await bus.InvokeAsync<Result<SyncLocalChangesResultDto>>(cmd, ct);

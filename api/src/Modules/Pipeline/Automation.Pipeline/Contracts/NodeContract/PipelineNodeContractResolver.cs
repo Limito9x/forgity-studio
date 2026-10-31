@@ -206,6 +206,18 @@ public class PipelineNodeContractResolver(
 
                 startOutputs.Add(new PinDefinition
                 {
+                    Id = "Resource",
+                    Label = "Resource",
+                    Kind = PinKind.Data,
+                    PrimitiveType = PinPrimitiveType.EntityRef,
+                    Cardinality = PinCardinality.Single,
+                    StructType = WellKnownStructTypes.Resource,
+                    IsRequired = true,
+                    Description = "Single triggered resource item"
+                });
+
+                startOutputs.Add(new PinDefinition
+                {
                     Id = "Resources",
                     Label = "Resources",
                     Kind = PinKind.Data,
