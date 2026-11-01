@@ -51,6 +51,7 @@ TEXTURE_PRESET_PACKAGES: Dict[str, Dict[str, Any]] = {
         "compression": "TC_NORMALMAP",
         "srgb": False,
         "lod_group": "TEXTUREGROUP_CHARACTER",
+        "flip_green_channel": True,
         "vt": True,
     },
     "BASE_COLOR": {
@@ -127,10 +128,12 @@ def resolve_texture_preset(param_name: str, texture_type_dict: Dict[str, Any]) -
 
     # If already a resolved rich preset dict (from inspect_uasset_materials), use it directly
     if isinstance(tex_type, dict):
+        comp = tex_type.get("compression", "TC_DEFAULT")
         return {
-            "compression": tex_type.get("compression", "TC_DEFAULT"),
+            "compression": comp,
             "srgb": bool(tex_type.get("srgb", True)),
             "vt": bool(tex_type.get("vt", True)),
+            "flip_green_channel": bool(tex_type.get("flip_green_channel", comp == "TC_NORMALMAP")),
             "semantic": tex_type.get("semantic", "BASE_COLOR"),
             "lod_group": "TEXTUREGROUP_CHARACTER"
         }

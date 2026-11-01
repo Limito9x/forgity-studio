@@ -163,7 +163,7 @@ CHANNEL_PACK_PRESETS: Dict[str, Dict[str, Any]] = {
 }
 
 PackModeType = Literal["none", "ORM", "ORMA", "RMA", "MRA", "UNITY_MASK"]
-NormalFormatType = Literal["directx", "opengl"]
+NormalFormatType = Literal["opengl", "directx"]
 
 
 # ---------------------------------------------------------------------------
@@ -820,8 +820,28 @@ def build_single_baked_material(material_name: str, textures: Dict[str, str], pa
         nmap = nodes.new("ShaderNodeNormalMap")
         nmap.location = (-250, -350)
         nmap.space = 'TANGENT'
+        # Scale normal strength for human skin to avoid harsh pore cratering
+        mat_lower = material_name.lower()
+        is_skin = any(k in mat_lower for k in ("genesis", "skin", "body", "head", "face", "arm", "leg"))
+        nmap.inputs["Strength"].default_value = 0.5 if is_skin else 1.0
         links.new(nm.outputs["Color"], nmap.inputs["Color"])
         links.new(nmap.outputs["Normal"], bsdf.inputs["Normal"])
+
+    # Subsurface Scattering for human skin materials (preserves soft skin in Viewport)
+    mat_lower = material_name.lower()
+    is_skin = any(k in mat_lower for k in ("genesis", "skin", "body", "head", "face", "arm", "leg"))
+    if is_skin:
+        if "Subsurface Weight" in bsdf.inputs:
+            bsdf.inputs["Subsurface Weight"].default_value = 0.5
+        elif "Subsurface" in bsdf.inputs:
+            bsdf.inputs["Subsurface"].default_value = 0.5
+        if "Subsurface Scale" in bsdf.inputs:
+            bsdf.inputs["Subsurface Scale"].default_value = 0.05
+        if "Subsurface Radius" in bsdf.inputs:
+            try:
+                bsdf.inputs["Subsurface Radius"].default_value = (1.0, 0.2, 0.1)
+            except Exception:
+                pass
 
     # Channel Packed Texture Wiring (ORM, ORMA, MaskMap, etc.)
     packed_key = next((k for k in ("orm", "orma", "rma", "mra", "maskmap") if k in textures), None)
@@ -912,7 +932,7 @@ def main(
     maps: Optional[List[str]] = None,
     resolution: int = 2048,
     pack_mode: PackModeType = "none",
-    normal_format: NormalFormatType = "directx",
+    normal_format: NormalFormatType = "opengl",
     output_dir: str = "",
     material_name: str = "",
     ao_samples: int = 32,
@@ -929,7 +949,7 @@ def main(
         maps: List of maps to bake ('diffuse', 'roughness', 'normal', 'metallic', 'specular', 'alpha', 'ao').
         resolution: Texture resolution (1024, 2048, 4096).
         pack_mode: Channel packing preset ('none', 'ORM', 'ORMA', 'RMA', 'MRA', 'UNITY_MASK'). Defaults to 'none' for separate maps.
-        normal_format: Target normal format ('directx' for Unreal Engine 5 Y-, 'opengl' for Unity/Blender Y+). Defaults to 'directx'.
+        normal_format: Target normal format ('opengl' for Unity/Blender Y+ [default], 'directx' for pre-inverted Y-). Defaults to 'opengl'. Unreal flips Green on import via native b_flip_green_channel.
         output_dir: Target texture directory.
         material_name: Unified output material name (default 'M_<Stem>').
         ao_samples: Monte Carlo raycast sample count for Ambient Occlusion.
@@ -947,7 +967,7 @@ def main(
     if "flip_normal_y" in kwargs:
         is_directx = bool(kwargs["flip_normal_y"])
     else:
-        is_directx = (str(normal_format or "directx").lower() == "directx")
+        is_directx = (str(normal_format or "opengl").lower() == "directx")
 
     targets = _normalize_targets(target_objects)
     selected_maps = _normalize_maps(maps, pack_mode)

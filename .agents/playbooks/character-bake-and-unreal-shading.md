@@ -94,11 +94,18 @@
   - **`UNITY_MASK`**: Dành cho Unity HDRP/URP (R=Metal, G=AO, B=Detail, A=Smoothness [tự động invert Roughness]).
 - **Xóa bỏ cờ dư thừa**: Cờ `bake_orm` cũ đã được loại bỏ khỏi giao diện pin chính để tránh xung đột kép (vẫn hỗ trợ ngầm qua `kwargs` nếu có graph cũ gọi tới).
 
-### 3.3. Định dạng Normal Map (`normal_format` rõ nghĩa thay cho `flip_normal_y`)
-- Trước đây cờ boolean `flip_normal_y` gây mơ hồ cho người dùng ("lật từ đâu sang đâu?").
-- Đã chuyển thành Select Dropdown rõ nghĩa: **`normal_format`**:
-  - **`"directx"`** *(Mặc định cho Unreal Engine 5)*: Tự động đảo kênh Green ($Y-$) qua NumPy. Khi đưa vào UE5, **không được tick thêm `Flip Green Channel` một lần nữa**.
-  - **`"opengl"`**: Giữ nguyên chuẩn OpenGL ($Y+$) cho Unity, Blender, Maya.
+### 3.3. Định dạng Pháp tuyến: Chuẩn hóa OpenGL ($Y+$) DCC & Tự động Đảo Kênh Green ($Y-$) trong UE5
+
+- **Nguyên lý phối hợp chuẩn công nghiệp**:
+  - **Trong Blender DCC (`bake_mesh.py`)**: Mặc định xuất Normal Map theo chuẩn **OpenGL ($Y+$)** (`normal_format="opengl"`).
+    - *Lý do*: Blender Viewport (Eevee/Cycles/Workbench) hiển thị chuẩn OpenGL. Nếu nướng trực tiếp DirectX ($Y-$) vào texture rồi gán lại vào Blender Material, kênh Y bị ngược làm các lỗ chân lông (pores lõm) bị biến thành nốt mụn lồi (convex bumps), kết hợp với thiếu SSS tạo cảm giác mặt rỗ hạt gai sần sùi ("rổ rổ").
+    - Đồng thời, khi tái tạo vật liệu sau bake (`build_single_baked_material`), đối với các slot da người (`genesis`, `skin`, `body`, `face`, `head`), script tự động đặt `Subsurface Weight = 0.5`, `Subsurface Scale = 0.05`, và `Normal Map Strength = 0.5` để da mịn màng, tự nhiên ngay trong Blender.
+  - **Trong Unreal Engine (`setup_asset_materials.py`)**:
+    - Khi texture thuộc nhóm `TC_NORMALMAP`, script Unreal tự động bật cờ cấu hình uasset:
+      ```python
+      tex_asset.set_editor_property("b_flip_green_channel", True)
+      ```
+    - *Ưu điểm tuyệt đối*: Texture nạp vào giữ nguyên bản gốc không bị suy hao chất lượng khi lưu trữ hay tái sử dụng qua Unity/Blender, trong khi Unreal Engine tự động lật kênh Y ở tầng hardware sampler mà không tốn chi phí runtime.
 
 ---
 
