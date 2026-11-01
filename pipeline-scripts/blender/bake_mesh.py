@@ -1,22 +1,25 @@
 # pyrefly: ignore [missing-import]
 """
-Pipeline Tool: Modern Headless Mesh Baker (UV + Value/Geometry/AO Transfer + Channel Packing + Unified PBR).
+Pipeline Tool: Modern Headless Mesh Baker (UV + Value/Geometry/AO Transfer + Channel Packing + Clean Unified PBR).
 Designed from the ground up for Headless CLI execution (blender -b) with zero UI dependencies.
+Optimized for DAZ characters (FBX Compatible / PBR) and Game Engine pipelines (Unreal Engine 5).
 
 Key Features:
-- Pure-Python Shader Graph Traversal: Recursively resolves PBR sources across Principled BSDF,
-  MixShaders, and Nested ShaderNodeGroups (Diffeomorphic EXTENDED_PRINCIPLED, OpaqueShellPbrGroup)
-  without calling UI-dependent bpy.ops.node.group_ungroup().
-- Explicit UV Target Pinning: Inserts dedicated ShaderNodeUVMap nodes wired directly to the bake
-  target Vector input, eliminating UV coordinate collisions and black-frame circular dependencies.
-- Isolated Raytraced Occlusion: Automatically isolates target meshes during AO passes, preventing
-  clothes/hair/accessories from occluding skin geometry.
-- Green-Channel Invert: Deterministic NumPy DirectX Y- normal map conversion for Unreal Engine 5.
-- Multi-Engine Channel Packing: Native support for ORM, ORMA, RMA, MRA, and UNITY_MASK presets
-  with Literal type hinting for automated Pipeline Canvas dropdown mapping.
-- Clean Material Assignment: Consolidates multi-material meshes into a single unified PBR material (M_<Obj>).
+- Dual Character Baking Modes:
+  * 'head_and_body' (Default): Separates Head (Face/Ears/Neck) and Body (Torso/Arms/Legs/Nails)
+    into 2 dedicated 4K/2K material slots for maximum Texel Density on closeups without blurry faces.
+  * 'all_in_one': Consolidates the entire character into a single unified material slot for Mobile/NPCs.
+- Automatic Exclusion of Auxiliary Slots: Eyes, Cornea, Sclera, Iris, Eyelashes, Tear, Mouth, and Teeth
+  are automatically excluded from baking and kept intact with their original transparent/refractive shaders.
+- Pure-Python Shader Graph Traversal: Seamlessly extracts PBR maps from standard Principled BSDF
+  as well as legacy Diffeomorphic networks without calling UI-dependent operators.
+- Explicit UV Target Pinning & UDIM Island Normalization: Resolves UDIM tiles (1001-1005) into clean
+  [0, 1] atlases with automatic island packing.
+- Native Channel Packing: High-performance NumPy composite packing for ORM (UE5), ORMA, RMA, and UNITY_MASK.
+- Standard Normal Format: Defaults to OpenGL (Y+) with Unreal Engine 5 auto-flip support.
 """
 
+import math
 import os
 import re
 from typing import Any, Dict, List, Literal, Optional, Tuple
@@ -162,8 +165,14 @@ CHANNEL_PACK_PRESETS: Dict[str, Dict[str, Any]] = {
     },
 }
 
-PackModeType = Literal["none", "ORM", "ORMA", "RMA", "MRA", "UNITY_MASK"]
+BakeModeType = Literal["head_and_body", "all_in_one"]
+PackModeType = Literal["ORM", "ORMA", "none", "RMA", "MRA", "UNITY_MASK"]
 NormalFormatType = Literal["opengl", "directx"]
+
+# DAZ Character Slot Classification Keywords
+HEAD_KW = ["head", "face", "ear", "lip", "neck"]
+BODY_KW = ["body", "torso", "arm", "leg", "limb", "skin", "nail", "hand", "foot"]
+EXCLUDE_KW = ["eye", "cornea", "sclera", "iris", "tear", "lash", "eyelash", "mouth", "teeth", "tooth", "tongue"]
 
 
 # ---------------------------------------------------------------------------
@@ -196,20 +205,18 @@ def _normalize_maps(raw: Optional[List[str]], pack_mode: str) -> List[str]:
         if norm in MAP_DEFS and norm not in canonical:
             canonical.append(norm)
 
-    # Note: We do NOT force-inject 'ao' or 'metallic' unless explicitly requested by the user.
-    # Channel packing presets (ORM, RMA, etc.) will cleanly fallback to default constants
-    # (AO=1.0, Metallic=0.0) via _get_channel() without wasting minutes raytracing unrequested maps.
     return canonical or list(DEFAULT_MAPS)
 
 
 def _resolve_target_meshes(targets: List[str]) -> List[Any]:
     all_meshes = [o for o in bpy.data.objects if o.type == 'MESH']
-    if not targets:
-        return all_meshes
-
-    resolved: List[Any] = []
     sub_keywords = ['eye', 'mouth', 'eyelash', 'lash', 'tear', 'cornea', 'teeth', 'tongue', 'brow']
 
+    if not targets:
+        # Default: auto-select all main figure and clothing meshes, skipping auxiliary meshes (eyes, mouth, eyelashes)
+        return [m for m in all_meshes if not any(kw in m.name.lower() for kw in sub_keywords)]
+
+    resolved: List[Any] = []
     for t in targets:
         t_clean = t.strip()
         t_lower = t_clean.lower()
@@ -261,9 +268,87 @@ def _resolve_target_meshes(targets: List[str]) -> List[Any]:
 
 
 # ---------------------------------------------------------------------------
+# Slot Categorization for DAZ Characters
+# ---------------------------------------------------------------------------
+def categorize_mesh_slots(obj: Any, bake_mode: str) -> Tuple[List[Dict[str, Any]], List[Tuple[int, Any]]]:
+    """
+    Categorizes object's material slots into bake groups and preserved slots.
+    Returns:
+        bake_groups: List of group dicts: {
+            "name": "Head" | "Body" | "",
+            "mats": List[Material],
+            "slot_indices": List[int],
+            "poly_indices": List[int],
+            "should_pack": bool
+        }
+        preserved_slots: List of (slot_index, material) to keep untouched.
+    """
+    mesh = obj.data
+    head_slots: List[Tuple[int, Any]] = []
+    body_slots: List[Tuple[int, Any]] = []
+    preserved_slots: List[Tuple[int, Any]] = []
+
+    for idx, slot in enumerate(obj.material_slots):
+        mat = slot.material
+        if not mat or not mat.use_nodes or not mat.node_tree:
+            continue
+        m_lower = mat.name.lower()
+
+        # Check for excluded auxiliary slots (eyes, mouth, teeth, eyelashes)
+        if any(k in m_lower for k in EXCLUDE_KW):
+            preserved_slots.append((idx, mat))
+        elif any(k in m_lower for k in HEAD_KW):
+            head_slots.append((idx, mat))
+        elif any(k in m_lower for k in BODY_KW):
+            body_slots.append((idx, mat))
+        else:
+            # Default unclassified slots go into body group
+            body_slots.append((idx, mat))
+
+    head_slot_set = {s[0] for s in head_slots}
+    body_slot_set = {s[0] for s in body_slots}
+
+    head_polys = [p.index for p in mesh.polygons if p.material_index in head_slot_set]
+    body_polys = [p.index for p in mesh.polygons if p.material_index in body_slot_set]
+
+    bake_groups: List[Dict[str, Any]] = []
+
+    if bake_mode == "head_and_body" and head_slots and body_slots:
+        # Dual-group mode for main character figures
+        bake_groups.append({
+            "name": "Head",
+            "mats": [s[1] for s in head_slots],
+            "slot_indices": [s[0] for s in head_slots],
+            "poly_indices": head_polys,
+            "should_pack": len(head_slots) > 1,
+        })
+        bake_groups.append({
+            "name": "Body",
+            "mats": [s[1] for s in body_slots],
+            "slot_indices": [s[0] for s in body_slots],
+            "poly_indices": body_polys,
+            "should_pack": True,
+        })
+    else:
+        # Single-group mode (either all_in_one requested, or mesh is clothing/prop)
+        combined_slots = head_slots + body_slots
+        combined_polys = head_polys + body_polys
+        if combined_slots:
+            bake_groups.append({
+                "name": "",
+                "mats": [s[1] for s in combined_slots],
+                "slot_indices": [s[0] for s in combined_slots],
+                "poly_indices": combined_polys,
+                "should_pack": len(combined_slots) > 1,
+            })
+
+    return bake_groups, preserved_slots
+
+
+# ---------------------------------------------------------------------------
 # Cycles Engine Setup & Teardown
 # ---------------------------------------------------------------------------
-def setup_cycles_engine(resolution: int = 2048, margin: int = 32, ao_distance: float = 0.25) -> Dict[str, Any]:
+def setup_cycles_engine(resolution: int = 4096, margin: int = 32, ao_distance: float = 0.25) -> Dict[str, Any]:
     scene = bpy.context.scene
     scene.render.engine = 'CYCLES'
     cycles = scene.cycles
@@ -277,7 +362,6 @@ def setup_cycles_engine(resolution: int = 2048, margin: int = 32, ao_distance: f
         "samples": getattr(cycles, "samples", 1),
     }
 
-    # Standard color management preserves PBR physical values without AgX/Filmic curves
     try:
         scene.view_settings.view_transform = 'Standard'
         scene.view_settings.look = 'None'
@@ -286,7 +370,6 @@ def setup_cycles_engine(resolution: int = 2048, margin: int = 32, ao_distance: f
     except Exception:
         pass
 
-    # Constrain AO distance to prevent deep-crevice black bleed
     if ao_distance and ao_distance > 0 and scene.world and hasattr(scene.world, "light_settings"):
         orig_settings["ao_distance"] = scene.world.light_settings.distance
         scene.world.light_settings.distance = float(ao_distance)
@@ -353,9 +436,9 @@ def restore_cycles_settings(orig: Dict[str, Any]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# UV Preparation (Isolated UV Layer Generation)
+# UV Preparation (UDIM Normalization & Selective Island Packing)
 # ---------------------------------------------------------------------------
-def ensure_bake_uv(obj: Any, uv_name: str, margin: float) -> str:
+def ensure_bake_uv(obj: Any, uv_name: str, margin: float, bake_groups: List[Dict[str, Any]]) -> str:
     mesh = obj.data
     uvs = mesh.uv_layers
 
@@ -385,42 +468,59 @@ def ensure_bake_uv(obj: Any, uv_name: str, margin: float) -> str:
         candidates = [u for u in uvs if u.name != uv_name]
         original_uv_name = str(uvs.active.name) if uvs.active and uvs.active.name != uv_name else (str(candidates[0].name) if candidates else "UVMap")
 
-    # Recreate bake target UV layer and duplicate source coordinates
+    # Recreate bake target UV layer and duplicate source coordinates with UDIM normalization
     if uv_name in uvs:
         try:
             uvs.remove(uvs[uv_name])
         except Exception:
             pass
 
-    uvs.active = uvs[original_uv_name]
+    src_layer = uvs[original_uv_name]
     new_layer = uvs.new(name=uv_name)
     try:
-        src = uvs[original_uv_name].data
+        src = src_layer.data
         dst = new_layer.data
         for i in range(len(src)):
-            dst[i].uv = src[i].uv
+            u, v = src[i].uv
+            # Shift UDIM tiles (e.g. 1001-1005) into canonical [0, 1] range
+            dst[i].uv = (u - math.floor(u), v - math.floor(v))
     except Exception as ex:
         print(f"[bake_mesh:uv] Notice: manual copy UV coordinates: {ex}", flush=True)
 
     uvs.active = new_layer
     pack_margin = max(float(margin or 0.01), 0.01)
 
-    try:
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_all(action='SELECT')
-        try:
-            bpy.ops.uv.pack_islands(margin=pack_margin, shape_method='AABB', rotate=False)
-        except TypeError:
-            bpy.ops.uv.pack_islands(margin=pack_margin)
-        bpy.ops.object.mode_set(mode='OBJECT')
-    except Exception as ex:
-        print(f"[bake_mesh:uv] Warning: pack_islands: {ex}", flush=True)
+    # Selective island packing per group
+    for grp in bake_groups:
+        if not grp.get("should_pack"):
+            continue
+        poly_indices = grp.get("poly_indices", [])
+        if not poly_indices:
+            continue
+
         try:
             bpy.ops.object.mode_set(mode='OBJECT')
-        except Exception:
-            pass
+            for p in mesh.polygons:
+                p.select = (p.index in poly_indices)
 
-    # Re-acquire fresh RNA references after EDIT mode to avoid dead pointers
+            bpy.ops.object.mode_set(mode='EDIT')
+            try:
+                bpy.ops.uv.pack_islands(margin=pack_margin, shape_method='AABB', rotate=False)
+            except TypeError:
+                bpy.ops.uv.pack_islands(margin=pack_margin)
+            bpy.ops.object.mode_set(mode='OBJECT')
+        except Exception as ex:
+            print(f"[bake_mesh:uv] Warning: pack_islands for group '{grp.get('name')}': {ex}", flush=True)
+            try:
+                bpy.ops.object.mode_set(mode='OBJECT')
+            except Exception:
+                pass
+
+    # Ensure all polygons are deselected after packing
+    for p in mesh.polygons:
+        p.select = False
+
+    # Re-acquire fresh RNA references
     fresh_uvs = obj.data.uv_layers
     if uv_name in fresh_uvs:
         uv_idx = fresh_uvs.find(uv_name)
@@ -428,7 +528,6 @@ def ensure_bake_uv(obj: Any, uv_name: str, margin: float) -> str:
             fresh_uvs.active_index = uv_idx
             fresh_uvs.active = fresh_uvs[uv_name]
 
-    # Source UV must remain active_render for procedural textures/reading
     if original_uv_name and original_uv_name in fresh_uvs:
         fresh_uvs[original_uv_name].active_render = True
 
@@ -436,7 +535,7 @@ def ensure_bake_uv(obj: Any, uv_name: str, margin: float) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Pure-Python Shader Graph Traversal (No UI Ungroup Needed)
+# Pure-Python Shader Graph Traversal
 # ---------------------------------------------------------------------------
 def _find_material_output(mat: Any) -> Optional[Any]:
     if not mat or not mat.use_nodes or not mat.node_tree:
@@ -449,96 +548,43 @@ def _find_material_output(mat: Any) -> Optional[Any]:
 BAKE_NODE_PREFIX = "__ModernBake_"
 BAKE_IMAGE_PREFIX = "Bake_"
 
-# Last-resort filename hints (only used when the shader graph gives no usable link).
-# DAZ vendor suffixes: D=diffuse, N=normal, R=roughness, S=specular, GR=glossy-roughness.
-CHANNEL_IMAGE_HINTS: Dict[str, Tuple[str, ...]] = {
-    "diffuse": ("basecolor", "base_color", "base color", "diffuse", "albedo", "_d_", "_d.", "d.png", "d.jpg"),
-    "roughness": ("roughness", "_gr", " gr", "r.png", "r.jpg", "_r_", "_r."),
-    "metallic": ("metallic", "metalness", "_m_", "_m."),
-    "alpha": ("opacity", "alpha", "cutout"),
-    "specular": ("specular", "s.png", "s.jpg"),
-}
-
 
 def _is_bake_artifact(node: Any) -> bool:
-    """Never sample our own bake target / proxy nodes (prevents black self-feedback)."""
-    if (getattr(node, "name", "") or "").startswith(BAKE_NODE_PREFIX):
+    if not node:
+        return False
+    name = getattr(node, "name", "")
+    if name.startswith(BAKE_NODE_PREFIX):
         return True
-    img = getattr(node, "image", None)
-    return bool(img and (img.name or "").startswith(BAKE_IMAGE_PREFIX))
-
-
-def _match_input(node: Any, socket_names: List[str]) -> Optional[Any]:
-    """Exact (case-insensitive) socket name match, in MAP_DEFS priority order. No substring guessing."""
-    by_name = {s.name.lower(): s for s in node.inputs if getattr(s, "enabled", True)}
-    for name in socket_names:
-        sock = by_name.get(name.lower())
-        if sock is not None:
-            return sock
-    return None
-
-
-def _find_principled_bsdf(tree: Any) -> Optional[Any]:
-    """Prefer a ROOT-level Principled BSDF (Diffeomorphic wires textures there); dive into groups only as fallback."""
-    if not tree or not hasattr(tree, "nodes"):
-        return None
-    roots = [n for n in tree.nodes if n.type == 'BSDF_PRINCIPLED']
-    if roots:
-        return next((n for n in roots if n.outputs and n.outputs[0].is_linked), roots[0])
-    for n in tree.nodes:
-        if n.type == 'GROUP' and getattr(n, 'node_tree', None):
-            nested = _find_principled_bsdf(n.node_tree)
-            if nested:
-                return nested
-    return None
-
-
-def _trace_to_texture(socket: Any, depth: int = 0) -> Optional[Any]:
-    """Follow a link chain (incl. into node groups) until an Image Texture node is found."""
-    if depth > 12 or not socket or not socket.is_linked:
-        return None
-    link = socket.links[0]
-    node, out = link.from_node, link.from_socket
-    if node.type == 'TEX_IMAGE':
-        return None if _is_bake_artifact(node) else node
-    if node.type == 'GROUP' and getattr(node, "node_tree", None):
-        g_out = next((n for n in node.node_tree.nodes if n.type == 'GROUP_OUTPUT'), None)
-        if g_out:
-            inner = next((s for s in g_out.inputs if s.identifier == out.identifier or s.name == out.name), None)
-            found = _trace_to_texture(inner, depth + 1)
-            if found:
-                return found
-    for inp in node.inputs:
-        if inp.is_linked:
-            found = _trace_to_texture(inp, depth + 1)
-            if found:
-                return found
-    return None
-
-
-def _set_constant(emit_node: Any, val: Any) -> bool:
-    if isinstance(val, (int, float)):
-        emit_node.inputs['Color'].default_value = (float(val), float(val), float(val), 1.0)
-        return True
-    if hasattr(val, '__len__') and len(val) >= 3:
-        emit_node.inputs['Color'].default_value = (val[0], val[1], val[2], 1.0)
-        return True
+    if getattr(node, "type", "") == 'TEX_IMAGE' and getattr(node, "image", None):
+        img_name = getattr(node.image, "name", "")
+        if img_name.startswith(BAKE_IMAGE_PREFIX) or img_name.startswith("ModernBake_"):
+            return True
     return False
 
 
-def setup_emission_routing(mat: Any, map_type: str) -> Optional[Tuple[Any, Any, List[Any]]]:
-    """
-    Temporarily routes one PBR channel into an Emission shader on Material Output.Surface.
+def _find_principled_bsdf(tree: Any) -> Optional[Any]:
+    if not tree or not hasattr(tree, "nodes"):
+        return None
+    active_bsdf = next((n for n in tree.nodes if n.type == 'BSDF_PRINCIPLED' and not _is_bake_artifact(n)), None)
+    return active_bsdf
 
-    Resolution order (stops at first success). Candidate sockets come from the Principled BSDF
-    and from the group driving Material Output (DAZ Dual Lobe: "Roughness 1"); linked wins:
-      1. Candidate LINKED in the same tree -> link that exact upstream socket
-         (keeps DAZ Mix/Gamma/Math tints intact, e.g. GR texture -> Math -> Roughness).
-      2. Linked but upstream lives in another node tree -> proxy Image Texture of the traced image.
-      3. All UNLINKED -> constant (group value preferred; roughness <= 0.01 -> 0.5 guard).
-      4. No Principled at all -> filename hint scan (bake artifacts excluded) -> MAP_DEFS default.
-    Returns (emit_node, orig_surface_socket, proxy_nodes) for restore_emission_routing.
-    """
+
+def _match_input(node: Any, names: List[str]) -> Optional[Any]:
+    if not node or not hasattr(node, "inputs"):
+        return None
+    for name in names:
+        inp = node.inputs.get(name)
+        if inp is not None:
+            return inp
+    for inp in node.inputs:
+        clean = inp.name.replace(" ", "").lower()
+        for name in names:
+            if clean == name.replace(" ", "").lower():
+                return inp
+    return None
+
+
+def setup_emission_routing(mat: Any, map_type: str) -> Optional[Tuple[Any, Any, List[Any]]]:
     defs = MAP_DEFS.get(map_type)
     out_node = _find_material_output(mat)
     surface_in = out_node.inputs.get('Surface') if (defs and out_node) else None
@@ -554,21 +600,10 @@ def setup_emission_routing(mat: Any, map_type: str) -> Optional[Tuple[Any, Any, 
     emit_node.inputs['Strength'].default_value = 1.0
     color_in = emit_node.inputs['Color']
     proxy_nodes: List[Any] = []
-    source = ""
-
-    def _proxy_texture(tex_node: Any) -> None:
-        proxy = nodes.new(type='ShaderNodeTexImage')
-        proxy.name = BAKE_NODE_PREFIX + "ProxyTex__"
-        proxy.image = tex_node.image
-        proxy.interpolation = getattr(tex_node, "interpolation", "Linear")
-        links.new(proxy.outputs['Color'], color_in)
-        proxy_nodes.append(proxy)
 
     bsdf = _find_principled_bsdf(tree)
     s_names = defs.get("sockets", [])
 
-    # DAZ "Dual Lobe PBR" / Diffeomorphic groups drive Material Output directly and carry the real
-    # specular roughness on "Roughness 1/2", while the root Principled Roughness stays 0.0.
     surface_node = orig_socket.node if orig_socket is not None else None
     if surface_node is bsdf or getattr(surface_node, "type", "") not in ('GROUP', 'BSDF_PRINCIPLED'):
         surface_node = None
@@ -580,124 +615,79 @@ def setup_emission_routing(mat: Any, map_type: str) -> Optional[Tuple[Any, Any, 
 
     if sock is not None and sock.is_linked:
         upstream = sock.links[0].from_socket
-        # DAZ/Diffeomorphic Skin SSS Mix Pitfall:
-        # Diffeomorphic connects Principled BSDF 'Base Color' to a Mix node (Factor=0.85)
-        # where Input A is the real Diffuse texture and Input B is a heavily gamma-darkened (3.5) SSS map.
-        # Baking this Mix node burns the skin to dark brown. We must extract the true diffuse upstream (Input A).
+        # Diffeomorphic Skin SSS Mix Pitfall: bypass Input B gamma 3.5
         if map_type == "diffuse" and upstream.node.type in ('MIX', 'MIX_RGB'):
             mix_node = upstream.node
-            # Check inputs for the true diffuse texture
-            found_diffuse_socket = None
             for inp_name in ('A', 'Color1', 'Color 1'):
                 inp = mix_node.inputs.get(inp_name)
                 if inp and inp.is_linked:
-                    found_diffuse_socket = inp.links[0].from_socket
+                    upstream = inp.links[0].from_socket
                     break
-            if found_diffuse_socket is not None:
-                upstream = found_diffuse_socket
-                print(f"[bake_mesh:emit] {mat.name}: Bypassed Diffeomorphic SSS Mix node, using pure diffuse input '{upstream.node.name}'.", flush=True)
 
         if sock.node.id_data == tree and not _is_bake_artifact(upstream.node):
             links.new(upstream, color_in)
-            source = f"linked {sock.node.name}.{sock.name} <- {upstream.node.name}"
-        else:
-            tex = _trace_to_texture(sock)
-            if tex:
-                _proxy_texture(tex)
-                source = f"proxy texture '{tex.image.name}' (nested {sock.node.name}.{sock.name})"
+    elif sock is not None:
+        def_val = getattr(sock, "default_value", None)
+        if def_val is not None:
+            if isinstance(def_val, (int, float)):
+                color_in.default_value = (float(def_val), float(def_val), float(def_val), 1.0)
+            elif hasattr(def_val, '__len__') and len(def_val) >= 3:
+                color_in.default_value = (def_val[0], def_val[1], def_val[2], 1.0)
 
-    if not source and sock is not None and not sock.is_linked:
-        val = getattr(sock, "default_value", None)
-        if map_type == "roughness" and isinstance(val, (int, float)) and float(val) <= 0.01:
-            val = 0.5  # 0.0 roughness is almost always an uninitialized socket -> mirror-like skin
-        if _set_constant(emit_node, val):
-            source = f"constant {sock.node.name}.{sock.name}={val if isinstance(val, (int, float)) else tuple(val)[:3]}"
-
-    if not source and bsdf is None:
-        hints = CHANNEL_IMAGE_HINTS.get(map_type, ())
-        for n in nodes:
-            if n.type == 'TEX_IMAGE' and n.image and not _is_bake_artifact(n):
-                label = f"{n.image.name} {n.label} {n.name}".lower()
-                if any(h in label for h in hints):
-                    _proxy_texture(n)
-                    source = f"filename hint '{n.image.name}'"
-                    break
-
-    if not source and defs.get("default") is not None:
-        color_in.default_value = defs["default"]
-        source = f"MAP_DEFS default {defs['default']}"
-
-    print(f"[bake_mesh:emit] {mat.name} [{map_type}] <- {source or 'UNRESOLVED'}", flush=True)
     links.new(emit_node.outputs['Emission'], surface_in)
-    return emit_node, orig_socket, proxy_nodes
+    return (emit_node, orig_socket, proxy_nodes)
 
 
-def restore_emission_routing(mat: Any, route_info: Optional[Tuple[Any, ...]]) -> None:
-    if not route_info or not mat or not mat.node_tree:
+def restore_emission_routing(mat: Any, routing_info: Optional[Tuple[Any, Any, List[Any]]]) -> None:
+    if not routing_info or not mat or not mat.node_tree:
         return
-    emit_node = route_info[0]
-    orig_socket = route_info[1]
-    proxy_nodes = route_info[2] if len(route_info) > 2 else []
+    emit_node, orig_socket, proxy_nodes = routing_info
+    tree = mat.node_tree
+    nodes, links = tree.nodes, tree.links
 
-    nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
     out_node = _find_material_output(mat)
+    if out_node and out_node.inputs.get('Surface'):
+        surface_in = out_node.inputs['Surface']
+        if orig_socket is not None and orig_socket.node in nodes.values():
+            links.new(orig_socket, surface_in)
+        else:
+            for l in list(surface_in.links):
+                links.remove(l)
 
-    if out_node and orig_socket:
-        try:
-            links.new(orig_socket, out_node.inputs['Surface'])
-        except Exception:
-            pass
     if emit_node and emit_node.name in nodes:
         nodes.remove(emit_node)
-    for p_n in proxy_nodes:
-        if p_n and p_n.name in nodes:
-            try:
-                nodes.remove(p_n)
-            except Exception:
-                pass
+    for p in proxy_nodes:
+        if p and p.name in nodes:
+            nodes.remove(p)
 
 
 # ---------------------------------------------------------------------------
-# Explicit UV Pinning for Bake Target
+# Target Pinning for Cycles Bake
 # ---------------------------------------------------------------------------
-def prepare_bake_targets(unique_mats: List[Any], uv_name: str, bake_image: Any) -> List[Tuple[Any, Any, Any]]:
-    """
-    Ensures every material has a dedicated Image Texture target node explicitly
-    pinned with a ShaderNodeUVMap node pointing to uv_name.
-    Returns list of (mat, tex_node, uv_node).
-    """
+def prepare_bake_targets(materials: List[Any], uv_name: str, target_image: Any) -> List[Tuple[Any, Any, Any]]:
     targets = []
-    for mat in unique_mats:
-        if not mat or not mat.node_tree:
+    for mat in materials:
+        if not mat or not mat.use_nodes or not mat.node_tree:
             continue
-        nodes = mat.node_tree.nodes
-        links = mat.node_tree.links
+        tree = mat.node_tree
+        nodes, links = tree.nodes, tree.links
 
-        # 1. Target Texture Node
-        tex_node = nodes.get("__ModernBake_Target__")
-        if not tex_node:
-            tex_node = nodes.new(type='ShaderNodeTexImage')
-            tex_node.name = "__ModernBake_Target__"
-        tex_node.image = bake_image
+        tex_node = nodes.new(type='ShaderNodeTexImage')
+        tex_node.name = BAKE_NODE_PREFIX + "TargetTex__"
+        tex_node.image = target_image
 
-        # 2. Target UVMap Node (explicit pinning prevents UV coordinate feedback loops)
-        uv_node = nodes.get("__ModernBake_UV__")
-        if not uv_node:
-            uv_node = nodes.new(type='ShaderNodeUVMap')
-            uv_node.name = "__ModernBake_UV__"
+        uv_node = nodes.new(type='ShaderNodeUVMap')
+        uv_node.name = BAKE_NODE_PREFIX + "TargetUV__"
         uv_node.uv_map = uv_name
 
         links.new(uv_node.outputs['UV'], tex_node.inputs['Vector'])
 
-        # Set active and selected for Cycles bake targeting
         for n in nodes:
             n.select = False
         tex_node.select = True
         nodes.active = tex_node
 
         targets.append((mat, tex_node, uv_node))
-
     return targets
 
 
@@ -713,7 +703,7 @@ def cleanup_bake_targets(targets: List[Tuple[Any, Any, Any]]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# NumPy Channel Packing Engine (Data-Driven Preset Registry)
+# NumPy Channel Packing Engine
 # ---------------------------------------------------------------------------
 def execute_channel_packing(
     pack_mode: str,
@@ -722,10 +712,6 @@ def execute_channel_packing(
     resolution: int,
     temp_images: Dict[str, Any]
 ) -> Tuple[Optional[str], Optional[str]]:
-    """
-    Packs separate texture channels into industry-standard composite textures using fast NumPy memory views.
-    Driven by declarative CHANNEL_PACK_PRESETS table.
-    """
     mode = (pack_mode or "none").strip().upper()
     preset = CHANNEL_PACK_PRESETS.get(mode) or CHANNEL_PACK_PRESETS.get(pack_mode)
     if not preset or not preset.get("channels"):
@@ -745,7 +731,6 @@ def execute_channel_packing(
         if isinstance(spec, tuple):
             map_key, default_val = spec
             if map_key == "smoothness":
-                # Invert roughness for Unity MaskMap
                 r_arr = _get_channel(("roughness", default_val))
                 return 1.0 - r_arr
             if map_key in temp_images and temp_images[map_key]:
@@ -777,57 +762,53 @@ def execute_channel_packing(
     print(f"[bake_mesh:pack] Packed {mode} ({preset.get('description', '')}) -> '{out_filepath}'", flush=True)
     return suffix.lower(), out_filepath
 
-    print(f"[bake_mesh:pack] Packed {mode} -> '{out_filepath}'", flush=True)
-    return suffix.lower(), out_filepath
-
 
 # ---------------------------------------------------------------------------
-# Clean Single Material Creation & Re-assignment
+# Baked Material Builder
 # ---------------------------------------------------------------------------
 def build_single_baked_material(material_name: str, textures: Dict[str, str], pack_mode: str) -> Any:
-    mat = bpy.data.materials.get(material_name) or bpy.data.materials.new(name=material_name)
+    mat = bpy.data.materials.new(name=material_name)
     mat.use_nodes = True
-    nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
+    tree = mat.node_tree
+    nodes, links = tree.nodes, tree.links
     nodes.clear()
 
     out_node = nodes.new("ShaderNodeOutputMaterial")
-    out_node.location = (400, 0)
+    out_node.location = (300, 0)
     bsdf = nodes.new("ShaderNodeBsdfPrincipled")
     bsdf.location = (0, 0)
     links.new(bsdf.outputs["BSDF"], out_node.inputs["Surface"])
 
-    def _load_tex(map_type: str, label: str, loc: Tuple[int, int], colorspace: str):
-        path = textures.get(map_type, "")
-        if not path or not os.path.isfile(path):
+    def _load_tex(map_key: str, node_name: str, loc: tuple, colorspace: str) -> Optional[Any]:
+        fpath = textures.get(map_key)
+        if not fpath or not os.path.isfile(fpath):
             return None
-        img = bpy.data.images.load(path, check_existing=True)
+        img = bpy.data.images.load(fpath, check_existing=True)
         img.colorspace_settings.name = colorspace
         tex = nodes.new("ShaderNodeTexImage")
-        tex.label = label
-        tex.location = loc
+        tex.name = node_name
         tex.image = img
+        tex.location = loc
         return tex
 
     # Diffuse / BaseColor
-    bc = _load_tex("diffuse", "Baked_BaseColor", (-600, 250), "sRGB")
+    bc = _load_tex("diffuse", "Baked_BaseColor", (-600, 200), "sRGB")
     if bc and "Base Color" in bsdf.inputs:
         links.new(bc.outputs["Color"], bsdf.inputs["Base Color"])
 
-    # Normal Map (Tangent Space)
+    # Normal Map
     nm = _load_tex("normal", "Baked_Normal", (-600, -350), "Non-Color")
     if nm and "Normal" in bsdf.inputs:
         nmap = nodes.new("ShaderNodeNormalMap")
         nmap.location = (-250, -350)
         nmap.space = 'TANGENT'
-        # Scale normal strength for human skin to avoid harsh pore cratering
         mat_lower = material_name.lower()
         is_skin = any(k in mat_lower for k in ("genesis", "skin", "body", "head", "face", "arm", "leg"))
         nmap.inputs["Strength"].default_value = 0.5 if is_skin else 1.0
         links.new(nm.outputs["Color"], nmap.inputs["Color"])
         links.new(nmap.outputs["Normal"], bsdf.inputs["Normal"])
 
-    # Subsurface Scattering for human skin materials (preserves soft skin in Viewport)
+    # Subsurface Scattering for human skin materials
     mat_lower = material_name.lower()
     is_skin = any(k in mat_lower for k in ("genesis", "skin", "body", "head", "face", "arm", "leg"))
     if is_skin:
@@ -843,43 +824,34 @@ def build_single_baked_material(material_name: str, textures: Dict[str, str], pa
             except Exception:
                 pass
 
-    # Channel Packed Texture Wiring (ORM, ORMA, MaskMap, etc.)
+    # Channel Packed Texture Wiring (ORM, ORMA, RMA, etc.)
     packed_key = next((k for k in ("orm", "orma", "rma", "mra", "maskmap") if k in textures), None)
     if packed_key:
         pk = _load_tex(packed_key, f"Baked_{packed_key.upper()}", (-600, -100), "Non-Color")
-        sep = nodes.new("ShaderNodeSeparateColor" if hasattr(bpy.types, "ShaderNodeSeparateColor") else "ShaderNodeSeparateRGB")
-        sep.location = (-280, -100)
-        links.new(pk.outputs["Color"], sep.inputs[0])
-
-        r_ch = sep.outputs.get("Red") or sep.outputs.get("R")
-        g_ch = sep.outputs.get("Green") or sep.outputs.get("G")
-        b_ch = sep.outputs.get("Blue") or sep.outputs.get("B")
-
-        if packed_key in ("orm", "orma"):
-            # R=AO, G=Roughness, B=Metallic
-            if g_ch and "Roughness" in bsdf.inputs:
-                links.new(g_ch, bsdf.inputs["Roughness"])
-            if b_ch and "Metallic" in bsdf.inputs:
-                links.new(b_ch, bsdf.inputs["Metallic"])
-            if packed_key == "orma" and "Alpha" in bsdf.inputs:
-                links.new(pk.outputs["Alpha"], bsdf.inputs["Alpha"])
-        elif packed_key == "rma":
-            # R=Roughness, G=Metallic, B=AO
-            if r_ch and "Roughness" in bsdf.inputs:
-                links.new(r_ch, bsdf.inputs["Roughness"])
-            if g_ch and "Metallic" in bsdf.inputs:
-                links.new(g_ch, bsdf.inputs["Metallic"])
-        elif packed_key == "maskmap":
-            # R=Metallic, G=AO, B=Detail, A=Smoothness -> Roughness needs Invert or direct
-            if r_ch and "Metallic" in bsdf.inputs:
-                links.new(r_ch, bsdf.inputs["Metallic"])
-            if "Roughness" in bsdf.inputs:
-                inv = nodes.new("ShaderNodeInvert")
-                inv.location = (-100, -150)
-                links.new(pk.outputs["Alpha"], inv.inputs["Color"])
-                links.new(inv.outputs["Color"], bsdf.inputs["Roughness"])
+        if pk:
+            sep = nodes.new("ShaderNodeSeparateColor")
+            sep.location = (-250, -100)
+            links.new(pk.outputs["Color"], sep.inputs["Color"])
+            p_upper = packed_key.upper()
+            if p_upper in ("ORM", "ORMA"):
+                if "Roughness" in bsdf.inputs:
+                    links.new(sep.outputs["Green"], bsdf.inputs["Roughness"])
+                if "Metallic" in bsdf.inputs:
+                    links.new(sep.outputs["Blue"], bsdf.inputs["Metallic"])
+                if p_upper == "ORMA" and "Alpha" in bsdf.inputs:
+                    links.new(pk.outputs["Alpha"], bsdf.inputs["Alpha"])
+            elif p_upper == "RMA":
+                if "Roughness" in bsdf.inputs:
+                    links.new(sep.outputs["Red"], bsdf.inputs["Roughness"])
+                if "Metallic" in bsdf.inputs:
+                    links.new(sep.outputs["Green"], bsdf.inputs["Metallic"])
+            elif p_upper == "MRA":
+                if "Metallic" in bsdf.inputs:
+                    links.new(sep.outputs["Red"], bsdf.inputs["Metallic"])
+                if "Roughness" in bsdf.inputs:
+                    links.new(sep.outputs["Green"], bsdf.inputs["Roughness"])
     else:
-        # Separate Roughness & Metallic
+        # Separate individual channel wiring
         rgh = _load_tex("roughness", "Baked_Roughness", (-600, -50), "Non-Color")
         if rgh and "Roughness" in bsdf.inputs:
             links.new(rgh.outputs["Color"], bsdf.inputs["Roughness"])
@@ -887,8 +859,7 @@ def build_single_baked_material(material_name: str, textures: Dict[str, str], pa
         if met and "Metallic" in bsdf.inputs:
             links.new(met.outputs["Color"], bsdf.inputs["Metallic"])
 
-    # Alpha (if not handled by packed texture)
-    if "alpha" in textures and not packed_key == "orma":
+    if "alpha" in textures and packed_key != "orma":
         alp = _load_tex("alpha", "Baked_Alpha", (-600, 450), "Non-Color")
         if alp and "Alpha" in bsdf.inputs:
             links.new(alp.outputs["Color"], bsdf.inputs["Alpha"])
@@ -896,24 +867,39 @@ def build_single_baked_material(material_name: str, textures: Dict[str, str], pa
     return mat
 
 
-def apply_unified_material(obj: Any, material: Any, uv_name: str) -> None:
+def apply_group_materials(
+    obj: Any,
+    group_materials: List[Tuple[Any, List[int]]],
+    preserved_slots: List[Tuple[int, Any]],
+    uv_name: str
+) -> None:
     mesh = obj.data
+    new_materials: List[Any] = []
+    poly_to_new_mat_idx: Dict[int, int] = {}
+
+    for baked_mat, poly_indices in group_materials:
+        new_idx = len(new_materials)
+        new_materials.append(baked_mat)
+        for p_idx in poly_indices:
+            poly_to_new_mat_idx[p_idx] = new_idx
+
+    for old_slot_idx, orig_mat in preserved_slots:
+        new_idx = len(new_materials)
+        new_materials.append(orig_mat)
+        for p in mesh.polygons:
+            if p.material_index == old_slot_idx:
+                poly_to_new_mat_idx[p.index] = new_idx
+
     mesh.materials.clear()
-    mesh.materials.append(material)
-    for poly in mesh.polygons:
-        poly.material_index = 0
+    for m in new_materials:
+        mesh.materials.append(m)
+
+    for p in mesh.polygons:
+        if p.index in poly_to_new_mat_idx:
+            p.material_index = poly_to_new_mat_idx[p.index]
 
     uvs = mesh.uv_layers
-    if not uvs:
-        return
-
     target_uv = uvs.get(uv_name)
-    if not target_uv:
-        for u in uvs:
-            if u.name.lower() == uv_name.lower():
-                target_uv = u
-                break
-
     if target_uv:
         target_uv.active = True
         target_uv.active_render = True
@@ -927,12 +913,13 @@ def apply_unified_material(obj: Any, material: Any, uv_name: str) -> None:
 # ---------------------------------------------------------------------------
 def main(
     target_objects: Optional[List[str]] = None,
+    bake_mode: BakeModeType = "head_and_body",
+    resolution: int = 4096,
+    pack_mode: PackModeType = "ORM",
+    normal_format: NormalFormatType = "opengl",
     uv_name: str = "UVMap_Baked",
     margin: float = 0.01,
     maps: Optional[List[str]] = None,
-    resolution: int = 2048,
-    pack_mode: PackModeType = "none",
-    normal_format: NormalFormatType = "opengl",
     output_dir: str = "",
     material_name: str = "",
     ao_samples: int = 32,
@@ -940,30 +927,29 @@ def main(
     **kwargs
 ) -> dict:
     """
-    Modern Headless Mesh Baker (UV unwrap/pack + Cycles EMIT/NORMAL/AO + Channel Packing + Clean Unified PBR).
+    Modern Headless Mesh Baker for DAZ characters and Game Engines.
 
     Args:
-        target_objects: Target mesh names (empty = all meshes).
+        target_objects: Target mesh names (empty = auto-select main figure/clothing meshes, skipping auxiliary eyes/mouth).
+        bake_mode: DAZ character bake mode: 'head_and_body' (separate 4K maps for Head and Body) or 'all_in_one' (single map).
+        resolution: Texture resolution (1024, 2048, 4096). Defaults to 4096 for crisp AAA quality.
+        pack_mode: Channel packing preset ('ORM', 'ORMA', 'none', 'RMA', 'MRA', 'UNITY_MASK'). Defaults to 'ORM'.
+        normal_format: Target normal format ('opengl' for Unity/Blender Y+ [default], 'directx' for pre-inverted Y-).
         uv_name: Intermediate baking UV layer name.
         margin: Island UV margin (0.01 = safe padding against bleeding).
         maps: List of maps to bake ('diffuse', 'roughness', 'normal', 'metallic', 'specular', 'alpha', 'ao').
-        resolution: Texture resolution (1024, 2048, 4096).
-        pack_mode: Channel packing preset ('none', 'ORM', 'ORMA', 'RMA', 'MRA', 'UNITY_MASK'). Defaults to 'none' for separate maps.
-        normal_format: Target normal format ('opengl' for Unity/Blender Y+ [default], 'directx' for pre-inverted Y-). Defaults to 'opengl'. Unreal flips Green on import via native b_flip_green_channel.
         output_dir: Target texture directory.
-        material_name: Unified output material name (default 'M_<Stem>').
+        material_name: Unified output material name prefix (default 'M_<Stem>').
         ao_samples: Monte Carlo raycast sample count for Ambient Occlusion.
         ao_distance: Maximum ray search radius in meters for Ambient Occlusion.
     """
     if not HAS_BPY:
         raise RuntimeError("Blender Python (bpy) is not available.")
 
-    # Backward compatibility for legacy bake_orm parameter
     legacy_bake_orm = kwargs.get("bake_orm", False)
     if legacy_bake_orm and pack_mode == "none":
         pack_mode = "ORM"
 
-    # Resolve DirectX vs OpenGL normal format with backward compatibility for flip_normal_y
     if "flip_normal_y" in kwargs:
         is_directx = bool(kwargs["flip_normal_y"])
     else:
@@ -973,9 +959,9 @@ def main(
     selected_maps = _normalize_maps(maps, pack_mode)
 
     try:
-        resolution = int(resolution) if resolution else 2048
+        resolution = int(resolution) if resolution else 4096
     except (ValueError, TypeError):
-        resolution = 2048
+        resolution = 4096
 
     try:
         margin = max(float(margin), 0.008) if margin is not None else 0.01
@@ -1012,153 +998,156 @@ def main(
 
     for obj in meshes:
         stem = _safe_stem(obj.name)
-        print(f"[bake_mesh] Processing '{obj.name}' maps={selected_maps} pack_mode={pack_mode} res={resolution}", flush=True)
+        print(f"[bake_mesh] Processing '{obj.name}' mode={bake_mode} maps={selected_maps} pack={pack_mode} res={resolution}", flush=True)
 
-        # 1. Ensure isolated destination UV layer
-        ensure_bake_uv(obj, uv_name, margin)
+        bake_groups, preserved_slots = categorize_mesh_slots(obj, bake_mode)
+        if not bake_groups:
+            print(f"[bake_mesh] Warning: '{obj.name}' has no bakeable slots, skipping.", flush=True)
+            continue
 
-        # 2. Select object exclusively
+        print(f"[bake_mesh] '{obj.name}' -> {len(bake_groups)} bake group(s): {[g['name'] or 'Main' for g in bake_groups]}, {len(preserved_slots)} preserved slot(s)", flush=True)
+
+        ensure_bake_uv(obj, uv_name, margin, bake_groups)
+
         bpy.ops.object.select_all(action='DESELECT')
         obj.select_set(True)
         bpy.context.view_layer.objects.active = obj
 
-        unique_mats = [s.material for s in obj.material_slots if s.material and s.material.use_nodes and s.material.node_tree]
-        if not unique_mats:
-            print(f"[bake_mesh] Warning: {obj.name} has no node materials, skipping.", flush=True)
-            continue
+        group_applied_mats: List[Tuple[Any, List[int]]] = []
 
-        obj_maps: Dict[str, str] = {}
-        temp_images_for_pack: Dict[str, Any] = {}
+        for grp in bake_groups:
+            grp_name = grp["name"]
+            grp_mats = grp["mats"]
+            grp_polys = grp["poly_indices"]
+            grp_stem = f"{stem}_{grp_name}" if grp_name else stem
 
-        for map_type in selected_maps:
-            defs = MAP_DEFS[map_type]
-            suffix = defs["suffix"]
-            out_filename = f"{stem}_{suffix}.png"
-            out_filepath = os.path.join(output_dir, out_filename)
-            technique = defs["technique"]
+            print(f"[bake_mesh:group] Baking '{grp_stem}' ({len(grp_mats)} materials, {len(grp_polys)} faces)...", flush=True)
 
-            bake_img = bpy.data.images.new(
-                name=f"Bake_{stem}_{suffix}",
-                width=resolution,
-                height=resolution,
-                alpha=True,
-                float_buffer=(technique == "NORMAL"),
-            )
-            if defs["colorspace"] != "sRGB":
-                bake_img.colorspace_settings.name = 'Non-Color'
+            grp_maps: Dict[str, str] = {}
+            temp_images_for_pack: Dict[str, Any] = {}
 
-            # Ensure target UV layer is active for baking
-            if uv_name in obj.data.uv_layers:
-                u_idx = obj.data.uv_layers.find(uv_name)
-                if u_idx >= 0:
-                    obj.data.uv_layers.active_index = u_idx
-                    obj.data.uv_layers.active = obj.data.uv_layers[uv_name]
+            for map_type in selected_maps:
+                defs = MAP_DEFS[map_type]
+                suffix = defs["suffix"]
+                out_filename = f"{grp_stem}_{suffix}.png"
+                out_filepath = os.path.join(output_dir, out_filename)
+                technique = defs["technique"]
 
-            # Pinned UV targets prevent feedback loops
-            targets_info = prepare_bake_targets(unique_mats, uv_name, bake_img)
+                bake_img = bpy.data.images.new(
+                    name=f"Bake_{grp_stem}_{suffix}",
+                    width=resolution,
+                    height=resolution,
+                    alpha=True,
+                    float_buffer=(technique == "NORMAL"),
+                )
+                if defs["colorspace"] != "sRGB":
+                    bake_img.colorspace_settings.name = 'Non-Color'
 
-            if technique == "NORMAL":
-                bpy.context.scene.cycles.samples = 1
-                print(f"[bake_mesh:bake] {obj.name} normal -> '{out_filename}' (1spp)", flush=True)
-                bpy.ops.object.bake(type='NORMAL', normal_space='TANGENT', save_mode='INTERNAL')
+                if uv_name in obj.data.uv_layers:
+                    u_idx = obj.data.uv_layers.find(uv_name)
+                    if u_idx >= 0:
+                        obj.data.uv_layers.active_index = u_idx
+                        obj.data.uv_layers.active = obj.data.uv_layers[uv_name]
 
-                # Optional DirectX Y- Invert (flips green channel via NumPy for UE5)
-                if is_directx:
+                targets_info = prepare_bake_targets(grp_mats, uv_name, bake_img)
+
+                if technique == "NORMAL":
+                    bpy.context.scene.cycles.samples = 1
+                    print(f"[bake_mesh:bake] {grp_stem} normal -> '{out_filename}' (1spp)", flush=True)
+                    bpy.ops.object.bake(type='NORMAL', normal_space='TANGENT', save_mode='INTERNAL')
+
+                    if is_directx:
+                        try:
+                            import numpy as np
+                            px = np.empty(resolution * resolution * 4, dtype=np.float32)
+                            bake_img.pixels.foreach_get(px)
+                            px[1::4] = 1.0 - px[1::4]
+                            bake_img.pixels.foreach_set(px)
+                            print(f"[bake_mesh:bake] Converted normal Y- (DirectX / UE5 format)", flush=True)
+                        except Exception as ex:
+                            print(f"[bake_mesh:bake] Warning: DirectX flip: {ex}", flush=True)
+
+                elif technique == "AO":
+                    other_objs_vis = {}
+                    for other_o in bpy.data.objects:
+                        if other_o != obj and other_o.type == 'MESH':
+                            other_objs_vis[other_o] = other_o.hide_render
+                            other_o.hide_render = True
+
+                    ao_spp = max(int(ao_samples) if ao_samples else 32, 8)
+                    bpy.context.scene.cycles.samples = ao_spp
+                    print(f"[bake_mesh:bake] {grp_stem} ao -> '{out_filename}' ({ao_spp}spp, isolated)", flush=True)
                     try:
-                        import numpy as np
-                        px = np.empty(resolution * resolution * 4, dtype=np.float32)
-                        bake_img.pixels.foreach_get(px)
-                        px[1::4] = 1.0 - px[1::4]  # Flip Green channel
-                        bake_img.pixels.foreach_set(px)
-                        print(f"[bake_mesh:bake] Converted normal Y- (DirectX / UE5 format)", flush=True)
-                    except Exception as ex:
-                        print(f"[bake_mesh:bake] Warning: DirectX flip: {ex}", flush=True)
+                        bpy.ops.object.bake(type='AO', save_mode='INTERNAL')
+                    finally:
+                        for other_o, prev_vis in other_objs_vis.items():
+                            other_o.hide_render = prev_vis
 
-            elif technique == "AO":
-                # Isolate target mesh from other scene objects to prevent false occlusion (e.g. skin blocked by cloth)
-                other_objs_vis = {}
-                for other_o in bpy.data.objects:
-                    if other_o != obj and other_o.type == 'MESH':
-                        other_objs_vis[other_o] = other_o.hide_render
-                        other_o.hide_render = True
+                else:
+                    bpy.context.scene.cycles.samples = 1
+                    print(f"[bake_mesh:bake] {grp_stem} {suffix} via EMIT -> '{out_filename}' (1spp)", flush=True)
+                    routes = {}
+                    for m in grp_mats:
+                        r_info = setup_emission_routing(m, map_type)
+                        if r_info:
+                            routes[m] = r_info
 
-                ao_spp = max(int(ao_samples) if ao_samples else 32, 8)
-                bpy.context.scene.cycles.samples = ao_spp
-                print(f"[bake_mesh:bake] {obj.name} ao -> '{out_filename}' ({ao_spp}spp, isolated)", flush=True)
+                    for m, tex_n, _ in targets_info:
+                        if m and m.node_tree and tex_n:
+                            for n in m.node_tree.nodes:
+                                n.select = False
+                            tex_n.select = True
+                            m.node_tree.nodes.active = tex_n
 
+                    bpy.ops.object.bake(type='EMIT', save_mode='INTERNAL')
+
+                    for m, r_info in routes.items():
+                        restore_emission_routing(m, r_info)
+
+                cleanup_bake_targets(targets_info)
+
+                bake_img.filepath_raw = out_filepath
+                bake_img.file_format = 'PNG'
+                bake_img.save()
+                grp_maps[map_type] = out_filepath
+                baked_files.append(out_filepath)
+
+                if map_type in ("roughness", "metallic", "ao", "alpha", "specular"):
+                    temp_images_for_pack[map_type] = bake_img
+                else:
+                    try:
+                        bpy.data.images.remove(bake_img)
+                    except Exception:
+                        pass
+
+            # Channel Packing Pass for Group
+            if pack_mode != "none":
+                pack_key, pack_path = execute_channel_packing(pack_mode, output_dir, grp_stem, resolution, temp_images_for_pack)
+                if pack_key and pack_path:
+                    grp_maps[pack_key] = pack_path
+                    baked_files.append(pack_path)
+
+            for img in temp_images_for_pack.values():
                 try:
-                    bpy.ops.object.bake(type='AO', save_mode='INTERNAL')
-                finally:
-                    # Restore other objects visibility
-                    for other_o, prev_vis in other_objs_vis.items():
-                        other_o.hide_render = prev_vis
-
-            else:
-                # Value transfer via Emission routing (1 sample, deterministic)
-                bpy.context.scene.cycles.samples = 1
-                print(f"[bake_mesh:bake] {obj.name} {suffix} via EMIT -> '{out_filename}' (1spp)", flush=True)
-                routes = {}
-                for m in unique_mats:
-                    r_info = setup_emission_routing(m, map_type)
-                    if r_info:
-                        routes[m] = r_info
-
-                # Ensure target texture node remains active after emission node creation
-                for m, tex_n, _ in targets_info:
-                    if m and m.node_tree and tex_n:
-                        for n in m.node_tree.nodes:
-                            n.select = False
-                        tex_n.select = True
-                        m.node_tree.nodes.active = tex_n
-
-                bpy.ops.object.bake(type='EMIT', save_mode='INTERNAL')
-
-                for m, r_info in routes.items():
-                    restore_emission_routing(m, r_info)
-
-            cleanup_bake_targets(targets_info)
-
-            bake_img.filepath_raw = out_filepath
-            bake_img.file_format = 'PNG'
-            bake_img.save()
-            obj_maps[map_type] = out_filepath
-            baked_files.append(out_filepath)
-
-            if map_type in ("roughness", "metallic", "ao", "alpha", "specular"):
-                temp_images_for_pack[map_type] = bake_img
-            else:
-                try:
-                    bpy.data.images.remove(bake_img)
+                    bpy.data.images.remove(img)
                 except Exception:
                     pass
 
-        # 3. Channel Packing Pass
-        if pack_mode != "none":
-            pack_key, pack_path = execute_channel_packing(pack_mode, output_dir, stem, resolution, temp_images_for_pack)
-            if pack_key and pack_path:
-                obj_maps[pack_key] = pack_path
-                baked_files.append(pack_path)
+            mat_title = f"{material_name}_{grp_name}" if (material_name and grp_name) else (material_name if material_name else f"M_{grp_stem}")
+            baked_mat = build_single_baked_material(mat_title, grp_maps, pack_mode)
+            group_applied_mats.append((baked_mat, grp_polys))
+            if baked_mat.name not in updated_materials:
+                updated_materials.append(baked_mat.name)
 
-        for img in temp_images_for_pack.values():
-            try:
-                bpy.data.images.remove(img)
-            except Exception:
-                pass
+            baked_maps[grp_stem] = grp_maps
 
-        # 4. Apply clean unified PBR material
-        mat_title = material_name if (material_name and len(meshes) == 1) else (f"{material_name}_{stem}" if material_name else f"M_{stem}")
-        baked_mat = build_single_baked_material(mat_title, obj_maps, pack_mode)
-        apply_unified_material(obj, baked_mat, uv_name)
-
-        baked_maps[obj.name] = obj_maps
+        # Apply new baked materials and restore preserved slots on the mesh
+        apply_group_materials(obj, group_applied_mats, preserved_slots, uv_name)
         applied_objects.append(obj.name)
-        if baked_mat.name not in updated_materials:
-            updated_materials.append(baked_mat.name)
-
-        print(f"[bake_mesh] Completed '{obj.name}' -> material '{baked_mat.name}' ({len(obj_maps)} maps)", flush=True)
+        print(f"[bake_mesh] Successfully finished '{obj.name}' with {len(group_applied_mats)} baked materials and {len(preserved_slots)} preserved slots", flush=True)
 
     restore_cycles_settings(orig_cycles)
-    print(f"[bake_mesh] Successfully finished {len(applied_objects)} mesh(es). Output: '{output_dir}'", flush=True)
+    print(f"[bake_mesh] Completed execution for {len(applied_objects)} mesh(es). Output: '{output_dir}'", flush=True)
 
     return {
         "status": "SUCCESS",

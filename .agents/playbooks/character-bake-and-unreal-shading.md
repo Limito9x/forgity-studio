@@ -107,6 +107,16 @@
       ```
     - *Ưu điểm tuyệt đối*: Texture nạp vào giữ nguyên bản gốc không bị suy hao chất lượng khi lưu trữ hay tái sử dụng qua Unity/Blender, trong khi Unreal Engine tự động lật kênh Y ở tầng hardware sampler mà không tốn chi phí runtime.
 
+### 3.4. Chế độ Nướng Nhân vật DAZ Chuyên biệt (`bake_mode`)
+
+Để giải quyết triệt để bài toán suy giảm độ phân giải mặt (Texel Density) và hư hỏng shader mắt trong suốt:
+- **`"head_and_body"` (Mặc định - Chuẩn Hero Character / AAA)**:
+  - **Nhóm HEAD (`M_<Stem>_Head`)**: Tự động nhận diện `Head`, `Face`, `Ears`, `Lips`, `Neck`. Vì là 1 slot riêng nên Head chiếm trọn 100% diện tích tấm texture 4K $\rightarrow$ Zoom cận cảnh soi từng lỗ chân lông và sợi lông mày cực nét.
+  - **Nhóm BODY (`M_<Stem>_Body`)**: Tự động gom `Body`, `Torso`, `Arms`, `Legs`, `Nails` $\rightarrow$ Tự động dịch chuyển UDIM (1001-1005) về $[0, 1]$ và pack các đảo UV vào 1 tấm texture 4K duy nhất $\rightarrow$ Giảm số Draw Call của toàn thân từ 10 xuống còn 1.
+  - **Nhóm Ngoại Lệ (Miễn Bake - Zero Bake)**: `Eyes`, `Iris`, `Sclera`, `Cornea`, `EyeMoisture`, `Eyelashes`, `Mouth`, `Teeth`, `Tear` được tự động bỏ qua, bảo toàn nguyên vẹn slot và texture gốc để sang Unreal Engine áp dụng shader mắt khúc xạ / màng ướt.
+- **`"all_in_one"` (Dành cho NPC / Game Mobile / Tối ưu Draw Call cực hạn)**:
+  - Gom toàn bộ Head + Body vào chung 1 material slot duy nhất `M_<Stem>`. Ngoại lệ mắt/răng miệng vẫn được giữ nguyên để không làm đục mắt.
+
 ---
 
 ## 4. Cẩm Nang Xuất Nhập FBX & Bảo Toàn Pháp Tuyến (Normals)
