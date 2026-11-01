@@ -12,7 +12,7 @@ import {
 import { BaseTable } from "@/components/table/BaseTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Layers, Unlink, FileCode, Trash2, Cpu } from "lucide-react";
+import { Search, Layers, Link2, Unlink, FileCode, Trash2, Cpu } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AssignContentSidePanel } from "./drawers/AssignContentSidePanel";
@@ -26,6 +26,8 @@ interface RepositoryResourceTableProps {
   projectId: string;
   repositoryId: string;
   runners?: RepositoryRunnerDto[];
+  assignmentFilter?: "all" | "assigned" | "unassigned";
+  onAssignmentFilterChange?: (filter: "all" | "assigned" | "unassigned") => void;
 }
 
 export function RepositoryResourceTable({
@@ -35,6 +37,8 @@ export function RepositoryResourceTable({
   projectId,
   repositoryId,
   runners = [],
+  assignmentFilter = "all",
+  onAssignmentFilterChange,
 }: RepositoryResourceTableProps) {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -58,7 +62,14 @@ export function RepositoryResourceTable({
         (r.relativePath && r.relativePath.toLowerCase().includes(q)) ||
         (r.contentName && r.contentName.toLowerCase().includes(q)) ||
         (r.contentTypeName && r.contentTypeName.toLowerCase().includes(q)) ||
-        (r.anchorPath && r.anchorPath.toLowerCase().includes(q))
+        (r.anchorPath && r.anchorPath.toLowerCase().includes(q)) ||
+        ((r as any).linkedAnchors &&
+          ((r as any).linkedAnchors as any[]).some(
+            (a) =>
+              (a.contentItemName && a.contentItemName.toLowerCase().includes(q)) ||
+              (a.contentTypeName && a.contentTypeName.toLowerCase().includes(q)) ||
+              (a.anchorPath && a.anchorPath.toLowerCase().includes(q))
+          ))
     );
   }, [data, search, selectedRunnerFilter]);
 
@@ -175,6 +186,50 @@ export function RepositoryResourceTable({
                   className="pl-9 text-xs"
                 />
               </div>
+
+              {/* Assignment Filter Pills */}
+              {onAssignmentFilterChange && (
+                <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border/50 text-xs shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => onAssignmentFilterChange("all")}
+                    className={cn(
+                      "px-2.5 py-1 rounded-md font-medium transition-all text-xs cursor-pointer",
+                      assignmentFilter === "all"
+                        ? "bg-background text-foreground shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onAssignmentFilterChange("assigned")}
+                    className={cn(
+                      "inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-medium transition-all text-xs cursor-pointer",
+                      assignmentFilter === "assigned"
+                        ? "bg-background text-foreground shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Link2 className="size-3 text-primary" />
+                    <span>Assigned</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onAssignmentFilterChange("unassigned")}
+                    className={cn(
+                      "inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-medium transition-all text-xs cursor-pointer",
+                      assignmentFilter === "unassigned"
+                        ? "bg-background text-foreground shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Unlink className="size-3 text-amber-500" />
+                    <span>Unassigned</span>
+                  </button>
+                </div>
+              )}
 
               {/* Workstation Machine Filter Pills */}
               {runners && runners.length > 1 && (

@@ -14,7 +14,8 @@ namespace Automation.Repository.Features.Resources;
 public record AssignResourcesContentCommand(
     List<Guid> ResourceIds,
     Guid? ContentId,
-    string? AnchorPath = null
+    string? AnchorPath = null,
+    Guid? ContentItemIdToUnlink = null
 );
 
 public class AssignResourcesContentValidator : AbstractValidator<AssignResourcesContentCommand>
@@ -64,7 +65,7 @@ public class AssignResourcesContentHandler(RepositoryDbContext db, IContentApi c
         // Unlinking removes records from ContentAnchorLinks and must succeed even if physical ResourceItems were deleted.
         if (!command.ContentId.HasValue)
         {
-            var unlinkResult = await contentApi.UnlinkResourcesAsync(command.ResourceIds, null, ct);
+            var unlinkResult = await contentApi.UnlinkResourcesAsync(command.ResourceIds, command.ContentItemIdToUnlink, ct);
             if (unlinkResult.IsFailed)
             {
                 return Result.Fail(unlinkResult.Errors);

@@ -203,3 +203,32 @@ Khi người dùng quét thay đổi (`CompareRepositoryResources`) và đồng 
      - `Resource` (Single Struct/EntityRef) - Đầu ra chính cho tư duy 1-File-1-Job.
      - `Resources` (Array 1 phần tử) - Bảo toàn tương thích ngược 100% với các pipeline cũ.
      - `Workstation` (Single Struct) - Chứa RunnerId, RepositoryId, RootPath.
+
+
+---
+
+## 8. Multi-Content Resource Linking, Table Unification & Query Filtering (`BL-035`)
+
+Với kiến trúc **Content Anchor Links (`BL-031`)**, đồ thị quan hệ giữa Content và Resource là mô hình **$N - N$ (Nhiều - Nhiều)**:
+Một tệp tài nguyên vật lý (ví dụ: `Boots_Combat_01.fbx`) có thể được tái sử dụng và gắn vào nhiều `ContentItem` khác nhau (ví dụ: Slot giày của nhân vật `Eva`, `Mia` và NPC `Guard`) tại các đường dẫn neo `AnchorPath` riêng biệt (`outfits.combat.boots`).
+
+### 8.1. API Query Filtering (`GetRepositoryResources`)
+- **Query Parameters**:
+  - `contentId: Guid?`: Lọc danh sách Resource thuộc về một Content Item cụ thể thông qua bảng `ContentAnchorLinks`.
+  - `isLinked: bool?`:
+    - `true`: Chỉ lấy các Resource đã được gắn vào ít nhất 1 Content Item.
+    - `false`: Lấy các Resource mồ côi (Unassigned), hỗ trợ dọn dẹp và phân loại tài nguyên chưa được gán.
+- **DTO Representation (`WorkspaceResourceDto`)**:
+  - `LinkedAnchors`: Mảng `ResourceLinkedAnchorDto[]` chứa toàn bộ danh sách liên kết neo của resource (`ContentItemId`, `ContentItemName`, `ContentTypeName`, `ContentTypeColor`, `ContentTypeIcon`, `AnchorPath`).
+  - Duy trì các trường đơn lẻ tương thích ngược (`ContentId`, `ContentName`, `ContentTypeName`, ...) trỏ về liên kết đầu tiên (`links.FirstOrDefault()`).
+
+### 8.2. Unlink Độc Lập Theo Từng Content Item
+- Command `AssignResourcesContentCommand` hỗ trợ tham số `ContentItemIdToUnlink: Guid?`.
+- Khi unassign một Content cụ thể từ Popover trên UI, API chỉ xóa đúng record neo của Content đó (`IContentApi.UnlinkResourcesAsync`), bảo toàn nguyên vẹn các liên kết của Resource với các Content Items khác.
+
+### 8.3. Giao Diện Table Hợp Nhất & Popover Tương Tác
+- **Cột Hợp Nhất `Linked Contents`**: Thay thế 2 cột riêng biệt `Content Type` và `Content Name` bằng component `<LinkedContentsCell />`:
+  - **Chưa gán (0 link)**: Nút `+ Assign` mở nhanh ngăn gán Content.
+  - **1 liên kết**: Badge định danh Content Type (màu sắc, icon) + Tên Content + Tag Anchor path, nút gỡ liên kết nhanh khi hover.
+  - **$\ge 2$ liên kết**: Huy hiệu chính + Nút `+X more ▾` mở Popover hiển thị toàn bộ danh sách Content Items đang dùng chung Resource này, kèm nút unlink riêng biệt cho từng Content.
+- **Assignment Status Filter Bar**: Thanh segmented control trên toolbar (`All` | `Assigned` | `Unassigned`) cho phép chuyển đổi nhanh bộ lọc query server-side mượt mà.

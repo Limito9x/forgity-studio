@@ -22,8 +22,31 @@ import type {
   PublishResourceVersionCommand,
   ResourceVersionStatus,
   WorkstationRootDto,
+  AssignResourcesContentCommand,
 } from "@/gen/model";
 import { useMutation } from "@tanstack/react-query";
+
+export interface ResourceLinkedAnchorDto {
+  contentItemId: string;
+  contentItemName: string;
+  contentTypeName?: string | null;
+  contentTypeColor?: string | null;
+  contentTypeIcon?: string | null;
+  anchorPath: string;
+}
+
+export type ExtendedWorkspaceResourceDto = WorkspaceResourceDto & {
+  linkedAnchors?: ResourceLinkedAnchorDto[] | null;
+};
+
+export type ExtendedGetRepositoryResourcesParams = GetRepositoryResourcesParams & {
+  contentId?: string | null;
+  isLinked?: boolean | null;
+};
+
+export interface ExtendedAssignResourcesContentCommand extends AssignResourcesContentCommand {
+  contentItemIdToUnlink?: string | null;
+}
 
 export type {
   RepositoryDto,
@@ -141,7 +164,7 @@ export const useSyncLocalChanges = (repositoryId?: string) => {
 export const useRepositoryResources = (
   repositoryId: string,
   projectId: string,
-  params?: Partial<GetRepositoryResourcesParams>,
+  params?: Partial<ExtendedGetRepositoryResourcesParams>,
 ) => {
   return RepositoriesApi.useGetRepositoryResources(
     repositoryId,
@@ -151,7 +174,7 @@ export const useRepositoryResources = (
       page: 1,
       pageSize: 100,
       ...params,
-    },
+    } as any,
     {
       query: {
         enabled: !!repositoryId && !!projectId,

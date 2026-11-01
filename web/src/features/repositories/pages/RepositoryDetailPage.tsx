@@ -49,6 +49,8 @@ export function RepositoryDetailPage(props: RepositoryDetailPageProps = {}) {
   const nav = useProjectNav({ projectId });
 
   const [activeTab, setActiveTab] = useState<RepositoryTab>("resources");
+  const [assignmentFilter, setAssignmentFilter] = useState<"all" | "assigned" | "unassigned">("all");
+  const isLinkedParam = assignmentFilter === "all" ? undefined : assignmentFilter === "assigned";
 
   const {
     data: repository,
@@ -60,7 +62,9 @@ export function RepositoryDetailPage(props: RepositoryDetailPageProps = {}) {
     data: resourcesData,
     isLoading: isResourcesLoading,
     refetch: refetchResources,
-  } = useRepositoryResources(repositoryId, projectId);
+  } = useRepositoryResources(repositoryId, projectId, {
+    isLinked: isLinkedParam,
+  });
 
   const handleRefreshAll = () => {
     refetchRepo();
@@ -255,6 +259,8 @@ export function RepositoryDetailPage(props: RepositoryDetailPageProps = {}) {
           repository={repository}
           resources={resources}
           isLoading={isResourcesLoading}
+          assignmentFilter={assignmentFilter}
+          onAssignmentFilterChange={setAssignmentFilter}
           onNavigateToSync={() => setActiveTab("sync")}
           onNavigateToRunners={() => setActiveTab("runners")}
         />

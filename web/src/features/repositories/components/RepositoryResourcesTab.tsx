@@ -20,6 +20,8 @@ interface RepositoryResourcesTabProps {
   isLoading: boolean;
   onNavigateToSync: () => void;
   onNavigateToRunners: () => void;
+  assignmentFilter?: "all" | "assigned" | "unassigned";
+  onAssignmentFilterChange?: (filter: "all" | "assigned" | "unassigned") => void;
 }
 
 export function RepositoryResourcesTab({
@@ -30,6 +32,8 @@ export function RepositoryResourcesTab({
   isLoading,
   onNavigateToSync,
   onNavigateToRunners,
+  assignmentFilter,
+  onAssignmentFilterChange,
 }: RepositoryResourcesTabProps) {
   const runners = repository.runners || [];
   const primaryRunner = runners[0];
@@ -124,6 +128,8 @@ export function RepositoryResourcesTab({
           projectId={projectId}
           repositoryId={repositoryId}
           runners={runners}
+          assignmentFilter={assignmentFilter}
+          onAssignmentFilterChange={onAssignmentFilterChange}
         />
       )}
     </div>
