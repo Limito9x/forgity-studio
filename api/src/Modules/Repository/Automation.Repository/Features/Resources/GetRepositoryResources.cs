@@ -20,6 +20,8 @@ public class GetRepositoryResourcesQuery : PagedQuery
     public Guid WorkspaceId { get => RepositoryId; set => RepositoryId = value; }
     public Guid? RunnerId { get; set; }
     public Guid? RepositoryRunnerId { get; set; }
+    public Guid? ContentId { get; set; }
+    public bool? IsLinked { get; set; }
 }
 
 public class GetRepositoryResourcesEndpoint(IMessageBus bus)
@@ -39,11 +41,15 @@ public class GetRepositoryResourcesEndpoint(IMessageBus bus)
         var projectId = Query<Guid>("projectId");
         var runnerId = Query<Guid?>("runnerId", isRequired: false);
         var repositoryRunnerId = Query<Guid?>("repositoryRunnerId", isRequired: false);
+        var contentId = Query<Guid?>("contentId", isRequired: false);
+        var isLinked = Query<bool?>("isLinked", isRequired: false);
 
         req.RepositoryId = repositoryId;
         req.ProjectId = projectId;
         req.RunnerId = runnerId;
         req.RepositoryRunnerId = repositoryRunnerId;
+        req.ContentId = contentId;
+        req.IsLinked = isLinked;
 
         var result = await bus.InvokeAsync<Result<PagedResult<WorkspaceResourceDto>>>(req, ct);
         await this.SendResultAsync(result, ct);
@@ -87,6 +93,27 @@ public class GetRepositoryResourcesHandler(
         if (contentResult.IsSuccess && contentResult.Value != null)
         {
             contentMap = new Dictionary<Guid, ContentSummaryDto>(contentResult.Value);
+        }
+
+        // 1.1. Lọc theo ContentId cụ thể hoặc trạng thái gán (IsLinked) nếu có
+        if (query.ContentId.HasValue && query.ContentId.Value != Guid.Empty)
+        {
+            var linkedRes = await contentApi.GetLinkedResourceIdsByContentIdAsync(query.ContentId.Value, ct);
+            var linkedIds = linkedRes.IsSuccess && linkedRes.Value != null ? linkedRes.Value : [];
+            baseQuery = baseQuery.Where(r => linkedIds.Contains(r.Id));
+        }
+        else if (query.IsLinked.HasValue)
+        {
+            var allLinkedRes = await contentApi.GetAllLinkedResourceIdsInProjectAsync(query.ProjectId, ct);
+            var allLinkedIds = allLinkedRes.IsSuccess && allLinkedRes.Value != null ? allLinkedRes.Value : [];
+            if (query.IsLinked.Value)
+            {
+                baseQuery = baseQuery.Where(r => allLinkedIds.Contains(r.Id));
+            }
+            else
+            {
+                baseQuery = baseQuery.Where(r => !allLinkedIds.Contains(r.Id));
+            }
         }
 
         // 2. Xử lý Omni-Search nếu có từ khóa
@@ -191,6 +218,19 @@ public class GetRepositoryResourcesHandler(
                 var contentName = primaryLink?.ContentItemName;
                 var anchorPath = primaryLink?.AnchorPath;
 
+                var linkedAnchors = links?.Select(l =>
+                {
+                    contentMap.TryGetValue(l.ContentItemId, out var cInfo);
+                    return new ResourceLinkedAnchorDto(
+                        ContentItemId: l.ContentItemId,
+                        ContentItemName: l.ContentItemName,
+                        ContentTypeName: cInfo?.ContentTypeName,
+                        ContentTypeColor: cInfo?.ContentTypeColor,
+                        ContentTypeIcon: cInfo?.ContentTypeIcon,
+                        AnchorPath: l.AnchorPath
+                    );
+                }).ToList() ?? (IReadOnlyList<ResourceLinkedAnchorDto>)[];
+
                 return new WorkspaceResourceDto(
                     Id: r.Id,
                     WorkspaceId: r.RepositoryId,
@@ -213,7 +253,8 @@ public class GetRepositoryResourcesHandler(
                     LockedAt: r.LockedAt,
                     HoldingRunnerId: holdingRunnerId,
                     HoldingRunnerName: holdingRunnerName,
-                    AnchorPath: anchorPath
+                    AnchorPath: anchorPath,
+                    LinkedAnchors: linkedAnchors
                 );
             })
             .ToList();

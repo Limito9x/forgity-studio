@@ -541,4 +541,19 @@ public class ContentApiService(ContentDbContext db) : IContentApi
 
         return Result.Ok<IReadOnlyList<Guid>>(resourceIds);
     }
+
+    public async Task<Result<IReadOnlyList<Guid>>> GetAllLinkedResourceIdsInProjectAsync(
+        Guid projectId,
+        CancellationToken ct = default
+    )
+    {
+        var resourceIds = await db.ContentAnchorLinks
+            .AsNoTracking()
+            .Where(l => l.ContentItem.ProjectId == projectId && l.TargetType == ContentLinkTargetType.Resource)
+            .Select(l => l.TargetId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        return Result.Ok<IReadOnlyList<Guid>>(resourceIds);
+    }
 }

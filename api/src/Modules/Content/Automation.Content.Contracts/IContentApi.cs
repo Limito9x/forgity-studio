@@ -83,4 +83,13 @@ public interface IContentApi
         Guid contentItemId,
         CancellationToken ct = default
     );
+
+    /// <summary>
+    /// Gets all unique Resource IDs anchored to any ContentItem within a project.
+    /// Useful for finding assigned vs unassigned (orphan) resources.
+    /// </summary>
+    Task<Result<IReadOnlyList<Guid>>> GetAllLinkedResourceIdsInProjectAsync(
+        Guid projectId,
+        CancellationToken ct = default
+    );
 }

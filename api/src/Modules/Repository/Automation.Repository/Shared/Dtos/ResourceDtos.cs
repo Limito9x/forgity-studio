@@ -97,6 +97,15 @@ public record BrowseDirectoryResultDto(
     IReadOnlyList<DirectoryNodeDto> Items
 );
 
+public record ResourceLinkedAnchorDto(
+    Guid ContentItemId,
+    string ContentItemName,
+    string? ContentTypeName,
+    string? ContentTypeColor,
+    string? ContentTypeIcon,
+    string AnchorPath
+);
+
 public record WorkspaceResourceDto(
     Guid Id,
     Guid WorkspaceId,
@@ -119,7 +128,8 @@ public record WorkspaceResourceDto(
     DateTimeOffset? LockedAt = null,
     Guid? HoldingRunnerId = null,
     string? HoldingRunnerName = null,
-    string? AnchorPath = null
+    string? AnchorPath = null,
+    IReadOnlyList<ResourceLinkedAnchorDto>? LinkedAnchors = null
 );
 
 public record WorkspaceAgentResourceDto(
