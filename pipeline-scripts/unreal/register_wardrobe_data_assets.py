@@ -256,6 +256,90 @@ def _set_mesh_property(asset: Any, prop_name: str, mesh_path: str, unreal_mod) -
             return False
 
 
+def _import_thumbnail_texture(png_path: str, dest_package_dir: str, clean_name: str, unreal_mod) -> Optional[str]:
+    """
+    Imports a PNG thumbnail into Unreal Content Browser as a Texture2D (TEXTUREGROUP_UI).
+    Returns package path to the imported texture (e.g. '/Game/.../Thumbnails/T_Bra_Thumb').
+    """
+    if not unreal_mod or not png_path:
+        return None
+
+    clean_png = str(png_path).replace("\\", "/").strip()
+    if not os.path.exists(clean_png):
+        return None
+
+    clean_dest = _clean_ue_path(dest_package_dir)
+    thumb_folder = f"{clean_dest}/Thumbnails"
+    texture_name = f"T_{clean_name}_Thumb"
+    target_package_path = f"{thumb_folder}/{texture_name}"
+
+    if hasattr(unreal_mod, "EditorAssetLibrary"):
+        if not unreal_mod.EditorAssetLibrary.does_directory_exist(thumb_folder):
+            unreal_mod.EditorAssetLibrary.make_directory(thumb_folder)
+
+        if unreal_mod.EditorAssetLibrary.does_asset_exist(target_package_path):
+            return target_package_path
+
+    try:
+        task = unreal_mod.AssetImportTask()
+        task.filename = clean_png
+        task.destination_path = thumb_folder
+        task.destination_name = texture_name
+        task.replace_existing = True
+        task.automated = True
+        task.save = True
+
+        asset_tools = unreal_mod.AssetToolsHelpers.get_asset_tools()
+        asset_tools.import_asset_tasks([task])
+
+        if hasattr(unreal_mod, "EditorAssetLibrary") and unreal_mod.EditorAssetLibrary.does_asset_exist(target_package_path):
+            tex_asset = unreal_mod.EditorAssetLibrary.load_asset(target_package_path)
+            if tex_asset:
+                if hasattr(unreal_mod, "TextureGroup") and hasattr(tex_asset, "lod_group"):
+                    tex_asset.set_editor_property("lod_group", unreal_mod.TextureGroup.TEXTUREGROUP_UI)
+                if hasattr(tex_asset, "srgb"):
+                    tex_asset.set_editor_property("srgb", True)
+                unreal_mod.EditorAssetLibrary.save_loaded_asset(tex_asset)
+            return target_package_path
+    except Exception as e:
+        print(f"[register_wardrobe_data_assets] Warning: Failed to import thumbnail '{clean_png}': {e}", flush=True)
+
+    return None
+
+
+def _set_texture_property(asset: Any, prop_names: List[str], texture_path: str, unreal_mod) -> bool:
+    """Set a Texture2D property on an Unreal DataAsset, trying multiple candidate property names."""
+    if not asset or not texture_path or not unreal_mod:
+        return False
+    clean_path = _clean_ue_path(texture_path)
+    tex_obj = None
+    if hasattr(unreal_mod, "EditorAssetLibrary") and unreal_mod.EditorAssetLibrary.does_asset_exist(clean_path):
+        tex_obj = unreal_mod.EditorAssetLibrary.load_asset(clean_path)
+
+    for prop in prop_names:
+        try:
+            if tex_obj:
+                asset.set_editor_property(prop, tex_obj)
+                return True
+        except Exception:
+            pass
+
+        try:
+            soft_path = unreal_mod.SoftObjectPath(clean_path)
+            asset.set_editor_property(prop, soft_path)
+            return True
+        except Exception:
+            pass
+
+        try:
+            asset.set_editor_property(prop, clean_path)
+            return True
+        except Exception:
+            pass
+
+    return False
+
+
 def _load_data_asset_class(schema_path: str, unreal_mod) -> Any:
     """Resolve and load a Blueprint DataAsset class."""
     if not unreal_mod or not schema_path:
@@ -411,11 +495,15 @@ def normalize_input_items(
                     mesh_p = target_p
                     break
 
+        # Resolve thumbnail path
+        thumb_p = str(entry.get("thumbnail_path") or entry.get("thumbnail") or entry.get("thumb") or "").strip()
+
         item_record = {
             "clean_asset_name": clean_name,
             "source_object_name": raw_name,
             "cloth_type": cloth_type,
             "mesh_path": mesh_p,
+            "thumbnail_path": thumb_p,
             "is_body": is_body
         }
 
@@ -436,6 +524,7 @@ def main(
     manifest: Optional[Union[Dict[str, Any], List[Any], str]] = None,
     objects_map: Optional[Union[Dict[str, Any], str]] = None,
     mesh_paths: Optional[Union[List[str], Dict[str, str], str]] = None,
+    thumbnail_map: Optional[Union[Dict[str, str], str]] = None,
     character_tag: str = "Character.Eva",
     destination_folder: str = "/Game/Characters/Genesis9/Eva/Outfits",
     character_profile_path: str = "/Game/Characters/Genesis9/Eva/DA_Eva_Profile",
@@ -534,11 +623,40 @@ def main(
         if not unreal.EditorAssetLibrary.does_directory_exist(clean_dest_folder):
             unreal.EditorAssetLibrary.make_directory(clean_dest_folder)
 
+    # Parse optional thumbnail_map
+    thumb_lookup: Dict[str, str] = {}
+    raw_tm = thumbnail_map or kwargs.get("thumbnails")
+    if raw_tm:
+        if isinstance(raw_tm, str):
+            try:
+                raw_tm = json.loads(raw_tm)
+            except Exception:
+                raw_tm = {}
+        if isinstance(raw_tm, dict):
+            for k, v in raw_tm.items():
+                if isinstance(v, str):
+                    thumb_lookup[str(k).lower().replace("\\", "/")] = v
+
     for item in clothing_items:
         clean_name = item["clean_asset_name"]
         asset_name = f"PDA_{clean_name}"
         asset_path = f"{clean_dest_folder}/{asset_name}"
         mesh_p = item["mesh_path"] or f"{clean_dest_folder}/SKM_{clean_name}"
+
+        # Resolve thumbnail
+        thumb_png = item.get("thumbnail_path", "")
+        if not thumb_png and thumb_lookup:
+            for cand_k, cand_v in thumb_lookup.items():
+                clean_k = os.path.splitext(os.path.basename(cand_k))[0].lower()
+                if clean_name.lower() in clean_k or clean_k in clean_name.lower():
+                    thumb_png = cand_v
+                    break
+
+        thumb_package_path = ""
+        if thumb_png and not is_dry:
+            thumb_package_path = _import_thumbnail_texture(thumb_png, clean_dest_folder, clean_name, unreal) or ""
+        elif thumb_png and is_dry:
+            thumb_package_path = f"{clean_dest_folder}/Thumbnails/T_{clean_name}_Thumb"
 
         item_record = {
             "asset_name": asset_name,
@@ -547,11 +665,13 @@ def main(
             "slot_tag": item["slot_tag"],
             "item_tag": item["item_tag"],
             "mesh_path": mesh_p,
+            "thumbnail_path": thumb_png,
+            "thumbnail_package_path": thumb_package_path,
             "status": "simulated" if is_dry else "created"
         }
 
         if is_dry:
-            print(f"[register_wardrobe_data_assets] [Dry-Run] Simulated PDA_WardrobeItem: '{asset_path}' (Slot: {item['slot_tag']}, Item: {item['item_tag']}, Mesh: {mesh_p})", flush=True)
+            print(f"[register_wardrobe_data_assets] [Dry-Run] Simulated PDA_WardrobeItem: '{asset_path}' (Slot: {item['slot_tag']}, Item: {item['item_tag']}, Mesh: {mesh_p}, Thumbnail: {thumb_package_path})", flush=True)
             registered_items.append(item_record)
             continue
 
@@ -574,6 +694,8 @@ def main(
             _set_tag_property(data_asset, "ItemTag", item["item_tag"], unreal)
             if mesh_p:
                 _set_mesh_property(data_asset, "ItemMesh", mesh_p, unreal)
+            if thumb_package_path:
+                _set_texture_property(data_asset, ["Thumbnail", "Icon", "ItemIcon", "PreviewTexture", "PreviewIcon"], thumb_package_path, unreal)
             unreal.EditorAssetLibrary.save_loaded_asset(data_asset)
 
         registered_items.append(item_record)
