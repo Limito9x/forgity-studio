@@ -588,14 +588,6 @@ def main(
     thumbnail_map: Optional[Union[Dict[str, str], str]] = None,
     character_tag: str = "Character.Eva",
     destination_folder: str = "/Game/Characters/Genesis9/Eva/Outfits",
-    character_profile_path: str = "/Game/Characters/Genesis9/Eva/DA_Eva_Profile",
-    tags_ini_path: str = "",
-    wardrobe_schema_path: str = "/Game/Systems/Wardrobe/Schemas/PDA_WardrobeItem",
-    character_schema_path: str = "/Game/Systems/Characters/Schemas/PDA_CharacterProfile",
-    slot_tag_prefix: str = "System.Wardrobe.Slots",
-    item_tag_prefix: str = "",
-    should_register: bool = True,
-    dry_run: bool = False,
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -605,17 +597,20 @@ def main(
         manifest: Material manifest from classify_material_manifest or batch_export_fbx.
         objects_map: Asset material bindings dictionary from setup_asset_materials.
         mesh_paths: Imported skeletal mesh paths from import_skeletal_mesh.
+        thumbnail_map: Optional thumbnail map mapping asset names to PNG file paths.
         character_tag: Root GameplayTag for the character (default 'Character.Eva').
         destination_folder: Content Browser package directory to save PDA_WardrobeItem assets.
-        character_profile_path: Package path to character profile DataAsset (PDA_CharacterProfile).
-        tags_ini_path: Optional path to DefaultGameplayTags.ini for auto-syncing new tags.
-        wardrobe_schema_path: Path to PDA_WardrobeItem Blueprint schema.
-        character_schema_path: Path to PDA_CharacterProfile Blueprint schema.
-        slot_tag_prefix: Prefix for wardrobe slot GameplayTags (default 'System.Wardrobe.Slots').
-        item_tag_prefix: Custom prefix for item GameplayTags (defaults to '{character_tag}.Outfits').
-        should_register: Master boolean switch to allow or skip registration.
-        dry_run: Simulate registration without touching Unreal assets or disk files.
     """
+    # Advanced parameters resolved from kwargs
+    should_register = bool(kwargs.get("should_register", True))
+    dry_run = bool(kwargs.get("dry_run", False))
+    character_profile_path = str(kwargs.get("character_profile_path") or f"{destination_folder.rstrip('/')}/../DA_{character_tag.split('.')[-1]}_Profile")
+    tags_ini_path = str(kwargs.get("tags_ini_path") or "")
+    wardrobe_schema_path = str(kwargs.get("wardrobe_schema_path") or "/Game/Systems/Wardrobe/Schemas/PDA_WardrobeItem")
+    character_schema_path = str(kwargs.get("character_schema_path") or "/Game/Systems/Characters/Schemas/PDA_CharacterProfile")
+    slot_tag_prefix = str(kwargs.get("slot_tag_prefix") or "System.Wardrobe.Slots")
+    item_tag_prefix = str(kwargs.get("item_tag_prefix") or "")
+
     # 0. Master Switch: Circuit breaker
     if not should_register:
         print("[register_wardrobe_data_assets] [SKIP] Skipped registration: 'should_register' is False.", flush=True)
@@ -747,8 +742,12 @@ def main(
         else:
             factory = unreal.DataAssetFactory()
             if wardrobe_class:
-                factory.data_asset_class = wardrobe_class
-            data_asset = asset_tools.create_asset(asset_name, clean_dest_folder, None, factory)
+                try:
+                    factory.set_editor_property("data_asset_class", wardrobe_class)
+                except Exception:
+                    pass
+            target_class = wardrobe_class or getattr(unreal, "PrimaryDataAsset", None) or getattr(unreal, "DataAsset", None)
+            data_asset = asset_tools.create_asset(asset_name, clean_dest_folder, target_class, factory)
             print(f"[register_wardrobe_data_assets] Created new DataAsset: '{asset_path}'", flush=True)
 
         if data_asset:
@@ -786,8 +785,12 @@ def main(
             char_class = _load_data_asset_class(clean_character_schema, unreal)
             factory = unreal.DataAssetFactory()
             if char_class:
-                factory.data_asset_class = char_class
-            profile_asset = asset_tools.create_asset(profile_name, profile_folder, None, factory)
+                try:
+                    factory.set_editor_property("data_asset_class", char_class)
+                except Exception:
+                    pass
+            target_char_class = char_class or getattr(unreal, "PrimaryDataAsset", None) or getattr(unreal, "DataAsset", None)
+            profile_asset = asset_tools.create_asset(profile_name, profile_folder, target_char_class, factory)
 
         if profile_asset:
             # Set CharacterTag
