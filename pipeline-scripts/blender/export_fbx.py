@@ -348,8 +348,100 @@ def inspect_selected_meshes(meshes: List[Any]) -> List[Dict[str, Any]]:
 
 
 # ==============================================================================
-# Headless 3D Thumbnail Renderer (Workbench Auto-Framing)
+# Headless 3D Thumbnail Renderer (Workbench Auto-Framing + Active Texture Binding)
 # ==============================================================================
+
+def _activate_diffuse_textures_for_workbench(active_meshes: List[Any]) -> List[Tuple[Any, Any, Any]]:
+    """
+    Ensures every material on active_meshes has its Base Color / Diffuse ShaderNodeTexImage
+    set as `mat.node_tree.nodes.active` so BLENDER_WORKBENCH (`color_type = 'TEXTURE'`)
+    renders the actual diffuse texture instead of grey clay or normal/roughness maps.
+    Returns a restore list of (mat, orig_active_node, temp_created_node).
+    """
+    restore_list: List[Tuple[Any, Any, Any]] = []
+    seen_mats: Set[Any] = set()
+
+    def _collect_img_nodes(tree, visited=None):
+        if visited is None:
+            visited = set()
+        if tree in visited:
+            return []
+        visited.add(tree)
+        found = []
+        for n in tree.nodes:
+            if n.type == 'TEX_IMAGE' and getattr(n, 'image', None):
+                found.append((n, tree))
+            elif n.type == 'GROUP' and getattr(n, 'node_tree', None):
+                found.extend(_collect_img_nodes(n.node_tree, visited))
+        return found
+
+    for obj in active_meshes:
+        if not hasattr(obj, "material_slots"):
+            continue
+        for slot in obj.material_slots:
+            mat = slot.material
+            if not mat or mat in seen_mats:
+                continue
+            seen_mats.add(mat)
+
+            if not getattr(mat, "use_nodes", False) or not mat.node_tree:
+                continue
+
+            candidates = _collect_img_nodes(mat.node_tree)
+            if not candidates:
+                continue
+
+            best_node = None
+            best_tree = None
+            best_score = -9999
+
+            for node, tree in candidates:
+                img = node.image
+                via_node, target_socket = trace_image_node_destination(node)
+                sock_lower = target_socket.lower()
+                via_lower = via_node.lower()
+                img_ident = f"{getattr(img, 'name', '')} {getattr(img, 'filepath', '')}".lower()
+                colorspace = getattr(getattr(img, "colorspace_settings", None), "name", "sRGB").lower()
+
+                score = 0
+                if any(k in sock_lower for k in ("base color", "diffuse", "albedo", "color", "subsurface")) and "normal" not in via_lower and "bump" not in via_lower:
+                    score += 100
+                if "srgb" in colorspace:
+                    score += 40
+                if any(k in img_ident for k in ("diff", "albedo", "basecolor", "color", "_d.", "_bc.")):
+                    score += 50
+                if any(k in sock_lower or k in via_lower or k in img_ident for k in (
+                    "normal", "nrm", "bump", "rough", "spec", "metal", "mask", "opacity", "alpha", "cutout", "trans", "ao"
+                )):
+                    score -= 120
+
+                if score > best_score:
+                    best_score = score
+                    best_node = node
+                    best_tree = tree
+
+            if best_node is not None:
+                orig_active = mat.node_tree.nodes.active
+                if best_tree == mat.node_tree:
+                    try:
+                        best_node.select = True
+                        mat.node_tree.nodes.active = best_node
+                        restore_list.append((mat, orig_active, None))
+                    except Exception:
+                        pass
+                else:
+                    # Image node was inside a nested NodeGroup; create temporary top-level proxy for Workbench
+                    try:
+                        temp_node = mat.node_tree.nodes.new('ShaderNodeTexImage')
+                        temp_node.image = best_node.image
+                        temp_node.select = True
+                        mat.node_tree.nodes.active = temp_node
+                        restore_list.append((mat, orig_active, temp_node))
+                    except Exception:
+                        pass
+
+    return restore_list
+
 
 def render_mesh_thumbnail(
     target_meshes: List[Any],
@@ -358,7 +450,8 @@ def render_mesh_thumbnail(
     padding: float = 1.15
 ) -> Optional[str]:
     """
-    Renders an off-screen, transparent 3/4 isometric thumbnail of target_meshes using BLENDER_WORKBENCH.
+    Renders an off-screen, transparent 3/4 isometric thumbnail of target_meshes using BLENDER_WORKBENCH
+    with active diffuse textures enabled (`color_type = 'TEXTURE'`).
     Applies Visibility Isolation (hiding all non-target objects during render).
     """
     if not hasattr(bpy, "data") or not hasattr(bpy, "ops") or not target_meshes:
@@ -396,6 +489,9 @@ def render_mesh_thumbnail(
 
     for obj in active_meshes:
         obj.hide_render = False
+
+    # 2.1. Activate Diffuse/BaseColor texture nodes for Workbench TEXTURE shading
+    mat_restore_list = _activate_diffuse_textures_for_workbench(active_meshes)
 
     # 3. Save original Scene render settings
     scene = bpy.context.scene
@@ -435,7 +531,7 @@ def render_mesh_thumbnail(
         rot_quat = direction.to_track_quat('-Z', 'Y')
         cam_obj.rotation_euler = rot_quat.to_euler()
 
-        # 5. Configure Workbench Renderer for ultra-fast, professional matcap studio capture
+        # 5. Configure Workbench Renderer with TEXTURE color_type + Studio lighting + Cavity
         scene.render.engine = 'BLENDER_WORKBENCH'
         scene.render.resolution_x = resolution
         scene.render.resolution_y = resolution
@@ -451,7 +547,7 @@ def render_mesh_thumbnail(
         if hasattr(scene, "display") and hasattr(scene.display, "shading"):
             shading = scene.display.shading
             shading.light = 'STUDIO'
-            shading.color_type = 'MATERIAL'
+            shading.color_type = 'TEXTURE'
             if hasattr(shading, "show_cavity"):
                 shading.show_cavity = True
                 if hasattr(shading, "cavity_type"):
@@ -470,6 +566,14 @@ def render_mesh_thumbnail(
 
     finally:
         # 6. Clean Restore
+        for mat, orig_active, temp_node in mat_restore_list:
+            try:
+                if temp_node is not None:
+                    mat.node_tree.nodes.remove(temp_node)
+                mat.node_tree.nodes.active = orig_active
+            except Exception:
+                pass
+
         if cam_obj:
             try:
                 bpy.data.objects.remove(cam_obj, do_unlink=True)
