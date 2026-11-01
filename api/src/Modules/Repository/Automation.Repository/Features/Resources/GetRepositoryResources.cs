@@ -1,4 +1,5 @@
 using Automation.Content.Contracts;
+using Automation.Files.Contracts;
 using Automation.SharedKernel.Abstractions.Querying;
 using Automation.SharedKernel.Infrastructure.Querying;
 using Automation.Repository.Constants;
@@ -60,7 +61,8 @@ public class GetRepositoryResourcesEndpoint(IMessageBus bus)
 public class GetRepositoryResourcesHandler(
     RepositoryDbContext db,
     IContentApi contentApi,
-    IRunnerApi runnerApi
+    IRunnerApi runnerApi,
+    IAssetApi? assetApi = null
 )
 {
     public async Task<Result<PagedResult<WorkspaceResourceDto>>> HandleAsync(
@@ -205,7 +207,37 @@ public class GetRepositoryResourcesHandler(
             }
         }
 
-        // 4. Enrich dữ liệu Content, Lock và Holding Runner từ Map vào DTO
+        // 3.3. Batch query Thumbnail URLs từ Module Files (Slot: Thumbnail)
+        var latestVersionIdStrings = pagedResult.Value.Items
+            .Select(r => r.Versions.OrderByDescending(v => v.VersionNo).FirstOrDefault()?.Id.ToString())
+            .Where(id => !string.IsNullOrEmpty(id))
+            .Cast<string>()
+            .Distinct()
+            .ToList();
+
+        var thumbnailUrlMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (latestVersionIdStrings.Count > 0 && assetApi != null)
+        {
+            var thumbRes = await assetApi.GetFilesAsync(
+                latestVersionIdStrings,
+                "ResourceVersion",
+                ResourceAssetSlots.Thumbnail,
+                ct
+            );
+            if (thumbRes.IsSuccess && thumbRes.Value != null)
+            {
+                foreach (var (verIdStr, links) in thumbRes.Value)
+                {
+                    var firstThumb = links.FirstOrDefault();
+                    if (firstThumb != null && !string.IsNullOrEmpty(firstThumb.PublicUrl))
+                    {
+                        thumbnailUrlMap[verIdStr] = firstThumb.PublicUrl;
+                    }
+                }
+            }
+        }
+
+        // 4. Enrich dữ liệu Content, Lock, Holding Runner và Thumbnail từ Map vào DTO
         var dtos = pagedResult
             .Value.Items.Select(r =>
             {
@@ -231,6 +263,12 @@ public class GetRepositoryResourcesHandler(
                     );
                 }).ToList() ?? (IReadOnlyList<ResourceLinkedAnchorDto>)[];
 
+                var latestVersion = r.Versions.OrderByDescending(v => v.VersionNo).FirstOrDefault();
+                var latestVerId = latestVersion?.Id;
+                var thumbUrl = latestVerId.HasValue && thumbnailUrlMap.TryGetValue(latestVerId.Value.ToString(), out var tUrl)
+                    ? tUrl
+                    : null;
+
                 return new WorkspaceResourceDto(
                     Id: r.Id,
                     WorkspaceId: r.RepositoryId,
@@ -244,9 +282,9 @@ public class GetRepositoryResourcesHandler(
                     ContentTypeIcon: contentId != null && contentMap.TryGetValue(contentId.Value, out var c4) ? c4.ContentTypeIcon : null,
                     VersionCount: r.Versions.Count,
                     CreatedAt: r.CreatedAt,
-                    LatestVersionId: r.Versions.OrderByDescending(v => v.VersionNo).Select(v => (Guid?)v.Id).FirstOrDefault(),
-                    LatestVersionNo: r.Versions.OrderByDescending(v => v.VersionNo).Select(v => (int?)v.VersionNo).FirstOrDefault(),
-                    LatestVersionStatus: r.Versions.OrderByDescending(v => v.VersionNo).Select(v => (Automation.Repository.Domain.Enums.ResourceVersionStatus?)v.Status).FirstOrDefault(),
+                    LatestVersionId: latestVerId,
+                    LatestVersionNo: latestVersion?.VersionNo,
+                    LatestVersionStatus: latestVersion?.Status,
                     IsLocked: r.IsLocked,
                     LockedByRunnerId: r.LockedByRunnerId,
                     LockedByRunnerName: r.LockedByRunnerId != null && runnerMap.TryGetValue(r.LockedByRunnerId.Value, out var rn) ? rn.Name : null,
@@ -254,7 +292,8 @@ public class GetRepositoryResourcesHandler(
                     HoldingRunnerId: holdingRunnerId,
                     HoldingRunnerName: holdingRunnerName,
                     AnchorPath: anchorPath,
-                    LinkedAnchors: linkedAnchors
+                    LinkedAnchors: linkedAnchors,
+                    ThumbnailUrl: thumbUrl
                 );
             })
             .ToList();

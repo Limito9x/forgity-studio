@@ -151,7 +151,7 @@ public class PythonScriptSchemaParserTests
     }
 
     [Fact]
-    public void Parse_ExportFbx_ShouldNotContainRootFolderPin()
+    public void Parse_ExportFbx_ShouldExtractUnifiedCleanPins()
     {
         var filePath = @"d:\FullStack\Automation\pipeline-scripts\blender\export_fbx.py";
         if (File.Exists(filePath))
@@ -159,10 +159,20 @@ public class PythonScriptSchemaParserTests
             var content = File.ReadAllText(filePath);
             var result = PythonScriptSchemaParser.Parse(content, "export_fbx.py");
 
+            result.Inputs.Should().HaveCount(4);
             result.Inputs.Should().Contain(p => p.Id == "output_path");
+            result.Inputs.Should().Contain(p => p.Id == "export_mode");
+            result.Inputs.Should().Contain(p => p.Id == "target_objects");
+            result.Inputs.Should().Contain(p => p.Id == "prefix");
             result.Inputs.Should().NotContain(p => p.Id == "root_folder");
-            result.Outputs.Should().Contain(p => p.Id == "exported_fbx_path");
-            result.Outputs.Should().Contain(p => p.Id == "metadata_update_map");
+
+            result.Outputs.Should().HaveCount(4);
+            result.Outputs.Should().Contain(p => p.Id == "exported_files");
+            result.Outputs.Should().Contain(p => p.Id == "manifest");
+            result.Outputs.Should().Contain(p => p.Id == "metadata_map");
+            result.Outputs.Should().Contain(p => p.Id == "thumbnail_map");
+            result.Outputs.Should().NotContain(p => p.Id == "exported_fbx_path");
+            result.Outputs.Should().NotContain(p => p.Id == "objects_count");
         }
     }
 }

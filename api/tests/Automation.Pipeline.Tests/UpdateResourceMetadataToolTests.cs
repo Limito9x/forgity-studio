@@ -88,15 +88,14 @@ public class UpdateResourceMetadataToolTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithThumbnailMap_ShouldEmbedThumbnailPathInMetadata()
+    public async Task ExecuteAsync_WithThumbnailMap_ShouldCallUpdateThumbnailAsyncSeparately()
     {
         var id1 = Guid.NewGuid();
 
         _workspaceApi.GetResourceLocationAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(Result.Fail<ResourceLocationInfoDto>("Not found, use direct"));
 
-        JsonDocument? capturedDoc = null;
-        _workspaceApi.UpdateMetadataAsync(Arg.Any<Guid>(), Arg.Do<JsonDocument>(doc => capturedDoc = doc), Arg.Any<CancellationToken>())
+        _workspaceApi.UpdateThumbnailAsync(id1, "D:/Storage/Thumbnails/hero_top.png", Arg.Any<CancellationToken>())
             .Returns(Result.Ok());
 
         var tool = new UpdateResourceMetadataTool(_workspaceApi);
@@ -113,12 +112,12 @@ public class UpdateResourceMetadataToolTests
         result["Success"].Should().Be(true);
         result["UpdatedCount"].Should().Be(1);
 
-        capturedDoc.Should().NotBeNull();
-        capturedDoc!.RootElement.GetProperty("thumbnail_path").GetString().Should().Be("D:/Storage/Thumbnails/hero_top.png");
+        await _workspaceApi.Received(1).UpdateThumbnailAsync(id1, "D:/Storage/Thumbnails/hero_top.png", Arg.Any<CancellationToken>());
+        await _workspaceApi.DidNotReceive().UpdateMetadataAsync(Arg.Any<Guid>(), Arg.Any<JsonDocument>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task ExecuteAsync_WithBothMetadataAndThumbnail_ShouldMergeProperties()
+    public async Task ExecuteAsync_WithBothMetadataAndThumbnail_ShouldCallBothIndependently()
     {
         var id1 = Guid.NewGuid();
 
@@ -126,7 +125,10 @@ public class UpdateResourceMetadataToolTests
             .Returns(Result.Fail<ResourceLocationInfoDto>("Not found, use direct"));
 
         JsonDocument? capturedDoc = null;
-        _workspaceApi.UpdateMetadataAsync(Arg.Any<Guid>(), Arg.Do<JsonDocument>(doc => capturedDoc = doc), Arg.Any<CancellationToken>())
+        _workspaceApi.UpdateMetadataAsync(id1, Arg.Do<JsonDocument>(doc => capturedDoc = doc), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok());
+
+        _workspaceApi.UpdateThumbnailAsync(id1, "D:/Storage/Thumbnails/hero_top.png", Arg.Any<CancellationToken>())
             .Returns(Result.Ok());
 
         var tool = new UpdateResourceMetadataTool(_workspaceApi);
@@ -150,6 +152,9 @@ public class UpdateResourceMetadataToolTests
         capturedDoc.Should().NotBeNull();
         capturedDoc!.RootElement.GetProperty("slot").GetString().Should().Be("Top");
         capturedDoc!.RootElement.GetProperty("character").GetString().Should().Be("Hero");
-        capturedDoc!.RootElement.GetProperty("thumbnail_path").GetString().Should().Be("D:/Storage/Thumbnails/hero_top.png");
+        capturedDoc!.RootElement.TryGetProperty("thumbnail_path", out _).Should().BeFalse();
+
+        await _workspaceApi.Received(1).UpdateMetadataAsync(id1, Arg.Any<JsonDocument>(), Arg.Any<CancellationToken>());
+        await _workspaceApi.Received(1).UpdateThumbnailAsync(id1, "D:/Storage/Thumbnails/hero_top.png", Arg.Any<CancellationToken>());
     }
 }

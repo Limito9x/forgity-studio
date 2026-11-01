@@ -503,31 +503,32 @@ def render_mesh_thumbnail(
 # Unified Main Exporter Flow
 # ==============================================================================
 
+ExportModeType = Literal["Auto", "Single", "Batch"]
+
+
 def main(
     output_path: str = "",
-    export_mode: str = "Auto",
-    target_objects: Optional[Union[List[str], Dict[str, str], str]] = None,
+    export_mode: ExportModeType = "Auto",
+    target_objects: Optional[Dict[str, str]] = None,
     prefix: str = "",
-    preset_path: str = "",
-    render_thumbnail: bool = True,
-    thumbnail_resolution: int = 512,
     **kwargs
 ) -> Dict[str, Any]:
     """
     Unified FBX Exporter and Headless 3D Thumbnail Renderer.
-    Supports Single (whole scene / single character) and Batch (modular outfits) export modes.
+    Supports Single (pack entire scene into 1 FBX) and Batch (split modular items via target_objects map).
 
     Args:
-        output_path: Destination file path for Single mode (.fbx) or destination folder for Batch mode.
-        export_mode: 'Single', 'Batch', or 'Auto' (infers mode from targets and output_path).
-        target_objects: List of object names, or dict mapping (e.g. cloth_map from classify_mesh_types).
-        prefix: Optional prefix prepended to filenames and manifest keys.
-        preset_path: Optional path to FBX exporter preset script.
-        render_thumbnail: If True, renders a transparent 512x512 3/4 isometric thumbnail PNG per FBX.
-        thumbnail_resolution: Resolution of thumbnail PNG (default 512).
+        output_path: Destination .fbx file path (Single mode) or destination directory (Batch mode).
+        export_mode: 'Single' (pack all into 1 file), 'Batch' (split by map), or 'Auto'.
+        target_objects: Dictionary mapping object names to slot/role (e.g. cloth_map from classify_mesh_types).
+        prefix: Optional prefix prepended to filenames and asset names (e.g. 'Eva').
     """
+    preset_path = str(kwargs.get("preset_path", "") or "")
+    render_thumbnail = bool(kwargs.get("render_thumbnail", True))
+    thumbnail_resolution = int(kwargs.get("thumbnail_resolution", 512) or 512)
+
     # 1. Resolve raw target source from target_objects or supported kwargs aliases
-    raw_source = target_objects if target_objects is not None else (
+    raw_source: Any = target_objects if target_objects is not None else (
         kwargs.get("cloth_map") or kwargs.get("manifest") or kwargs.get("clothes") or kwargs.get("export_map") or kwargs.get("mesh_names")
     )
 
@@ -548,12 +549,9 @@ def main(
     mode = (export_mode or "Auto").strip().capitalize()
 
     if mode == "Auto":
-        # If raw_source is a dict with multiple keys or output_path has no .fbx extension -> Batch
-        if isinstance(raw_source, dict) and len(raw_source) > 1:
+        if isinstance(raw_source, dict) and len(raw_source) > 0:
             mode = "Batch"
-        elif clean_out and not clean_out.lower().endswith(".fbx"):
-            mode = "Batch"
-        elif not clean_out and isinstance(raw_source, dict):
+        elif clean_out and not clean_out.lower().endswith(".fbx") and isinstance(raw_source, list) and len(raw_source) > 1:
             mode = "Batch"
         else:
             mode = "Single"
@@ -570,23 +568,33 @@ def main(
     preset_options['use_selection'] = True
     preset_options.pop('filepath', None)
 
+    exported_files: List[str] = []
+    manifest_map: Dict[str, Any] = {}
+    metadata_map: Dict[str, str] = {}
+    thumbnail_map: Dict[str, str] = {}
+
     # ==========================================================================
-    # BRANCH A: SINGLE EXPORT MODE (Unified Mesh / Single Character)
+    # BRANCH A: SINGLE EXPORT MODE (Pack all into 1 FBX file)
     # ==========================================================================
     if mode == "Single":
         if not clean_out:
             temp_dir = getattr(bpy.app, "tempdir", ".") if hasattr(bpy, "app") else "."
             clean_out = os.path.join(temp_dir, "exported.fbx").replace("\\", "/")
 
-        base, _ = os.path.splitext(clean_out)
-        final_fbx_path = (base + ".fbx").replace("\\", "/")
+        if os.path.isdir(clean_out) or not clean_out.lower().endswith(".fbx"):
+            default_stem = prefix.strip("_") if prefix.strip("_") else "Character"
+            final_fbx_path = os.path.join(clean_out, f"{default_stem}.fbx").replace("\\", "/")
+        else:
+            base, _ = os.path.splitext(clean_out)
+            final_fbx_path = (base + ".fbx").replace("\\", "/")
+
         os.makedirs(os.path.dirname(os.path.abspath(final_fbx_path)), exist_ok=True)
 
         asset_name = os.path.splitext(os.path.basename(final_fbx_path))[0]
-        if prefix and not asset_name.startswith(prefix):
+        if prefix and not asset_name.lower().startswith(prefix.strip("_").lower()):
             asset_name = f"{prefix.strip('_')}_{asset_name}"
 
-        # Resolve selection
+        # Resolve selection (if no specific target_objects filter, select all exportable objects in scene)
         target_list: List[str] = []
         if isinstance(raw_source, list):
             target_list = [str(x).strip() for x in raw_source if str(x).strip()]
@@ -623,214 +631,178 @@ def main(
         file_size = os.path.getsize(final_fbx_path) if os.path.exists(final_fbx_path) else 0
         file_hash = compute_sha256(final_fbx_path) if file_size > 0 else ""
 
-        # Render Thumbnail
+        # Render Thumbnail (separated into thumbnail_map)
         thumb_path: Optional[str] = None
         if render_thumbnail and selected_meshes:
             png_out = os.path.splitext(final_fbx_path)[0] + "_thumb.png"
             thumb_path = render_mesh_thumbnail(selected_meshes, png_out, resolution=thumbnail_resolution)
+            if thumb_path:
+                thumbnail_map[final_fbx_path] = thumb_path
 
-        # Build Manifest
+        # Build clean metadata & manifest
         source_manifest = kwargs.get("source_manifest")
-        manifest = _unwrap_manifest(source_manifest)
+        unwrapped = _unwrap_manifest(source_manifest)
         file_name = os.path.basename(final_fbx_path)
+        slots_list = unwrapped.get("slots") if unwrapped and "slots" in unwrapped else inspect_selected_meshes(selected_meshes)
 
-        if not manifest:
-            slots_list = inspect_selected_meshes(selected_meshes)
-            manifest = {
-                "asset_name": asset_name,
-                "mode": "single",
-                "file_name": file_name,
-                "file_path": final_fbx_path,
-                "thumbnail_path": thumb_path or "",
-                "hash_sha256": file_hash,
-                "slot_count": len(slots_list),
-                "slots": slots_list,
-                "export": {
-                    "file_name": file_name,
-                    "local_path": final_fbx_path,
-                    "thumbnail_path": thumb_path or "",
-                    "file_size": file_size,
-                    "objects_count": selected_count,
-                }
-            }
-        else:
-            manifest["asset_name"] = asset_name
-            manifest["file_path"] = final_fbx_path
-            manifest["file_name"] = file_name
-            manifest["thumbnail_path"] = thumb_path or ""
-            manifest["hash_sha256"] = file_hash
-
-        metadata_update_map: Dict[str, str] = {}
-        try:
-            meta_json = json.dumps(manifest, indent=2, ensure_ascii=False)
-            metadata_update_map[final_fbx_path] = meta_json
-            if file_name != final_fbx_path and file_name not in metadata_update_map:
-                metadata_update_map[file_name] = meta_json
-        except Exception as ex:
-            print(f"[export_fbx] Warning: failed to serialize manifest: {ex}", flush=True)
-
-        thumbnail_files = [thumb_path] if thumb_path else []
-        thumbnail_map = {final_fbx_path: thumb_path} if thumb_path else {}
-
-        return {
-            "exported_fbx_path": final_fbx_path,
-            "manifest": manifest,
-            "objects_count": selected_count,
+        pure_meta = {
+            "object": asset_name,
+            "asset_name": asset_name,
+            "clean_asset_name": asset_name,
+            "mode": "single",
+            "file_name": file_name,
+            "file_path": final_fbx_path,
+            "local_path": final_fbx_path,
             "file_size": file_size,
-            "thumbnail_path": thumb_path or "",
-            "thumbnail_files": thumbnail_files,
-            "thumbnail_map": thumbnail_map,
-            "metadata_update_map": metadata_update_map,
-            "exported_files": [final_fbx_path]
+            "hash_sha256": file_hash,
+            "matched_meshes": [m.name for m in selected_meshes],
+            "slot_count": len(slots_list),
+            "slots": slots_list,
         }
 
-    # ==========================================================================
-    # BRANCH B: BATCH EXPORT MODE (Modular Outfits / Multiple Meshes)
-    # ==========================================================================
-    output_dir = clean_out
-    if output_dir and (output_dir.lower().endswith((".blend", ".duf", ".fbx")) or os.path.isfile(output_dir)):
-        output_dir = os.path.dirname(os.path.abspath(output_dir))
-
-    if not output_dir:
-        blend_file = getattr(bpy.data, "filepath", "") if hasattr(bpy, "data") else ""
-        if blend_file and os.path.isdir(os.path.dirname(blend_file)):
-            output_dir = os.path.dirname(blend_file)
-        else:
-            temp_dir = getattr(bpy.app, "tempdir", ".") if hasattr(bpy, "app") else "."
-            output_dir = os.path.join(temp_dir, "modular_export")
-
-    output_dir = output_dir.replace("\\", "/")
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Normalize flat_map {object_target: cloth_type_or_filename}
-    flat_map: Dict[str, str] = {}
-    if isinstance(raw_source, list):
-        for item in raw_source:
-            if isinstance(item, dict):
-                flat_map.update(item)
-            elif isinstance(item, str) and ":" in item:
-                k, v = item.split(":", 1)
-                flat_map[k.strip()] = v.strip()
-            elif isinstance(item, str) and item.strip():
-                flat_map[item.strip()] = ""
-    elif isinstance(raw_source, dict):
-        flat_map = dict(raw_source)
-    elif not raw_source and hasattr(bpy, "data"):
-        for obj in bpy.data.objects:
-            if obj.type == 'MESH':
-                flat_map[obj.name] = ""
-
-    manifest_map: Dict[str, Any] = {}
-    export_paths: Dict[str, str] = {}
-    thumbnail_map: Dict[str, str] = {}
-    thumbnail_files: List[str] = []
-
-    print(f"[export_fbx] [Batch Mode] Starting modular export for {len(flat_map)} item(s) into '{output_dir}' (Prefix: '{prefix}')...", flush=True)
-
-    clean_prefix = re.sub(r'[\s\-]+', '_', prefix.strip()).strip('_')
-
-    for object_target, raw_output_name in flat_map.items():
-        clean_obj_name = clean_asset_name(object_target)
-        raw_val = (str(raw_output_name) if raw_output_name is not None else "").strip()
-
-        if raw_val.lower().endswith(".fbx"):
-            raw_stem = os.path.splitext(os.path.basename(raw_val))[0]
-            if normalize_name(raw_stem) == normalize_name(object_target):
-                base_stem = clean_obj_name
-            else:
-                base_stem = clean_asset_name(raw_stem)
-            cloth_type = ""
-        else:
-            base_stem = clean_obj_name
-            cloth_type = raw_val
-
-        # Apply prefix: {Prefix}_{CleanAssetName}
-        if clean_prefix:
-            if base_stem.lower().startswith(f"{clean_prefix.lower()}_") or base_stem.lower() == clean_prefix.lower():
-                final_asset_name = base_stem
-            else:
-                final_asset_name = f"{clean_prefix}_{base_stem}"
-        else:
-            final_asset_name = base_stem
-
-        final_filename = f"{final_asset_name}.fbx"
-        target_meshes = find_matching_meshes(object_target)
-        if not target_meshes:
-            print(f"[export_fbx] Warning: No matching mesh found for '{object_target}'. Skipping.", flush=True)
-            continue
-
-        matched_names = [m.name for m in target_meshes]
-        select_mesh_with_armature(target_meshes)
-
-        export_path = final_filename if os.path.isabs(final_filename) else os.path.join(output_dir, final_filename)
-        export_path = export_path.replace("\\", "/")
-        os.makedirs(os.path.dirname(os.path.abspath(export_path)), exist_ok=True)
-
         try:
-            print(f"[export_fbx] Exporting '{final_asset_name}' (source='{object_target}', slot='{cloth_type}') to '{export_path}'...", flush=True)
-            if hasattr(bpy, "ops"):
-                bpy.ops.export_scene.fbx(filepath=export_path, **preset_options)
-
-            file_size = os.path.getsize(export_path) if os.path.exists(export_path) else 0
-            file_hash = compute_sha256(export_path) if file_size > 0 else ""
-
-            # Render Thumbnail for this modular item
-            thumb_path = None
-            if render_thumbnail:
-                thumb_out = os.path.splitext(export_path)[0] + "_thumb.png"
-                thumb_path = render_mesh_thumbnail(target_meshes, thumb_out, resolution=thumbnail_resolution)
-                if thumb_path:
-                    thumbnail_map[export_path] = thumb_path
-                    thumbnail_files.append(thumb_path)
-
-            slots_list = inspect_selected_meshes(target_meshes)
-
-            manifest_map[final_asset_name] = {
-                "object": final_asset_name,
-                "asset_name": final_asset_name,
-                "clean_asset_name": clean_obj_name,
-                "source_object_name": object_target,
-                "cloth_type": cloth_type,
-                "file_name": os.path.basename(export_path),
-                "file_path": export_path,
-                "local_path": export_path,
-                "thumbnail_path": thumb_path or "",
-                "file_size": file_size,
-                "hash_sha256": file_hash,
-                "matched_meshes": matched_names,
-                "slot_count": len(slots_list),
-                "slots": slots_list
-            }
-            export_paths[final_asset_name] = export_path
-            print(f"[export_fbx] Successfully exported '{final_asset_name}' ({file_size} bytes, {len(slots_list)} slots).", flush=True)
-
-        except Exception as e:
-            print(f"[export_fbx] Error exporting '{object_target}': {e}", flush=True)
-            raise RuntimeError(f"Failed to export '{object_target}': {e}")
-
-    # Build metadata_update_map for UpdateResourceMetadataTool
-    metadata_update_map = {}
-    for final_asset_name, item_meta in manifest_map.items():
-        clean_path = item_meta.get("file_path", "")
-        file_name = item_meta.get("file_name", "")
-        try:
-            meta_json = json.dumps(item_meta, indent=2, ensure_ascii=False)
-            if clean_path:
-                metadata_update_map[clean_path] = meta_json
-            if file_name and file_name not in metadata_update_map:
-                metadata_update_map[file_name] = meta_json
+            meta_json = json.dumps(pure_meta, indent=2, ensure_ascii=False)
+            metadata_map[final_fbx_path] = meta_json
         except Exception as ex:
-            print(f"[export_fbx] Warning: failed to serialize manifest for '{final_asset_name}': {ex}", flush=True)
+            print(f"[export_fbx] Warning: failed to serialize metadata: {ex}", flush=True)
 
-    exported_files = list(export_paths.values())
+        manifest_entry = dict(pure_meta)
+        if thumb_path:
+            manifest_entry["thumbnail_path"] = thumb_path
+        manifest_map[asset_name] = manifest_entry
+        exported_files.append(final_fbx_path)
+
+    # ==========================================================================
+    # BRANCH B: BATCH EXPORT MODE (Split Modular Items by Map)
+    # ==========================================================================
+    else:
+        output_dir = clean_out
+        if output_dir and (output_dir.lower().endswith((".blend", ".duf", ".fbx")) or os.path.isfile(output_dir)):
+            output_dir = os.path.dirname(os.path.abspath(output_dir))
+
+        if not output_dir:
+            blend_file = getattr(bpy.data, "filepath", "") if hasattr(bpy, "data") else ""
+            if blend_file and os.path.isdir(os.path.dirname(blend_file)):
+                output_dir = os.path.dirname(blend_file)
+            else:
+                temp_dir = getattr(bpy.app, "tempdir", ".") if hasattr(bpy, "app") else "."
+                output_dir = os.path.join(temp_dir, "modular_export")
+
+        output_dir = output_dir.replace("\\", "/")
+        os.makedirs(output_dir, exist_ok=True)
+
+        flat_map: Dict[str, str] = {}
+        if isinstance(raw_source, list):
+            for item in raw_source:
+                if isinstance(item, dict):
+                    flat_map.update(item)
+                elif isinstance(item, str) and ":" in item:
+                    k, v = item.split(":", 1)
+                    flat_map[k.strip()] = v.strip()
+                elif isinstance(item, str) and item.strip():
+                    flat_map[item.strip()] = ""
+        elif isinstance(raw_source, dict):
+            flat_map = dict(raw_source)
+        elif not raw_source and hasattr(bpy, "data"):
+            for obj in bpy.data.objects:
+                if obj.type == 'MESH':
+                    flat_map[obj.name] = ""
+
+        print(f"[export_fbx] [Batch Mode] Starting modular export for {len(flat_map)} item(s) into '{output_dir}' (Prefix: '{prefix}')...", flush=True)
+
+        clean_prefix = re.sub(r'[\s\-]+', '_', prefix.strip()).strip('_')
+
+        for object_target, raw_output_name in flat_map.items():
+            clean_obj_name = clean_asset_name(object_target)
+            raw_val = (str(raw_output_name) if raw_output_name is not None else "").strip()
+
+            if raw_val.lower().endswith(".fbx"):
+                raw_stem = os.path.splitext(os.path.basename(raw_val))[0]
+                if normalize_name(raw_stem) == normalize_name(object_target):
+                    base_stem = clean_obj_name
+                else:
+                    base_stem = clean_asset_name(raw_stem)
+                cloth_type = ""
+            else:
+                base_stem = clean_obj_name
+                cloth_type = raw_val
+
+            if clean_prefix:
+                if base_stem.lower().startswith(f"{clean_prefix.lower()}_") or base_stem.lower() == clean_prefix.lower():
+                    final_asset_name = base_stem
+                else:
+                    final_asset_name = f"{clean_prefix}_{base_stem}"
+            else:
+                final_asset_name = base_stem
+
+            final_filename = f"{final_asset_name}.fbx"
+            target_meshes = find_matching_meshes(object_target)
+            if not target_meshes:
+                print(f"[export_fbx] Warning: No matching mesh found for '{object_target}'. Skipping.", flush=True)
+                continue
+
+            matched_names = [m.name for m in target_meshes]
+            select_mesh_with_armature(target_meshes)
+
+            export_path = final_filename if os.path.isabs(final_filename) else os.path.join(output_dir, final_filename)
+            export_path = export_path.replace("\\", "/")
+            os.makedirs(os.path.dirname(os.path.abspath(export_path)), exist_ok=True)
+
+            try:
+                print(f"[export_fbx] Exporting '{final_asset_name}' (source='{object_target}', slot='{cloth_type}') to '{export_path}'...", flush=True)
+                if hasattr(bpy, "ops"):
+                    bpy.ops.export_scene.fbx(filepath=export_path, **preset_options)
+
+                file_size = os.path.getsize(export_path) if os.path.exists(export_path) else 0
+                file_hash = compute_sha256(export_path) if file_size > 0 else ""
+
+                # Render Thumbnail (separated into thumbnail_map)
+                thumb_path = None
+                if render_thumbnail:
+                    thumb_out = os.path.splitext(export_path)[0] + "_thumb.png"
+                    thumb_path = render_mesh_thumbnail(target_meshes, thumb_out, resolution=thumbnail_resolution)
+                    if thumb_path:
+                        thumbnail_map[export_path] = thumb_path
+
+                slots_list = inspect_selected_meshes(target_meshes)
+
+                pure_meta = {
+                    "object": final_asset_name,
+                    "asset_name": final_asset_name,
+                    "clean_asset_name": clean_obj_name,
+                    "source_object_name": object_target,
+                    "cloth_type": cloth_type,
+                    "file_name": os.path.basename(export_path),
+                    "file_path": export_path,
+                    "local_path": export_path,
+                    "file_size": file_size,
+                    "hash_sha256": file_hash,
+                    "matched_meshes": matched_names,
+                    "slot_count": len(slots_list),
+                    "slots": slots_list,
+                }
+
+                try:
+                    metadata_map[export_path] = json.dumps(pure_meta, indent=2, ensure_ascii=False)
+                except Exception as ex:
+                    print(f"[export_fbx] Warning: failed to serialize metadata for '{final_asset_name}': {ex}", flush=True)
+
+                manifest_entry = dict(pure_meta)
+                if thumb_path:
+                    manifest_entry["thumbnail_path"] = thumb_path
+                manifest_map[final_asset_name] = manifest_entry
+                exported_files.append(export_path)
+                print(f"[export_fbx] Successfully exported '{final_asset_name}' ({file_size} bytes, {len(slots_list)} slots).", flush=True)
+
+            except Exception as e:
+                print(f"[export_fbx] Error exporting '{object_target}': {e}", flush=True)
+                raise RuntimeError(f"Failed to export '{object_target}': {e}")
+
     return {
-        "export_map": export_paths,
-        "manifest": manifest_map,
-        "total_exported": len(manifest_map),
         "exported_files": exported_files,
-        "thumbnail_files": thumbnail_files,
+        "manifest": manifest_map,
+        "metadata_map": metadata_map,
         "thumbnail_map": thumbnail_map,
-        "metadata_update_map": metadata_update_map
     }
 
 

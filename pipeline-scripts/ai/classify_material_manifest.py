@@ -611,6 +611,7 @@ def main(
         clean_asset_name = raw_obj_meta.get("clean_asset_name") or asset_name
         source_object_name = raw_obj_meta.get("source_object_name") or obj_name
         file_name = raw_obj_meta.get("file_name") or os.path.basename(file_path)
+        thumbnail_path = raw_obj_meta.get("thumbnail_path") or ""
         file_size = raw_obj_meta.get("file_size") or 0
         hash_sha256 = raw_obj_meta.get("hash_sha256") or ""
         matched_meshes = raw_obj_meta.get("matched_meshes") or []
@@ -623,6 +624,7 @@ def main(
             "file_name": file_name,
             "file_path": file_path,
             "local_path": file_path,
+            "thumbnail_path": thumbnail_path,
             "file_size": file_size,
             "hash_sha256": hash_sha256,
             "matched_meshes": matched_meshes,

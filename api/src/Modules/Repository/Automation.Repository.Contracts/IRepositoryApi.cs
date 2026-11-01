@@ -59,6 +59,12 @@ public interface IRepositoryApi
         CancellationToken ct = default
     );
 
+    Task<Result> UpdateThumbnailAsync(
+        Guid resourceVersionId,
+        string thumbnailFilePath,
+        CancellationToken ct = default
+    );
+
     Task<Result<System.Text.Json.JsonDocument?>> GetMetadataAsync(
         Guid resourceVersionId,
         CancellationToken ct = default

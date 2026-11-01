@@ -250,14 +250,16 @@ Nhằm cung cấp hình ảnh xem trước (Preview Thumbnail) trực quan cho c
   - Lùi camera một khoảng cách tối ưu $D = \frac{R}{\sin(\text{FOV}/2)} \times 1.15$ (hệ số đệm $15\%$).
 - **Đầu ra**: File ảnh `.png` RGBA nền trong suốt $512 \times 512$ đặt cùng thư mục và cùng tên với file `.fbx` (ví dụ `Warrior_Top.png`).
 
-### 9.2. Triết Lý Double-Duty: 1 Ảnh Cho Cả Unreal Lẫn Web DAM
-File ảnh PNG sinh ra giải quyết trọn vẹn 2 mục tiêu:
+### 9.2. Triết Lý Double-Duty & Tách Biệt `MetadataMap` vs `ThumbnailMap`
+Script `export_fbx.py` được chuẩn hóa gọn gàng thành **4 Inputs** (`output_path`, `export_mode`, `target_objects`, `prefix`) và **4 Outputs** (`exported_files`, `manifest`, `metadata_map`, `thumbnail_map`). File ảnh PNG sinh ra giải quyết trọn vẹn 2 mục tiêu độc lập:
 1. **Unreal Engine 5 Texture UI (`register_wardrobe_data_assets.py`)**:
    - Được nạp vào dự án UE5 thành `UTexture2D` với nhóm `TEXTUREGROUP_UI` và bật `sRGB = True`.
    - Tự động gán vào trường `Thumbnail` (hoặc `Icon`) của `PDA_WardrobeItem`.
-2. **Web DAM & Workspace Resource Metadata**:
-   - Đường dẫn ảnh được tool `Update Resources` (`UpdateResourceMetadataTool`) tiếp nhận qua pin `ThumbnailMap`.
-   - Tool tự động nhúng `"thumbnail_path": "..."` vào JSON Metadata của Resource Version trên DB PostgreSQL để giao diện Web hiển thị ngay thumbnail preview của 3D model.
+2. **Web DAM & Module `Files` (`IAssetApi` AssetSlot `Thumbnail`)**:
+   - `MetadataMap` và `ThumbnailMap` được tách biệt hoàn toàn trên Tool `Update Resources` (`UpdateResourceMetadataTool`):
+     - `MetadataMap` cập nhật JSON thuần túy vào cột `Metadata` của `ResourceVersion`.
+     - `ThumbnailMap` gọi `IRepositoryApi.UpdateThumbnailAsync`: tự động băm SHA-256, đẩy ảnh `.png` từ Runner lên CAS Storage qua Presigned URL và gắn `AssetLink` vào Slot `"Thumbnail"` của `ResourceVersion` (`ResourceAssetSlots.Thumbnail`) mà không cần tạo thêm cột trong DB.
+   - Khi truy vấn `GetRepositoryResources`, hệ thống batch-query `IAssetApi.GetFilesAsync` theo Slot `"Thumbnail"` để trả về `ThumbnailUrl` hiển thị trên mọi trình duyệt.
 
 ### 9.3. 5 Trường Cốt Lõi Của `PDA_WardrobeItem` & Convention-Driven Tags
 Unreal Script gán tự động 5 trường cốt lõi theo quy ước chuẩn:

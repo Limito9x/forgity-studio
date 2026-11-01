@@ -5,10 +5,11 @@ using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 using Automation.Pipeline.Runtime.State.EntityStore;
 using Automation.Repository.Contracts;
+
 namespace Automation.Pipeline.Contracts.Tools.Workspaces;
 
 /// <summary>
-/// Tool batch cập nhật metadata cho nhiều ResourceVersion cùng lúc thông qua Map (Key: Resource ID / File Path / Full Path -> Value: Metadata).
+/// Tool batch cập nhật metadata và thumbnail riêng biệt cho nhiều ResourceVersion cùng lúc thông qua Maps.
 /// </summary>
 public class UpdateResourceMetadataTool(
     IRepositoryApi workspaceApi,
@@ -92,7 +93,7 @@ public class UpdateResourceMetadataTool(
     {
         var ct = context.CancellationToken;
 
-        // 1. Resolve MetadataMap and ThumbnailMap
+        // 1. Resolve MetadataMap and ThumbnailMap independently
         object? rawMetadataMap = inputs.GetValueOrDefault("MetadataMap") ?? inputs.GetValueOrDefault("metadata_map");
         object? rawThumbnailMap = inputs.GetValueOrDefault("ThumbnailMap") ?? inputs.GetValueOrDefault("thumbnail_map") ?? inputs.GetValueOrDefault("thumbnails");
 
@@ -112,7 +113,6 @@ public class UpdateResourceMetadataTool(
             }
         }
 
-        // Fallback: If rawMetadataMap is still null, look for dictionary or JSON object
         if (rawMetadataMap == null && rawThumbnailMap == null)
         {
             foreach (var (k, v) in inputs)
@@ -169,7 +169,7 @@ public class UpdateResourceMetadataTool(
             }
         }
 
-        // 3. Pre-resolve path keys if repoId is available (normalizing FullPaths to RelativePaths if rootPath is known)
+        // 3. Pre-resolve path keys if repoId is available
         var pathKeys = new List<string>();
         var keyToCleanPathMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -186,14 +186,18 @@ public class UpdateResourceMetadataTool(
         Dictionary<string, Guid>? resolvedPaths = null;
         if (pathKeys.Count > 0 && repoId.HasValue)
         {
-            var resolveRes = await workspaceApi.ResolveResourceVersionIdsByPathsAsync(repoId.Value, pathKeys.Distinct(StringComparer.OrdinalIgnoreCase), ct);
+            var resolveRes = await workspaceApi.ResolveResourceVersionIdsByPathsAsync(
+                repoId.Value,
+                pathKeys.Distinct(StringComparer.OrdinalIgnoreCase),
+                ct
+            );
             if (resolveRes.IsSuccess)
             {
                 resolvedPaths = resolveRes.Value;
             }
         }
 
-        // 4. Update each entry
+        // 4. Update Metadata and Thumbnail independently per resource
         var updatedCount = 0;
         foreach (var resourceKey in allKeys)
         {
@@ -221,29 +225,45 @@ public class UpdateResourceMetadataTool(
                 versionId = locResult.Value.ResourceVersionId;
             }
 
-            metadataMap.TryGetValue(resourceKey, out var metaVal);
-            thumbnailMap.TryGetValue(resourceKey, out var thumbVal);
-
-            var jsonDoc = MergeMetadataAndThumbnail(metaVal, thumbVal, resourceKey);
-            var updateResult = await workspaceApi.UpdateMetadataAsync(versionId, jsonDoc, ct);
-            if (updateResult.IsFailed)
+            // 4.1. Update Metadata (if present in MetadataMap)
+            if (metadataMap.TryGetValue(resourceKey, out var metaVal) && metaVal != null)
             {
-                throw new InvalidOperationException(
-                    $"Failed to update metadata for ResourceVersion '{versionId}': {string.Join(", ", updateResult.Errors.Select(e => e.Message))}");
+                var jsonDoc = ParseToJsonDocument(metaVal, resourceKey);
+                var updateResult = await workspaceApi.UpdateMetadataAsync(versionId, jsonDoc, ct);
+                if (updateResult.IsFailed)
+                {
+                    throw new InvalidOperationException(
+                        $"Failed to update metadata for ResourceVersion '{versionId}': {string.Join(", ", updateResult.Errors.Select(e => e.Message))}");
+                }
+
+                // Sync updated metadata into ExecutionEntityStore
+                if (entityStore != null)
+                {
+                    var existingProps = entityStore.GetProperties("Resource", targetGuid.Value)
+                                        ?? entityStore.GetProperties("Resource", versionId);
+                    if (existingProps != null)
+                    {
+                        existingProps["Metadata"] = jsonDoc.RootElement.GetRawText();
+                        entityStore.SetProperties("Resource", targetGuid.Value, existingProps);
+                        if (versionId != targetGuid.Value)
+                        {
+                            entityStore.SetProperties("Resource", versionId, existingProps);
+                        }
+                    }
+                }
             }
 
-            // Sync updated metadata into ExecutionEntityStore (Identity Map sync)
-            if (entityStore != null)
+            // 4.2. Update Thumbnail via Files API AssetSlot (if present in ThumbnailMap)
+            if (thumbnailMap.TryGetValue(resourceKey, out var thumbVal) && thumbVal != null)
             {
-                var existingProps = entityStore.GetProperties("Resource", targetGuid.Value)
-                                    ?? entityStore.GetProperties("Resource", versionId);
-                if (existingProps != null)
+                var thumbPath = thumbVal.ToString()?.Trim();
+                if (!string.IsNullOrEmpty(thumbPath))
                 {
-                    existingProps["Metadata"] = jsonDoc?.RootElement.GetRawText() ?? string.Empty;
-                    entityStore.SetProperties("Resource", targetGuid.Value, existingProps);
-                    if (versionId != targetGuid.Value)
+                    var thumbResult = await workspaceApi.UpdateThumbnailAsync(versionId, thumbPath, ct);
+                    if (thumbResult.IsFailed)
                     {
-                        entityStore.SetProperties("Resource", versionId, existingProps);
+                        throw new InvalidOperationException(
+                            $"Failed to update thumbnail for ResourceVersion '{versionId}': {string.Join(", ", thumbResult.Errors.Select(e => e.Message))}");
                     }
                 }
             }
@@ -256,38 +276,6 @@ public class UpdateResourceMetadataTool(
             ["Success"] = true,
             ["UpdatedCount"] = updatedCount
         };
-    }
-
-    private static JsonDocument MergeMetadataAndThumbnail(object? metaVal, object? thumbVal, string resourceKey)
-    {
-        var baseDoc = ParseToJsonDocument(metaVal, resourceKey);
-        if (thumbVal == null)
-        {
-            return baseDoc;
-        }
-
-        var thumbPath = thumbVal.ToString()?.Trim();
-        if (string.IsNullOrEmpty(thumbPath))
-        {
-            return baseDoc;
-        }
-
-        var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-        if (baseDoc.RootElement.ValueKind == JsonValueKind.Object)
-        {
-            foreach (var prop in baseDoc.RootElement.EnumerateObject())
-            {
-                dict[prop.Name] = prop.Value.Clone();
-            }
-        }
-        else
-        {
-            dict["value"] = baseDoc.RootElement.Clone();
-        }
-
-        dict["thumbnail_path"] = thumbPath;
-        var serialized = JsonSerializer.Serialize(dict);
-        return JsonDocument.Parse(serialized);
     }
 
     private static string NormalizePathKey(string key, string? rootPath)
@@ -370,7 +358,7 @@ public class UpdateResourceMetadataTool(
             return guid;
         }
 
-        var (type, parsedId, isValid) = EntityRefHelper.Parse(key);
+        var (_, parsedId, isValid) = EntityRefHelper.Parse(key);
         if (isValid && parsedId != Guid.Empty)
         {
             return parsedId;
