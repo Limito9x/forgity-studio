@@ -16,9 +16,9 @@ public class UpdateResourceMetadataTool(
 ) : IResolverTool
 {
     public string Key => "UpdateResourceMetadata";
-    public string Label => "Update Resource Metadata";
+    public string Label => "Update Resources";
     public string? Category => "Workspaces & Resources";
-    public string? Description => "Batch updates metadata for resources using a Map of Resource Version IDs or File Paths -> Metadata.";
+    public string? Description => "Batch updates metadata and thumbnails for resources using Maps of Resource IDs or File Paths.";
     public bool IsPure => false;
 
     public IReadOnlyList<PinDefinition> Inputs =>
@@ -29,9 +29,19 @@ public class UpdateResourceMetadataTool(
             Label = "Metadata Map",
             PrimitiveType = PinPrimitiveType.String,
             Cardinality = PinCardinality.Map,
-            IsRequired = true,
+            IsRequired = false,
             Description = "Map of Resource IDs, URNs, or File Paths to their metadata JSON string or dictionary",
             SampleJson = "{\n  \"characters/hero.fbx\": {\n    \"triangles\": 14200,\n    \"rig\": \"Humanoid\"\n  }\n}"
+        },
+        new()
+        {
+            Id = "ThumbnailMap",
+            Label = "Thumbnail Map",
+            PrimitiveType = PinPrimitiveType.String,
+            Cardinality = PinCardinality.Map,
+            IsRequired = false,
+            Description = "Map of Resource IDs, URNs, or File Paths to their thumbnail image paths (.png)",
+            SampleJson = "{\n  \"characters/hero.fbx\": \"characters/hero_thumb.png\"\n}"
         },
         new()
         {
@@ -82,21 +92,28 @@ public class UpdateResourceMetadataTool(
     {
         var ct = context.CancellationToken;
 
-        // 1. Resolve MetadataMap
-        object? rawMap = null;
-        foreach (var (k, v) in inputs)
+        // 1. Resolve MetadataMap and ThumbnailMap
+        object? rawMetadataMap = inputs.GetValueOrDefault("MetadataMap") ?? inputs.GetValueOrDefault("metadata_map");
+        object? rawThumbnailMap = inputs.GetValueOrDefault("ThumbnailMap") ?? inputs.GetValueOrDefault("thumbnail_map") ?? inputs.GetValueOrDefault("thumbnails");
+
+        if (rawMetadataMap == null && rawThumbnailMap == null)
         {
-            var norm = k.Replace(" ", "").Replace("_", "").Replace("-", "");
-            if (string.Equals(norm, "MetadataMap", StringComparison.OrdinalIgnoreCase))
+            foreach (var (k, v) in inputs)
             {
-                rawMap = v;
-                break;
+                var norm = k.Replace(" ", "").Replace("_", "").Replace("-", "");
+                if (string.Equals(norm, "MetadataMap", StringComparison.OrdinalIgnoreCase))
+                {
+                    rawMetadataMap = v;
+                }
+                else if (string.Equals(norm, "ThumbnailMap", StringComparison.OrdinalIgnoreCase))
+                {
+                    rawThumbnailMap = v;
+                }
             }
         }
-        rawMap ??= inputs.GetValueOrDefault("MetadataMap") ?? inputs.GetValueOrDefault("metadata_map");
 
-        // Fallback: If any input is a dictionary or JSON object
-        if (rawMap == null)
+        // Fallback: If rawMetadataMap is still null, look for dictionary or JSON object
+        if (rawMetadataMap == null && rawThumbnailMap == null)
         {
             foreach (var (k, v) in inputs)
             {
@@ -104,17 +121,21 @@ public class UpdateResourceMetadataTool(
                     string.Equals(k, "Workstation", StringComparison.OrdinalIgnoreCase)) continue;
                 if (v is IDictionary || v is JsonElement { ValueKind: JsonValueKind.Object })
                 {
-                    rawMap = v;
+                    rawMetadataMap = v;
                     break;
                 }
             }
         }
 
-        var metadataMap = ExtractMap(rawMap);
-        if (metadataMap.Count == 0)
+        var metadataMap = ExtractMap(rawMetadataMap);
+        var thumbnailMap = ExtractMap(rawThumbnailMap);
+
+        if (metadataMap.Count == 0 && thumbnailMap.Count == 0)
         {
-            throw new ArgumentException("MetadataMap is required and cannot be empty for UpdateResourceMetadataTool.");
+            throw new ArgumentException("At least one of MetadataMap or ThumbnailMap must be provided and not empty for UpdateResourceMetadataTool.");
         }
+
+        var allKeys = metadataMap.Keys.Concat(thumbnailMap.Keys).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
         // 2. Resolve Workstation and Repository ID for path resolution
         Guid? repoId = null;
@@ -152,7 +173,7 @@ public class UpdateResourceMetadataTool(
         var pathKeys = new List<string>();
         var keyToCleanPathMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var key in metadataMap.Keys)
+        foreach (var key in allKeys)
         {
             if (TryExtractGuid(key) == null)
             {
@@ -174,7 +195,7 @@ public class UpdateResourceMetadataTool(
 
         // 4. Update each entry
         var updatedCount = 0;
-        foreach (var (resourceKey, metaVal) in metadataMap)
+        foreach (var resourceKey in allKeys)
         {
             var targetGuid = TryExtractGuid(resourceKey);
 
@@ -200,7 +221,10 @@ public class UpdateResourceMetadataTool(
                 versionId = locResult.Value.ResourceVersionId;
             }
 
-            var jsonDoc = ParseToJsonDocument(metaVal, resourceKey);
+            metadataMap.TryGetValue(resourceKey, out var metaVal);
+            thumbnailMap.TryGetValue(resourceKey, out var thumbVal);
+
+            var jsonDoc = MergeMetadataAndThumbnail(metaVal, thumbVal, resourceKey);
             var updateResult = await workspaceApi.UpdateMetadataAsync(versionId, jsonDoc, ct);
             if (updateResult.IsFailed)
             {
@@ -232,6 +256,38 @@ public class UpdateResourceMetadataTool(
             ["Success"] = true,
             ["UpdatedCount"] = updatedCount
         };
+    }
+
+    private static JsonDocument MergeMetadataAndThumbnail(object? metaVal, object? thumbVal, string resourceKey)
+    {
+        var baseDoc = ParseToJsonDocument(metaVal, resourceKey);
+        if (thumbVal == null)
+        {
+            return baseDoc;
+        }
+
+        var thumbPath = thumbVal.ToString()?.Trim();
+        if (string.IsNullOrEmpty(thumbPath))
+        {
+            return baseDoc;
+        }
+
+        var dict = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        if (baseDoc.RootElement.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in baseDoc.RootElement.EnumerateObject())
+            {
+                dict[prop.Name] = prop.Value.Clone();
+            }
+        }
+        else
+        {
+            dict["value"] = baseDoc.RootElement.Clone();
+        }
+
+        dict["thumbnail_path"] = thumbPath;
+        var serialized = JsonSerializer.Serialize(dict);
+        return JsonDocument.Parse(serialized);
     }
 
     private static string NormalizePathKey(string key, string? rootPath)
