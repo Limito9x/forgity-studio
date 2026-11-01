@@ -2,7 +2,7 @@
 
 > **Ngày lập kế hoạch**: 01/11/2026  
 > **Mã Backlog**: `BL-035`  
-> **Trạng thái**: Chờ duyệt (Review Gate)  
+> **Trạng thái**: Resolved (Đã hoàn thành & nghiệm thu)  
 > **Phạm vi**: `Automation.Content.Contracts`, `Automation.Content`, `Automation.Repository.Shared`, `Automation.Repository`, `web/src/features/repositories`
 
 ---
@@ -102,3 +102,4 @@ Sau khi triển khai thành công `BL-031` (Đảo ngược phụ thuộc Invert
 ## 4. Kế Hoạch Đảm Bảo An Toàn & Tương Thích Ngược (Safety & Rollback)
 - **Database**: Bảng `ResourceItems` vốn đã không còn chứa `ContentId` nên **không cần chạy migration DB**.
 - **API Contracts**: Các trường `ContentId`, `ContentName`, `ContentTypeName`, `AnchorPath` cũ trên `WorkspaceResourceDto` vẫn được giữ nguyên và tự động gán từ link đầu tiên, đảm bảo bất kỳ mã nguồn nào đang dùng trường cũ đều không bị ảnh hưởng.
+
