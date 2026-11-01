@@ -1,8 +1,12 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using Automation.Content.Contracts;
+using Automation.Files.Contracts;
+using Automation.Repository.Constants;
 using Automation.Repository.Contracts;
 using Automation.Repository.Contracts.Extensions;
 using Automation.Repository.Infrastructure.Persistence;
+using Automation.Studio.Contracts;
 using Automation.Tag.Contracts;
 using Automation.Tag.Contracts.Dtos;
 using FluentResults;
@@ -18,6 +22,8 @@ public class RepositoryApi(
     ITagApi tagApi,
     IContentApi? contentApi = null,
     Automation.Runner.Contracts.IRunnerApi? runnerApi = null,
+    IAssetApi? assetApi = null,
+    IProjectsApi? projectsApi = null,
     ILogger<RepositoryApi>? logger = null
 ) : IRepositoryApi
 {
@@ -363,6 +369,170 @@ public class RepositoryApi(
         version.UpdateMetadata(UnwrapMetadataIfNeeded(metadata));
         await db.SaveChangesAsync(ct);
         return Result.Ok();
+    }
+
+    public async Task<Result> UpdateThumbnailAsync(
+        Guid resourceVersionId,
+        string thumbnailFilePath,
+        CancellationToken ct = default
+    )
+    {
+        if (assetApi == null)
+            return Result.Fail("IAssetApi is not configured.");
+
+        if (string.IsNullOrWhiteSpace(thumbnailFilePath))
+            return Result.Fail("Thumbnail file path cannot be empty.");
+
+        var version = await db.ResourceVersions
+            .Include(v => v.Resource)
+                .ThenInclude(r => r.Repository)
+            .Include(v => v.Locations)
+                .ThenInclude(l => l.RepositoryRunner)
+            .FirstOrDefaultAsync(v => v.Id == resourceVersionId, ct);
+
+        if (version == null)
+        {
+            version = await db.ResourceVersions
+                .Include(v => v.Resource)
+                    .ThenInclude(r => r.Repository)
+                .Include(v => v.Locations)
+                    .ThenInclude(l => l.RepositoryRunner)
+                .Where(v => v.ResourceId == resourceVersionId)
+                .OrderByDescending(v => v.VersionNo)
+                .FirstOrDefaultAsync(ct);
+        }
+
+        if (version == null)
+            return Result.Fail($"ResourceVersion with ID '{resourceVersionId}' not found.");
+
+        var cleanInput = thumbnailFilePath.Trim();
+
+        // Case 1: Already an AssetId or URN
+        var rawGuidStr = cleanInput.StartsWith("urn:asset:", StringComparison.OrdinalIgnoreCase)
+            ? cleanInput["urn:asset:".Length..]
+            : cleanInput;
+
+        if (Guid.TryParse(rawGuidStr, out var directAssetId))
+        {
+            var directLink = await assetApi.ReplaceSingleLinkAsync(
+                new AssetLinkRequestItem(directAssetId, $"{version.Resource?.DisplayName ?? "thumb"}.png"),
+                new AssetLinkOwner("ResourceVersion", version.Id.ToString(), ResourceAssetSlots.Thumbnail),
+                ct: ct
+            );
+            return directLink.ToResult();
+        }
+
+        // Case 2: Physical file path on Runner / Workstation
+        var originLocation = version.Locations.FirstOrDefault(l => l.IsOrigin) ?? version.Locations.FirstOrDefault();
+        var runnerId = originLocation?.RepositoryRunner?.RunnerId ?? Guid.Empty;
+        var rootPath = originLocation?.RepositoryRunner?.RootPath ?? string.Empty;
+
+        var fullPath = Path.IsPathRooted(cleanInput) || string.IsNullOrWhiteSpace(rootPath)
+            ? cleanInput
+            : Path.Combine(rootPath, cleanInput.TrimStart('/', '\\'));
+
+        var fileName = Path.GetFileName(fullPath);
+        var extension = Path.GetExtension(fullPath).ToLowerInvariant();
+        if (string.IsNullOrEmpty(extension))
+            extension = ".png";
+
+        var contentType = extension switch
+        {
+            ".webp" => "image/webp",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            _ => "image/png"
+        };
+
+        string? fileHash = null;
+        long sizeBytes = 0;
+
+        if (File.Exists(fullPath))
+        {
+            var fi = new FileInfo(fullPath);
+            sizeBytes = fi.Length;
+            await using var fs = File.OpenRead(fullPath);
+            var hashBytes = await SHA256.HashDataAsync(fs, ct);
+            fileHash = Convert.ToHexStringLower(hashBytes);
+        }
+        else if (runnerApi != null && runnerId != Guid.Empty)
+        {
+            var dir = Path.GetDirectoryName(fullPath) ?? rootPath;
+            var scanRes = await runnerApi.SendScanCommandAsync(runnerId, dir, [extension.TrimStart('.')], ct);
+            if (scanRes.IsSuccess && scanRes.Value != null)
+            {
+                var matchedFile = scanRes.Value.Items.FirstOrDefault(f =>
+                    string.Equals(Path.GetFileName(f.RelativePath), fileName, StringComparison.OrdinalIgnoreCase));
+                if (matchedFile != null)
+                {
+                    fileHash = matchedFile.Hash;
+                    sizeBytes = matchedFile.SizeBytes;
+                }
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(fileHash) || sizeBytes <= 0)
+        {
+            return Result.Fail($"Could not locate or hash thumbnail file '{fullPath}'.");
+        }
+
+        var projectId = version.Resource?.Repository?.ProjectId ?? Guid.Empty;
+        Guid? storageProfileId = null;
+        if (projectId != Guid.Empty && projectsApi != null)
+        {
+            storageProfileId = await projectsApi.GetProjectStorageProfileIdAsync(projectId, ct);
+        }
+
+        var uploadRequestResult = await assetApi.RequestUploadAsync(
+            [new UploadRequestItemDto(fileHash, extension, sizeBytes, contentType)],
+            storageProfileId,
+            ct
+        );
+
+        if (uploadRequestResult.IsFailed || uploadRequestResult.Value.Count == 0)
+        {
+            return Result.Fail(
+                uploadRequestResult.Errors.FirstOrDefault()?.Message ?? "Failed to request thumbnail upload ticket."
+            );
+        }
+
+        var uploadTicket = uploadRequestResult.Value[0];
+
+        if (!uploadTicket.IsAlreadyExists)
+        {
+            if (runnerApi == null || runnerId == Guid.Empty || string.IsNullOrWhiteSpace(uploadTicket.PresignedUrl))
+            {
+                return Result.Fail("Runner or presigned URL unavailable to upload thumbnail.");
+            }
+
+            var uploadCmdResult = await runnerApi.SendUploadCommandAsync(
+                runnerId,
+                fullPath,
+                uploadTicket.PresignedUrl,
+                contentType,
+                uploadTicket.AssetId,
+                version.Id,
+                ct
+            );
+
+            if (uploadCmdResult.IsFailed)
+            {
+                return Result.Fail($"Runner thumbnail upload failed: {uploadCmdResult.Errors.FirstOrDefault()?.Message}");
+            }
+
+            var confirmResult = await assetApi.ConfirmUploadAsync([uploadTicket.AssetId], ct);
+            if (confirmResult.IsFailed)
+            {
+                return Result.Fail($"Confirming thumbnail asset failed: {confirmResult.Errors.FirstOrDefault()?.Message}");
+            }
+        }
+
+        var linkResult = await assetApi.ReplaceSingleLinkAsync(
+            new AssetLinkRequestItem(uploadTicket.AssetId, fileName),
+            new AssetLinkOwner("ResourceVersion", version.Id.ToString(), ResourceAssetSlots.Thumbnail),
+            ct: ct
+        );
+
+        return linkResult.ToResult();
     }
 
     public async Task<Result<System.Text.Json.JsonDocument?>> GetMetadataAsync(

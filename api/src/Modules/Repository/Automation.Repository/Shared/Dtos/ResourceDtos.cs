@@ -129,7 +129,8 @@ public record WorkspaceResourceDto(
     Guid? HoldingRunnerId = null,
     string? HoldingRunnerName = null,
     string? AnchorPath = null,
-    IReadOnlyList<ResourceLinkedAnchorDto>? LinkedAnchors = null
+    IReadOnlyList<ResourceLinkedAnchorDto>? LinkedAnchors = null,
+    string? ThumbnailUrl = null
 );
 
 public record WorkspaceAgentResourceDto(

@@ -20,8 +20,18 @@ public static class RepositoryAssetExtensions
             }
         );
 
+        services.AddAssetSlot(
+            entityType: "ResourceVersion",
+            slotKey: ResourceAssetSlots.Thumbnail,
+            options: new AssetCategoryOptions
+            {
+                AllowMultiple = false,
+                MaxCount = 1,
+                MaxSizeBytes = 10L * 1024 * 1024, // 10MB
+                AllowedContentTypes = ["image/png", "image/webp", "image/jpeg"]
+            }
+        );
 
         return services;
     }
 }
-
