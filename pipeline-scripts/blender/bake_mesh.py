@@ -580,6 +580,23 @@ def setup_emission_routing(mat: Any, map_type: str) -> Optional[Tuple[Any, Any, 
 
     if sock is not None and sock.is_linked:
         upstream = sock.links[0].from_socket
+        # DAZ/Diffeomorphic Skin SSS Mix Pitfall:
+        # Diffeomorphic connects Principled BSDF 'Base Color' to a Mix node (Factor=0.85)
+        # where Input A is the real Diffuse texture and Input B is a heavily gamma-darkened (3.5) SSS map.
+        # Baking this Mix node burns the skin to dark brown. We must extract the true diffuse upstream (Input A).
+        if map_type == "diffuse" and upstream.node.type in ('MIX', 'MIX_RGB'):
+            mix_node = upstream.node
+            # Check inputs for the true diffuse texture
+            found_diffuse_socket = None
+            for inp_name in ('A', 'Color1', 'Color 1'):
+                inp = mix_node.inputs.get(inp_name)
+                if inp and inp.is_linked:
+                    found_diffuse_socket = inp.links[0].from_socket
+                    break
+            if found_diffuse_socket is not None:
+                upstream = found_diffuse_socket
+                print(f"[bake_mesh:emit] {mat.name}: Bypassed Diffeomorphic SSS Mix node, using pure diffuse input '{upstream.node.name}'.", flush=True)
+
         if sock.node.id_data == tree and not _is_bake_artifact(upstream.node):
             links.new(upstream, color_in)
             source = f"linked {sock.node.name}.{sock.name} <- {upstream.node.name}"

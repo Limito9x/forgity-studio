@@ -420,7 +420,8 @@ def _activate_diffuse_textures_for_workbench(active_meshes: List[Any]) -> List[T
                     best_node = node
                     best_tree = tree
 
-            if best_node is not None:
+            # Only activate if a valid diffuse/albedo texture was positively identified
+            if best_node is not None and best_score > 0:
                 orig_active = mat.node_tree.nodes.active
                 if best_tree == mat.node_tree:
                     try:
@@ -439,6 +440,17 @@ def _activate_diffuse_textures_for_workbench(active_meshes: List[Any]) -> List[T
                         restore_list.append((mat, orig_active, temp_node))
                     except Exception:
                         pass
+            else:
+                # If current active node is a normal/roughness/non-color texture, deactivate it to avoid purple tint
+                curr_active = getattr(mat.node_tree.nodes, "active", None)
+                if curr_active and getattr(curr_active, "type", None) == 'TEX_IMAGE':
+                    act_img = getattr(curr_active, "image", None)
+                    act_name = (getattr(act_img, "name", "") or "").lower()
+                    act_space = getattr(getattr(act_img, "colorspace_settings", None), "name", "")
+                    if act_space == "Non-Color" or any(k in act_name for k in ("normal", "nrm", "bump", "rough", "spec")):
+                        orig_active = curr_active
+                        mat.node_tree.nodes.active = None
+                        restore_list.append((mat, orig_active, None))
 
     return restore_list
 
@@ -504,6 +516,7 @@ def render_mesh_thumbnail(
     orig_file_format = scene.render.image_settings.file_format
     orig_color_mode = scene.render.image_settings.color_mode
     orig_filepath = scene.render.filepath
+    orig_view_transform = getattr(scene.view_settings, "view_transform", "Standard")
 
     cam_obj = None
     cam_data = None
@@ -540,6 +553,12 @@ def render_mesh_thumbnail(
         scene.render.image_settings.file_format = 'PNG'
         scene.render.image_settings.color_mode = 'RGBA'
 
+        # Standard color view preserves true diffuse albedo without AgX compression
+        try:
+            scene.view_settings.view_transform = 'Standard'
+        except Exception:
+            pass
+
         clean_out_png = output_png_path.replace("\\", "/")
         os.makedirs(os.path.dirname(os.path.abspath(clean_out_png)), exist_ok=True)
         scene.render.filepath = clean_out_png
@@ -548,6 +567,8 @@ def render_mesh_thumbnail(
             shading = scene.display.shading
             shading.light = 'STUDIO'
             shading.color_type = 'TEXTURE'
+            if hasattr(shading, "show_specular_highlight"):
+                shading.show_specular_highlight = False  # Avoid oily/greasy specular sheen on skin
             if hasattr(shading, "show_cavity"):
                 shading.show_cavity = True
                 if hasattr(shading, "cavity_type"):
@@ -594,6 +615,10 @@ def render_mesh_thumbnail(
         scene.render.image_settings.file_format = orig_file_format
         scene.render.image_settings.color_mode = orig_color_mode
         scene.render.filepath = orig_filepath
+        try:
+            scene.view_settings.view_transform = orig_view_transform
+        except Exception:
+            pass
 
         # Restore object visibility
         for obj, state in orig_hide_render.items():
