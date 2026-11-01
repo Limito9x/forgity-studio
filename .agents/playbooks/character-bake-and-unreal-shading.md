@@ -63,6 +63,15 @@
   3. **Proxy Node nếu lặn sâu**: Nếu bắt buộc lấy từ texture bên trong group, tạo một node `ShaderNodeTexImage` tạm thời ở root tree trỏ cùng file `image` để tránh lỗi cross-tree.
   4. **Fail-safe Guardrail**: Nếu Roughness đọc ra $\le 0.01$, lập tức chặn đứng và fallback về giá trị da người chuẩn (`0.5`), không bao giờ để xuất ra ảnh đen `0.0`.
 
+### 2.3. "Cái Bẫy" Da Cháy Đen (Diffeomorphic SSS Mix Pitfall)
+- **Hiện tượng**: Nhân vật da trắng tự nhiên sau khi bake BaseColor xuất ra file ảnh bị nâu đen sẫm / socola cháy (`R=0.41, G=0.22, B=0.20`), render thumbnail hoặc đưa vào UE5 trông như "người da đen".
+- **Cơ chế lỗi**:
+  - Khi Diffeomorphic import nhân vật DAZ, cổng `Base Color` của `Principled BSDF` không cắm trực tiếp vào texture Diffuse gốc (`_D_100x.jpg`), mà đi qua một node `Mix (Factor=0.85)`.
+  - Cổng A của Mix là texture Diffuse thật, nhưng cổng B là texture Subsurface (`_SSS_100x.jpg`) đã bị đi qua node `Gamma = 3.5` (làm tối đen lại $x^{3.5}$).
+  - Với Factor 0.85, 85% giá trị màu xuất ra bị nuốt bởi màu SSS tối đen (vì trong Cycles họ dựa vào Subsurface Scattering để bù sáng). Khi bake EMIT từ Base Color, file ảnh BaseColor bị cháy đen.
+- **Quy tắc giải quyết chuẩn trong `bake_mesh.py`**:
+  - Khi bake map `diffuse`, nếu upstream socket nối vào node `MIX` / `MIX_RGB`, tự động dò ngược vào **Cổng A** (`Color1` / `A`) để lấy đúng node texture Diffuse/Albedo gốc. Bỏ qua hoàn toàn cổng SSS/Gamma 3.5 để bảo toàn 100% màu da nguyên bản cho UE5 Subsurface Profile.
+
 ---
 
 ## 3. Cẩm Nang Headless Bake (`bake_mesh.py`)
