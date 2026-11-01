@@ -102,8 +102,8 @@ def resolve_endpoint_and_provider(endpoint_or_provider: str, model_candidate: st
     return target_endpoint, provider_key, target_model, is_local
 
 
-def parse_gameplay_tags_ini(tags_ini_path: str) -> List[str]:
-    """Parse GameplayTags from DefaultGameplayTags.ini file or directory."""
+def parse_gameplay_tags_ini(tags_ini_path: str, slot_prefix: str = "System.Wardrobe.Slots.") -> List[str]:
+    """Parse Wardrobe Slot GameplayTags from DefaultGameplayTags.ini file or directory, scoped to slot_prefix."""
     if not tags_ini_path:
         return []
     p = os.path.abspath(tags_ini_path.strip().strip('"').strip("'"))
@@ -119,7 +119,7 @@ def parse_gameplay_tags_ini(tags_ini_path: str) -> List[str]:
     if not os.path.isfile(p):
         return []
 
-    tags: List[str] = []
+    all_tags: List[str] = []
     import re
     try:
         with open(p, "r", encoding="utf-8", errors="ignore") as f:
@@ -127,12 +127,14 @@ def parse_gameplay_tags_ini(tags_ini_path: str) -> List[str]:
                 m = re.search(r'Tag="([^"]+)"', line)
                 if m:
                     tag = m.group(1).strip()
-                    if tag and tag not in tags:
-                        tags.append(tag)
+                    if tag and tag not in all_tags:
+                        all_tags.append(tag)
     except Exception as ex:
         print(f"[classify_mesh_types] Warning reading tags ini '{p}': {ex}", flush=True)
 
-    return tags
+    # Strictly filter to wardrobe slot tags if any exist in the INI, avoiding unrelated game tags
+    scoped_slots = [t for t in all_tags if t.startswith(slot_prefix)]
+    return scoped_slots if scoped_slots else all_tags
 
 
 def resolve_api_key(provider: str = "gemini") -> str:
@@ -255,7 +257,7 @@ def main(
             if not target_slots:
                 target_slots = [c.strip() for c in contracts.split(",") if c.strip()]
 
-    standard_slots = ["Top", "Inner_Top", "Bottom", "Inner_Bottom", "Shoes", "Hair", "Accessory", "Body"]
+    standard_slots = ["Top", "Inner_Top", "Bottom", "Inner_Bottom", "Shoes", "Hair", "Outerwear", "Underwear", "Accessory", "Body"]
 
     # Combine explicit contracts or standard slots with ini tags
     if not target_slots:

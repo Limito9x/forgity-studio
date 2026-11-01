@@ -99,6 +99,35 @@ def resolve_item_tag(
     return sanitize_gameplay_tag(f"{prefix}.{clean_asset_name}")
 
 
+def format_display_name(raw_name: str, character_tag: str = "") -> str:
+    """
+    Format a clean, human-readable DisplayName for UI menus.
+    e.g. 'Eva_Outfit1_BrzUsBra' -> 'Brz Us Bra'
+    e.g. 'Iridessa Hair Genesis 9 Mesh' -> 'Iridessa Hair'
+    """
+    s = str(raw_name or "").strip()
+    if not s:
+        return "Wardrobe Item"
+
+    # Strip Blender numeric suffixes and DCC noise
+    s = re.sub(r"\.\d{3}$", "", s)
+    s = re.sub(r"(?i)\b(genesis\s*[89]\s*(?:female|male)?|mesh|shape|daz)\b", "", s)
+
+    # Strip leading character name prefix if present (e.g. 'Eva_')
+    char_leaf = character_tag.split(".")[-1].strip() if character_tag else ""
+    if char_leaf and s.lower().startswith(f"{char_leaf.lower()}_"):
+        s = s[len(char_leaf) + 1:]
+
+    # Strip generic 'Outfit1_' prefix if followed by item name
+    s = re.sub(r"(?i)^outfit\d*_", "", s)
+
+    # Split CamelCase / PascalCase (e.g. 'BrzUsBra' -> 'Brz Us Bra')
+    s = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", s)
+    s = re.sub(r"[_\-]+", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s or str(raw_name).strip()
+
+
 # ==============================================================================
 # GameplayTags INI File Synchronization
 # ==============================================================================
@@ -340,6 +369,36 @@ def _set_texture_property(asset: Any, prop_names: List[str], texture_path: str, 
     return False
 
 
+def _set_text_property(asset: Any, prop_names: List[str], text_val: str, unreal_mod) -> bool:
+    """Set an FText or FString property (e.g. DisplayName) on an Unreal DataAsset."""
+    if not asset or not text_val or not unreal_mod:
+        return False
+
+    for prop in prop_names:
+        # 1. Try FText (unreal.Text)
+        if hasattr(unreal_mod, "Text"):
+            try:
+                asset.set_editor_property(prop, unreal_mod.Text(text_val))
+                return True
+            except Exception:
+                pass
+        # 2. Try FString (plain str)
+        try:
+            asset.set_editor_property(prop, str(text_val))
+            return True
+        except Exception:
+            pass
+        # 3. Try FName (unreal.Name)
+        if hasattr(unreal_mod, "Name"):
+            try:
+                asset.set_editor_property(prop, unreal_mod.Name(text_val))
+                return True
+            except Exception:
+                pass
+
+    return False
+
+
 def _load_data_asset_class(schema_path: str, unreal_mod) -> Any:
     """Resolve and load a Blueprint DataAsset class."""
     if not unreal_mod or not schema_path:
@@ -495,12 +554,14 @@ def normalize_input_items(
                     mesh_p = target_p
                     break
 
-        # Resolve thumbnail path
+        # Resolve thumbnail path and display name
         thumb_p = str(entry.get("thumbnail_path") or entry.get("thumbnail") or entry.get("thumb") or "").strip()
+        disp_name = str(entry.get("display_name") or "").strip()
 
         item_record = {
             "clean_asset_name": clean_name,
             "source_object_name": raw_name,
+            "display_name": disp_name,
             "cloth_type": cloth_type,
             "mesh_path": mesh_p,
             "thumbnail_path": thumb_p,
@@ -639,6 +700,7 @@ def main(
 
     for item in clothing_items:
         clean_name = item["clean_asset_name"]
+        display_name = item.get("display_name") or format_display_name(clean_name, character_tag)
         asset_name = f"PDA_{clean_name}"
         asset_path = f"{clean_dest_folder}/{asset_name}"
         mesh_p = item["mesh_path"] or f"{clean_dest_folder}/SKM_{clean_name}"
@@ -661,6 +723,7 @@ def main(
         item_record = {
             "asset_name": asset_name,
             "asset_path": asset_path,
+            "display_name": display_name,
             "character_tag": character_tag,
             "slot_tag": item["slot_tag"],
             "item_tag": item["item_tag"],
@@ -671,7 +734,7 @@ def main(
         }
 
         if is_dry:
-            print(f"[register_wardrobe_data_assets] [Dry-Run] Simulated PDA_WardrobeItem: '{asset_path}' (Slot: {item['slot_tag']}, Item: {item['item_tag']}, Mesh: {mesh_p}, Thumbnail: {thumb_package_path})", flush=True)
+            print(f"[register_wardrobe_data_assets] [Dry-Run] Simulated PDA_WardrobeItem: '{asset_path}' (DisplayName: '{display_name}', Slot: {item['slot_tag']}, Item: {item['item_tag']}, Mesh: {mesh_p}, ItemThumbnail: {thumb_package_path})", flush=True)
             registered_items.append(item_record)
             continue
 
@@ -692,10 +755,12 @@ def main(
             _set_tag_property(data_asset, "CharacterTag", character_tag, unreal)
             _set_tag_property(data_asset, "SlotTag", item["slot_tag"], unreal)
             _set_tag_property(data_asset, "ItemTag", item["item_tag"], unreal)
+            if display_name:
+                _set_text_property(data_asset, ["DisplayName", "ItemDisplayName", "ItemName", "Title"], display_name, unreal)
             if mesh_p:
                 _set_mesh_property(data_asset, "ItemMesh", mesh_p, unreal)
             if thumb_package_path:
-                _set_texture_property(data_asset, ["Thumbnail", "Icon", "ItemIcon", "PreviewTexture", "PreviewIcon"], thumb_package_path, unreal)
+                _set_texture_property(data_asset, ["ItemThumbnail", "Thumbnail", "Icon", "ItemIcon", "PreviewTexture"], thumb_package_path, unreal)
             unreal.EditorAssetLibrary.save_loaded_asset(data_asset)
 
         registered_items.append(item_record)

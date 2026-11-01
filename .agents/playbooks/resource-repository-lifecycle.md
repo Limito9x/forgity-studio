@@ -261,10 +261,11 @@ Script `export_fbx.py` được chuẩn hóa gọn gàng thành **4 Inputs** (`o
      - `ThumbnailMap` gọi `IRepositoryApi.UpdateThumbnailAsync`: tự động băm SHA-256, đẩy ảnh `.png` từ Runner lên CAS Storage qua Presigned URL và gắn `AssetLink` vào Slot `"Thumbnail"` của `ResourceVersion` (`ResourceAssetSlots.Thumbnail`) mà không cần tạo thêm cột trong DB.
    - Khi truy vấn `GetRepositoryResources`, hệ thống batch-query `IAssetApi.GetFilesAsync` theo Slot `"Thumbnail"` để trả về `ThumbnailUrl` hiển thị trên mọi trình duyệt.
 
-### 9.3. 5 Trường Cốt Lõi Của `PDA_WardrobeItem` & Convention-Driven Tags
-Unreal Script gán tự động 5 trường cốt lõi theo quy ước chuẩn:
+### 9.3. 6 Trường Cốt Lõi Của `PDA_WardrobeItem` & Convention-Driven Tags
+Unreal Script gán tự động 6 trường cốt lõi theo quy ước chuẩn:
 - `CharacterTag`: Nhận diện nhân vật tương thích, format `Character.{Name}` (ví dụ `Character.Eva`).
-- `SlotTag`: Định danh slot trang phục từ danh sách slots chuẩn hóa (`Top`, `Bottom`, `Shoes`, `Hair`, `Underwear`, `Outerwear`, `Accessories`), format `System.Wardrobe.Slots.{Slot}`.
+- `SlotTag`: Định danh slot trang phục từ danh sách slots chuẩn hóa (`Top`, `Inner_Top`, `Bottom`, `Inner_Bottom`, `Shoes`, `Hair`, `Outerwear`, `Underwear`, `Accessory`), format `System.Wardrobe.Slots.{Slot}`.
 - `ItemTag`: Định danh món đồ duy nhất, format `Character.{Name}.Outfits.{ItemName}`.
+- `DisplayName`: Tên hiển thị trên UI menu (tự động tách khoảng trắng CamelCase và lược bỏ tiền tố nhân vật/outfit, ví dụ `Eva_Outfit1_BrzUsBra` $\rightarrow$ `"Brz Us Bra"`).
 - `ItemMesh`: Trỏ đến `USkeletalMesh` vừa import từ file FBX.
-- `Thumbnail`: Trỏ đến `UTexture2D` vừa import từ file PNG.
+- `ItemThumbnail`: Trỏ đến `UTexture2D` (`TEXTUREGROUP_UI`) vừa import từ file PNG.
