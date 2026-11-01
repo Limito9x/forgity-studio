@@ -232,3 +232,37 @@ Một tệp tài nguyên vật lý (ví dụ: `Boots_Combat_01.fbx`) có thể �
   - **1 liên kết**: Badge định danh Content Type (màu sắc, icon) + Tên Content + Tag Anchor path, nút gỡ liên kết nhanh khi hover.
   - **$\ge 2$ liên kết**: Huy hiệu chính + Nút `+X more ▾` mở Popover hiển thị toàn bộ danh sách Content Items đang dùng chung Resource này, kèm nút unlink riêng biệt cho từng Content.
 - **Assignment Status Filter Bar**: Thanh segmented control trên toolbar (`All` | `Assigned` | `Unassigned`) cho phép chuyển đổi nhanh bộ lọc query server-side mượt mà.
+
+
+---
+
+## 9. Headless 3D Thumbnail Rendering & Wardrobe DataAsset Ingestion (`BL-036`)
+
+Nhằm cung cấp hình ảnh xem trước (Preview Thumbnail) trực quan cho cả hệ thống Web DAM và menu Wardrobe trong Unreal Engine 5 mà không tốn công sức chụp ảnh thủ công, hệ thống chuẩn hóa quy trình **Headless 3D Thumbnail Renderer** tích hợp vào bước Export FBX.
+
+### 9.1. Thuật Toán Chụp Ảnh Headless Trong Blender (`export_fbx.py`)
+- **Render Engine**: Sử dụng `BLENDER_WORKBENCH` siêu tốc ($<0.15\text{s}$/mesh), shading Studio `MATCAP` (`check_normal+y.exr`) kết hợp `Cavity` (World + Screen space, Ridge $1.5$, Valley $1.5$).
+- **Visibility Isolation**: Khi file `.blend` chứa toàn bộ nhân vật (body + nhiều bộ trang phục), script tự động ẩn (`hide_render = True`) tất cả các mesh khác và các collection không liên quan, chỉ bật duy nhất mesh món đồ đang chụp để tránh dính nhân vật vào hình thumbnail.
+- **Bounding Sphere & Camera Frustum Fitting**:
+  - Tính toán Bounding Box trên không gian thế giới (`matrix_world`) của tập hợp target meshes.
+  - Tìm tâm hình học $\mathbf{Center}$ và bán kính cầu ngoại tiếp $R$.
+  - Tạo camera phối cảnh (FOV $39.6^\circ$, tiêu cự 50mm) đặt tại góc nhìn $3/4$ Isometric góc cao ($\text{Yaw} = 40^\circ, \text{Pitch} = 18^\circ$).
+  - Lùi camera một khoảng cách tối ưu $D = \frac{R}{\sin(\text{FOV}/2)} \times 1.15$ (hệ số đệm $15\%$).
+- **Đầu ra**: File ảnh `.png` RGBA nền trong suốt $512 \times 512$ đặt cùng thư mục và cùng tên với file `.fbx` (ví dụ `Warrior_Top.png`).
+
+### 9.2. Triết Lý Double-Duty: 1 Ảnh Cho Cả Unreal Lẫn Web DAM
+File ảnh PNG sinh ra giải quyết trọn vẹn 2 mục tiêu:
+1. **Unreal Engine 5 Texture UI (`register_wardrobe_data_assets.py`)**:
+   - Được nạp vào dự án UE5 thành `UTexture2D` với nhóm `TEXTUREGROUP_UI` và bật `sRGB = True`.
+   - Tự động gán vào trường `Thumbnail` (hoặc `Icon`) của `PDA_WardrobeItem`.
+2. **Web DAM & Workspace Resource Metadata**:
+   - Đường dẫn ảnh được tool `Update Resources` (`UpdateResourceMetadataTool`) tiếp nhận qua pin `ThumbnailMap`.
+   - Tool tự động nhúng `"thumbnail_path": "..."` vào JSON Metadata của Resource Version trên DB PostgreSQL để giao diện Web hiển thị ngay thumbnail preview của 3D model.
+
+### 9.3. 5 Trường Cốt Lõi Của `PDA_WardrobeItem` & Convention-Driven Tags
+Unreal Script gán tự động 5 trường cốt lõi theo quy ước chuẩn:
+- `CharacterTag`: Nhận diện nhân vật tương thích, format `Character.{Name}` (ví dụ `Character.Eva`).
+- `SlotTag`: Định danh slot trang phục từ danh sách slots chuẩn hóa (`Top`, `Bottom`, `Shoes`, `Hair`, `Underwear`, `Outerwear`, `Accessories`), format `System.Wardrobe.Slots.{Slot}`.
+- `ItemTag`: Định danh món đồ duy nhất, format `Character.{Name}.Outfits.{ItemName}`.
+- `ItemMesh`: Trỏ đến `USkeletalMesh` vừa import từ file FBX.
+- `Thumbnail`: Trỏ đến `UTexture2D` vừa import từ file PNG.
