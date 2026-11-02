@@ -283,6 +283,11 @@ export function RepositorySyncTab({
 
           setDiffItems(items);
           setHasScanned(true);
+          if (res.hasReachedLimit) {
+            toast.warning(
+              "Maximum scan limit reached. Some files may be omitted. Refine Included Sub-Paths to scope your scan."
+            );
+          }
 
           // Auto-select non-deleted items by default
           const autoSelectable = items

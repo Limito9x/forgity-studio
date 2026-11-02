@@ -42,7 +42,9 @@ public class GetRepositoriesHandler(RepositoryDbContext db)
                 x.RepositoryRunners.Count,
                 x.Resources.Count,
                 x.CreatedAt,
-                x.SupportedExtensions
+                x.SupportedExtensions,
+                x.IncludedSubPaths,
+                x.MaxScanFiles
             ))
             .ToListAsync(ct);
 

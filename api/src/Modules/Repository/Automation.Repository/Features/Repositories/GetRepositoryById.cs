@@ -15,7 +15,9 @@ public record RepositoryDetailDto(
     string? Description,
     DateTimeOffset CreatedAt,
     IReadOnlyList<RepositoryRunnerDto> Runners,
-    IReadOnlyList<string> SupportedExtensions
+    IReadOnlyList<string> SupportedExtensions,
+    IReadOnlyList<string>? IncludedSubPaths = null,
+    int MaxScanFiles = 2000
 );
 
 public class GetRepositoryByIdEndpoint(IMessageBus bus)
@@ -77,7 +79,9 @@ public class GetRepositoryByIdHandler(RepositoryDbContext db, IRunnerApi runnerA
             repo.Description,
             repo.CreatedAt,
             runners,
-            repo.SupportedExtensions
+            repo.SupportedExtensions,
+            repo.IncludedSubPaths,
+            repo.MaxScanFiles
         );
 
         return Result.Ok(detail);

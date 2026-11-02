@@ -196,14 +196,22 @@ pub fn browse_path(target_dir: &str) -> Result<BrowseCommandResult> {
 }
 
 /// Recursively scans resources in a directory, calculating SHA-256 for each matching file.
-pub fn scan_resources(directory_path: &str, extensions: &[String]) -> Vec<crate::grpc::agent::ResourceItemMessage> {
+/// If `sub_paths` is not empty, only scans within the specified relative subdirectories.
+/// If `max_files` > 0, stops scanning once the limit is reached.
+/// Returns (items, has_reached_limit, total_scanned).
+pub fn scan_resources(
+    directory_path: &str,
+    extensions: &[String],
+    sub_paths: &[String],
+    max_files: i32,
+) -> (Vec<crate::grpc::agent::ResourceItemMessage>, bool, i32) {
     use sha2::{Digest, Sha256};
     use std::fs::File;
     use std::io::Read;
 
     let base_path = PathBuf::from(directory_path);
     if !base_path.exists() {
-        return Vec::new();
+        return (Vec::new(), false, 0);
     }
 
     let mut results = Vec::new();
@@ -225,14 +233,29 @@ pub fn scan_resources(directory_path: &str, extensions: &[String]) -> Vec<crate:
         None
     };
 
+    let limit = if max_files > 0 { max_files as usize } else { usize::MAX };
+    let mut total_scanned: i32 = 0;
+    let mut has_reached_limit = false;
+
     fn scan_dir_recursive(
         base: &Path,
         current: &Path,
         ext_set: &Option<std::collections::HashSet<String>>,
+        limit: usize,
+        total_scanned: &mut i32,
+        has_reached_limit: &mut bool,
         results: &mut Vec<crate::grpc::agent::ResourceItemMessage>,
     ) {
+        if *has_reached_limit {
+            return;
+        }
+
         if let Ok(entries) = std::fs::read_dir(current) {
             for entry in entries.filter_map(Result::ok) {
+                if *has_reached_limit {
+                    break;
+                }
+
                 let path = entry.path();
                 let name = entry.file_name().to_string_lossy().to_string();
 
@@ -253,7 +276,7 @@ pub fn scan_resources(directory_path: &str, extensions: &[String]) -> Vec<crate:
                 }
 
                 if path.is_dir() {
-                    scan_dir_recursive(base, &path, ext_set, results);
+                    scan_dir_recursive(base, &path, ext_set, limit, total_scanned, has_reached_limit, results);
                 } else if path.is_file() {
                     if let Some(ref exts) = ext_set {
                         let ext = path
@@ -263,6 +286,12 @@ pub fn scan_resources(directory_path: &str, extensions: &[String]) -> Vec<crate:
                         if !exts.contains(&ext) {
                             continue;
                         }
+                    }
+
+                    *total_scanned += 1;
+                    if results.len() >= limit {
+                        *has_reached_limit = true;
+                        break;
                     }
 
                     let size_bytes = entry.metadata().map(|m| m.len() as i64).unwrap_or(0);
@@ -299,6 +328,62 @@ pub fn scan_resources(directory_path: &str, extensions: &[String]) -> Vec<crate:
         Ok(hex::encode(hasher.finalize()))
     }
 
-    scan_dir_recursive(&base_path, &base_path, &ext_set, &mut results);
-    results
+    let clean_sub_paths: Vec<&str> = sub_paths
+        .iter()
+        .map(|s| s.trim().trim_start_matches(['/', '\\']).trim_end_matches(['/', '\\']))
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if clean_sub_paths.is_empty() {
+        scan_dir_recursive(
+            &base_path,
+            &base_path,
+            &ext_set,
+            limit,
+            &mut total_scanned,
+            &mut has_reached_limit,
+            &mut results,
+        );
+    } else {
+        for sp in clean_sub_paths {
+            if has_reached_limit {
+                break;
+            }
+            let target_sub_dir = base_path.join(sp);
+            if target_sub_dir.exists() {
+                if target_sub_dir.is_dir() {
+                    scan_dir_recursive(
+                        &base_path,
+                        &target_sub_dir,
+                        &ext_set,
+                        limit,
+                        &mut total_scanned,
+                        &mut has_reached_limit,
+                        &mut results,
+                    );
+                } else if target_sub_dir.is_file() {
+                    let name = target_sub_dir.file_name().unwrap_or_default().to_string_lossy().to_string();
+                    let size_bytes = target_sub_dir.metadata().map(|m| m.len() as i64).unwrap_or(0);
+                    let hash = calculate_sha256(&target_sub_dir).unwrap_or_default();
+                    let rel_path = target_sub_dir
+                        .strip_prefix(&base_path)
+                        .map(|p| p.to_string_lossy().replace('\\', "/"))
+                        .unwrap_or_else(|_| name);
+
+                    total_scanned += 1;
+                    if results.len() < limit {
+                        results.push(crate::grpc::agent::ResourceItemMessage {
+                            relative_path: rel_path,
+                            hash,
+                            size_bytes,
+                        });
+                    } else {
+                        has_reached_limit = true;
+                    }
+                }
+            }
+        }
+    }
+
+    (results, has_reached_limit, total_scanned)
 }

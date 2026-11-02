@@ -9,7 +9,9 @@ public record CreateRepositoryCommand(
     Guid ProjectId,
     string Name,
     string? Description = null,
-    List<string>? SupportedExtensions = null
+    List<string>? SupportedExtensions = null,
+    List<string>? IncludedSubPaths = null,
+    int MaxScanFiles = 2000
 );
 
 public class CreateRepositoryValidator : AbstractValidator<CreateRepositoryCommand>
@@ -49,7 +51,9 @@ public class CreateRepositoryHandler(RepositoryDbContext db)
             command.ProjectId,
             command.Name,
             command.Description,
-            command.SupportedExtensions
+            command.SupportedExtensions,
+            command.IncludedSubPaths,
+            command.MaxScanFiles
         );
         db.Repositories.Add(repo);
         await db.SaveChangesAsync(ct);
@@ -62,7 +66,9 @@ public class CreateRepositoryHandler(RepositoryDbContext db)
             0,
             0,
             repo.CreatedAt,
-            repo.SupportedExtensions
+            repo.SupportedExtensions,
+            repo.IncludedSubPaths,
+            repo.MaxScanFiles
         );
 
         return Result.Ok(dto);

@@ -50,6 +50,15 @@ namespace Automation.Repository.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.PrimitiveCollection<string>("IncludedSubPaths")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("MaxScanFiles")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(2000);
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)

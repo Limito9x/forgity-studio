@@ -207,9 +207,20 @@ impl GrpcRunnerClient {
                 }
 
                 Some(server_message::Payload::ScanCommand(cmd)) => {
-                    info!("[gRPC] Handling remote ScanCommand (cmd_id: {}, path: '{}')...", cmd.command_id, cmd.directory_path);
-                    let items = crate::system::browser::scan_resources(&cmd.directory_path, &cmd.extensions);
-                    info!("[gRPC] Scanned {} resource items in '{}'", items.len(), cmd.directory_path);
+                    info!(
+                        "[gRPC] Handling remote ScanCommand (cmd_id: {}, path: '{}', sub_paths: {:?}, max_files: {})...",
+                        cmd.command_id, cmd.directory_path, cmd.sub_paths, cmd.max_files
+                    );
+                    let (items, has_reached_limit, total_scanned) = crate::system::browser::scan_resources(
+                        &cmd.directory_path,
+                        &cmd.extensions,
+                        &cmd.sub_paths,
+                        cmd.max_files,
+                    );
+                    info!(
+                        "[gRPC] Scanned {} resource items in '{}' (total_scanned: {}, has_reached_limit: {})",
+                        items.len(), cmd.directory_path, total_scanned, has_reached_limit
+                    );
 
                     let resp = CommandResponse {
                         command_id: cmd.command_id,
@@ -217,6 +228,8 @@ impl GrpcRunnerClient {
                         error_message: String::new(),
                         result: Some(command_response::Result::ScanResult(ScanCommandResult {
                             items,
+                            has_reached_limit,
+                            total_scanned,
                         })),
                     };
 
