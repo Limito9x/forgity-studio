@@ -932,6 +932,7 @@ def main(
         "manifest": manifest_map,
         "metadata_map": metadata_map,
         "thumbnail_map": thumbnail_map,
+        "origin_mode": "modular" if export_mode == "Batch" else "monolithic",
     }
 
 

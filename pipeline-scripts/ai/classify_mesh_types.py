@@ -1,18 +1,17 @@
 # pyrefly: ignore [missing-import]
 """
-AI Mesh Role & Cloth Type Classifier (Early Topology Discovery)
+AI Mesh Role & Geometry Separator (Early Topology Discovery)
 Runs on Agent Worker Daemon (Generic Python Executor)
 
 Consumes:
   1. raw_metadata: Raw JSON metadata tree (from DAZ inspector, Blender inspect, or list of mesh names).
-  2. contracts: Target modular appearance categories (e.g. ['Top', 'Bottom', 'Shoes', 'Hair', 'Body']). Required.
-  3. provider (optional): 'gemini' (default), 'openai', or 'ollama'.
-  4. model (optional): 'gemini-2.5-flash' (default), or local model.
+  2. provider (optional): 'groq' (default), 'gemini', 'openai', or 'ollama'.
+  3. model (optional): 'qwen/qwen3.8-27b' (default), or local model.
 
 Outputs:
-  - body_meshes: List of character body mesh names (e.g. ['Genesis 8 Female']) for baking.
-  - cloth_map: Dictionary mapping each clothing mesh to its classified cloth_type, e.g. {'Warrior_Cuirass': 'Top'}.
-  - clothes: List of clothing mesh names.
+  - body_meshes: List of character body mesh names (e.g. ['Genesis 9']) for baking and base character avatar.
+  - clothes: List of modular clothing/wearable mesh names (e.g. ['A_Bra_Brown', 'A_Leggings_Brown', 'A_Shoes_Brown']).
+  - cloth_map: Backward-compatible dictionary mapping each clothing mesh to its generic role.
 """
 
 import os
@@ -30,7 +29,7 @@ except ImportError:
 
 
 # ==============================================================================
-# 1. API Key Resolver (OS Environment & runner.toml only)
+# 1. API Key & Endpoint Resolver
 # ==============================================================================
 
 def is_valid_key(val: str) -> bool:
@@ -102,41 +101,6 @@ def resolve_endpoint_and_provider(endpoint_or_provider: str, model_candidate: st
     return target_endpoint, provider_key, target_model, is_local
 
 
-def parse_gameplay_tags_ini(tags_ini_path: str, slot_prefix: str = "System.Wardrobe.Slots.") -> List[str]:
-    """Parse Wardrobe Slot GameplayTags from DefaultGameplayTags.ini file or directory, scoped to slot_prefix."""
-    if not tags_ini_path:
-        return []
-    p = os.path.abspath(tags_ini_path.strip().strip('"').strip("'"))
-    if os.path.isdir(p):
-        for candidate in [
-            os.path.join(p, "Config", "DefaultGameplayTags.ini"),
-            os.path.join(p, "DefaultGameplayTags.ini"),
-        ]:
-            if os.path.isfile(candidate):
-                p = candidate
-                break
-
-    if not os.path.isfile(p):
-        return []
-
-    all_tags: List[str] = []
-    import re
-    try:
-        with open(p, "r", encoding="utf-8", errors="ignore") as f:
-            for line in f:
-                m = re.search(r'Tag="([^"]+)"', line)
-                if m:
-                    tag = m.group(1).strip()
-                    if tag and tag not in all_tags:
-                        all_tags.append(tag)
-    except Exception as ex:
-        print(f"[classify_mesh_types] Warning reading tags ini '{p}': {ex}", flush=True)
-
-    # Strictly filter to wardrobe slot tags if any exist in the INI, avoiding unrelated game tags
-    scoped_slots = [t for t in all_tags if t.startswith(slot_prefix)]
-    return scoped_slots if scoped_slots else all_tags
-
-
 def resolve_api_key(provider: str = "gemini") -> str:
     """
     Resolve API key strictly from runner.toml and OS Environment.
@@ -159,7 +123,6 @@ def resolve_api_key(provider: str = "gemini") -> str:
                 with open(p, "rb") as f:
                     cfg = tomllib.load(f)
                     env_table = cfg.get("env", {})
-                    # AI_API_KEY is universal top priority
                     for candidate in [
                         env_table.get("AI_API_KEY"),
                         env_table.get(target_env_var),
@@ -181,39 +144,36 @@ def resolve_api_key(provider: str = "gemini") -> str:
     return ""
 
 
-
 # ==============================================================================
 # 2. Main Tool Entry Point
 # ==============================================================================
 
 def main(
     raw_metadata: str,
-    contracts: Optional[List[str]] = None,
-    tags_ini_path: str = "",
+    contracts: Optional[Any] = None,
     endpoint: str = "groq",
     model: str = "qwen/qwen3.8-27b",
     notes: str = "",
     **kwargs
 ) -> Dict[str, Any]:
     """
-    AI-powered Mesh Role & Modular Cloth Classifier.
-    Analyzes raw 3D metadata tree (DAZ inspect, Blender scene, or mesh list)
-    to discover character body mesh (for baking) and modular clothing slots
-    (Top, Bottom, Shoes, etc. for batch FBX export & Unreal registration).
+    Decoupled AI 3D Mesh Role Separator.
+    Pure geometric discovery: identifies character body/skin mesh (for baking/rigging)
+    and modular clothing/wearable meshes (for FBX packaging), with zero Game-Contract coupling.
 
     Args:
         raw_metadata: Raw JSON metadata text/string (e.g. from Metadata JSON or file path).
-        contracts: Target modular appearance categories (e.g. ['Top', 'Bottom', 'Shoes', 'Hair', 'Body']). Optional if tags_ini_path provided.
-        tags_ini_path: Optional path to Unreal Project DefaultGameplayTags.ini file or Config/ folder to read available tags.
-        endpoint: AI provider alias ('groq', 'gemini', 'ollama', 'openai') or custom URL ('http://localhost:11434/v1'). Default 'groq'.
-        model: Model identifier such as llama-3.3-70b-versatile, gemini-1.5-flash, or qwen2.5:7b. Default llama-3.3-70b-versatile.
-        notes: Optional user notes or prompt injection instructions for special clothing roles or hints.
+        endpoint: AI provider alias ('groq', 'gemini', 'ollama', 'openai') or custom URL. Default 'groq'.
+        model: Model identifier. Default 'qwen/qwen3.8-27b'.
+        notes: Optional user notes or prompt injection instructions for special clothing roles.
 
     Returns:
         {
             "body_meshes": List[str],
+            "clothes": List[str],
             "cloth_map": Dict[str, str],
-            "clothes": List[str]
+            "is_monolithic": bool,
+            "summary": str
         }
     """
     start_time = time.time()
@@ -240,38 +200,7 @@ def main(
     if not raw_data:
         raise RuntimeError("[classify_mesh_types] Empty or invalid input 'raw_metadata'.")
 
-    # 2. Parse contracts and/or tags_ini_path
-    ini_tags = parse_gameplay_tags_ini(tags_ini_path) if tags_ini_path else []
-    target_slots: List[str] = []
-    if contracts:
-        if isinstance(contracts, list):
-            target_slots = [str(x).strip() for x in contracts if str(x).strip()]
-        elif isinstance(contracts, str):
-            if contracts.strip().startswith("["):
-                try:
-                    parsed = json.loads(contracts)
-                    if isinstance(parsed, list):
-                        target_slots = [str(x).strip() for x in parsed if str(x).strip()]
-                except Exception:
-                    pass
-            if not target_slots:
-                target_slots = [c.strip() for c in contracts.split(",") if c.strip()]
-
-    standard_slots = ["Top", "Inner_Top", "Bottom", "Inner_Bottom", "Shoes", "Hair", "Outerwear", "Underwear", "Accessory", "Body"]
-
-    # Combine explicit contracts or standard slots with ini tags
-    if not target_slots:
-        target_slots = list(standard_slots)
-        if ini_tags:
-            for t in ini_tags:
-                if t not in target_slots:
-                    target_slots.append(t)
-    elif ini_tags:
-        for t in ini_tags:
-            if t not in target_slots:
-                target_slots.append(t)
-
-    # 3. Setup AI Provider, Endpoint, Model & Client
+    # 2. Setup AI Provider, Endpoint, Model & Client
     if not HAS_OPENAI:
         raise RuntimeError(
             "[classify_mesh_types] Missing required Python package 'openai'. "
@@ -295,45 +224,34 @@ def main(
         base_url=target_endpoint or None
     )
 
-    # 4. Prepare Prompts
+    # 3. Pure Geometric Separation Prompt (Zero Game-Contract Coupling)
     system_prompt = (
-        "You are an expert 3D Technical Artist and Unreal Engine 5 Character Pipeline Automation Engineer.\n"
-        "Your mission is to analyze a raw metadata JSON tree or list of 3D objects/meshes (e.g. from DAZ inspection metadata, Blender scene objects, or FBX/asset manifests) "
-        "and classify them into their exact semantic roles.\n\n"
-        "TARGET MODULAR SLOTS / CATEGORIES:\n"
-        f"{json.dumps(target_slots, indent=2)}\n\n"
-        "INSTRUCTIONS & RULES:\n"
-        "1. Discover all 3D mesh assets/figures present in the input JSON (whether in 'objects', 'nodes', keys, or a direct list).\n"
-        "2. 'body_mesh': Identify character body/skin meshes (e.g. Genesis 8 Female, Genesis9, Body_GND) to be baked. Return as a list of mesh names (e.g. [\"Genesis 8 Female\"]), or [] if no body is found.\n"
-        "3. 'cloth_map': Map each clothing item/mesh name to one of the target modular categories or GameplayTags listed above. "
-        "If a specific GameplayTag matching the slot (e.g. System.Wardrobe.Slots.Hair) exists in the list, prefer using that tag; "
-        "otherwise use the appropriate standard category name (e.g. Inner_Top, Inner_Bottom, Top, Bottom, Shoes, Hair). "
-        "Use the exact original mesh name found in the input!\n\n"
-        "OUTPUT SCHEMA REQUIREMENT:\n"
-        "You MUST return a JSON object with this exact structure:\n"
+        "You are an expert 3D Technical Artist and Character Pipeline Automation Engineer.\n"
+        "Your mission is to analyze a list or metadata tree of 3D objects/meshes from a character scene (DAZ Studio / Blender) "
+        "and separate them into two clean geometric categories:\n\n"
+        "1. 'body_mesh': Character body/anatomical figure meshes (e.g. Genesis 8 Female, Genesis 9, Body, Head, Eyes, Eyelashes, Mouth, Cornea) to be retained as the base avatar.\n"
+        "2. 'clothes': All wearable clothing items, outfits, garments, hair, shoes, and accessories (e.g. Bra, Panties, Shirt, Jeans, Boots, Hair, Hat, Gloves).\n\n"
+        "CRITICAL RULES:\n"
+        "- Return the EXACT object/mesh names found in the input.\n"
+        "- Anatomical parts (Eyes, Teeth, Tongue, Eyelashes, Cornea, Tear) belong in 'body_mesh' or helper, NEVER in 'clothes'!\n"
+        "- Filter out non-mesh helpers, bone widgets, cameras, and lights.\n\n"
+        "OUTPUT FORMAT (STRICT JSON):\n"
         "{\n"
-        '  "body_mesh": ["<exact mesh name>"],\n'
-        '  "cloth_map": {\n'
-        '    "<mesh_name>": "<Modular_Slot_Name>"\n'
-        '  }\n'
+        '  "body_mesh": ["<exact body mesh name>"],\n'
+        '  "clothes": ["<cloth mesh 1>", "<cloth mesh 2>", ...]\n'
         "}"
     )
 
     user_prompt_parts = [
-        "Analyze the following raw 3D metadata tree or mesh list, discover all relevant objects/meshes, "
-        "and produce the classified mesh structure:\n",
+        "Analyze the following 3D scene objects/metadata and classify them into body_mesh and clothes:\n",
         f"```json\n{json.dumps(raw_data, indent=2)}\n```"
     ]
-    if ini_tags:
-        user_prompt_parts.append(
-            f"\nPROJECT GAMEPLAY TAGS CONTEXT (Prefer matching slot tags from this list when applicable):\n```json\n{json.dumps(ini_tags, indent=2)}\n```"
-        )
     if notes and str(notes).strip():
-        user_prompt_parts.append(f"\nSPECIAL USER INSTRUCTIONS / NOTES:\n{str(notes).strip()}")
+        user_prompt_parts.append(f"\nSPECIAL USER NOTES / HINTS:\n{str(notes).strip()}")
 
     user_prompt = "\n".join(user_prompt_parts)
 
-    print(f"[classify_mesh_types] [INFO] Sending raw 3D metadata tree to {target_model} ({provider_key})...", flush=True)
+    print(f"[classify_mesh_types] [INFO] Sending scene mesh list to {target_model} ({provider_key})...", flush=True)
 
     max_retries = 3
     parsed = {}
@@ -354,39 +272,58 @@ def main(
             err_str = str(e)
             if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
                 wait_secs = attempt * 4
-                print(f"[classify_mesh_types] [WARNING] Hit rate limit 429 on attempt {attempt}/{max_retries}. Waiting {wait_secs}s before retry...", flush=True)
+                print(f"[classify_mesh_types] [WARNING] Rate limit 429 on attempt {attempt}/{max_retries}. Waiting {wait_secs}s...", flush=True)
                 time.sleep(wait_secs)
                 if attempt == max_retries:
                     raise RuntimeError(
-                        f"[classify_mesh_types] Quota exhausted (429) for provider '{provider_key}' model '{target_model}'. "
-                        f"Suggestion: Switch provider to 'groq' (14,400 free requests/day) or use local 'ollama'. Details: {e}"
+                        f"[classify_mesh_types] Quota exhausted (429) for provider '{provider_key}'. Details: {e}"
                     ) from e
             else:
                 raise RuntimeError(
-                    f"[classify_mesh_types] AI mesh classification failed using model '{target_model}' ({provider_key}): {e}"
+                    f"[classify_mesh_types] AI mesh separation failed using model '{target_model}' ({provider_key}): {e}"
                 ) from e
 
-    # 5. Extract & Normalize Output
-    raw_body = parsed.get("body_mesh")
+    # 4. Extract & Normalize Output
+    raw_body = parsed.get("body_mesh", [])
     body_mesh: List[str] = []
     if isinstance(raw_body, list):
         body_mesh = [str(x).strip() for x in raw_body if str(x).strip()]
     elif isinstance(raw_body, str) and raw_body.strip():
         body_mesh = [raw_body.strip()]
 
+    raw_clothes = parsed.get("clothes", [])
+    clothes: List[str] = []
+    if isinstance(raw_clothes, list):
+        clothes = [str(x).strip() for x in raw_clothes if str(x).strip()]
+    elif isinstance(raw_clothes, dict):
+        clothes = [str(k).strip() for k in raw_clothes.keys() if str(k).strip()]
+    elif isinstance(raw_clothes, str) and raw_clothes.strip():
+        clothes = [raw_clothes.strip()]
+
+    # Backward-compatible cloth_map for downstream nodes expecting a mapping
     cloth_map = parsed.get("cloth_map", {})
-    if not isinstance(cloth_map, dict):
-        cloth_map = {}
+    if not isinstance(cloth_map, dict) or not cloth_map:
+        cloth_map = {item: "Wardrobe" for item in clothes}
+    else:
+        for c in clothes:
+            if c not in cloth_map:
+                cloth_map[c] = "Wardrobe"
 
-    clothes = list(cloth_map.keys())
-
+    is_monolithic = len(clothes) == 0
     elapsed = time.time() - start_time
-    print(f"[classify_mesh_types] [SUCCESS] Classified: body_mesh={body_mesh}, {len(cloth_map)} clothing item(s) in {elapsed:.2f}s.", flush=True)
+    summary = (
+        f"Separated Geometry: {len(body_mesh)} Body Mesh(es) ({body_mesh}), "
+        f"{len(clothes)} Clothing Item(s) ({clothes}) in {elapsed:.2f}s. "
+        f"Structure: {'Monolithic (Full Body)' if is_monolithic else 'Modular (Wardrobe Array)'}."
+    )
+    print(f"[classify_mesh_types] [SUCCESS] {summary}", flush=True)
 
     return {
         "body_meshes": body_mesh,
-        "cloth_map": cloth_map,
         "clothes": clothes,
+        "cloth_map": cloth_map,
+        "is_monolithic": is_monolithic,
+        "summary": summary
     }
 
 
@@ -394,20 +331,19 @@ classify_meshes = main
 
 
 if __name__ == "__main__":
-    sample_contracts = ["Top", "Bottom", "Shoes", "Hair", "Body"]
     if len(sys.argv) > 1:
-        res = main(sys.argv[1], contracts=sample_contracts)
+        res = main(sys.argv[1])
         print(json.dumps(res, indent=2))
     else:
         sample_daz_metadata = {
-            "summary": "DAZ 'Sam.duf': 5 Objects",
+            "summary": "DAZ 'Laura.duf': 5 Objects",
             "objects": [
-                {"name": "Genesis 8 Female", "type": "Character Figure"},
-                {"name": "Tactical_Combat_Shirt", "type": "Mesh Asset"},
-                {"name": "Skinny_Jeans_Bottom", "type": "Mesh Asset"},
-                {"name": "Combat_Boots", "type": "Mesh Asset"},
+                {"name": "Genesis 9", "type": "Character Figure"},
+                {"name": "A_Bra_Brown", "type": "Mesh Asset"},
+                {"name": "A_Leggings_Brown", "type": "Mesh Asset"},
+                {"name": "A_Shoes_Brown", "type": "Mesh Asset"},
                 {"name": "Long_Wavy_Hair", "type": "Mesh Asset"}
             ]
         }
-        print("Sample run with DAZ metadata tree and required contracts:")
-        print(json.dumps(main(sample_daz_metadata, contracts=sample_contracts), indent=2))
+        print("Sample run with DAZ metadata tree (Pure Geometric Separation):")
+        print(json.dumps(main(sample_daz_metadata), indent=2))
