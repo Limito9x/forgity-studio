@@ -249,11 +249,12 @@ def import_texture_file(file_path: str, dest_folder: str, texture_name: str, is_
 
 def create_material_instance(
     master_mat_path: str,
-    dest_folder: str,
+    materials_folder: str,
+    textures_folder: str,
     mi_name: str,
     textures: Dict[str, str]
 ):
-    """Creates a MaterialInstanceConstant and binds texture parameters."""
+    """Creates a MaterialInstanceConstant in materials_folder and binds textures stored in textures_folder."""
     if not master_mat_path or not unreal.EditorAssetLibrary.does_asset_exist(master_mat_path):
         master_mat_path = "/Game/Characters/Materials/M_Cloth"
         if not unreal.EditorAssetLibrary.does_asset_exist(master_mat_path):
@@ -264,9 +265,9 @@ def create_material_instance(
     asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
     factory = unreal.MaterialInstanceConstantFactoryNew()
 
-    mi_asset = asset_tools.create_asset(mi_name, dest_folder, unreal.MaterialInstanceConstant, factory)
+    mi_asset = asset_tools.create_asset(mi_name, materials_folder, unreal.MaterialInstanceConstant, factory)
     if not mi_asset:
-        target_path = f"{dest_folder}/{mi_name}"
+        target_path = f"{materials_folder}/{mi_name}"
         if unreal.EditorAssetLibrary.does_asset_exist(target_path):
             mi_asset = unreal.EditorAssetLibrary.load_asset(target_path)
 
@@ -278,9 +279,10 @@ def create_material_instance(
     # Bind textures
     for param_name, tex_path in textures.items():
         if tex_path and os.path.isfile(tex_path):
-            tex_base = sanitize_asset_name(os.path.splitext(os.path.basename(tex_path))[0])
-            is_norm = "normal" in param_name.lower() or "normal" in tex_base.lower()
-            tex_obj = import_texture_file(tex_path, dest_folder, tex_base, is_normal=is_norm)
+            raw_base = sanitize_asset_name(os.path.splitext(os.path.basename(tex_path))[0])
+            tex_base = f"T_{raw_base}" if not raw_base.startswith("T_") else raw_base
+            is_norm = "normal" in param_name.lower() or "normal" in tex_base.lower() or "nm" in tex_base.lower()
+            tex_obj = import_texture_file(tex_path, textures_folder, tex_base, is_normal=is_norm)
             if tex_obj:
                 unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(
                     mi_asset, param_name, tex_obj
@@ -544,37 +546,111 @@ def main(
         mesh_name = item.get("mesh_name", f"SKM_{asset_name}")
         da_name = item.get("data_asset_name", f"DA_{asset_name}")
         item_dest_folder = _clean_ue_path(item.get("destination_folder") or clean_dest_folder)
+        root_dest_folder = item_dest_folder
+        materials_folder = f"{root_dest_folder}/Materials"
+        textures_folder = f"{root_dest_folder}/Textures"
 
-        unreal.EditorAssetLibrary.make_directory(item_dest_folder)
+        unreal.EditorAssetLibrary.make_directory(root_dest_folder)
+        unreal.EditorAssetLibrary.make_directory(materials_folder)
+        unreal.EditorAssetLibrary.make_directory(textures_folder)
 
-        print(f"\n[import_wardrobe] Processing item '{asset_name}' -> Dest: {item_dest_folder}, Mesh: {mesh_name}, DA: {da_name}...", flush=True)
+        print(f"\n[import_wardrobe] Processing item '{asset_name}' -> Root: {root_dest_folder} (Materials: {materials_folder}, Textures: {textures_folder})", flush=True)
 
-        # 1. Import Mesh
-        mesh_obj = import_fbx_mesh(fbx_path, item_dest_folder, mesh_name, skeleton_path, normal_import_method)
+        # 1. Import Mesh into Root
+        mesh_obj = import_fbx_mesh(fbx_path, root_dest_folder, mesh_name, skeleton_path, normal_import_method)
         if mesh_obj:
-            imported_meshes.append(f"{item_dest_folder}/{mesh_name}")
+            imported_meshes.append(f"{root_dest_folder}/{mesh_name}")
         else:
             print(f"[import_wardrobe] Error: Failed to import Skeletal Mesh '{mesh_name}'.", flush=True)
             continue
 
-        # 2. Setup Material Instances & Bind to Mesh Slots
+        # 2. Setup Material Instances in Materials/ and Textures in Textures/
         materials_dict = item.get("materials", {})
         if isinstance(materials_dict, list):
-            # Support list of slot dicts
             materials_dict = {s.get("slot_name", f"slot_{i}"): s for i, s in enumerate(materials_dict)}
 
-        for slot_idx, (slot_name, slot_info) in enumerate(materials_dict.items()):
+        created_mis = {}
+        for slot_key, slot_info in materials_dict.items():
             master_path = slot_info.get("master_material_path", "/Game/Characters/Materials/M_Cloth")
             textures = slot_info.get("textures", {})
-            mi_name = f"MI_{mesh_name}_{sanitize_asset_name(slot_name)}"
+            mi_name = f"MI_{mesh_name}_{sanitize_asset_name(slot_key)}"
 
-            mi_obj = create_material_instance(master_path, item_dest_folder, mi_name, textures)
-            if mi_obj and hasattr(mesh_obj, "materials") and slot_idx < len(mesh_obj.materials):
-                mesh_obj.materials[slot_idx].material_interface = mi_obj
+            mi_obj = create_material_instance(master_path, materials_folder, textures_folder, mi_name, textures)
+            if mi_obj:
+                created_mis[slot_key] = mi_obj
+                mat_tag = slot_info.get("material_tag", "")
+                if mat_tag:
+                    created_mis[mat_tag] = mi_obj
 
-        unreal.EditorAssetLibrary.save_loaded_asset(mesh_obj)
+        # 3. Bind Material Instances to Skeletal Mesh Slots
+        if hasattr(mesh_obj, "materials") and mesh_obj.materials:
+            mesh_materials = list(mesh_obj.materials)
 
-        # 3. Ingest Thumbnail (Auto-scan neighbor files if not provided in manifest)
+            # Order cloth MIs for sequential slot assignment (e.g. G9DFabric-2, G9DFabric-3)
+            cloth_mis = []
+            seen_paths = set()
+            for k, mi in created_mis.items():
+                if any(w in k.lower() for w in ["cloth", "bra", "legging", "shoe", "fabric", "garment"]):
+                    p = mi.get_path_name()
+                    if p not in seen_paths:
+                        seen_paths.add(p)
+                        cloth_mis.append(mi)
+
+            cloth_idx = 0
+            for slot_idx, skeletal_mat in enumerate(mesh_materials):
+                slot_name = str(skeletal_mat.material_slot_name)
+                slot_lower = slot_name.lower()
+                assigned_mi = None
+
+                # Rule A: Exact name match
+                for k, mi in created_mis.items():
+                    if k.lower() == slot_lower or sanitize_asset_name(k).lower() == sanitize_asset_name(slot_name).lower():
+                        assigned_mi = mi
+                        break
+
+                # Rule B: Skin / Head / Body
+                if not assigned_mi and any(w in slot_lower for w in ["head", "body", "skin", "face"]):
+                    for k, mi in created_mis.items():
+                        if any(w in k.lower() for w in ["skin", "body", "head"]):
+                            assigned_mi = mi
+                            break
+
+                # Rule C: Eyes / Cornea / Iris / EyeMoisture
+                if not assigned_mi and any(w in slot_lower for w in ["eye", "eyemoisture", "cornea", "pupil"]):
+                    if "eyelash" not in slot_lower:
+                        for k, mi in created_mis.items():
+                            if "eye" in k.lower() and "eyelash" not in k.lower():
+                                assigned_mi = mi
+                                break
+
+                # Rule D: Eyelashes
+                if not assigned_mi and "eyelash" in slot_lower:
+                    for k, mi in created_mis.items():
+                        if "eyelash" in k.lower() or "lash" in k.lower():
+                            assigned_mi = mi
+                            break
+
+                # Rule E: Fabric / Clothing / Bra / Leggings / Shoes
+                if not assigned_mi and any(w in slot_lower for w in ["fabric", "cloth", "bra", "legging", "shoe", "dress"]):
+                    if cloth_idx < len(cloth_mis):
+                        assigned_mi = cloth_mis[cloth_idx]
+                        cloth_idx += 1
+                    elif cloth_mis:
+                        assigned_mi = cloth_mis[0]
+
+                # Rule F: Fallback by slot index if applicable
+                if not assigned_mi and slot_idx < len(list(created_mis.values())):
+                    assigned_mi = list(created_mis.values())[slot_idx]
+
+                if assigned_mi:
+                    mesh_materials[slot_idx].material_interface = assigned_mi
+                    print(f"   [FORGITY] Bound Slot {slot_idx} ('{slot_name}') -> '{assigned_mi.get_name()}'", flush=True)
+
+            # Persist updated materials to SkeletalMesh
+            mesh_obj.set_editor_property("materials", mesh_materials)
+            unreal.EditorAssetLibrary.save_loaded_asset(mesh_obj)
+
+        # 4. Ingest Thumbnail into Textures/ (Auto-scan neighbor files if not provided in manifest)
         thumbnail_obj = None
         thumb_path = item.get("thumbnail_file", "")
         if not thumb_path or not os.path.isfile(thumb_path):
@@ -582,16 +658,16 @@ def main(
 
         if thumb_path and os.path.isfile(thumb_path):
             thumb_name = f"T_{asset_name}"
-            print(f"   [FORGITY] Ingesting Thumbnail: '{thumb_path}' -> '{thumb_name}' into '{item_dest_folder}'", flush=True)
-            thumbnail_obj = import_texture_file(thumb_path, item_dest_folder, thumb_name, is_ui=True)
+            print(f"   [FORGITY] Ingesting Thumbnail: '{thumb_path}' -> '{thumb_name}' into '{textures_folder}'", flush=True)
+            thumbnail_obj = import_texture_file(thumb_path, textures_folder, thumb_name, is_ui=True)
 
-        # 4. Create Data Asset (DA_*)
+        # 5. Create Data Asset (DA_*) in Root
         target_schema = item.get("target_schema_path") or item.get("target_schema", "PDA_WardrobeItem")
         properties = item.get("properties", {})
-        da_obj = create_and_populate_data_asset(target_schema, item_dest_folder, da_name, mesh_obj, thumbnail_obj, properties)
+        da_obj = create_and_populate_data_asset(target_schema, root_dest_folder, da_name, mesh_obj, thumbnail_obj, properties)
         if da_obj:
-            created_data_assets.append(f"{item_dest_folder}/{da_name}")
-            print(f"[import_wardrobe] Successfully created Data Asset '{item_dest_folder}/{da_name}' with Tags.", flush=True)
+            created_data_assets.append(f"{root_dest_folder}/{da_name}")
+            print(f"[import_wardrobe] Successfully created Data Asset '{root_dest_folder}/{da_name}' with Tags.", flush=True)
 
     summary = (
         f"Completed Ingestion: {len(imported_meshes)} Skeletal Meshes (SKM_*), "
