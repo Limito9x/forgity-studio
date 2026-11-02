@@ -290,6 +290,9 @@ def resolve_data_asset_class(schema_name_or_path: str):
         ])
 
     for pkg_path in candidates:
+        if not unreal.EditorAssetLibrary.does_asset_exist(pkg_path):
+            continue
+
         schema_name = pkg_path.split("/")[-1]
 
         # 1. Try load_blueprint_class (expects clean asset path without _C)
@@ -323,6 +326,25 @@ def resolve_data_asset_class(schema_name_or_path: str):
     return None
 
 
+def _make_gameplay_tag(tag_str: str) -> Any:
+    """Construct an FGameplayTag in Unreal Engine."""
+    if not tag_str:
+        return None
+    try:
+        tag = unreal.GameplayTag()
+        tag.import_text(tag_str)
+        return tag
+    except Exception:
+        pass
+    try:
+        tag = unreal.GameplayTag()
+        tag.tag_name = unreal.Name(tag_str)
+        return tag
+    except Exception:
+        pass
+    return unreal.Name(tag_str)
+
+
 def create_and_populate_data_asset(
     schema_name_or_path: str,
     dest_folder: str,
@@ -339,6 +361,10 @@ def create_and_populate_data_asset(
 
     asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
     factory = unreal.DataAssetFactory()
+    try:
+        factory.set_editor_property("data_asset_class", target_class)
+    except Exception:
+        pass
 
     # Delete existing asset if present to ensure clean recreation
     full_path = f"{dest_folder}/{data_asset_name}"
@@ -352,10 +378,11 @@ def create_and_populate_data_asset(
 
     # 1. Bind Mesh & Thumbnail
     if mesh_obj:
-        for prop in ["ItemMesh", "Mesh", "SkeletalMesh", "CharacterMesh"]:
+        for prop in ["BodyMesh", "ItemMesh", "Mesh", "SkeletalMesh", "CharacterMesh"]:
             if hasattr(da_asset, prop):
                 try:
                     da_asset.set_editor_property(prop, mesh_obj)
+                    print(f"   [FORGITY] Bound Mesh to '{prop}' on '{data_asset_name}'", flush=True)
                     break
                 except Exception:
                     pass
@@ -365,20 +392,24 @@ def create_and_populate_data_asset(
             if hasattr(da_asset, prop):
                 try:
                     da_asset.set_editor_property(prop, thumbnail_obj)
+                    print(f"   [FORGITY] Bound Thumbnail to '{prop}' on '{data_asset_name}'", flush=True)
                     break
                 except Exception:
                     pass
 
     # 2. Bind GameplayTags
-    tag_manager = unreal.GameplayTagsManager.get_gameplay_tags_manager()
     for tag_field in ["SlotTag", "ItemTag", "CharacterTag"]:
         tag_val = properties.get(tag_field, "")
         if tag_val and hasattr(da_asset, tag_field):
+            tag_obj = _make_gameplay_tag(tag_val)
             try:
-                tag_struct = tag_manager.request_gameplay_tag(tag_val)
-                da_asset.set_editor_property(tag_field, tag_struct)
+                da_asset.set_editor_property(tag_field, tag_obj)
+                print(f"   [FORGITY] Set GameplayTag '{tag_field}' = '{tag_val}' on '{data_asset_name}'", flush=True)
             except Exception as e:
-                print(f"[import_wardrobe] Warning setting tag '{tag_field}={tag_val}': {e}", flush=True)
+                try:
+                    da_asset.set_editor_property(tag_field, unreal.Name(tag_val))
+                except Exception:
+                    print(f"   [FORGITY :: WARN] Could not set tag '{tag_field}={tag_val}': {e}", flush=True)
 
     # 3. Bind DisplayName & Strings
     display_name = properties.get("DisplayName", "")
