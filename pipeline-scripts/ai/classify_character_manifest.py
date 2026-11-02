@@ -60,9 +60,9 @@ class SlotMaterialClassification(BaseModel):
 
 
 class WardrobeProperties(BaseModel):
-    DisplayName: str = Field(description="Clean, human-readable display title for UI (e.g. 'Brz Us Bra').")
-    SlotTag: str = Field(description="Valid GameplayTag for the clothing slot (e.g. 'System.Wardrobe.Slots.Inner_Top').")
-    ItemTag: str = Field(description="Valid GameplayTag identifying this specific item.")
+    DisplayName: str = Field(default="", description="Clean, human-readable display title for UI (e.g. 'Brz Us Bra').")
+    SlotTag: str = Field(default="", description="Valid GameplayTag for clothing slot (e.g. 'System.Wardrobe.Slots.Inner_Top') or empty if Body.")
+    ItemTag: str = Field(default="", description="Valid GameplayTag identifying this specific item (e.g. 'Character.Laura.Outfits.Bra') or empty if Body.")
     CharacterTag: str = Field(default="", description="GameplayTag of the parent character (e.g. 'Character.Eva').")
 
 
@@ -71,9 +71,10 @@ class ClassifiedItem(BaseModel):
     mesh_name: str = Field(description="Skeletal mesh name with prefix 'SKM_' (e.g. 'SKM_Eva_Outfit1_BRZ_US_Bra').")
     data_asset_name: str = Field(description="Data asset name with prefix 'DA_' (e.g. 'DA_Eva_Outfit1_BRZ_US_Bra').")
     asset_kind: str = Field(description="'Body' for character base/nude body mesh, or 'Wardrobe' for clothes/hair/shoes.")
+    target_schema_path: str = Field(default="", description="Unreal package path to target Schema, e.g. '/Game/Systems/Characters/Schemas/PDA_CharacterProfile'.")
     target_schema: str = Field(default="PDA_WardrobeItem", description="Blueprint schema class name.")
     fbx_file: str = Field(description="Physical file path to the FBX.")
-    thumbnail_file: str = Field(default="", description="Physical file path to the PNG thumbnail, if found.")
+    thumbnail_file: str = Field(default="", description="Physical file path to the thumbnail if provided.")
     properties: WardrobeProperties = Field(description="PDA properties conforming to schema.")
     materials: List[SlotMaterialClassification] = Field(
         default_factory=list,
@@ -312,14 +313,13 @@ def main(
         "     * properties.ItemTag: 'Character.{character_name}.Base'\n"
         "     * properties.CharacterTag: 'Character.{character_name}'\n"
         "     * materials: List of all material slots on the character (Skin, Cloth, Shoes, Eyes, etc.).\n"
-        "   - If modular clothing FBX files are given (e.g. 'Laura_Bra.fbx', 'Shoes.fbx'):\n"
-        "     * asset_kind: 'Wardrobe'\n"
-        "     * mesh_name: 'SKM_{asset_name}'\n"
-        "     * data_asset_name: 'DA_{asset_name}'\n"
-        "     * target_schema: 'PDA_WardrobeItem'\n"
-        "     * properties.SlotTag: Selected from 'allowed_wardrobe_slots' matching the piece\n"
-        "     * properties.ItemTag: 'Character.{character_name}.Outfits.{asset_name}'\n"
-        "     * properties.CharacterTag: 'Character.{character_name}'\n"
+        "3. SCHEMA SELECTION & PROPERTIES:\n"
+        "   - 'target_schemas' contains schemas with their 'package_path' (e.g. '/Game/Systems/Characters/Schemas/PDA_CharacterProfile') "
+        "and 'ai_editable_fields'.\n"
+        "   - Set 'target_schema_path' to the exact 'package_path' of the chosen schema.\n"
+        "   - In 'properties', populate the fields listed in that schema's 'ai_editable_fields'.\n"
+        "   - DO NOT generate or worry about 'system_bound_fields' (e.g. BodyMesh, ItemMesh, ItemThumbnail) - "
+        "the ingestion engine automatically binds them.\n"
     )
 
     user_payload = {
@@ -337,7 +337,25 @@ def main(
             }
             for k, v in materials_contracts.items()
         },
-        "target_pda_schema": list(pda_schemas.keys()) or ["PDA_WardrobeItem"]
+        "target_schemas": {
+            k: {
+                "package_path": v.get("package_path", ""),
+                "ai_editable_fields": v.get("ai_editable_fields", []),
+                "system_bound_fields": v.get("system_bound_fields", [])
+            }
+            for k, v in pda_schemas.items()
+        } if pda_schemas else {
+            "PDA_WardrobeItem": {
+                "package_path": "/Game/Systems/Wardrobe/Schemas/PDA_WardrobeItem",
+                "ai_editable_fields": ["SlotTag", "ItemTag", "CharacterTag", "DisplayName"],
+                "system_bound_fields": ["ItemMesh", "ItemThumbnail"]
+            },
+            "PDA_CharacterProfile": {
+                "package_path": "/Game/Systems/Characters/Schemas/PDA_CharacterProfile",
+                "ai_editable_fields": ["CharacterTag", "DisplayName"],
+                "system_bound_fields": ["BodyMesh"]
+            }
+        }
     }
 
     print(f"[classify_character_manifest] Requesting AI classification ({target_model} via {provider_key})...", flush=True)
@@ -377,12 +395,14 @@ def main(
             all_materials.update(it.get("materials", {}))
 
         target_schema = "PDA_CharacterProfile" if "PDA_CharacterProfile" in pda_schemas else "PDA_WardrobeItem"
+        target_schema_path = pda_schemas.get("PDA_CharacterProfile", {}).get("package_path", "/Game/Systems/Characters/Schemas/PDA_CharacterProfile")
         single_item = {
             "asset_name": character_name,
             "mesh_name": f"SKM_{character_name}",
             "data_asset_name": f"DA_{character_name}",
             "asset_kind": "Body",
             "target_schema": target_schema,
+            "target_schema_path": target_schema_path,
             "fbx_file": valid_fbx[0],
             "thumbnail_file": manifest_dict["items"][0].get("thumbnail_file", ""),
             "properties": {
@@ -394,6 +414,12 @@ def main(
             "materials": all_materials
         }
         manifest_dict["items"] = [single_item]
+
+    # Resolve target_schema_path if missing
+    for item in manifest_dict.get("items", []):
+        if not item.get("target_schema_path"):
+            sk = item.get("target_schema", "PDA_WardrobeItem")
+            item["target_schema_path"] = pda_schemas.get(sk, {}).get("package_path", "")
 
     # Convert to objects_map for backward compatibility
     objects_map = {}

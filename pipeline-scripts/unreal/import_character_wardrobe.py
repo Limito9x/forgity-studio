@@ -136,6 +136,34 @@ def sync_tags_to_ini(tags: List[str]) -> List[str]:
     return new_tags_added
 
 
+def find_neighbor_thumbnail(fbx_path: str) -> Optional[str]:
+    """
+    Automatically discovers an image in the same directory as the FBX
+    matching the asset's base name (e.g. Laura.png, Laura_thumb.jpg, etc.).
+    """
+    if not fbx_path or not os.path.isfile(fbx_path):
+        return None
+    fbx_dir = os.path.dirname(os.path.abspath(fbx_path))
+    fbx_base = os.path.splitext(os.path.basename(fbx_path))[0]
+
+    extensions = [".png", ".jpg", ".jpeg", ".tga", ".webp", ".bmp"]
+
+    # 1. Exact match: <base><ext>
+    for ext in extensions:
+        cand = os.path.join(fbx_dir, f"{fbx_base}{ext}")
+        if os.path.isfile(cand):
+            return cand
+
+    # 2. Suffix match: <base>_thumb<ext>, <base>_icon<ext>
+    for suffix in ["_thumb", "_thumbnail", "_icon", "_Icon", "_Preview", "_preview"]:
+        for ext in extensions:
+            cand = os.path.join(fbx_dir, f"{fbx_base}{suffix}{ext}")
+            if os.path.isfile(cand):
+                return cand
+
+    return None
+
+
 def import_fbx_mesh(
     fbx_path: str,
     dest_folder: str,
@@ -543,15 +571,19 @@ def main(
 
         unreal.EditorAssetLibrary.save_loaded_asset(mesh_obj)
 
-        # 3. Ingest Thumbnail
+        # 3. Ingest Thumbnail (Auto-scan neighbor files if not provided in manifest)
         thumbnail_obj = None
         thumb_path = item.get("thumbnail_file", "")
+        if not thumb_path or not os.path.isfile(thumb_path):
+            thumb_path = find_neighbor_thumbnail(fbx_path)
+
         if thumb_path and os.path.isfile(thumb_path):
             thumb_name = f"T_{asset_name}"
+            print(f"   [FORGITY] Ingesting Thumbnail: '{thumb_path}' -> '{thumb_name}'", flush=True)
             thumbnail_obj = import_texture_file(thumb_path, clean_dest_folder, thumb_name, is_ui=True)
 
         # 4. Create Data Asset (DA_*)
-        target_schema = item.get("target_schema", "PDA_WardrobeItem")
+        target_schema = item.get("target_schema_path") or item.get("target_schema", "PDA_WardrobeItem")
         properties = item.get("properties", {})
         da_obj = create_and_populate_data_asset(target_schema, clean_dest_folder, da_name, mesh_obj, thumbnail_obj, properties)
         if da_obj:

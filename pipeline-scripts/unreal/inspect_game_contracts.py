@@ -278,12 +278,47 @@ def parse_uasset_schema(filepath: str, data: bytes, pkg_name: str, names: List[s
     # Class path with _C convention for Blueprint DataAssets
     class_path = f"{pkg_name}.{schema_name}_C"
 
+    known_system_fields = {
+        "VarGuid", "VarType", "EditedObjectPath", "SavedViewOffset", "BlueprintGuid", "GraphGuid",
+        "FriendlyName", "DefaultValue", "DataValue", "bLegacyNeedToPurgeSkelRefs", "bAllowDeletion",
+        "Category", "VarName", "RepNotifyFunc", "DataKey", "UbergraphPages", "NewVariables",
+        "MetaDataArray", "CategorySorting", "LastEditedDocuments", "ParentClass", "GeneratedClass",
+        "Schema", "None", "PropertyFlags", "PropertyGuids", "TagName", "NativeClass", "Package",
+        "PackageMetaData", "UberGraphFrame"
+    }
+
+    clean_properties: Dict[str, Any] = {}
+    ai_editable_fields: List[str] = []
+    system_bound_fields: List[str] = []
+
+    for k, v in properties.items():
+        if k in known_system_fields or "/" in k or k.startswith("Default__") or k.startswith("SKEL_"):
+            continue
+        clean_properties[k] = v
+        if v.get("type") == "GameplayTag" or k.endswith("Tag") or k in ["DisplayName", "ItemName", "Title"]:
+            ai_editable_fields.append(k)
+        elif v.get("object_class") in ["SkeletalMesh", "Texture2D"] or k in ["ItemMesh", "BodyMesh", "Mesh", "ItemThumbnail", "Thumbnail"]:
+            system_bound_fields.append(k)
+
+    # Defaults by convention if uasset binary AST didn't capture soft objects
+    if "DisplayName" not in ai_editable_fields:
+        ai_editable_fields.append("DisplayName")
+    if schema_name == "PDA_WardrobeItem":
+        for bound in ["ItemMesh", "ItemThumbnail"]:
+            if bound not in system_bound_fields:
+                system_bound_fields.append(bound)
+    elif schema_name == "PDA_CharacterProfile":
+        if "BodyMesh" not in system_bound_fields:
+            system_bound_fields.append("BodyMesh")
+
     return {
         "schema_name": schema_name,
         "class_path": class_path,
         "package_path": pkg_name,
         "source_file": filepath,
-        "properties": properties
+        "ai_editable_fields": ai_editable_fields,
+        "system_bound_fields": system_bound_fields,
+        "properties": clean_properties
     }
 
 
