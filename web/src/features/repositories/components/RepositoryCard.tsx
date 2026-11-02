@@ -83,6 +83,8 @@ export function RepositoryCard({ repository }: RepositoryCardProps) {
                       description: repository.description || undefined,
                       projectId: repository.projectId,
                       supportedExtensions: (repository as any).supportedExtensions,
+                      includedSubPaths: (repository.includedSubPaths as string[]) || undefined,
+                      maxScanFiles: repository.maxScanFiles,
                     })
                   }
                   className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm cursor-pointer hover:bg-accent hover:text-accent-foreground outline-none"
