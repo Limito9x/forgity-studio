@@ -17,11 +17,11 @@ Performs:
   - Automatically parses DefaultGameplayTags.ini to extract all registered gameplay tags.
 
 Outputs:
-  - contracts: Dict with keys:
+  - contracts: Dict (Map) with keys:
       * "materials": Dict[material_tag, material_contract]
       * "schemas": Dict[schema_name, schema_contract]
       * "gameplay_tags": List[str] of valid registered tags in the project.
-  - contracts_json: Serialized JSON string ready to wire directly into AI Classifier.
+      * "wardrobe_slots": List[str] of valid wardrobe slot tags.
   - summary: Human-readable execution summary.
 """
 
@@ -434,14 +434,13 @@ def main(
 
     gameplay_tags, wardrobe_slots = parse_default_gameplay_tags_ini(config_folder)
 
-    contracts_payload = {
+    contracts: Dict[str, Any] = {
         "materials": materials,
         "schemas": schemas,
         "gameplay_tags": gameplay_tags,
         "wardrobe_slots": wardrobe_slots
     }
 
-    contracts_json = json.dumps(contracts_payload, indent=2, ensure_ascii=False)
     summary = (
         f"Inspected {len(unique_files)} .uasset files. "
         f"Discovered {len(materials)} Master Materials, "
@@ -453,8 +452,7 @@ def main(
     print(f"[inspect_game_contracts] {summary}", flush=True)
 
     return {
-        "contracts": contracts_payload,
-        "contracts_json": contracts_json,
+        "contracts": contracts,
         "materials_count": len(materials),
         "schemas_count": len(schemas),
         "slots_count": len(wardrobe_slots),

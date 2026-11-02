@@ -266,6 +266,11 @@ def main(
 
     # Prepare contracts context
     contracts_payload = contracts or {}
+    if isinstance(contracts_payload, str):
+        try:
+            contracts_payload = json.loads(contracts_payload)
+        except Exception:
+            contracts_payload = {}
     materials_contracts = contracts_payload.get("materials", {})
     pda_schemas = contracts_payload.get("schemas", {})
     valid_tags = contracts_payload.get("gameplay_tags", [])
