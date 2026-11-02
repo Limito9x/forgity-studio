@@ -44,13 +44,18 @@ except ImportError:
 # 1. Pydantic Structured Output Models
 # ==============================================================================
 
+class TextureParamBinding(BaseModel):
+    param_name: str = Field(description="Shader parameter name e.g. BaseColorMap, NormalMap, ORMMap")
+    texture_path: str = Field(description="Physical path to the texture file")
+
+
 class SlotMaterialClassification(BaseModel):
     slot_name: str = Field(description="Exact slot name matching one of the entries in the mesh.")
     material_tag: str = Field(description="Matched project material tag (Skin, Cloth, Eye, Hair, Mouth, etc.).")
     master_material_path: str = Field(default="", description="Package path to the master material.")
-    textures: Dict[str, str] = Field(
-        default_factory=dict,
-        description="Dictionary mapping shader parameter names (e.g. BaseColorMap, NormalMap, ORMMap) to texture path."
+    textures: List[TextureParamBinding] = Field(
+        default_factory=list,
+        description="List of shader parameter bindings (param_name, texture_path)."
     )
 
 
@@ -70,9 +75,9 @@ class ClassifiedItem(BaseModel):
     fbx_file: str = Field(description="Physical file path to the FBX.")
     thumbnail_file: str = Field(default="", description="Physical file path to the PNG thumbnail, if found.")
     properties: WardrobeProperties = Field(description="PDA properties conforming to schema.")
-    materials: Dict[str, SlotMaterialClassification] = Field(
-        default_factory=dict,
-        description="Dictionary of material slot names to slot classification."
+    materials: List[SlotMaterialClassification] = Field(
+        default_factory=list,
+        description="List of material slot classifications for this item."
     )
 
 
@@ -337,6 +342,21 @@ def main(
 
     result_model: ManifestClassificationResult = completion.choices[0].message.parsed
     manifest_dict: Dict[str, Any] = result_model.model_dump()
+
+    # Reconstruct dictionary maps for downstream compatibility
+    for item in manifest_dict.get("items", []):
+        mat_list = item.get("materials", [])
+        mat_dict = {}
+        for m in mat_list:
+            if isinstance(m, dict):
+                tex_dict = {
+                    t["param_name"]: t["texture_path"]
+                    for t in m.get("textures", [])
+                    if isinstance(t, dict) and "param_name" in t and "texture_path" in t
+                }
+                m["textures"] = tex_dict
+                mat_dict[m.get("slot_name", "")] = m
+        item["materials"] = mat_dict
 
     # Convert to objects_map for backward compatibility
     objects_map = {}
