@@ -558,6 +558,9 @@ def main(
             "thumbnail_file": item.get("thumbnail_file", "")
         }
 
+    if contracts:
+        manifest_dict["contracts"] = contracts
+
     summary = (
         f"Classified {len(manifest_dict.get('items', []))} items for Character '{character_name}'. "
         f"Prefixes unified (SKM_* for meshes, DA_* for data assets). "
@@ -573,6 +576,7 @@ def main(
         "character_name": character_name,
         "character_tag": character_tag,
         "destination_folder": destination_folder,
+        "contracts": contracts,
         "summary": summary
     }
 

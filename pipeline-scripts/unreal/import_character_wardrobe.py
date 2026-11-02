@@ -233,30 +233,36 @@ def import_texture_file(file_path: str, dest_folder: str, texture_name: str, is_
     if tex:
         changed = False
         if is_normal and hasattr(unreal, "TextureCompressionSettings"):
-            tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_NORMALMAP)
             try:
+                tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_NORMALMAP)
                 tex.set_editor_property("srgb", False)
+                changed = True
             except Exception:
                 pass
-            changed = True
         elif is_ui and hasattr(unreal, "TextureCompressionSettings"):
-            tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_EDITOR_ICON)
             try:
+                tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_EDITOR_ICON)
                 tex.set_editor_property("srgb", True)
+                changed = True
             except Exception:
                 pass
-            changed = True
 
         if is_virtual:
             try:
-                if not tex.get_editor_property("virtual_texture_streaming"):
-                    tex.set_editor_property("virtual_texture_streaming", True)
-                    changed = True
-            except Exception:
-                pass
+                tex.set_editor_property("virtual_texture_streaming", True)
+                if hasattr(tex, "modify"):
+                    tex.modify(True)
+                changed = True
+                print(f"   [FORGITY] Enabled Virtual Texture Streaming on '{texture_name}'", flush=True)
+            except Exception as e:
+                print(f"   [FORGITY :: WARN] Could not set virtual_texture_streaming on '{texture_name}': {e}", flush=True)
 
         if changed:
             unreal.EditorAssetLibrary.save_loaded_asset(tex)
+            try:
+                unreal.EditorAssetLibrary.save_asset(target_path, only_if_is_dirty=False)
+            except Exception:
+                pass
         return tex
     return None
 
@@ -266,7 +272,9 @@ def create_material_instance(
     materials_folder: str,
     textures_folder: str,
     mi_name: str,
-    textures: Dict[str, str]
+    textures: Dict[str, str],
+    contracts: Optional[Dict[str, Any]] = None,
+    material_tag: str = ""
 ):
     """Creates a MaterialInstanceConstant in materials_folder and binds textures stored in textures_folder."""
     if not master_mat_path or not unreal.EditorAssetLibrary.does_asset_exist(master_mat_path):
@@ -290,8 +298,30 @@ def create_material_instance(
 
     unreal.MaterialEditingLibrary.set_material_instance_parent(mi_asset, master_mat)
 
-    # Detect if master material expects Virtual Textures (e.g. M_Skin)
-    is_skin_master = "skin" in master_mat_path.lower()
+    # 1. Resolve Virtual Texture requirements from contracts if available
+    contracts_materials = {}
+    if contracts and isinstance(contracts, dict):
+        contracts_materials = contracts.get("materials", {})
+
+    target_mat_contract = None
+    if material_tag and material_tag in contracts_materials:
+        target_mat_contract = contracts_materials[material_tag]
+    else:
+        # Match by master_material_path
+        clean_target_path = master_mat_path.split(".")[0].lower()
+        for c_tag, c_mat in contracts_materials.items():
+            c_path = c_mat.get("master_material_path", "").split(".")[0].lower()
+            if c_path == clean_target_path:
+                target_mat_contract = c_mat
+                break
+
+    contract_texture_slots = target_mat_contract.get("texture_slots", {}) if target_mat_contract else {}
+
+    # Heuristic fallback: Genesis9 character materials use Virtual Textures
+    is_genesis_character_mat = any(
+        kw in master_mat_path.lower()
+        for kw in ["skin", "cloth", "eye", "eyelash", "hair", "genesis9", "character", "body", "head", "face", "mouth", "bra", "leggings", "shoes"]
+    )
 
     # Bind textures
     for param_name, tex_path in textures.items():
@@ -299,12 +329,23 @@ def create_material_instance(
             raw_base = sanitize_asset_name(os.path.splitext(os.path.basename(tex_path))[0])
             tex_base = f"T_{raw_base}" if not raw_base.startswith("T_") else raw_base
             is_norm = "normal" in param_name.lower() or "normal" in tex_base.lower() or "nm" in tex_base.lower()
-            is_vt = is_skin_master or "vt" in param_name.lower()
+
+            # Determine Virtual Texture requirement
+            if param_name in contract_texture_slots:
+                is_vt = contract_texture_slots[param_name].get("vt", True)
+            else:
+                is_vt = is_genesis_character_mat or "vt" in param_name.lower()
+
             tex_obj = import_texture_file(tex_path, textures_folder, tex_base, is_normal=is_norm, is_virtual=is_vt)
             if tex_obj:
                 unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(
                     mi_asset, param_name, tex_obj
                 )
+
+    try:
+        unreal.MaterialEditingLibrary.update_material_instance(mi_asset)
+    except Exception:
+        pass
 
     unreal.EditorAssetLibrary.save_loaded_asset(mi_asset)
     return mi_asset
@@ -401,7 +442,14 @@ def create_and_populate_data_asset(
     thumbnail_obj,
     properties: Dict[str, Any]
 ):
-    """Creates Data Asset instance (DA_*) and sets properties."""
+    """
+    Creates Data Asset instance (DA_*) and sets properties.
+    Uses convention-based injection:
+      - SELF_MESH: binds imported SkeletalMesh to BodyMesh/ItemMesh
+      - SELF_THUMBNAIL: binds imported Texture2D to Thumbnail/ItemThumbnail
+      - Semantic AI fields: GameplayTags, DisplayName
+      - Custom fields: graceful try/except reflection without fragile hasattr()
+    """
     target_class = resolve_data_asset_class(schema_name_or_path)
     if not target_class:
         print(f"   [FORGITY :: ERROR] Failed to resolve Schema Class for '{schema_name_or_path}'", flush=True)
@@ -424,53 +472,89 @@ def create_and_populate_data_asset(
         print(f"   [FORGITY :: ERROR] Failed to create Data Asset '{data_asset_name}' with factory.", flush=True)
         return None
 
-    # 1. Bind Mesh & Thumbnail
+    # 1. Convention: SELF_MESH injection (Direct set_editor_property without hasattr)
     if mesh_obj:
+        bound_mesh = False
         for prop in ["BodyMesh", "ItemMesh", "Mesh", "SkeletalMesh", "CharacterMesh"]:
-            if hasattr(da_asset, prop):
-                try:
-                    da_asset.set_editor_property(prop, mesh_obj)
-                    print(f"   [FORGITY] Bound Mesh to '{prop}' on '{data_asset_name}'", flush=True)
-                    break
-                except Exception:
-                    pass
-
-    if thumbnail_obj:
-        for prop in ["ItemThumbnail", "Thumbnail", "Icon", "Texture"]:
-            if hasattr(da_asset, prop):
-                try:
-                    da_asset.set_editor_property(prop, thumbnail_obj)
-                    print(f"   [FORGITY] Bound Thumbnail to '{prop}' on '{data_asset_name}'", flush=True)
-                    break
-                except Exception:
-                    pass
-
-    # 2. Bind GameplayTags
-    for tag_field in ["SlotTag", "ItemTag", "CharacterTag"]:
-        tag_val = properties.get(tag_field, "")
-        if tag_val and hasattr(da_asset, tag_field):
-            tag_obj = _make_gameplay_tag(tag_val)
             try:
-                da_asset.set_editor_property(tag_field, tag_obj)
-                print(f"   [FORGITY] Set GameplayTag '{tag_field}' = '{tag_val}' on '{data_asset_name}'", flush=True)
-            except Exception as e:
-                try:
-                    da_asset.set_editor_property(tag_field, unreal.Name(tag_val))
-                except Exception:
-                    print(f"   [FORGITY :: WARN] Could not set tag '{tag_field}={tag_val}': {e}", flush=True)
+                da_asset.set_editor_property(prop, mesh_obj)
+                print(f"   [FORGITY] [SELF_MESH] Successfully bound Mesh -> '{prop}' on '{data_asset_name}'", flush=True)
+                bound_mesh = True
+                break
+            except Exception:
+                pass
+        if not bound_mesh:
+            print(f"   [FORGITY :: DEBUG] No compatible Mesh property on '{data_asset_name}' (tried BodyMesh, ItemMesh, etc.)", flush=True)
 
-    # 3. Bind DisplayName & Strings
-    display_name = properties.get("DisplayName", "")
-    if display_name:
-        for prop in ["DisplayName", "ItemName", "Title"]:
-            if hasattr(da_asset, prop):
+    # 2. Convention: SELF_THUMBNAIL injection
+    if thumbnail_obj:
+        bound_thumb = False
+        for prop in ["Thumbnail", "ItemThumbnail", "Icon", "Texture"]:
+            try:
+                da_asset.set_editor_property(prop, thumbnail_obj)
+                print(f"   [FORGITY] [SELF_THUMBNAIL] Successfully bound Thumbnail -> '{prop}' on '{data_asset_name}'", flush=True)
+                bound_thumb = True
+                break
+            except Exception:
+                pass
+        if not bound_thumb:
+            print(f"   [FORGITY :: DEBUG] No compatible Thumbnail property on '{data_asset_name}' (tried Thumbnail, ItemThumbnail, etc.)", flush=True)
+
+    # 3. Dynamic Properties & AI Fields injection (Tags, Text, Custom)
+    for field_name, field_val in properties.items():
+        if field_val is None or field_val == "":
+            continue
+
+        clean_val = str(field_val).strip()
+
+        # GameplayTag fields
+        if "tag" in field_name.lower():
+            tag_obj = _make_gameplay_tag(clean_val)
+            tag_set = False
+            try:
+                da_asset.set_editor_property(field_name, tag_obj)
+                print(f"   [FORGITY] Set GameplayTag '{field_name}' = '{clean_val}' on '{data_asset_name}'", flush=True)
+                tag_set = True
+            except Exception:
                 try:
-                    da_asset.set_editor_property(prop, unreal.Text(display_name))
-                    break
+                    da_asset.set_editor_property(field_name, unreal.Name(clean_val))
+                    print(f"   [FORGITY] Set Name fallback '{field_name}' = '{clean_val}' on '{data_asset_name}'", flush=True)
+                    tag_set = True
                 except Exception:
                     pass
+            if not tag_set:
+                print(f"   [FORGITY :: DEBUG] Schema property '{field_name}' not available on '{data_asset_name}'. Skipped.", flush=True)
+
+        # DisplayName / Strings
+        elif field_name in ["DisplayName", "ItemName", "Title", "Name"]:
+            text_set = False
+            try:
+                da_asset.set_editor_property(field_name, unreal.Text(clean_val))
+                print(f"   [FORGITY] Set DisplayName (Text) '{field_name}' = '{clean_val}' on '{data_asset_name}'", flush=True)
+                text_set = True
+            except Exception:
+                try:
+                    da_asset.set_editor_property(field_name, clean_val)
+                    print(f"   [FORGITY] Set DisplayName (Str) '{field_name}' = '{clean_val}' on '{data_asset_name}'", flush=True)
+                    text_set = True
+                except Exception:
+                    pass
+            if not text_set:
+                print(f"   [FORGITY :: DEBUG] Schema has no '{field_name}' property. Skipped.", flush=True)
+
+        # Custom Handle / Arbitrary Fields
+        else:
+            try:
+                da_asset.set_editor_property(field_name, field_val)
+                print(f"   [FORGITY] Set Custom Field '{field_name}' = '{field_val}' on '{data_asset_name}'", flush=True)
+            except Exception as e:
+                print(f"   [FORGITY :: DEBUG] Custom property '{field_name}' skipped: {e}", flush=True)
 
     unreal.EditorAssetLibrary.save_loaded_asset(da_asset)
+    try:
+        unreal.EditorAssetLibrary.save_asset(full_path, only_if_is_dirty=False)
+    except Exception:
+        pass
     return da_asset
 
 
@@ -607,15 +691,19 @@ def main(
             materials_dict = {s.get("slot_name", f"slot_{i}"): s for i, s in enumerate(materials_dict)}
 
         created_mis = {}
+        contracts_data = manifest.get("contracts") or kwargs.get("contracts")
         for slot_key, slot_info in materials_dict.items():
             master_path = slot_info.get("master_material_path", "/Game/Characters/Materials/M_Cloth")
             textures = slot_info.get("textures", {})
+            mat_tag = slot_info.get("material_tag", "")
             mi_name = f"MI_{mesh_name}_{sanitize_asset_name(slot_key)}"
 
-            mi_obj = create_material_instance(master_path, materials_folder, textures_folder, mi_name, textures)
+            mi_obj = create_material_instance(
+                master_path, materials_folder, textures_folder, mi_name, textures,
+                contracts=contracts_data, material_tag=mat_tag
+            )
             if mi_obj:
                 created_mis[slot_key] = mi_obj
-                mat_tag = slot_info.get("material_tag", "")
                 if mat_tag:
                     created_mis[mat_tag] = mi_obj
 
