@@ -211,37 +211,51 @@ def import_fbx_mesh(
     return None
 
 
-def import_texture_file(file_path: str, dest_folder: str, texture_name: str, is_normal: bool = False, is_ui: bool = False):
-    """Imports image file into Unreal as Texture2D."""
+def import_texture_file(file_path: str, dest_folder: str, texture_name: str, is_normal: bool = False, is_ui: bool = False, is_virtual: bool = False):
+    """Imports image file into Unreal as Texture2D, handling normal maps, UI, and Virtual Texture streaming."""
     target_path = f"{dest_folder}/{texture_name}"
-    if unreal.EditorAssetLibrary.does_asset_exist(target_path):
-        return unreal.EditorAssetLibrary.load_asset(target_path)
-
-    task = unreal.AssetImportTask()
-    task.set_editor_property("filename", os.path.abspath(file_path))
-    task.set_editor_property("destination_path", dest_folder)
-    task.set_editor_property("destination_name", texture_name)
-    task.set_editor_property("replace_existing", True)
-    task.set_editor_property("automated", True)
-    task.set_editor_property("save", True)
-
-    unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
-
+    tex = None
     if unreal.EditorAssetLibrary.does_asset_exist(target_path):
         tex = unreal.EditorAssetLibrary.load_asset(target_path)
-        if tex:
-            if is_normal and hasattr(unreal, "TextureCompressionSettings"):
-                tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_NORMALMAP)
-                try:
-                    tex.set_editor_property("srgb", False)
-                except Exception:
-                    pass
-            elif is_ui and hasattr(unreal, "TextureCompressionSettings"):
-                tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_EDITOR_ICON)
-                try:
-                    tex.set_editor_property("srgb", True)
-                except Exception:
-                    pass
+    else:
+        task = unreal.AssetImportTask()
+        task.set_editor_property("filename", os.path.abspath(file_path))
+        task.set_editor_property("destination_path", dest_folder)
+        task.set_editor_property("destination_name", texture_name)
+        task.set_editor_property("replace_existing", True)
+        task.set_editor_property("automated", True)
+        task.set_editor_property("save", True)
+
+        unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
+        if unreal.EditorAssetLibrary.does_asset_exist(target_path):
+            tex = unreal.EditorAssetLibrary.load_asset(target_path)
+
+    if tex:
+        changed = False
+        if is_normal and hasattr(unreal, "TextureCompressionSettings"):
+            tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_NORMALMAP)
+            try:
+                tex.set_editor_property("srgb", False)
+            except Exception:
+                pass
+            changed = True
+        elif is_ui and hasattr(unreal, "TextureCompressionSettings"):
+            tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_EDITOR_ICON)
+            try:
+                tex.set_editor_property("srgb", True)
+            except Exception:
+                pass
+            changed = True
+
+        if is_virtual:
+            try:
+                if not tex.get_editor_property("virtual_texture_streaming"):
+                    tex.set_editor_property("virtual_texture_streaming", True)
+                    changed = True
+            except Exception:
+                pass
+
+        if changed:
             unreal.EditorAssetLibrary.save_loaded_asset(tex)
         return tex
     return None
@@ -276,13 +290,17 @@ def create_material_instance(
 
     unreal.MaterialEditingLibrary.set_material_instance_parent(mi_asset, master_mat)
 
+    # Detect if master material expects Virtual Textures (e.g. M_Skin)
+    is_skin_master = "skin" in master_mat_path.lower()
+
     # Bind textures
     for param_name, tex_path in textures.items():
         if tex_path and os.path.isfile(tex_path):
             raw_base = sanitize_asset_name(os.path.splitext(os.path.basename(tex_path))[0])
             tex_base = f"T_{raw_base}" if not raw_base.startswith("T_") else raw_base
             is_norm = "normal" in param_name.lower() or "normal" in tex_base.lower() or "nm" in tex_base.lower()
-            tex_obj = import_texture_file(tex_path, textures_folder, tex_base, is_normal=is_norm)
+            is_vt = is_skin_master or "vt" in param_name.lower()
+            tex_obj = import_texture_file(tex_path, textures_folder, tex_base, is_normal=is_norm, is_virtual=is_vt)
             if tex_obj:
                 unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(
                     mi_asset, param_name, tex_obj
@@ -556,8 +574,27 @@ def main(
 
         print(f"\n[import_wardrobe] Processing item '{asset_name}' -> Root: {root_dest_folder} (Materials: {materials_folder}, Textures: {textures_folder})", flush=True)
 
+        # Resolve target skeleton path
+        item_skeleton = item.get("skeleton_path") or skeleton_path
+        if not item_skeleton or not unreal.EditorAssetLibrary.does_asset_exist(item_skeleton):
+            candidates = [
+                "/Game/Characters/Genesis9/Base/Rig/G9_Skeleton",
+                "/Game/Characters/Genesis9/Base/Rig/G9_Skeleton.G9_Skeleton",
+                "/Game/Characters/Genesis9/Common/Skeleton/Genesis9_Skeleton",
+            ]
+            contracts_skeletons = manifest.get("contracts", {}).get("skeletons", {})
+            for sk_info in contracts_skeletons.values():
+                if isinstance(sk_info, dict) and sk_info.get("package_path"):
+                    candidates.insert(0, sk_info["package_path"])
+
+            for c in candidates:
+                if c and unreal.EditorAssetLibrary.does_asset_exist(c):
+                    item_skeleton = c
+                    print(f"   [FORGITY] Auto-resolved Skeleton for '{asset_name}': '{item_skeleton}'", flush=True)
+                    break
+
         # 1. Import Mesh into Root
-        mesh_obj = import_fbx_mesh(fbx_path, root_dest_folder, mesh_name, skeleton_path, normal_import_method)
+        mesh_obj = import_fbx_mesh(fbx_path, root_dest_folder, mesh_name, item_skeleton, normal_import_method)
         if mesh_obj:
             imported_meshes.append(f"{root_dest_folder}/{mesh_name}")
         else:

@@ -442,6 +442,7 @@ def main(
 
     materials: Dict[str, Any] = {}
     schemas: Dict[str, Any] = {}
+    skeletons: Dict[str, Any] = {}
 
     for fp in unique_files:
         parsed_tuple = read_uasset_names_and_package(fp)
@@ -450,8 +451,15 @@ def main(
         data, pkg_name, names = parsed_tuple
         base_name = os.path.basename(fp)
 
-        # Distinguish between Master Material and DataAsset Schema
-        if base_name.startswith("M_") or "Material" in base_name:
+        # Distinguish between Master Material, DataAsset Schema, and Skeleton
+        if "Skeleton" in base_name or ("Skeleton" in names and ("BoneTree" in names or "BoneNode" in names)):
+            skel_name = base_name.replace(".uasset", "")
+            skeletons[skel_name] = {
+                "skeleton_name": skel_name,
+                "package_path": pkg_name,
+                "source_file": fp
+            }
+        elif base_name.startswith("M_") or "Material" in base_name:
             mat = parse_uasset_material(fp, data, pkg_name, names)
             if mat:
                 materials[mat["material_tag"]] = mat
@@ -472,6 +480,7 @@ def main(
     contracts: Dict[str, Any] = {
         "materials": materials,
         "schemas": schemas,
+        "skeletons": skeletons,
         "gameplay_tags": gameplay_tags,
         "wardrobe_slots": wardrobe_slots
     }
@@ -480,6 +489,7 @@ def main(
         f"Inspected {len(unique_files)} .uasset files. "
         f"Discovered {len(materials)} Master Materials, "
         f"{len(schemas)} Schemas ({', '.join(schemas.keys()) or 'None'}), "
+        f"{len(skeletons)} Skeletons ({', '.join(skeletons.keys()) or 'None'}), "
         f"{len(wardrobe_slots)} Wardrobe Slots, "
         f"and {len(gameplay_tags)} registered GameplayTags."
     )
@@ -490,6 +500,7 @@ def main(
         "contracts": contracts,
         "materials_count": len(materials),
         "schemas_count": len(schemas),
+        "skeletons_count": len(skeletons),
         "slots_count": len(wardrobe_slots),
         "tags_count": len(gameplay_tags),
         "summary": summary

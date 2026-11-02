@@ -29,7 +29,7 @@ import sys
 import glob
 import json
 import re
-from typing import List, Dict, Optional, Any, Tuple
+from typing import List, Dict, Optional, Any, Tuple, Union
 from pydantic import BaseModel, Field
 
 try:
@@ -59,11 +59,9 @@ class SlotMaterialClassification(BaseModel):
     )
 
 
-class WardrobeProperties(BaseModel):
-    DisplayName: str = Field(default="", description="Clean, human-readable display title for UI (e.g. 'Brz Us Bra').")
-    SlotTag: str = Field(default="", description="Valid GameplayTag for clothing slot (e.g. 'System.Wardrobe.Slots.Inner_Top') or empty if Body.")
-    ItemTag: str = Field(default="", description="Valid GameplayTag identifying this specific item (e.g. 'Character.Laura.Outfits.Bra') or empty if Body.")
-    CharacterTag: str = Field(default="", description="GameplayTag of the parent character (e.g. 'Character.Eva').")
+class CustomPropertyField(BaseModel):
+    name: str = Field(description="Property field name strictly matching the chosen schema's ai_editable_fields (e.g. 'CharacterTag' or 'DisplayName' for PDA_CharacterProfile; 'SlotTag', 'ItemTag', 'CharacterTag', 'DisplayName' for PDA_WardrobeItem).")
+    value: str = Field(description="Assigned value for this property field.")
 
 
 class ClassifiedItem(BaseModel):
@@ -72,11 +70,12 @@ class ClassifiedItem(BaseModel):
     data_asset_name: str = Field(description="Data asset name with prefix 'DA_' (e.g. 'DA_Eva_Outfit1_BRZ_US_Bra').")
     asset_kind: str = Field(description="'Body' for character base/nude body mesh, or 'Wardrobe' for clothes/hair/shoes.")
     destination_folder: str = Field(default="", description="Target Unreal Engine folder path for this item (e.g. '/Game/Characters/Genesis9/Laura' for Body, '/Game/Characters/Genesis9/Laura/Outfits' for Wardrobe).")
+    skeleton_path: str = Field(default="", description="Unreal package path to target Skeleton (e.g. '/Game/Characters/Genesis9/Base/Rig/G9_Skeleton').")
     target_schema_path: str = Field(default="", description="Unreal package path to target Schema, e.g. '/Game/Systems/Characters/Schemas/PDA_CharacterProfile'.")
     target_schema: str = Field(default="PDA_WardrobeItem", description="Blueprint schema class name.")
     fbx_file: str = Field(description="Physical file path to the FBX.")
     thumbnail_file: str = Field(default="", description="Physical file path to the thumbnail if provided.")
-    properties: WardrobeProperties = Field(description="PDA properties conforming to schema.")
+    properties: List[CustomPropertyField] = Field(default_factory=list, description="PDA properties conforming strictly to the selected schema's ai_editable_fields.")
     materials: List[SlotMaterialClassification] = Field(
         default_factory=list,
         description="List of material slot classifications for this item."
@@ -384,11 +383,12 @@ def main(
         "   - Map each real slot to its matching Master Material (e.g. M_Skin, M_Cloth, M_Eye) and available texture files.\n"
         "   - If 'material_slots' has entries like ['GNDFabric-2', 'GNDFabric-3', 'M_Genesis_9_Mesh_Body', 'M_Genesis_9_Mesh_Head', 'Eye_Left', 'Eyelashes_Lower-1'], "
         "use those EXACT names as 'slot_name'!\n"
-        "4. SCHEMA SELECTION & PROPERTIES:\n"
-        "   - 'target_schemas' contains schemas with their 'package_path' (e.g. '/Game/Systems/Characters/Schemas/PDA_CharacterProfile') "
-        "and 'ai_editable_fields'.\n"
+        "4. SCHEMA SELECTION & DYNAMIC PROPERTIES:\n"
+        "   - 'target_schemas' defines schemas with their 'package_path' and 'ai_editable_fields'.\n"
         "   - Set 'target_schema_path' to the exact 'package_path' of the chosen schema.\n"
-        "   - In 'properties', populate the fields listed in that schema's 'ai_editable_fields'.\n"
+        "   - CRITICAL PROPERTY RULE: In 'properties', populate ONLY the fields defined in that schema's 'ai_editable_fields'!\n"
+        "     * For 'PDA_CharacterProfile': populate ONLY 'CharacterTag' and 'DisplayName'. NEVER generate 'SlotTag' or 'ItemTag'!\n"
+        "     * For 'PDA_WardrobeItem': populate 'SlotTag', 'ItemTag', 'CharacterTag', and 'DisplayName'.\n"
         "   - DO NOT generate or worry about 'system_bound_fields' (e.g. BodyMesh, ItemMesh, ItemThumbnail) - "
         "the ingestion engine automatically binds them.\n"
     )
@@ -404,10 +404,17 @@ def main(
         "master_materials": {
             k: {
                 "master_material_path": v.get("master_material_path", ""),
-                "slots": list(v.get("texture_slots", {}).keys())
+                "required_parameters": {
+                    param_name: {
+                        "semantic": p_info.get("semantic", "BASE_COLOR"),
+                        "vt": p_info.get("vt", False)
+                    }
+                    for param_name, p_info in v.get("texture_slots", {}).items()
+                }
             }
             for k, v in materials_contracts.items()
         },
+        "available_skeletons": contracts_payload.get("skeletons", {}),
         "target_schemas": {
             k: {
                 "package_path": v.get("package_path", ""),
@@ -445,6 +452,17 @@ def main(
 
     # Reconstruct dictionary maps for downstream compatibility
     for item in manifest_dict.get("items", []):
+        # Convert properties list of CustomPropertyField to clean dict
+        raw_props = item.get("properties", [])
+        props_dict = {}
+        if isinstance(raw_props, list):
+            for p in raw_props:
+                if isinstance(p, dict) and p.get("name"):
+                    props_dict[p["name"]] = p.get("value", "")
+        elif isinstance(raw_props, dict):
+            props_dict = raw_props
+        item["properties"] = props_dict
+
         mat_list = item.get("materials", [])
         mat_dict = {}
         for m in mat_list:
@@ -467,6 +485,15 @@ def main(
 
         target_schema = "PDA_CharacterProfile" if "PDA_CharacterProfile" in pda_schemas else "PDA_WardrobeItem"
         target_schema_path = pda_schemas.get("PDA_CharacterProfile", {}).get("package_path", "/Game/Systems/Characters/Schemas/PDA_CharacterProfile")
+        
+        single_props = {
+            "DisplayName": character_name,
+            "CharacterTag": character_tag
+        }
+        if target_schema == "PDA_WardrobeItem":
+            single_props["SlotTag"] = "System.Wardrobe.Slots.Body" if "System.Wardrobe.Slots.Body" in valid_slots else ""
+            single_props["ItemTag"] = f"{character_tag}.Base"
+
         single_item = {
             "asset_name": character_name,
             "mesh_name": f"SKM_{character_name}",
@@ -476,12 +503,7 @@ def main(
             "target_schema_path": target_schema_path,
             "fbx_file": valid_fbx[0],
             "thumbnail_file": manifest_dict["items"][0].get("thumbnail_file", ""),
-            "properties": {
-                "DisplayName": character_name,
-                "SlotTag": "System.Wardrobe.Slots.Body" if "System.Wardrobe.Slots.Body" in valid_slots else "",
-                "ItemTag": f"{character_tag}.Base",
-                "CharacterTag": character_tag
-            },
+            "properties": single_props,
             "materials": all_materials
         }
         manifest_dict["items"] = [single_item]
