@@ -71,6 +71,7 @@ class ClassifiedItem(BaseModel):
     mesh_name: str = Field(description="Skeletal mesh name with prefix 'SKM_' (e.g. 'SKM_Eva_Outfit1_BRZ_US_Bra').")
     data_asset_name: str = Field(description="Data asset name with prefix 'DA_' (e.g. 'DA_Eva_Outfit1_BRZ_US_Bra').")
     asset_kind: str = Field(description="'Body' for character base/nude body mesh, or 'Wardrobe' for clothes/hair/shoes.")
+    destination_folder: str = Field(default="", description="Target Unreal Engine folder path for this item (e.g. '/Game/Characters/Genesis9/Laura' for Body, '/Game/Characters/Genesis9/Laura/Outfits' for Wardrobe).")
     target_schema_path: str = Field(default="", description="Unreal package path to target Schema, e.g. '/Game/Systems/Characters/Schemas/PDA_CharacterProfile'.")
     target_schema: str = Field(default="PDA_WardrobeItem", description="Blueprint schema class name.")
     fbx_file: str = Field(description="Physical file path to the FBX.")
@@ -249,8 +250,11 @@ def main(
     if not character_tag:
         character_tag = f"Character.{character_name}"
 
+    base_character_folder = f"/Game/Characters/Genesis9/{character_name}"
+    outfits_folder = f"{base_character_folder}/Outfits"
+
     if not destination_folder:
-        destination_folder = f"/Game/Characters/Genesis9/{character_name}/Outfits"
+        destination_folder = base_character_folder
 
     # Discover textures & thumbnails
     textures = list(texture_files or [])
@@ -415,11 +419,33 @@ def main(
         }
         manifest_dict["items"] = [single_item]
 
-    # Resolve target_schema_path if missing
+    # Resolve target_schema_path & dynamic destination_folder per item
+    has_wardrobe_items = False
     for item in manifest_dict.get("items", []):
         if not item.get("target_schema_path"):
             sk = item.get("target_schema", "PDA_WardrobeItem")
             item["target_schema_path"] = pda_schemas.get(sk, {}).get("package_path", "")
+
+        is_body = (
+            item.get("asset_kind") == "Body"
+            or item.get("target_schema") == "PDA_CharacterProfile"
+            or "CharacterProfile" in item.get("target_schema_path", "")
+        )
+
+        if is_body:
+            # Base character body meshes and PDA_CharacterProfile belong directly in the character's base root folder
+            item["destination_folder"] = base_character_folder
+        else:
+            has_wardrobe_items = True
+            # Wardrobe/clothing items belong in the Outfits subfolder
+            item["destination_folder"] = outfits_folder
+
+    # Update top-level destination folder to reflect contents accurately
+    if has_wardrobe_items and not any(it.get("asset_kind") == "Body" for it in manifest_dict.get("items", [])):
+        destination_folder = outfits_folder
+    else:
+        destination_folder = base_character_folder
+    manifest_dict["destination_folder"] = destination_folder
 
     # Convert to objects_map for backward compatibility
     objects_map = {}
@@ -429,6 +455,7 @@ def main(
             "mesh_name": item["mesh_name"],
             "data_asset_name": item["data_asset_name"],
             "file_path": item["fbx_file"],
+            "destination_folder": item.get("destination_folder", destination_folder),
             "slots": [
                 {
                     "slot_name": slot_key,

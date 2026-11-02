@@ -543,13 +543,16 @@ def main(
         asset_name = sanitize_asset_name(item.get("asset_name", os.path.splitext(os.path.basename(fbx_path))[0]))
         mesh_name = item.get("mesh_name", f"SKM_{asset_name}")
         da_name = item.get("data_asset_name", f"DA_{asset_name}")
+        item_dest_folder = _clean_ue_path(item.get("destination_folder") or clean_dest_folder)
 
-        print(f"\n[import_wardrobe] Processing item '{asset_name}' -> Mesh: {mesh_name}, DA: {da_name}...", flush=True)
+        unreal.EditorAssetLibrary.make_directory(item_dest_folder)
+
+        print(f"\n[import_wardrobe] Processing item '{asset_name}' -> Dest: {item_dest_folder}, Mesh: {mesh_name}, DA: {da_name}...", flush=True)
 
         # 1. Import Mesh
-        mesh_obj = import_fbx_mesh(fbx_path, clean_dest_folder, mesh_name, skeleton_path, normal_import_method)
+        mesh_obj = import_fbx_mesh(fbx_path, item_dest_folder, mesh_name, skeleton_path, normal_import_method)
         if mesh_obj:
-            imported_meshes.append(f"{clean_dest_folder}/{mesh_name}")
+            imported_meshes.append(f"{item_dest_folder}/{mesh_name}")
         else:
             print(f"[import_wardrobe] Error: Failed to import Skeletal Mesh '{mesh_name}'.", flush=True)
             continue
@@ -565,7 +568,7 @@ def main(
             textures = slot_info.get("textures", {})
             mi_name = f"MI_{mesh_name}_{sanitize_asset_name(slot_name)}"
 
-            mi_obj = create_material_instance(master_path, clean_dest_folder, mi_name, textures)
+            mi_obj = create_material_instance(master_path, item_dest_folder, mi_name, textures)
             if mi_obj and hasattr(mesh_obj, "materials") and slot_idx < len(mesh_obj.materials):
                 mesh_obj.materials[slot_idx].material_interface = mi_obj
 
@@ -579,16 +582,16 @@ def main(
 
         if thumb_path and os.path.isfile(thumb_path):
             thumb_name = f"T_{asset_name}"
-            print(f"   [FORGITY] Ingesting Thumbnail: '{thumb_path}' -> '{thumb_name}'", flush=True)
-            thumbnail_obj = import_texture_file(thumb_path, clean_dest_folder, thumb_name, is_ui=True)
+            print(f"   [FORGITY] Ingesting Thumbnail: '{thumb_path}' -> '{thumb_name}' into '{item_dest_folder}'", flush=True)
+            thumbnail_obj = import_texture_file(thumb_path, item_dest_folder, thumb_name, is_ui=True)
 
         # 4. Create Data Asset (DA_*)
         target_schema = item.get("target_schema_path") or item.get("target_schema", "PDA_WardrobeItem")
         properties = item.get("properties", {})
-        da_obj = create_and_populate_data_asset(target_schema, clean_dest_folder, da_name, mesh_obj, thumbnail_obj, properties)
+        da_obj = create_and_populate_data_asset(target_schema, item_dest_folder, da_name, mesh_obj, thumbnail_obj, properties)
         if da_obj:
-            created_data_assets.append(f"{clean_dest_folder}/{da_name}")
-            print(f"[import_wardrobe] Successfully created Data Asset '{clean_dest_folder}/{da_name}' with Tags.", flush=True)
+            created_data_assets.append(f"{item_dest_folder}/{da_name}")
+            print(f"[import_wardrobe] Successfully created Data Asset '{item_dest_folder}/{da_name}' with Tags.", flush=True)
 
     summary = (
         f"Completed Ingestion: {len(imported_meshes)} Skeletal Meshes (SKM_*), "
