@@ -269,6 +269,7 @@ def main(
     materials_contracts = contracts_payload.get("materials", {})
     pda_schemas = contracts_payload.get("schemas", {})
     valid_tags = contracts_payload.get("gameplay_tags", [])
+    valid_slots = contracts_payload.get("wardrobe_slots", [])
 
     # Setup OpenAI Client
     target_endpoint, provider_key, target_model, is_local = resolve_endpoint(endpoint, model)
@@ -289,9 +290,9 @@ def main(
         "3. data_asset_name: MUST start with 'DA_' (e.g. 'DA_Eva_Outfit1_BRZ_US_Bra'). NEVER use 'PDA_'.\n"
         "4. asset_kind: 'Body' for naked body/skin base, 'Wardrobe' for clothing/hair/shoes/accessories.\n"
         "5. properties.DisplayName: Beautiful user-facing display name (e.g. 'BRZ US Bra', 'Iridessa Hair').\n"
-        "6. properties.SlotTag: MUST pick a valid GameplayTag from the provided registered tags list "
+        "6. properties.SlotTag: MUST be selected from the provided 'allowed_wardrobe_slots' list "
         "(e.g. 'System.Wardrobe.Slots.Inner_Top', 'System.Wardrobe.Slots.Hair', 'System.Wardrobe.Slots.Inner_Bottom'). "
-        "DO NOT LEAVE EMPTY for Wardrobe items!\n"
+        "DO NOT INVENT NEW SLOTS OR LEAVE EMPTY for Wardrobe items!\n"
         "7. properties.ItemTag: Unique item GameplayTag from the list or formatted as 'Character.{Character}.Outfits.{Item}'.\n"
         "8. properties.CharacterTag: Character GameplayTag (e.g. 'Character.Eva').\n"
         "9. materials: For each material slot, match with appropriate Master Material (e.g. 'Cloth', 'Skin', 'Hair') "
@@ -305,6 +306,7 @@ def main(
         "fbx_assets": fbx_with_meta,
         "available_textures": textures[:150],  # Bound to avoid token explosion
         "valid_gameplay_tags": valid_tags,
+        "allowed_wardrobe_slots": valid_slots,
         "master_materials": {
             k: {
                 "master_material_path": v.get("master_material_path", ""),
@@ -372,3 +374,4 @@ def main(
 if __name__ == "__main__":
     # Smoke test structure
     print("AI Character Manifest Classifier Module loaded successfully.")
+

@@ -30,7 +30,7 @@ import sys
 import json
 import glob
 import struct
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional, Union, Tuple
 
 
 def resolve_sampler_preset(sampler_str: str) -> Dict[str, Any]:
@@ -287,28 +287,59 @@ def parse_uasset_schema(filepath: str, data: bytes, pkg_name: str, names: List[s
     }
 
 
-def parse_default_gameplay_tags_ini(config_path: str) -> List[str]:
+def find_project_root_and_config(start_path: str) -> Optional[str]:
     """
-    Parses DefaultGameplayTags.ini to extract all registered GameplayTag strings.
+    Walks up directory tree until .uproject file is found,
+    then returns the project's Config/ folder path.
+    """
+    if not start_path:
+        return None
+
+    curr = os.path.abspath(start_path)
+    if os.path.isfile(curr):
+        curr = os.path.dirname(curr)
+
+    # Walk up to root
+    for _ in range(12):
+        # Check if .uproject exists in curr
+        for item in os.listdir(curr):
+            if item.endswith(".uproject"):
+                config_candidate = os.path.join(curr, "Config")
+                if os.path.isdir(config_candidate):
+                    return config_candidate
+                return None
+
+        parent = os.path.dirname(curr)
+        if parent == curr:
+            break
+        curr = parent
+
+    return None
+
+
+def parse_default_gameplay_tags_ini(config_path: str) -> Tuple[List[str], List[str]]:
+    """
+    Parses DefaultGameplayTags.ini to extract:
+      1. All registered GameplayTag strings.
+      2. Specific wardrobe slot tags ('System.Wardrobe.Slots.*').
     """
     tags: List[str] = []
+    slots: List[str] = []
     if not config_path:
-        return tags
+        return tags, slots
 
     target_file = config_path
     if os.path.isdir(config_path):
         target_file = os.path.join(config_path, "DefaultGameplayTags.ini")
 
     if not os.path.isfile(target_file):
-        # Try search parent folders
-        return tags
+        return tags, slots
 
     try:
         with open(target_file, "r", encoding="utf-8", errors="replace") as f:
             for line in f:
                 line = line.strip()
                 if line.startswith("+GameplayTagList="):
-                    # Format: +GameplayTagList=(Tag="System.Wardrobe.Slots.Hair",DevComment="")
                     start = line.find('Tag="')
                     if start != -1:
                         end = line.find('"', start + 5)
@@ -316,10 +347,12 @@ def parse_default_gameplay_tags_ini(config_path: str) -> List[str]:
                             tag_str = line[start + 5:end]
                             if tag_str and tag_str not in tags:
                                 tags.append(tag_str)
+                                if "System.Wardrobe.Slots." in tag_str or ".Slots." in tag_str:
+                                    slots.append(tag_str)
     except Exception as ex:
         print(f"[inspect_contracts] Warning: Failed to parse tags ini: {ex}", flush=True)
 
-    return sorted(tags)
+    return sorted(tags), sorted(slots)
 
 
 def main(
@@ -327,6 +360,7 @@ def main(
     folder_path: str = "",
     config_folder: str = "",
     file_pattern: str = "*.uasset",
+    allowed_prefixes: Optional[List[str]] = None,
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -342,14 +376,34 @@ def main(
         found = glob.glob(pat, recursive=True)
         files_to_inspect.extend(found)
 
-    # De-duplicate preserving order
+    # Normalize allowed prefixes
+    clean_prefixes = []
+    if allowed_prefixes:
+        for p in allowed_prefixes:
+            if p:
+                clean_prefixes.append(p.strip().replace("\\", "/").strip("/").lower())
+
+    # De-duplicate preserving order with path filter
     unique_files: List[str] = []
     seen = set()
     for fp in files_to_inspect:
         norm = os.path.abspath(fp)
-        if norm not in seen and os.path.isfile(norm):
-            seen.add(norm)
-            unique_files.append(norm)
+        if norm in seen or not os.path.isfile(norm):
+            continue
+
+        if clean_prefixes:
+            norm_fwd = norm.replace("\\", "/").lower()
+            # Must match at least one allowed prefix
+            matched = False
+            for pfx in clean_prefixes:
+                if f"/{pfx}/" in norm_fwd or norm_fwd.endswith(f"/{pfx}") or f"/{pfx}" in norm_fwd:
+                    matched = True
+                    break
+            if not matched:
+                continue
+
+        seen.add(norm)
+        unique_files.append(norm)
 
     materials: Dict[str, Any] = {}
     schemas: Dict[str, Any] = {}
@@ -371,26 +425,20 @@ def main(
             if schema:
                 schemas[schema["schema_name"]] = schema
 
-    # Auto-detect config_folder if not provided
-    if not config_folder and unique_files:
-        # Walk up from first file to find Config/DefaultGameplayTags.ini
-        curr = os.path.dirname(unique_files[0])
-        for _ in range(5):
-            candidate = os.path.join(curr, "Config", "DefaultGameplayTags.ini")
-            if os.path.isfile(candidate):
-                config_folder = os.path.dirname(candidate)
-                break
-            parent = os.path.dirname(curr)
-            if parent == curr:
-                break
-            curr = parent
+    # Auto-detect config_folder by walking up to .uproject
+    if not config_folder and (unique_files or folder_path):
+        search_start = unique_files[0] if unique_files else folder_path
+        detected_cfg = find_project_root_and_config(search_start)
+        if detected_cfg:
+            config_folder = detected_cfg
 
-    gameplay_tags = parse_default_gameplay_tags_ini(config_folder)
+    gameplay_tags, wardrobe_slots = parse_default_gameplay_tags_ini(config_folder)
 
     contracts_payload = {
         "materials": materials,
         "schemas": schemas,
-        "gameplay_tags": gameplay_tags
+        "gameplay_tags": gameplay_tags,
+        "wardrobe_slots": wardrobe_slots
     }
 
     contracts_json = json.dumps(contracts_payload, indent=2, ensure_ascii=False)
@@ -398,6 +446,7 @@ def main(
         f"Inspected {len(unique_files)} .uasset files. "
         f"Discovered {len(materials)} Master Materials, "
         f"{len(schemas)} Schemas ({', '.join(schemas.keys()) or 'None'}), "
+        f"{len(wardrobe_slots)} Wardrobe Slots, "
         f"and {len(gameplay_tags)} registered GameplayTags."
     )
 
@@ -408,6 +457,7 @@ def main(
         "contracts_json": contracts_json,
         "materials_count": len(materials),
         "schemas_count": len(schemas),
+        "slots_count": len(wardrobe_slots),
         "tags_count": len(gameplay_tags),
         "summary": summary
     }
@@ -421,3 +471,4 @@ if __name__ == "__main__":
     print("Materials:", list(res["contracts"]["materials"].keys()))
     print("Schemas:", list(res["contracts"]["schemas"].keys()))
     print("Sample Tags:", res["contracts"]["gameplay_tags"][:5])
+
