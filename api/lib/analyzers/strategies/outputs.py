@@ -51,9 +51,17 @@ class ReturnDictInspectionStrategy(OutputDiscoveryStrategy):
                                 # 2. Local variable annotation trace
                                 prim_type, cardinality = local_var_types[v.id]
                             else:
-                                # 3. Plural / Suffix naming conventions
-                                if name == "contracts" or name.endswith("_contracts") or name.endswith("_map") or name.endswith("_dict"):
+                                # 3. Suffix & semantic naming conventions
+                                if (
+                                    name in ("contracts", "manifest", "metadata", "options")
+                                    or name.endswith("_contracts")
+                                    or name.endswith("_manifest")
+                                    or name.endswith("_map")
+                                    or name.endswith("_dict")
+                                ):
                                     cardinality = "Map"
+                                elif name == "status" or name.endswith("_status"):
+                                    cardinality = "Single"
                                 elif name.endswith("es") or name.endswith("s") or name.endswith("_list"):
                                     cardinality = "Array"
 

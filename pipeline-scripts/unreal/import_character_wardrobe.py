@@ -4,8 +4,8 @@ All-In-One Character & Wardrobe Ingestion Node for Unreal Engine
 Runs inside Unreal Engine via Python API (Unreal Engine 5.x) or Agent Worker Dry-Run.
 
 Consumes:
-  1. fbx_files: List of FBX asset file paths.
-  2. manifest: Unified Character Manifest from classify_character_manifest.py.
+  1. manifest: Unified Character Manifest from classify_character_manifest.py.
+  2. fbx_files (optional): List of FBX asset file paths (auto-extracted from manifest if omitted).
   3. destination_folder (optional): Unreal destination package path (overrides manifest).
   4. skeleton_path (optional): Skeletal Mesh Skeleton asset path.
   5. normal_import_method (optional): 'FBXNIM_IMPORT_NORMALS' (default).
@@ -347,8 +347,8 @@ def create_and_populate_data_asset(
 
 
 def main(
-    fbx_files: List[str],
     manifest: Dict[str, Any],
+    fbx_files: Optional[List[str]] = None,
     destination_folder: str = "",
     skeleton_path: str = "/Game/Characters/Genesis9/Common/Skeleton/Genesis9_Skeleton.Genesis9_Skeleton",
     normal_import_method: NormalImportMethodType = "FBXNIM_IMPORT_NORMALS",
@@ -358,13 +358,28 @@ def main(
     """
     Main entry point for All-In-One Character & Wardrobe Ingestion.
     """
-    if not fbx_files:
-        raise ValueError("No FBX files provided to import_character_wardrobe.")
+    if isinstance(manifest, str):
+        try:
+            manifest = json.loads(manifest)
+        except Exception:
+            manifest = {}
 
     manifest_items = manifest.get("items", [])
     if not manifest_items and "objects_map" in manifest:
         # Backward compatibility with objects_map format
         manifest_items = list(manifest["objects_map"].values())
+
+    resolved_fbx_files: List[str] = list(fbx_files or [])
+    if not resolved_fbx_files:
+        for item in manifest_items:
+            p = item.get("fbx_file", item.get("file_path", ""))
+            if p and p not in resolved_fbx_files:
+                resolved_fbx_files.append(p)
+
+    if not resolved_fbx_files and not manifest_items:
+        raise ValueError("Neither fbx_files nor valid items in manifest were provided to import_character_wardrobe.")
+
+    fbx_files = resolved_fbx_files
 
     clean_dest_folder = _clean_ue_path(
         destination_folder or manifest.get("destination_folder", "/Game/Characters/Genesis9/Wardrobe")

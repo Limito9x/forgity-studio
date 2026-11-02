@@ -336,7 +336,7 @@ def main(
     )
 
     result_model: ManifestClassificationResult = completion.choices[0].message.parsed
-    manifest_dict = result_model.model_dump()
+    manifest_dict: Dict[str, Any] = result_model.model_dump()
 
     # Convert to objects_map for backward compatibility
     objects_map = {}
