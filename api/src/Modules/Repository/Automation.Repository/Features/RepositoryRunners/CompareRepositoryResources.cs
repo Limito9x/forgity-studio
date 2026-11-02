@@ -82,11 +82,27 @@ public class CompareRepositoryResourcesHandler(
         var fileDictionary = files.ToDictionary(x => x.RelativePath, y => y);
 
         // Lấy các tài nguyên đã có trong repository runner (dữ liệu DB)
-        var resourceDictionary = await dbContext
+        var dbResources = await dbContext
             .ResourceItems.Include(r => r.Versions)
                 .ThenInclude(v => v.Locations)
             .Where(r => r.RepositoryId == command.RepositoryId)
-            .ToDictionaryAsync(r => r.RelativePath, y => y, ct);
+            .ToListAsync(ct);
+
+        if (includedSubPaths.Count > 0)
+        {
+            dbResources = dbResources.Where(r =>
+            {
+                var normPath = r.RelativePath.Replace('\\', '/').TrimStart('/');
+                return includedSubPaths.Any(sp =>
+                {
+                    var normSp = sp.Replace('\\', '/').Trim('/');
+                    return normPath.Equals(normSp, StringComparison.OrdinalIgnoreCase)
+                        || normPath.StartsWith(normSp + "/", StringComparison.OrdinalIgnoreCase);
+                });
+            }).ToList();
+        }
+
+        var resourceDictionary = dbResources.ToDictionary(r => r.RelativePath, y => y);
 
         var allRelativePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         allRelativePaths.UnionWith(fileDictionary.Keys);
