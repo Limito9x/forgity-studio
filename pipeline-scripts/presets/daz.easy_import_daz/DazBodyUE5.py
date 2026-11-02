@@ -41,11 +41,11 @@ op.useBakeGrafts = False
 op.fitMeshes = 'DBZFILE'
 op.skinColor = (0.6000000238418579, 0.4000000059604645, 0.25, 1.0)
 op.clothesColor = (0.09000000357627869, 0.009999999776482582, 0.014999999664723873, 1.0)
-op.materialMethod = 'EXTENDED_PRINCIPLED'
+op.materialMethod = 'FBX_COMPATIBLE'
 op.files.clear()
 item_sub_1 = op.files.add()
 item_sub_1.name = 'Laura.duf'
-op.directory = 'C:\\Users\\congt\\OneDrive\\Documents\\DAZ 3D\\Studio\\My Library\\Scenes\\Laura\\'
+op.directory = 'D:\\Games\\Daz\\DazDemo\\Laura\\'
 op.useEliminateEmpties = True
 op.useMergeRigs = True
 op.useAddErcBones = True
