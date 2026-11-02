@@ -64,6 +64,78 @@ def sanitize_asset_name(name: str) -> str:
     return name.strip("_")
 
 
+def sync_tags_to_ini(tags: List[str]) -> List[str]:
+    """
+    Ensures that dynamically generated tags exist in Config/DefaultGameplayTags.ini.
+    Appends missing tags to prevent Unreal from returning empty gameplay tag structs.
+    """
+    if not tags:
+        return []
+
+    ini_path = ""
+    if HAS_UNREAL and hasattr(unreal, "Paths"):
+        try:
+            cand = os.path.join(unreal.Paths.project_config_dir(), "DefaultGameplayTags.ini")
+            if os.path.exists(cand) or os.path.exists(os.path.dirname(cand)):
+                ini_path = cand
+        except Exception:
+            pass
+
+    if not ini_path or not os.path.exists(ini_path):
+        curr = os.getcwd()
+        for _ in range(6):
+            for item in os.listdir(curr):
+                if item.endswith(".uproject"):
+                    candidate = os.path.join(curr, "Config", "DefaultGameplayTags.ini")
+                    if os.path.exists(candidate) or os.path.exists(os.path.dirname(candidate)):
+                        ini_path = candidate
+                        break
+            if ini_path:
+                break
+            parent = os.path.dirname(curr)
+            if parent == curr:
+                break
+            curr = parent
+
+    if not ini_path:
+        return []
+
+    existing_content = ""
+    if os.path.exists(ini_path):
+        try:
+            with open(ini_path, "r", encoding="utf-8", errors="ignore") as f:
+                existing_content = f.read()
+        except Exception:
+            pass
+
+    new_tags_added = []
+    lines_to_append = []
+    for tag in tags:
+        tag_clean = tag.strip()
+        if not tag_clean:
+            continue
+        pattern = f'Tag="{tag_clean}"'
+        if pattern not in existing_content:
+            lines_to_append.append(f'+GameplayTagList=(Tag="{tag_clean}",DevComment="")\n')
+            new_tags_added.append(tag_clean)
+
+    if lines_to_append:
+        try:
+            # Ensure folder exists
+            os.makedirs(os.path.dirname(ini_path), exist_ok=True)
+            with open(ini_path, "a", encoding="utf-8") as f:
+                if existing_content and not existing_content.endswith("\n"):
+                    f.write("\n")
+                if "[/Script/GameplayTags.GameplayTagsList]" not in existing_content:
+                    f.write("[/Script/GameplayTags.GameplayTagsList]\n")
+                f.writelines(lines_to_append)
+            print(f"[import_wardrobe] Registered {len(new_tags_added)} new GameplayTags to '{ini_path}': {new_tags_added}", flush=True)
+        except Exception as ex:
+            print(f"[import_wardrobe] Warning appending tags to ini: {ex}", flush=True)
+
+    return new_tags_added
+
+
 def import_fbx_mesh(
     fbx_path: str,
     dest_folder: str,
@@ -315,6 +387,17 @@ def main(
     unreal.EditorAssetLibrary.make_directory(clean_dest_folder)
     fbx_map = {os.path.abspath(f): f for f in fbx_files}
 
+    # Pre-scan and register all dynamic Character/Item/Slot tags to DefaultGameplayTags.ini
+    tags_to_sync = []
+    for item in manifest_items:
+        props = item.get("properties", {})
+        for tf in ["SlotTag", "ItemTag", "CharacterTag"]:
+            t_val = props.get(tf, "").strip()
+            if t_val and t_val not in tags_to_sync:
+                tags_to_sync.append(t_val)
+    if tags_to_sync:
+        sync_tags_to_ini(tags_to_sync)
+
     imported_meshes = []
     created_data_assets = []
 
@@ -418,3 +501,4 @@ if __name__ == "__main__":
     }
     res = main(fbx_files=["D:/test/Eva_Outfit1_BRZ_US_Bra.fbx"], manifest=test_manifest, dry_run=True)
     print("Result:", res)
+
