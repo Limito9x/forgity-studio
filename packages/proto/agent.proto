@@ -80,6 +80,8 @@ message ScanHardwareCommandResult {
 
 message ScanCommandResult {
     repeated ResourceItemMessage items = 1;
+    bool has_reached_limit = 2;
+    int32 total_scanned = 3;
 }
 
 message SystemPlaceMessage {
@@ -168,6 +170,8 @@ message ScanCommand {
     string command_id = 1;
     string directory_path = 2;
     repeated string extensions = 3;
+    repeated string sub_paths = 4;
+    int32 max_files = 5;
 }
 
 message BrowseCommand {

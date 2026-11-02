@@ -17,6 +17,8 @@ public interface IRunnerApi
         Guid runnerId,
         string directoryPath,
         IEnumerable<string>? extensions = null,
+        IEnumerable<string>? subPaths = null,
+        int maxFiles = 0,
         CancellationToken ct = default
     );
     Task<Result<RunnerBrowseResultDto>> SendBrowseCommandAsync(

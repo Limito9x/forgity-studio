@@ -10,6 +10,8 @@ export interface UpdateRepositoryDialogData {
   description?: string;
   projectId?: string;
   supportedExtensions?: string[];
+  includedSubPaths?: string[];
+  maxScanFiles?: number;
 }
 
 export function UpdateRepositoryDialog({
@@ -36,6 +38,8 @@ export function UpdateRepositoryDialog({
           name: data.name,
           description: data.description || "",
           supportedExtensions: data.supportedExtensions || [],
+          includedSubPaths: data.includedSubPaths || [],
+          maxScanFiles: data.maxScanFiles ?? 2000,
         }}
         onSubmit={(values) => {
           updateRepository.mutate(
@@ -45,6 +49,8 @@ export function UpdateRepositoryDialog({
                 name: values.name,
                 description: values.description || undefined,
                 supportedExtensions: values.supportedExtensions,
+                includedSubPaths: values.includedSubPaths,
+                maxScanFiles: values.maxScanFiles,
               } as any,
             },
             {

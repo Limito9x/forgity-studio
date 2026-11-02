@@ -4,6 +4,8 @@ export const createRepositorySchema = z.object({
   name: z.string().min(1, "Repository name is required").max(100),
   description: z.string().max(500).optional().or(z.literal("")),
   supportedExtensions: z.array(z.string()).default([]),
+  includedSubPaths: z.array(z.string()).default([]),
+  maxScanFiles: z.coerce.number().min(1).max(50000).default(2000),
 });
 
 export type CreateRepositoryInput = z.input<typeof createRepositorySchema>;

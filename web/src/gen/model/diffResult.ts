@@ -14,4 +14,6 @@ export interface DiffResult {
   deleted: ListOfResourceDiffItem;
   missing: ListOfResourceDiffItem;
   workspaceAgentId?: string;
+  hasReachedLimit?: boolean;
+  totalScanned?: number;
 }

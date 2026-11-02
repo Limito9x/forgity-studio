@@ -59,17 +59,22 @@ public class CompareRepositoryResourcesHandler(
             return Result.Fail("RepositoryRunner not found");
         }
 
-        // Lấy danh sách extension cho phép từ Repository (nếu rỗng thì quét tất cả)
+        // Lấy danh sách extension và sub_paths cho phép từ Repository
         var allowedExtensions = repositoryRunner.Repository?.SupportedExtensions ?? [];
         var extensionsToScan = allowedExtensions.Count > 0
             ? allowedExtensions.Select(e => e.TrimStart('.').ToLowerInvariant())
             : [];
 
-        // Tìm các file có trong thư mục của runner tại repo này
+        var includedSubPaths = repositoryRunner.Repository?.IncludedSubPaths ?? [];
+        var maxFiles = repositoryRunner.Repository?.MaxScanFiles ?? 2000;
+
+        // Tìm các file có trong thư mục của runner tại repo này (kèm sub_paths & max_files)
         var scanResult = await runnerApi.SendScanCommandAsync(
             command.RunnerId,
             repositoryRunner.RootPath,
             extensionsToScan,
+            includedSubPaths,
+            maxFiles,
             ct
         );
 

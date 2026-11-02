@@ -11,7 +11,9 @@ public record RepositoryDto(
     int RunnerCount,
     int ResourceCount,
     DateTimeOffset CreatedAt,
-    IReadOnlyList<string>? SupportedExtensions = null
+    IReadOnlyList<string>? SupportedExtensions = null,
+    IReadOnlyList<string>? IncludedSubPaths = null,
+    int MaxScanFiles = 2000
 );
 
 public record RepositoryRunnerDto(
@@ -181,7 +183,9 @@ public record DiffResult(
     List<ResourceDiffItem> Added,
     List<ResourceDiffItem> Modified,
     List<ResourceDiffItem> Deleted,
-    List<ResourceDiffItem> Missing
+    List<ResourceDiffItem> Missing,
+    bool HasReachedLimit = false,
+    int TotalScanned = 0
 )
 {
     public Guid WorkspaceAgentId => RepositoryRunnerId;

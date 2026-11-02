@@ -64,6 +64,8 @@ public class RunnerApiService(
         Guid runnerId,
         string directoryPath,
         IEnumerable<string>? extensions = null,
+        IEnumerable<string>? subPaths = null,
+        int maxFiles = 0,
         CancellationToken ct = default
     )
     {
@@ -79,11 +81,17 @@ public class RunnerApiService(
         {
             CommandId = commandId,
             DirectoryPath = string.IsNullOrWhiteSpace(directoryPath) ? "." : directoryPath,
+            MaxFiles = maxFiles,
         };
 
         if (extensions is not null)
         {
             scanCommand.Extensions.AddRange(extensions);
+        }
+
+        if (subPaths is not null)
+        {
+            scanCommand.SubPaths.AddRange(subPaths);
         }
 
         var task = commandTracker.RegisterCommandAsync(commandId, ct);
@@ -102,15 +110,17 @@ public class RunnerApiService(
                 return Result.Fail<RunnerScanResultDto>($"Lỗi từ Runner: {response.ErrorMessage}");
             }
 
-            var items = response
-                .ScanResult?.Items.Select(x => new RunnerScanItemDto(
-                    x.RelativePath,
-                    x.Hash,
-                    x.SizeBytes
-                ))
-                .ToList();
+            var scanRes = response.ScanResult;
+            var items = scanRes?.Items.Select(x => new RunnerScanItemDto(
+                x.RelativePath,
+                x.Hash,
+                x.SizeBytes
+            )).ToList();
 
-            return Result.Ok(new RunnerScanResultDto(commandId, true, null, items));
+            var hasReachedLimit = scanRes?.HasReachedLimit ?? false;
+            var totalScanned = scanRes?.TotalScanned ?? (items?.Count ?? 0);
+
+            return Result.Ok(new RunnerScanResultDto(commandId, true, null, items, hasReachedLimit, totalScanned));
         }
         catch (OperationCanceledException)
         {

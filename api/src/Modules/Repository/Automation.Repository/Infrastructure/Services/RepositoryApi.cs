@@ -457,7 +457,7 @@ public class RepositoryApi(
         else if (runnerApi != null && runnerId != Guid.Empty)
         {
             var dir = Path.GetDirectoryName(fullPath) ?? rootPath;
-            var scanRes = await runnerApi.SendScanCommandAsync(runnerId, dir, [extension.TrimStart('.')], ct);
+            var scanRes = await runnerApi.SendScanCommandAsync(runnerId, dir, [extension.TrimStart('.')], ct: ct);
             if (scanRes.IsSuccess && scanRes.Value != null)
             {
                 var matchedFile = scanRes.Value.Items.FirstOrDefault(f =>
