@@ -255,12 +255,12 @@ def main(
 
             self.assertEqual(result["executor"], "python")
             inputs_by_name = {inp["name"]: inp for inp in result["inputs"]}
-            self.assertIn("provider", inputs_by_name)
+            self.assertIn("endpoint", inputs_by_name)
             self.assertIn("model", inputs_by_name)
             # Options detected either from Literal or Docstring
             self.assertEqual(
-                inputs_by_name["provider"]["options"],
-                ["groq", "gemini", "ollama", "openai", "deepseek", "openrouter"]
+                inputs_by_name["endpoint"]["options"],
+                ["groq", "gemini", "ollama", "openai"]
             )
 
             output_names = [out["name"] for out in result["outputs"]]
