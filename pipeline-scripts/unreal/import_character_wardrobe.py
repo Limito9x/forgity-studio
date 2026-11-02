@@ -204,9 +204,16 @@ def import_texture_file(file_path: str, dest_folder: str, texture_name: str, is_
         if tex:
             if is_normal and hasattr(unreal, "TextureCompressionSettings"):
                 tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_NORMALMAP)
-                tex.set_editor_property("s_rgb", False)
+                try:
+                    tex.set_editor_property("srgb", False)
+                except Exception:
+                    pass
             elif is_ui and hasattr(unreal, "TextureCompressionSettings"):
                 tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_EDITOR_ICON)
+                try:
+                    tex.set_editor_property("srgb", True)
+                except Exception:
+                    pass
             unreal.EditorAssetLibrary.save_loaded_asset(tex)
         return tex
     return None
