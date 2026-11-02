@@ -582,69 +582,26 @@ def main(
                 if mat_tag:
                     created_mis[mat_tag] = mi_obj
 
-        # 3. Bind Material Instances to Skeletal Mesh Slots
+        # 3. Bind Material Instances to Skeletal Mesh Slots (Direct Contract-driven 1-to-1)
         if hasattr(mesh_obj, "materials") and mesh_obj.materials:
             mesh_materials = list(mesh_obj.materials)
 
-            # Order cloth MIs for sequential slot assignment (e.g. G9DFabric-2, G9DFabric-3)
-            cloth_mis = []
-            seen_paths = set()
-            for k, mi in created_mis.items():
-                if any(w in k.lower() for w in ["cloth", "bra", "legging", "shoe", "fabric", "garment"]):
-                    p = mi.get_path_name()
-                    if p not in seen_paths:
-                        seen_paths.add(p)
-                        cloth_mis.append(mi)
-
-            cloth_idx = 0
             for slot_idx, skeletal_mat in enumerate(mesh_materials):
                 slot_name = str(skeletal_mat.material_slot_name)
-                slot_lower = slot_name.lower()
-                assigned_mi = None
+                slot_clean = sanitize_asset_name(slot_name).lower()
 
-                # Rule A: Exact name match
+                assigned_mi = None
+                # Direct lookup by slot name or sanitized slot key
                 for k, mi in created_mis.items():
-                    if k.lower() == slot_lower or sanitize_asset_name(k).lower() == sanitize_asset_name(slot_name).lower():
+                    if k.lower() == slot_name.lower() or sanitize_asset_name(k).lower() == slot_clean:
                         assigned_mi = mi
                         break
 
-                # Rule B: Skin / Head / Body
-                if not assigned_mi and any(w in slot_lower for w in ["head", "body", "skin", "face"]):
-                    for k, mi in created_mis.items():
-                        if any(w in k.lower() for w in ["skin", "body", "head"]):
-                            assigned_mi = mi
-                            break
-
-                # Rule C: Eyes / Cornea / Iris / EyeMoisture
-                if not assigned_mi and any(w in slot_lower for w in ["eye", "eyemoisture", "cornea", "pupil"]):
-                    if "eyelash" not in slot_lower:
-                        for k, mi in created_mis.items():
-                            if "eye" in k.lower() and "eyelash" not in k.lower():
-                                assigned_mi = mi
-                                break
-
-                # Rule D: Eyelashes
-                if not assigned_mi and "eyelash" in slot_lower:
-                    for k, mi in created_mis.items():
-                        if "eyelash" in k.lower() or "lash" in k.lower():
-                            assigned_mi = mi
-                            break
-
-                # Rule E: Fabric / Clothing / Bra / Leggings / Shoes
-                if not assigned_mi and any(w in slot_lower for w in ["fabric", "cloth", "bra", "legging", "shoe", "dress"]):
-                    if cloth_idx < len(cloth_mis):
-                        assigned_mi = cloth_mis[cloth_idx]
-                        cloth_idx += 1
-                    elif cloth_mis:
-                        assigned_mi = cloth_mis[0]
-
-                # Rule F: Fallback by slot index if applicable
-                if not assigned_mi and slot_idx < len(list(created_mis.values())):
-                    assigned_mi = list(created_mis.values())[slot_idx]
-
                 if assigned_mi:
-                    mesh_materials[slot_idx].material_interface = assigned_mi
+                    skeletal_mat.material_interface = assigned_mi
                     print(f"   [FORGITY] Bound Slot {slot_idx} ('{slot_name}') -> '{assigned_mi.get_name()}'", flush=True)
+                else:
+                    print(f"   [FORGITY] Notice: Slot {slot_idx} ('{slot_name}') has no direct mapping in manifest.", flush=True)
 
             # Persist updated materials to SkeletalMesh
             mesh_obj.set_editor_property("materials", mesh_materials)
