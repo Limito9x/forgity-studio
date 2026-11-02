@@ -262,6 +262,67 @@ def create_material_instance(
     return mi_asset
 
 
+def resolve_data_asset_class(schema_name_or_path: str):
+    """
+    Robustly resolves a Blueprint PrimaryDataAsset class in Unreal Engine.
+    Tries package path without _C for load_blueprint_class,
+    and class_candidate with .ClassName_C for load_class.
+    """
+    clean = (schema_name_or_path or "").strip().strip("'").strip('"')
+    if not clean:
+        clean = "PDA_WardrobeItem"
+
+    # Strip any trailing .ClassName_C or _C to get clean base package path
+    base_pkg = clean.split(".")[0]
+    if base_pkg.endswith("_C"):
+        base_pkg = base_pkg[:-2]
+
+    # Generate candidate package paths
+    candidates = []
+    if "/" in base_pkg:
+        candidates.append(base_pkg)
+    else:
+        candidates.extend([
+            f"/Game/Systems/Wardrobe/Schemas/{base_pkg}",
+            f"/Game/Characters/Genesis9/Common/Schemas/{base_pkg}",
+            f"/Game/Characters/Schemas/{base_pkg}",
+            f"/Game/Systems/Characters/Schemas/{base_pkg}",
+        ])
+
+    for pkg_path in candidates:
+        schema_name = pkg_path.split("/")[-1]
+
+        # 1. Try load_blueprint_class (expects clean asset path without _C)
+        if hasattr(unreal.EditorAssetLibrary, "load_blueprint_class"):
+            try:
+                cls = unreal.EditorAssetLibrary.load_blueprint_class(pkg_path)
+                if cls:
+                    print(f"   [FORGITY] Loaded Schema Class via load_blueprint_class: '{pkg_path}'", flush=True)
+                    return cls
+            except Exception:
+                pass
+
+        # 2. Try load_class with object path .ClassName_C
+        try:
+            cls = unreal.load_class(None, f"{pkg_path}.{schema_name}_C")
+            if cls:
+                print(f"   [FORGITY] Loaded Schema Class via load_class: '{pkg_path}.{schema_name}_C'", flush=True)
+                return cls
+        except Exception:
+            pass
+
+        # 3. Try load_asset and read generated_class
+        try:
+            bp = unreal.EditorAssetLibrary.load_asset(pkg_path)
+            if bp and hasattr(bp, "generated_class") and bp.generated_class:
+                print(f"   [FORGITY] Loaded Schema Class via bp.generated_class: '{pkg_path}'", flush=True)
+                return bp.generated_class
+        except Exception:
+            pass
+
+    return None
+
+
 def create_and_populate_data_asset(
     schema_name_or_path: str,
     dest_folder: str,
@@ -271,33 +332,13 @@ def create_and_populate_data_asset(
     properties: Dict[str, Any]
 ):
     """Creates Data Asset instance (DA_*) and sets properties."""
+    target_class = resolve_data_asset_class(schema_name_or_path)
+    if not target_class:
+        print(f"   [FORGITY :: ERROR] Failed to resolve Schema Class for '{schema_name_or_path}'", flush=True)
+        return None
+
     asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
     factory = unreal.DataAssetFactory()
-
-    # Resolve target schema class
-    clean_schema = schema_name_or_path.strip().strip("'").strip('"')
-    if "/" not in clean_schema:
-        # Search common wardrobe schema locations
-        candidates = [
-            f"/Game/Systems/Wardrobe/Schemas/{clean_schema}.{clean_schema}_C",
-            f"/Game/Characters/Genesis9/Common/Schemas/{clean_schema}.{clean_schema}_C",
-            f"/Game/Characters/Schemas/{clean_schema}.{clean_schema}_C",
-        ]
-        target_class_path = candidates[0]
-        for c in candidates:
-            pkg = c.split(".")[0]
-            if unreal.EditorAssetLibrary.does_asset_exist(pkg):
-                target_class_path = c
-                break
-    else:
-        target_class_path = clean_schema
-        if not target_class_path.endswith("_C"):
-            target_class_path = f"{target_class_path}_C"
-
-    target_class = unreal.EditorAssetLibrary.load_blueprint_class(target_class_path)
-    if not target_class:
-        print(f"[import_wardrobe] Error: Failed to load Blueprint Schema Class '{target_class_path}'.", flush=True)
-        return None
 
     # Delete existing asset if present to ensure clean recreation
     full_path = f"{dest_folder}/{data_asset_name}"
@@ -306,6 +347,7 @@ def create_and_populate_data_asset(
 
     da_asset = asset_tools.create_asset(data_asset_name, dest_folder, target_class, factory)
     if not da_asset:
+        print(f"   [FORGITY :: ERROR] Failed to create Data Asset '{data_asset_name}' with factory.", flush=True)
         return None
 
     # 1. Bind Mesh & Thumbnail
@@ -493,7 +535,7 @@ def main(
 
     return {
         "status": "Success",
-        "items_count": len(created_data_assets),
+        "items_count": max(len(imported_meshes), len(created_data_assets)),
         "imported_meshes": imported_meshes,
         "created_data_assets": created_data_assets,
         "summary": summary

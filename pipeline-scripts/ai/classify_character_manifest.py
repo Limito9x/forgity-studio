@@ -240,7 +240,7 @@ def main(
 
     # Auto-infer character name from first FBX if omitted
     if not character_name:
-        first_base = os.path.basename(valid_fbx[0])
+        first_base = os.path.splitext(os.path.basename(valid_fbx[0]))[0]
         # Example: Eva_Outfit1_BrzUsBra.fbx -> "Eva"
         parts = first_base.split("_")
         character_name = parts[0] if parts else "Genesis9"
@@ -294,21 +294,32 @@ def main(
     system_prompt = (
         "You are a Senior Unreal Engine 5 Technical Artist & Automation Pipeline Specialist.\n"
         "Your task is to classify 3D character/clothing assets into a unified ingestion manifest.\n\n"
-        "STRICT CONVENTIONS:\n"
-        "1. asset_name: Clean identifier without prefixes (e.g. 'Eva_Outfit1_BRZ_US_Bra').\n"
-        "2. mesh_name: MUST start with 'SKM_' (e.g. 'SKM_Eva_Outfit1_BRZ_US_Bra').\n"
-        "3. data_asset_name: MUST start with 'DA_' (e.g. 'DA_Eva_Outfit1_BRZ_US_Bra'). NEVER use 'PDA_'.\n"
-        "4. asset_kind: 'Body' for naked body/skin base, 'Wardrobe' for clothing/hair/shoes/accessories.\n"
-        "5. properties.DisplayName: Clean user-facing display name (e.g. 'BRZ US Bra', 'Iridessa Hair').\n"
-        "6. properties.SlotTag: MUST be selected from the provided 'allowed_wardrobe_slots' list "
-        "(e.g. 'System.Wardrobe.Slots.Inner_Top', 'System.Wardrobe.Slots.Hair', 'System.Wardrobe.Slots.Inner_Bottom'). "
-        "DO NOT INVENT NEW SLOTS OR LEAVE EMPTY for Wardrobe items!\n"
-        "7. properties.CharacterTag: Tag of the character. If not in registered tags, GENERATE BY CONVENTION: "
-        "'Character.{CharacterName}' (e.g. 'Character.Eva', 'Character.Laura').\n"
-        "8. properties.ItemTag: Unique item tag. GENERATE BY CONVENTION: "
-        "'Character.{CharacterName}.Outfits.{asset_name}' (e.g. 'Character.Eva.Outfits.Eva_Outfit1_BRZ_US_Bra').\n"
-        "9. materials: For each material slot, match with appropriate Master Material (e.g. 'Cloth', 'Skin', 'Hair') "
-        "and map available texture file paths to shader parameters (BaseColorMap, NormalMap, ORMMap)."
+        "CRITICAL ARCHITECTURAL RULES (STRICT 1-TO-1 ASSET MAPPING):\n"
+        "1. ONE ITEM PER FBX FILE: len(items) MUST EQUAL len(fbx_assets).\n"
+        "   - Each entry in 'items' represents ONE physical FBX file in 'fbx_assets'.\n"
+        "   - NEVER create multiple items sharing the same FBX file!\n"
+        "   - If one FBX file has multiple textures (e.g. Body, Bra, Leggings, Shoes), those are multiple MATERIAL SLOTS "
+        "within that single item's 'materials' list, NOT separate items!\n\n"
+        "2. MONOLITHIC CHARACTER vs MODULAR CLOTHING:\n"
+        "   - If 1 FBX file is given representing a full character (e.g. 'Laura.fbx' or 'Character_Body.fbx'):\n"
+        "     * asset_kind: 'Body'\n"
+        "     * asset_name: Character name (e.g. 'Laura')\n"
+        "     * mesh_name: 'SKM_{character_name}' (e.g. 'SKM_Laura')\n"
+        "     * data_asset_name: 'DA_{character_name}' (e.g. 'DA_Laura')\n"
+        "     * target_schema: 'PDA_CharacterProfile' if available in target_pda_schema, else 'PDA_WardrobeItem'\n"
+        "     * properties.DisplayName: Character name (e.g. 'Laura')\n"
+        "     * properties.SlotTag: 'System.Wardrobe.Slots.Body' or empty\n"
+        "     * properties.ItemTag: 'Character.{character_name}.Base'\n"
+        "     * properties.CharacterTag: 'Character.{character_name}'\n"
+        "     * materials: List of all material slots on the character (Skin, Cloth, Shoes, Eyes, etc.).\n"
+        "   - If modular clothing FBX files are given (e.g. 'Laura_Bra.fbx', 'Shoes.fbx'):\n"
+        "     * asset_kind: 'Wardrobe'\n"
+        "     * mesh_name: 'SKM_{asset_name}'\n"
+        "     * data_asset_name: 'DA_{asset_name}'\n"
+        "     * target_schema: 'PDA_WardrobeItem'\n"
+        "     * properties.SlotTag: Selected from 'allowed_wardrobe_slots' matching the piece\n"
+        "     * properties.ItemTag: 'Character.{character_name}.Outfits.{asset_name}'\n"
+        "     * properties.CharacterTag: 'Character.{character_name}'\n"
     )
 
     user_payload = {
@@ -357,6 +368,32 @@ def main(
                 m["textures"] = tex_dict
                 mat_dict[m.get("slot_name", "")] = m
         item["materials"] = mat_dict
+
+    # Guard: If only 1 monolithic FBX was provided, guarantee 1 item output
+    if len(valid_fbx) == 1 and len(manifest_dict.get("items", [])) > 1:
+        print(f"[classify_character_manifest] Notice: Collapsing {len(manifest_dict['items'])} items into 1 monolithic Character item for '{valid_fbx[0]}'", flush=True)
+        all_materials = {}
+        for it in manifest_dict["items"]:
+            all_materials.update(it.get("materials", {}))
+
+        target_schema = "PDA_CharacterProfile" if "PDA_CharacterProfile" in pda_schemas else "PDA_WardrobeItem"
+        single_item = {
+            "asset_name": character_name,
+            "mesh_name": f"SKM_{character_name}",
+            "data_asset_name": f"DA_{character_name}",
+            "asset_kind": "Body",
+            "target_schema": target_schema,
+            "fbx_file": valid_fbx[0],
+            "thumbnail_file": manifest_dict["items"][0].get("thumbnail_file", ""),
+            "properties": {
+                "DisplayName": character_name,
+                "SlotTag": "System.Wardrobe.Slots.Body" if "System.Wardrobe.Slots.Body" in valid_slots else "",
+                "ItemTag": f"{character_tag}.Base",
+                "CharacterTag": character_tag
+            },
+            "materials": all_materials
+        }
+        manifest_dict["items"] = [single_item]
 
     # Convert to objects_map for backward compatibility
     objects_map = {}
