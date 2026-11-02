@@ -416,22 +416,34 @@ def resolve_data_asset_class(schema_name_or_path: str):
 
 
 def _make_gameplay_tag(tag_str: str) -> Any:
-    """Construct an FGameplayTag in Unreal Engine."""
+    """Construct an FGameplayTag in Unreal Engine robustly."""
     if not tag_str:
         return None
+    clean = str(tag_str).strip()
     try:
         tag = unreal.GameplayTag()
-        tag.import_text(tag_str)
-        return tag
+        if hasattr(tag, "import_text"):
+            # Try formatted struct import first, then raw string
+            try:
+                tag.import_text(f'(TagName="{clean}")')
+                return tag
+            except Exception:
+                pass
+            try:
+                tag.import_text(clean)
+                return tag
+            except Exception:
+                pass
+            return tag
     except Exception:
         pass
     try:
         tag = unreal.GameplayTag()
-        tag.tag_name = unreal.Name(tag_str)
+        tag.tag_name = unreal.Name(clean)
         return tag
     except Exception:
         pass
-    return unreal.Name(tag_str)
+    return unreal.Name(clean)
 
 
 def create_and_populate_data_asset(
@@ -443,7 +455,7 @@ def create_and_populate_data_asset(
     properties: Dict[str, Any]
 ):
     """
-    Creates Data Asset instance (DA_*) and sets properties.
+    Creates or loads Data Asset instance (DA_*) and sets properties.
     Uses convention-based injection:
       - SELF_MESH: binds imported SkeletalMesh to BodyMesh/ItemMesh
       - SELF_THUMBNAIL: binds imported Texture2D to Thumbnail/ItemThumbnail
@@ -462,20 +474,27 @@ def create_and_populate_data_asset(
     except Exception:
         pass
 
-    # Delete existing asset if present to ensure clean recreation
     full_path = f"{dest_folder}/{data_asset_name}"
-    if unreal.EditorAssetLibrary.does_asset_exist(full_path):
-        unreal.EditorAssetLibrary.delete_asset(full_path)
+    da_asset = None
 
-    da_asset = asset_tools.create_asset(data_asset_name, dest_folder, target_class, factory)
+    # Load existing or create new Data Asset
+    if unreal.EditorAssetLibrary.does_asset_exist(full_path):
+        da_asset = unreal.EditorAssetLibrary.load_asset(full_path)
+
     if not da_asset:
-        print(f"   [FORGITY :: ERROR] Failed to create Data Asset '{data_asset_name}' with factory.", flush=True)
+        da_asset = asset_tools.create_asset(data_asset_name, dest_folder, target_class, factory)
+
+    if not da_asset and unreal.EditorAssetLibrary.does_asset_exist(full_path):
+        da_asset = unreal.EditorAssetLibrary.load_asset(full_path)
+
+    if not da_asset:
+        print(f"   [FORGITY :: ERROR] Failed to create or load Data Asset '{data_asset_name}' with factory.", flush=True)
         return None
 
     # 1. Convention: SELF_MESH injection (Direct set_editor_property without hasattr)
     if mesh_obj:
         bound_mesh = False
-        for prop in ["BodyMesh", "ItemMesh", "Mesh", "SkeletalMesh", "CharacterMesh"]:
+        for prop in ["BodyMesh", "ItemMesh", "Mesh", "SkeletalMesh", "CharacterMesh", "Body_Mesh", "Item_Mesh", "Skeletal_Mesh"]:
             try:
                 da_asset.set_editor_property(prop, mesh_obj)
                 print(f"   [FORGITY] [SELF_MESH] Successfully bound Mesh -> '{prop}' on '{data_asset_name}'", flush=True)
@@ -489,7 +508,7 @@ def create_and_populate_data_asset(
     # 2. Convention: SELF_THUMBNAIL injection
     if thumbnail_obj:
         bound_thumb = False
-        for prop in ["Thumbnail", "ItemThumbnail", "Icon", "Texture"]:
+        for prop in ["Thumbnail", "ItemThumbnail", "Icon", "Texture", "Item_Thumbnail", "Preview"]:
             try:
                 da_asset.set_editor_property(prop, thumbnail_obj)
                 print(f"   [FORGITY] [SELF_THUMBNAIL] Successfully bound Thumbnail -> '{prop}' on '{data_asset_name}'", flush=True)
@@ -511,34 +530,58 @@ def create_and_populate_data_asset(
         if "tag" in field_name.lower():
             tag_obj = _make_gameplay_tag(clean_val)
             tag_set = False
-            try:
-                da_asset.set_editor_property(field_name, tag_obj)
-                print(f"   [FORGITY] Set GameplayTag '{field_name}' = '{clean_val}' on '{data_asset_name}'", flush=True)
-                tag_set = True
-            except Exception:
+            prop_candidates = [field_name]
+            if "_" in field_name:
+                prop_candidates.append(field_name.replace("_", ""))
+            else:
+                import re
+                underscored = re.sub(r'(?<!^)(?=[A-Z])', '_', field_name)
+                if underscored != field_name:
+                    prop_candidates.append(underscored)
+
+            for cand in prop_candidates:
                 try:
-                    da_asset.set_editor_property(field_name, unreal.Name(clean_val))
-                    print(f"   [FORGITY] Set Name fallback '{field_name}' = '{clean_val}' on '{data_asset_name}'", flush=True)
+                    da_asset.set_editor_property(cand, tag_obj)
+                    print(f"   [FORGITY] Set GameplayTag '{cand}' = '{clean_val}' on '{data_asset_name}'", flush=True)
                     tag_set = True
+                    break
                 except Exception:
-                    pass
+                    try:
+                        da_asset.set_editor_property(cand, unreal.Name(clean_val))
+                        print(f"   [FORGITY] Set Name fallback '{cand}' = '{clean_val}' on '{data_asset_name}'", flush=True)
+                        tag_set = True
+                        break
+                    except Exception:
+                        pass
             if not tag_set:
-                print(f"   [FORGITY :: DEBUG] Schema property '{field_name}' not available on '{data_asset_name}'. Skipped.", flush=True)
+                print(f"   [FORGITY :: WARN] Could not set tag property '{field_name}' on '{data_asset_name}'.", flush=True)
 
         # DisplayName / Strings
         elif field_name in ["DisplayName", "ItemName", "Title", "Name"]:
             text_set = False
-            try:
-                da_asset.set_editor_property(field_name, unreal.Text(clean_val))
-                print(f"   [FORGITY] Set DisplayName (Text) '{field_name}' = '{clean_val}' on '{data_asset_name}'", flush=True)
-                text_set = True
-            except Exception:
+            prop_candidates = [field_name]
+            if "_" in field_name:
+                prop_candidates.append(field_name.replace("_", ""))
+            else:
+                import re
+                underscored = re.sub(r'(?<!^)(?=[A-Z])', '_', field_name)
+                if underscored != field_name:
+                    prop_candidates.append(underscored)
+
+            for cand in prop_candidates:
                 try:
-                    da_asset.set_editor_property(field_name, clean_val)
-                    print(f"   [FORGITY] Set DisplayName (Str) '{field_name}' = '{clean_val}' on '{data_asset_name}'", flush=True)
+                    da_asset.set_editor_property(cand, unreal.Text(clean_val))
+                    print(f"   [FORGITY] Set DisplayName (Text) '{cand}' = '{clean_val}' on '{data_asset_name}'", flush=True)
                     text_set = True
+                    break
                 except Exception:
-                    pass
+                    try:
+                        da_asset.set_editor_property(cand, clean_val)
+                        print(f"   [FORGITY] Set DisplayName (Str) '{cand}' = '{clean_val}' on '{data_asset_name}'", flush=True)
+                        text_set = True
+                        break
+                    except Exception:
+                        pass
             if not text_set:
                 print(f"   [FORGITY :: DEBUG] Schema has no '{field_name}' property. Skipped.", flush=True)
 
