@@ -215,6 +215,8 @@ export function RepositoryDetailPage(props: RepositoryDetailPageProps = {}) {
                     description: repository.description || undefined,
                     projectId: repository.projectId,
                     supportedExtensions: (repository as any).supportedExtensions,
+                    includedSubPaths: (repository.includedSubPaths as string[]) || undefined,
+                    maxScanFiles: repository.maxScanFiles,
                   })
                 }
                 className="gap-2 text-xs cursor-pointer"

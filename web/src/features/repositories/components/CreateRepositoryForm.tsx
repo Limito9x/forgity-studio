@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Form, FormGrid, zodResolver, useForm } from "@/components/form";
 import { FormInput, FormTextarea, FormTagsInput } from "@/components/form-controls";
 import {
@@ -27,6 +28,18 @@ export function CreateRepositoryForm({
       maxScanFiles: defaultValues?.maxScanFiles ?? 2000,
     },
   });
+
+  useEffect(() => {
+    if (defaultValues) {
+      form.reset({
+        name: defaultValues.name || "",
+        description: defaultValues.description || "",
+        supportedExtensions: defaultValues.supportedExtensions || [],
+        includedSubPaths: defaultValues.includedSubPaths || [],
+        maxScanFiles: defaultValues.maxScanFiles ?? 2000,
+      });
+    }
+  }, [defaultValues, form]);
 
   return (
     <Form form={form} formId={formId} onSubmit={onSubmit}>

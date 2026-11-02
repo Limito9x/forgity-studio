@@ -33,6 +33,7 @@ export function UpdateRepositoryDialog({
       size="md"
     >
       <CreateRepositoryForm
+        key={data.id}
         formId="update-repository-form"
         defaultValues={{
           name: data.name,
