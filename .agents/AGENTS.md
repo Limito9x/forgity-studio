@@ -140,6 +140,7 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 > - **Công cụ tự động hóa**: Sử dụng python .agents/scripts/backlog.py [check|archive|new|list] để kiểm tra toàn vẹn, lưu trữ kế hoạch đã xong vào rchive/YYYY-MM/ và đồng bộ chỉ mục tự động.
 
 ### Kế hoạch đang thực hiện (Active):
+- [**bl-040-persistent-dcc-process-pool-and-keep-alive-worker-daemon (03/11/2026)**](file:///D:/FullStack/Automation/.agents/plans/2026-11-03-bl-040-persistent-dcc-process-pool-and-keep-alive-worker-daemon.md): Persistent DCC Process Pool and Keep-Alive Worker Daemon.
 - [**bl-039-pipeline-snapshot-and-jsonb-graph-unification (03/11/2026)**](file:///d:/FullStack/Automation/.agents/plans/2026-11-03-bl-039-pipeline-snapshot-and-jsonb-graph-unification.md): Pipeline Snapshot & JSONB Graph Unification (Hợp nhất `Parameters`, `Nodes`, `Edges` vào `GraphData jsonb`, bảng `PipelineSnapshots` bất biến & SQL Migration Zero-Data-Loss).
 
 ### Kế hoạch vừa hoàn thành gần nhất (Đã Archive):

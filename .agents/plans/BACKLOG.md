@@ -61,8 +61,9 @@ Chào mừng đến với **Sổ Bộ Backlog** của dự án **Forgity Studio*
 
 
 ---
+| **BL-040** | 2026-11-03 | **Persistent DCC Process Pool and Keep-Alive Worker Daemon**<br/>*(Rust Runner Daemon & DCC IPC)* | Cau hinh Resident Process giu Unreal Editor / Blender song sau khi thuc thi (Keep-Alive N phut), tai su dung tien trinh am (Warm Process) qua IPC/Named Pipe giup giam thoi gian cho tu 30s xuong <200ms. | 1. Triển khai theo kế hoạch kỹ thuật chi tiết. | - [plans/2026-11-03-bl-040-persistent-dcc-process-pool-and-keep-alive-worker-daemon.md](file:///D:/FullStack/Automation/.agents/plans/2026-11-03-bl-040-persistent-dcc-process-pool-and-keep-alive-worker-daemon.md) | `Pending` |
 
-
+---
 
 ## 3. Quy Định Thêm Mới Vào Backlog
 
