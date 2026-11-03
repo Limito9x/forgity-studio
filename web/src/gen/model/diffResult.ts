@@ -13,7 +13,7 @@ export interface DiffResult {
   modified: ListOfResourceDiffItem;
   deleted: ListOfResourceDiffItem;
   missing: ListOfResourceDiffItem;
-  workspaceAgentId?: string;
   hasReachedLimit?: boolean;
   totalScanned?: number;
+  workspaceAgentId?: string;
 }

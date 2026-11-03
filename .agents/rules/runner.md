@@ -61,3 +61,32 @@ Hệ thống đã **khai tử hoàn toàn Python Worker Daemon** cũ và chuyể
   - Kiểm tra compile: `cargo check` bên trong thư mục `runner/`.
   - Build release binary: `cargo build --release` ➔ sinh file `runner/target/release/forgity-runner.exe`.
 
+---
+
+## 5. Quy Chuẩn Kho Scripts Nghiệp Vụ (`pipeline-scripts/`): Dumb Executor & Palette SSOT
+
+1. **Tuyệt Đối Tuân Thủ Mental Model "Palette SSOT vs Dumb Executor":**
+   - Script thực thi (ví dụ: `import_character_wardrobe.py`, `bake_mesh.py`, `export_fbx.py`) là **thợ cơ học thuần túy (Dumb Executor)**.
+   - Toàn bộ tham số kỹ thuật (`TC_*`, `sRGB`, `VT`, đường dẫn `package_path` của Schema/Skeleton, danh sách Tags) **BẮT BUỘC** phải được định nghĩa từ **Palette (Contracts do `inspect_game_contracts.py` trích xuất)** và được ánh xạ qua **Manifest do AI phân loại**.
+   - Executor chỉ nhận `manifest` và `contracts` để thao tác từng bước cơ học.
+
+2. **Các "Lằn Ranh Đỏ" Bị Nghiêm Cấm Trong Pipeline Scripts:**
+   - **CẤM Suy Đoán Bằng Regex (Zero Heuristic Regex):** Không tự viết regex để đoán chuỗi, đoán tên slot, đổi camelCase sang snake_case để thử vận may.
+   - **CẤM Tự Bới Cây Thư Mục (Zero Filesystem Hunting):** Không tự viết vòng lặp `os.walk` hay leo ngược cây thư mục tìm file `.uproject` / `.ini`. Mọi đường dẫn phải do Runner hoặc Contract cung cấp tường minh.
+   - **CẤM Bù Đắp Sai Sót Ở Hạ Nguồn (Zero Downstream Patching):** Nếu thiếu dữ liệu (ví dụ không tìm thấy Skeleton hay Schema), PHẢI báo lỗi rõ ràng hoặc dừng lại (Fail-Fast), KHÔNG ĐƯỢC tự bịa danh sách folder candidate để mò mẫm. Lỗi thiếu dữ liệu phải được giải quyết ở khâu Inspect/Manifest thượng nguồn.
+   - **Độc Lập Về Trách Nhiệm (Single Responsibility):** Script import chỉ import; không kiêm nhiệm việc phân tích file `.ini`, không kiêm nhiệm việc tự sinh schema.
+
+3. **Quy Chuẩn Thiết Kế Pin & Bắt Buộc Giải Trình Tính Tất Yếu (Pin Justification & Hygiene Rule):**
+   - **Bắt buộc giải trình trong docstring:** Mọi Input Pin và Output Pin của hàm `main()` PHẢI được ghi chú rõ ràng: Kiểu dữ liệu, Mục đích và Tính tất yếu (tại sao bắt buộc phải có pin này mà không thể suy ra từ convention).
+   - **CẤM Rác Pin & Pass-through Pin (Zero Pin Pollution):** Tuyệt đối cấm nhận một biến ở Input rồi lại trả về chính biến đó ở Output dictionary (như nhận `contracts` rồi trả về `contracts`). Canvas không phải là ống dẫn pass-through bừa bãi.
+   - **CẤM Trivial Primitive Spam:** Không mở pin cho các chuỗi primitive vụn vặt (`character_name`, `character_tag`, `destination_folder`...) khi chúng hoàn toàn có thể tự infer từ tên file FBX hoặc quy ước cấu trúc thư mục của dự án.
+   - **Bắt buộc 100% Type Hints:** Toàn bộ tham số của hàm `main()` bắt buộc phải có chú thích kiểu (`str`, `List[str]`, `Dict[str, Any]`, v.v.).
+
+4. **Nghiệm Thu Bắt Buộc Qua Script Harness (Mandatory Harness Verification Gate):**
+   - Trước khi báo cáo hoàn tất việc tạo mới hoặc sửa đổi bất kỳ script nào trong `pipeline-scripts/`, Agent **BẮT BUỘC** phải chạy lệnh kiểm duyệt tự động:
+     ```bash
+     python pipeline-scripts/tests/script_harness.py check <path_to_script>
+     ```
+   - Script chỉ được coi là đạt chuẩn khi vượt qua toàn bộ các cổng: Pin Hygiene, Redline Anti-Heuristics, và Dry-Run Verification.
+
+

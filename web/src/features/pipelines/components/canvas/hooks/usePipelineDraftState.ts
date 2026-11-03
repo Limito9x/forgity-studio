@@ -468,7 +468,7 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto, structCat
       if (dimensionChanges.length > 0) {
         setNodes((nds) =>
           nds.map((n) => {
-            const dc = dimensionChanges.find((c) => c.id === n.id);
+            const dc = dimensionChanges.find((c) => (c as any).id === n.id);
             if (!dc || !(dc as any).dimensions) return n;
             const dims = (dc as any).dimensions;
             return {

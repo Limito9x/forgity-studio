@@ -107,3 +107,125 @@ Hệ thống MCP sẽ cung cấp 4 nhóm công cụ chính qua giao thức MCP (
      ```
    - Dán vào Claude Desktop hoặc Antigravity là lập tức có trợ lý ảo toàn quyền điều khiển Studio.
 
+
+
+---
+
+## 4. Kiến Trúc Dataflow Đóng Khung Cho Agent & Biểu Diễn Kép (Pipeline-as-Code & Stage Retry)
+
+> **Cập nhật ngày 03/11/2026**: Đúc kết từ kinh nghiệm thực chiến khi debug lỗi DCC Guest Runner (Unreal SkeletalMesh type coercion, Blender Headless Multi-Material Bake) và tối ưu hóa quy trình tương tác giữa AI Agent với đồ thị Dataflow của Forgity Studio.
+
+### 4.1. Thách thức cốt lõi: Tại sao Agent bị "ngáo" với Raw Canvas JSON?
+Khi hệ thống trả về nguyên bản JSON đồ thị của Canvas (ReactFlow):
+- Tràn ngập hàng trăm trường UUID rời rạc (`sourceNodeId`, `targetPinId`, `01a199e9-...`).
+- Trộn lẫn thông tin layout 2D không cần thiết cho suy luận logic (`Position_X`, `Position_Y`, `Size_Width`, `Capabilities`).
+- LLM rất khó ghép nối các UUID rời rạc để hình dung luồng dữ liệu, dễ dẫn đến nối nhầm chân Pin, bỏ sót Node ngoài Container hoặc làm đứt gãy đồ thị.
+
+### 4.2. Giải pháp: Biểu Diễn Kép (Dual-Projection — Visual Canvas & Pipeline-as-Code)
+Tương tự như Terraform cho Cloud Infrastructure hay GitHub Actions cho CI/CD:
+- **Với Con người (Technical Artist)**: Cần **Visual Canvas** để kéo thả, trực quan hóa luồng dữ liệu 3D phức tạp.
+- **Với AI Agent**: Cần **Mặt Code (Pipeline-as-Code / Symbolic Dataflow View)** để đọc và viết dễ dàng bằng tư duy lập trình tự nhiên.
+
+#### Minh họa Mặt Code (Symbolic DSL View):
+```hcl
+pipeline "character_wardrobe_ingestion" {
+
+  # 1. Pipeline Inputs (Tham số đầu vào)
+  input "character_file" {
+    type = "Resource"
+    allowed_extensions = [".duf", ".blend"]
+  }
+  input "target_skeleton" {
+    type = "String"
+    default = "/Game/Characters/Genesis9/SKEL_Genesis9"
+  }
+
+  # 2. Stage 1: Blender Bake & Export (Executor: blender)
+  stage "Blender Stage" {
+    executor = "blender"
+
+    node "import_daz" (script = "import_daz") {
+      daz_path = input.character_file
+    }
+
+    node "bake_mesh" (script = "bake_mesh") {
+      target_objects = node.import_daz.imported_meshes  # <-- Nối dây ngữ nghĩa bằng Alias
+      bake_mode      = "head_and_body"                  # <-- Config tĩnh
+      resolution     = 4096
+    }
+
+    node "export_fbx" (script = "export_modular_fbx") {
+      objects = node.bake_mesh.applied_objects
+    }
+  }
+
+  # 3. Stage 2: AI Classification & Contract Inspection (Executor: python)
+  stage "Classify & Contracts" {
+    executor = "python"
+
+    node "inspect_contracts" (script = "inspect_game_contracts") {
+      project_dir = "D:/Games/UnrealEngine/Projects/TemplateProject"
+    }
+
+    node "classify_manifest" (script = "classify_character_manifest") {
+      fbx_files     = node.export_fbx.exported_files
+      texture_files = node.bake_mesh.baked_files
+      contracts     = node.inspect_contracts.contracts
+    }
+  }
+
+  # 4. Stage 3: Unreal Engine Ingestion (Executor: unreal)
+  stage "Unreal Ingestion" {
+    executor = "unreal"
+
+    node "ingest_wardrobe" (script = "import_character_wardrobe") {
+      manifest      = node.classify_manifest.manifest
+      contracts     = node.contracts.contracts
+      skeleton_path = input.target_skeleton
+    }
+  }
+}
+```
+
+#### Bộ chuyển đổi hai chiều (Two-Way Transpiler):
+1. **Chiều Đọc (`DB Graph -> Mặt Code`)**: Đọc `PipelineNodes` + `PipelineEdges`, thay thế UUID bằng Tên Alias ngữ nghĩa (`stage`, `node`, `pin`).
+2. **Chiều Ghi (`Mặt Code -> DB Graph`)**:
+   - Biên dịch các block thành Nodes và Edges.
+   - Chạy qua **`TransientPipelineGraphFactory` (ADR-005)** để kiểm tra cứng tại thời điểm compile (báo lỗi chính xác dòng: sai tên Pin, Type Mismatch, vòng lặp DAG).
+   - Tự động chạy thuật toán Auto-Layout để sinh tọa độ `Position_X`, `Position_Y` đẹp mắt trên Canvas trước khi lưu DB.
+
+---
+
+### 4.3. Đóng khung quy trình phát triển khép kín cho Agent (5 Atomic Tools)
+
+Để giải phóng người dùng khỏi việc làm "tester chạy bằng cơm" (phải tự tay upload script, tự bấm chạy, tự copy paste log lỗi về cho AI):
+
+1. **`forgity_sync_script(script_path)`**:
+   - Tự động chạy `script_harness.py check` (kiểm tra cú pháp, pin, docstrings).
+   - Đẩy trực tiếp nhị phân Server-to-Server lên R2/S3 (hoàn toàn tránh lỗi CORS của trình duyệt).
+   - Tự động Confirm Asset và cập nhật `pipeline."NodeDefinitions"` trong DB với chiến lược `KeepCompatiblePins`.
+2. **`forgity_inspect_pipeline(pipeline_id_or_name)`**:
+   - Trả về bản đồ **Symbolic Dataflow View** kèm trạng thái đồng bộ của các Script (`[synced]` vs `[local modified]`).
+3. **`forgity_patch_pipeline(pipeline_id, code_or_patches)`**:
+   - Cho phép Agent sửa đồ thị trực tiếp qua cú pháp DSL bậc cao hoặc JSON patch.
+4. **`forgity_run_e2e(pipeline_id, inputs, wait=True)`**:
+   - Kích hoạt Runner chạy thật, trả về kết quả từng Node và Traceback chi tiết nếu có lỗi.
+5. **`forgity_retry_from_stage(execution_id, stage_name)`**:
+   - Kích hoạt chạy lại từ một Stage cụ thể mà không phải chạy lại toàn bộ Pipeline từ đầu.
+
+---
+
+### 4.4. Chiến lược Retry / Resume thực tế theo ranh giới bộ nhớ (Memory Boundaries)
+
+Trong kiến trúc Pipeline Dataflow cho các phần mềm DCC (Blender, Unreal):
+
+#### 1. Ranh giới Stage (`retry_from_stage`) — Đơn vị Retry mặc định & an toàn
+- **Bản chất**: Mỗi Stage tương ứng với một `RunnerSegment` (1 tiến trình DCC riêng biệt).
+- Khi Stage trước kết thúc (VD: Blender bake xong FBX và textures), toàn bộ dữ liệu đã được lưu bền vững xuống ổ đĩa và `ExecutionStateStore`.
+- Nếu Stage sau (Unreal) bị crash: Runner chỉ cần lấy nguyên bộ Output đã lưu của Stage trước nạp vào đầu vào của Stage Unreal $\rightarrow$ **Chạy lại chỉ mất 15-30 giây thay vì phải mở lại Blender bake 4-5 phút từ đầu**.
+
+#### 2. Thử nghiệm bên trong Stage (Intra-Stage Node Testing & Fallback Checkpoints)
+- **Vấn đề**: Các Node nằm trong cùng 1 Stage chia sẻ chung Context Scene đang nằm trong RAM (`bpy.context.scene`). Nếu Node ở giữa bị crash, tiến trình DCC tắt, Context trong RAM biến mất hoàn toàn $\rightarrow$ **Không thể tùy tiện retry một Node lẻ loi ở giữa Stage nếu không có Context**.
+- **Giải pháp**: Cơ chế **Fallback Scene Checkpoint**:
+  - `stage_runner_guest.py` hỗ trợ cờ lưu snapshot `.blend` sau các bước tốn thời gian (hoặc nhận đường dẫn `fallback_scene_path` có sẵn).
+  - Khi cần test lại Node bị crash: Guest Runner mở file snapshot lên để **khôi phục 100% Scene trong 1 giây**, sau đó mới nạp inputs gọi hàm `main()` của Node cần kiểm tra.

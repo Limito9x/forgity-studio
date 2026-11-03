@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useDebounce } from "@/hooks/use-debounce";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ContentDropTargetCard } from "./ContentDropTargetCard";
@@ -26,6 +27,7 @@ export function AssignContentSidePanel({
   onAssignSuccess,
 }: AssignContentSidePanelProps) {
   const [keyword, setKeyword] = useState("");
+  const debouncedKeyword = useDebounce(keyword, 350);
   const [selectedContentTypeId, setSelectedContentTypeId] = useState<string | null>(null);
   const [customAnchorPath, setCustomAnchorPath] = useState("");
 
@@ -37,7 +39,7 @@ export function AssignContentSidePanel({
   const { data: contentItems, isLoading } = useLookupContentItems(
     projectId,
     {
-      keyword: keyword.trim() || undefined,
+      keyword: debouncedKeyword.trim() || undefined,
       contentTypeId: selectedContentTypeId || undefined,
       limit: 40,
     },

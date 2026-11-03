@@ -45,4 +45,8 @@ export interface WorkspaceResourceDto {
   holdingRunnerName?: string | null;
   /** @nullable */
   anchorPath?: string | null;
+  /** @nullable */
+  linkedAnchors?: unknown[] | null;
+  /** @nullable */
+  thumbnailUrl?: string | null;
 }

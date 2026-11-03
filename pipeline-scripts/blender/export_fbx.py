@@ -638,7 +638,7 @@ ExportModeType = Literal["Auto", "Single", "Batch"]
 def main(
     output_path: str = "",
     export_mode: ExportModeType = "Auto",
-    target_objects: Optional[Dict[str, str]] = None,
+    target_objects: Optional[List[str]] = None,
     prefix: str = "",
     **kwargs
 ) -> Dict[str, Any]:

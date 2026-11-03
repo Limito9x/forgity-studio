@@ -3,8 +3,6 @@ import { Button } from "@/components/ui/button";
 import {
   FileText,
   Cpu,
-  HardDrive,
-  Calendar,
   Loader2,
   RefreshCw,
 } from "lucide-react";
@@ -17,11 +15,20 @@ interface RepositoryResourcesTabProps {
   repositoryId: string;
   repository: RepositoryDetailDto;
   resources: WorkspaceResourceDto[];
+  totalCount?: number;
   isLoading: boolean;
   onNavigateToSync: () => void;
   onNavigateToRunners: () => void;
   assignmentFilter?: "all" | "assigned" | "unassigned";
   onAssignmentFilterChange?: (filter: "all" | "assigned" | "unassigned") => void;
+  page?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
+  search?: string;
+  onSearchChange?: (search: string) => void;
+  selectedRunnerFilter?: string;
+  onRunnerFilterChange?: (runnerId: string) => void;
 }
 
 export function RepositoryResourcesTab({
@@ -29,52 +36,27 @@ export function RepositoryResourcesTab({
   repositoryId,
   repository,
   resources,
+  totalCount,
   isLoading,
   onNavigateToSync,
   onNavigateToRunners,
   assignmentFilter,
   onAssignmentFilterChange,
+  page,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+  search,
+  onSearchChange,
+  selectedRunnerFilter,
+  onRunnerFilterChange,
 }: RepositoryResourcesTabProps) {
   const runners = repository.runners || [];
-  const primaryRunner = runners[0];
+  const effectiveTotalCount = totalCount ?? resources.length;
+  const isFiltering = Boolean(search?.trim()) || assignmentFilter !== "all" || (selectedRunnerFilter && selectedRunnerFilter !== "ALL");
 
   return (
     <div className="space-y-4">
-      {/* Compact Metric Bar */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="p-3 rounded-xl border border-border/60 bg-card/60 space-y-0.5">
-          <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5">
-            <FileText className="size-3 text-primary" /> Total Resources
-          </span>
-          <p className="text-xl font-bold font-mono text-foreground">{resources.length}</p>
-        </div>
-
-        <div className="p-3 rounded-xl border border-border/60 bg-card/60 space-y-0.5">
-          <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5">
-            <Cpu className="size-3 text-emerald-500" /> Active Runners
-          </span>
-          <p className="text-xl font-bold font-mono text-foreground">{runners.length}</p>
-        </div>
-
-        <div className="p-3 rounded-xl border border-border/60 bg-card/60 space-y-0.5 min-w-0">
-          <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5">
-            <HardDrive className="size-3 text-primary" /> Primary Mount
-          </span>
-          <p className="text-xs font-mono text-foreground truncate mt-1" title={primaryRunner?.rootPath || "None"}>
-            {primaryRunner?.rootPath || "No mount path"}
-          </p>
-        </div>
-
-        <div className="p-3 rounded-xl border border-border/60 bg-card/60 space-y-0.5">
-          <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1.5">
-            <Calendar className="size-3 text-muted-foreground" /> Created Date
-          </span>
-          <p className="text-xs font-medium text-foreground mt-1">
-            {new Date(repository.createdAt).toLocaleDateString()}
-          </p>
-        </div>
-      </div>
-
       {/* Main Content Area */}
       {isLoading ? (
         <Card className="rounded-2xl border-border/60 bg-card p-12">
@@ -83,7 +65,7 @@ export function RepositoryResourcesTab({
             <span>Loading resources...</span>
           </div>
         </Card>
-      ) : resources.length === 0 ? (
+      ) : resources.length === 0 && !isFiltering ? (
         <Card className="rounded-2xl border-border/60 bg-card">
           <CardContent className="p-0">
             <div className="text-center py-20 px-4 space-y-3">
@@ -123,13 +105,21 @@ export function RepositoryResourcesTab({
       ) : (
         <RepositoryResourceTable
           data={resources}
-          totalCount={resources.length}
+          totalCount={effectiveTotalCount}
           isLoading={isLoading}
           projectId={projectId}
           repositoryId={repositoryId}
           runners={runners}
           assignmentFilter={assignmentFilter}
           onAssignmentFilterChange={onAssignmentFilterChange}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+          search={search}
+          onSearchChange={onSearchChange}
+          selectedRunnerFilter={selectedRunnerFilter}
+          onRunnerFilterChange={onRunnerFilterChange}
         />
       )}
     </div>

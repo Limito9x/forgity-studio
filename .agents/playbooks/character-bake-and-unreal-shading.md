@@ -257,3 +257,59 @@ Cách kiểm chứng nhanh không cần chạy pipeline: chạy `blender -b Eva.
   - `PDA_CharacterProfile`: Tự động nạp `ItemTag` mới vào mảng `IntialItems` và gán `BodyMesh` nếu phát hiện mesh thân nhân vật (`cloth_type == "Body"`).
 - **Hỗ trợ Dry-Run**: Cho phép kiểm thử hoàn chỉnh trên Worker bên ngoài UE5 mà không gây lỗi import `unreal`. Dọn đường chuẩn bị cho Cây Điểm Neo (**`BL-031`**).
 
+---
+
+## 8. Mental Model Cốt Lõi: Contract-Driven Semantic Bridge (Blender DCC <-> Unreal Engine 5)
+
+> **Cập nhật 03/11/2026**: Giải quyết triệt để sự cố vật liệu nhân vật / modular outfit bị đen hoặc trơn vàng mặc định khi vào Unreal Engine.
+
+### 8.1. Bản chất hai "ốc đảo" & Cầu nối Ngữ nghĩa (Semantic Bridge)
+1. **Ốc đảo 1: Blender DCC Metadata (Nguyên liệu thô thực tế)**
+   - Lưu trữ tại bảng `ResourceVersions.Metadata` (từ bước Inspect FBX / Blender).
+   - Chứa chính xác danh sách các slot vật liệu và các kết nối thực tế:
+     - `path`: Đường dẫn vật lý đến file texture (`.../outfits/Laura_Casual1/../textures/Normal.png`).
+     - `target_socket`: Cổng socket trong shader node Blender (`Principled BSDF.Base Color`, `Principled BSDF.Normal`, `Principled BSDF.Alpha`, `Principled BSDF.Roughness`, v.v.).
+     - `via_node`: Node chuyển tiếp (ví dụ `Normal Map`, `Direct`).
+     - `colorspace`: Không gian màu thực tế (`sRGB`, `Non-Color`).
+2. **Ốc đảo 2: Unreal Engine Game Contracts (Đề bài chân lý của Game)**
+   - Quét trực tiếp từ Master Materials trong dự án game (`M_Master_Cloth`, `M_Master_Hair`, `M_Master_Skin`, `M_Master_Eye`).
+   - Định nghĩa chính xác tên tham số shader mà Material Instance cần ghi đè (`BaseColorMap`, `NormalMap`, `ORMMap`, `OpacityMap`, v.v.) kèm yêu cầu Virtual Texture (`vt`) và nén (`TC_NORMALMAP`, `TC_MASKS`, `TC_GRAYSCALE`).
+3. **Cầu nối AI (`classify_character_manifest.py`)**:
+   - AI đóng vai trò là "người giải đề": nhận đề bài (Game Contracts) và nguyên liệu thô (Blender Inspection Metadata).
+   - Nhờ luật **Deterministic Texture Binding Rule**, AI biết chính xác:
+     - `Principled BSDF.Base Color` / `Color` $\rightarrow$ gán vào `BaseColorMap`.
+     - `Principled BSDF.Normal` / via `Normal Map` $\rightarrow$ gán vào `NormalMap`.
+     - `Principled BSDF.Alpha` $\rightarrow$ gán vào `OpacityMap`.
+     - `Principled BSDF.Metallic` / `Roughness` $\rightarrow$ gán vào `ORMMap`.
+   - Kết hợp đối chiếu ngược (Deterministic Fallback Reconciliation): Nếu AI bỏ sót bất kỳ texture nào từ `texture_bindings`, hệ thống tự động bù đắp 100%, đảm bảo không bao giờ có Material Instance bị rỗng texture.
+4. **Bộ máy Ingestion Unreal (`import_character_wardrobe.py`)**:
+   - Chuẩn hóa đường dẫn file với `os.path.normpath()`, giải quyết các bước nhảy thư mục cha (`../textures/`).
+   - Tự động map tên parameter linh hoạt theo hợp đồng Master Material.
+   - Thiết lập chuẩn xác nén ảnh và sRGB (`srgb=False` cho Normal, Opacity/Alpha, ORM/Roughness để tránh sai lệch kênh tuyến tính).
+   - Override tham số trên `MaterialInstanceConstant` và liên kết trực tiếp vào Skeletal Mesh (`SKM_*`).
+
+
+
+
+### 8.2. Quy chuẩn Đồng bộ GameplayTags (`FGameplayTag` Dictionary Validation)
+1. **Bản chất `FGameplayTag` trong Unreal Engine**:
+   - `FGameplayTag` không phải string tự do. Nó là struct ánh xạ vào từ điển tập trung `UGameplayTagsManager`.
+   - Nếu tag chưa được đăng ký trong cấu hình dự án, Unreal sẽ coi là invalid và tự động đưa về `FGameplayTag::EmptyTag` (`None` trên UI).
+2. **Quy chuẩn ghi Section trong `Config/DefaultGameplayTags.ini`**:
+   - Section hợp lệ duy nhất trong Unreal Engine 5 là `[/Script/GameplayTags.GameplayTagsSettings]`.
+   - Tuyệt đối không dùng section cũ `[/Script/GameplayTags.GameplayTagsList]`.
+3. **Danh mục Phân loại Slot chuẩn (`System.Wardrobe.Slots.*`)**:
+   - Các slot tag phải khớp với danh mục được cấp phép (`Categories = "System.Wardrobe.Slots"`): `Top`, `Bottom`, `Dress`, `OnePiece`, `Inner_Top`, `Inner_Bottom`, `Hair`, `Shoes`, `Socks`, `Gloves`, `Hat`, `Eyebrows`, `Body`.
+   - Script AI `classify_character_manifest.py` luôn sử dụng danh mục slot hợp lệ này, tránh tự ý sinh tag không có trong từ điển.
+4. **Khởi tạo và Gán Tag trong Unreal Python**:
+   - Khởi tạo qua `unreal.GameplayTag(tag_name=unreal.Name(tag_str))` hoặc `tag.import_text(tag_str)`.
+   - Script kiểm tra read-back (`da_asset.get_editor_property()`) để cảnh báo tức thì nếu tag bị Unreal reject thành `None`.
+
+
+### 8.3. Mental Model Head vs Body Baking & Channel Packing Optimization
+1. **Head vs Body Baking**:
+   - **Head (Khuôn mặt, tai, cổ)**: Giữ nguyên Texture gốc của DAZ, cắm trực tiếp vào shader `M_Skin_Head` trong Unreal Engine. Tuyệt đối không re-bake để bảo toàn độ nét cận cảnh (Texel Density) và tránh lỗi lệch viền cổ (Neck Seam).
+   - **Body (Torso, Arms, Legs, Nails)**: Gom UV và bake (BaseColor, Normal, Roughness) thành 1 bộ map `Body_*` thống nhất để giảm Draw Call (từ 4-5 material slots xuống còn 1).
+2. **Channel Packing (`pack_mode`) Mặc định**:
+   - `bake_mesh.py` mặc định `pack_mode = "none"` để chỉ xuất các map độc lập (`*_BaseColor.png`, `*_Roughness.png`, `*_Normal.png`), không tự tiện sinh ra file `*_ORM.png` rác khi dự án game không dùng ORM.
+   - `import_character_wardrobe.py`: Phân biệt rành mạch giữa kênh đơn sắc `Roughness` và texture 3 kênh `ORM`, ưu tiên match đúng parameter rời (`Skin_Roughness`, `Cloth_Roughness`) để vật liệu trong Unreal không bị sai lệch kênh ánh sáng.

@@ -10,8 +10,9 @@ Consumes:
 
 Outputs:
   - body_meshes: List of character body mesh names (e.g. ['Genesis 9']) for baking and base character avatar.
-  - clothes: List of modular clothing/wearable mesh names (e.g. ['A_Bra_Brown', 'A_Leggings_Brown', 'A_Shoes_Brown']).
-  - cloth_map: Backward-compatible dictionary mapping each clothing mesh to its generic role.
+  - wardrobe_items: List of structured wardrobe items with grouped sub-meshes (e.g. [{'name': 'Messy_High_Ponytail_Hair', 'meshes': ['...Hair', '...Hair_Scalp'], 'role': 'Hair'}]).
+  - clothes: List of clean clothing item names (e.g. ['Messy_High_Ponytail_Hair', 'Flirty_Party_Dress']).
+  - clothes_flat: Flattened list of all individual sub-mesh names.
 """
 
 import os
@@ -224,21 +225,34 @@ def main(
         base_url=target_endpoint or None
     )
 
-    # 3. Pure Geometric Separation Prompt (Zero Game-Contract Coupling)
+    # 3. Pure Geometric Separation & Semantic Clustering Prompt
     system_prompt = (
         "You are an expert 3D Technical Artist and Character Pipeline Automation Engineer.\n"
-        "Your mission is to analyze a list or metadata tree of 3D objects/meshes from a character scene (DAZ Studio / Blender) "
-        "and separate them into two clean geometric categories:\n\n"
-        "1. 'body_mesh': Character body/anatomical figure meshes (e.g. Genesis 8 Female, Genesis 9, Body, Head, Eyes, Eyelashes, Mouth, Cornea) to be retained as the base avatar.\n"
-        "2. 'clothes': All wearable clothing items, outfits, garments, hair, shoes, and accessories (e.g. Bra, Panties, Shirt, Jeans, Boots, Hair, Hat, Gloves).\n\n"
+        "Your mission is to analyze a list or metadata tree of 3D objects/meshes from a character scene (DAZ Studio / Blender) and:\n"
+        "1. Identify 'body_meshes': Character body / anatomical figure meshes (e.g. Genesis 8 Female, Genesis 9, Body, Head, Eyes, Eyelashes, Mouth, Teeth, Cornea) to be retained as the base avatar.\n"
+        "2. Group modular wearable items into 'wardrobe_items' with SEMANTIC CLUSTERING:\n"
+        "   - CRITICAL CLUSTERING RULE: If multiple sub-meshes are components of ONE functional garment, hair piece, or pair, you MUST group them together into a single item!\n"
+        "     * Hair and Scalp/Cap (e.g. ['FE_Messy_High_Ponytail_Hair', 'FE_Messy_High_Ponytail_Hair_Scalp']) MUST be grouped into ONE item (name: 'Messy_High_Ponytail_Hair', role: 'Hair').\n"
+        "     * Paired items like shoes, boots, gloves, earrings (e.g. ['Boot_Left', 'Boot_Right']) MUST be grouped into ONE item (name: 'Boots', role: 'Shoes').\n"
+        "     * Main cloth and subordinate trims/straps/buttons/bows (e.g. ['Dress', 'Dress_Straps', 'Dress_Belt']) MUST be grouped into ONE item.\n"
+        "     * Standalone garments (e.g. ['A_Bra_Brown']) remain in their own item group.\n"
+        "   - 'name': Clean, human-readable identifier (e.g. 'Messy_High_Ponytail_Hair', 'Flirty_Party_Dress', 'Brown_Bra').\n"
+        "   - 'meshes': List of EXACT mesh names from the input belonging to this item.\n"
+        "   - 'role': Semantic role (e.g. 'Hair', 'Top', 'Bottom', 'Dress', 'Shoes', 'Underwear', 'Accessory').\n\n"
         "CRITICAL RULES:\n"
-        "- Return the EXACT object/mesh names found in the input.\n"
-        "- Anatomical parts (Eyes, Teeth, Tongue, Eyelashes, Cornea, Tear) belong in 'body_mesh' or helper, NEVER in 'clothes'!\n"
+        "- Return the EXACT object/mesh names found in the input inside 'meshes' and 'body_meshes'.\n"
+        "- Anatomical parts (Eyes, Teeth, Tongue, Eyelashes, Cornea, Tear) belong in 'body_meshes', NEVER in 'wardrobe_items'!\n"
         "- Filter out non-mesh helpers, bone widgets, cameras, and lights.\n\n"
         "OUTPUT FORMAT (STRICT JSON):\n"
         "{\n"
-        '  "body_mesh": ["<exact body mesh name>"],\n'
-        '  "clothes": ["<cloth mesh 1>", "<cloth mesh 2>", ...]\n'
+        '  "body_meshes": ["<exact body mesh name>"],\n'
+        '  "wardrobe_items": [\n'
+        '    {\n'
+        '      "name": "<clean item name>",\n'
+        '      "meshes": ["<exact mesh 1>", "<exact mesh 2>"],\n'
+        '      "role": "<role>"\n'
+        '    }\n'
+        '  ]\n'
         "}"
     )
 
@@ -284,44 +298,80 @@ def main(
                 ) from e
 
     # 4. Extract & Normalize Output
-    raw_body = parsed.get("body_mesh", [])
-    body_mesh: List[str] = []
+    raw_body = parsed.get("body_meshes") or parsed.get("body_mesh", [])
+    body_meshes: List[str] = []
     if isinstance(raw_body, list):
-        body_mesh = [str(x).strip() for x in raw_body if str(x).strip()]
+        body_meshes = [str(x).strip() for x in raw_body if str(x).strip()]
     elif isinstance(raw_body, str) and raw_body.strip():
-        body_mesh = [raw_body.strip()]
+        body_meshes = [raw_body.strip()]
 
-    raw_clothes = parsed.get("clothes", [])
-    clothes: List[str] = []
-    if isinstance(raw_clothes, list):
-        clothes = [str(x).strip() for x in raw_clothes if str(x).strip()]
-    elif isinstance(raw_clothes, dict):
-        clothes = [str(k).strip() for k in raw_clothes.keys() if str(k).strip()]
-    elif isinstance(raw_clothes, str) and raw_clothes.strip():
-        clothes = [raw_clothes.strip()]
+    # Extract structured wardrobe items (Semantic Groups)
+    raw_wardrobe = parsed.get("wardrobe_items", [])
+    wardrobe_items: List[Dict[str, Any]] = []
 
-    # Backward-compatible cloth_map for downstream nodes expecting a mapping
-    cloth_map = parsed.get("cloth_map", {})
-    if not isinstance(cloth_map, dict) or not cloth_map:
-        cloth_map = {item: "Wardrobe" for item in clothes}
-    else:
-        for c in clothes:
-            if c not in cloth_map:
-                cloth_map[c] = "Wardrobe"
+    if isinstance(raw_wardrobe, list) and raw_wardrobe:
+        for it in raw_wardrobe:
+            if not isinstance(it, dict):
+                continue
+            item_name = str(it.get("name") or "").strip()
+            item_role = str(it.get("role") or "Wardrobe").strip()
+            raw_submeshes = it.get("meshes", [])
+            submeshes: List[str] = []
+            if isinstance(raw_submeshes, list):
+                submeshes = [str(m).strip() for m in raw_submeshes if str(m).strip()]
+            elif isinstance(raw_submeshes, str) and raw_submeshes.strip():
+                submeshes = [raw_submeshes.strip()]
 
-    is_monolithic = len(clothes) == 0
+            if not item_name and submeshes:
+                item_name = submeshes[0]
+
+            if item_name and submeshes:
+                wardrobe_items.append({
+                    "name": item_name,
+                    "meshes": submeshes,
+                    "role": item_role
+                })
+
+    # Fallback if AI returned legacy flat 'clothes' format
+    if not wardrobe_items:
+        raw_clothes = parsed.get("clothes", [])
+        legacy_list: List[str] = []
+        if isinstance(raw_clothes, list):
+            legacy_list = [str(x).strip() for x in raw_clothes if str(x).strip()]
+        elif isinstance(raw_clothes, dict):
+            legacy_list = [str(k).strip() for k in raw_clothes.keys() if str(k).strip()]
+        elif isinstance(raw_clothes, str) and raw_clothes.strip():
+            legacy_list = [raw_clothes.strip()]
+
+        for c_mesh in legacy_list:
+            wardrobe_items.append({
+                "name": c_mesh,
+                "meshes": [c_mesh],
+                "role": "Wardrobe"
+            })
+
+    # Clean representation lists
+    clothes: List[str] = [it["name"] for it in wardrobe_items]
+    clothes_flat: List[str] = []
+    for it in wardrobe_items:
+        for m in it["meshes"]:
+            if m not in clothes_flat:
+                clothes_flat.append(m)
+
+    is_monolithic = len(wardrobe_items) == 0
     elapsed = time.time() - start_time
     summary = (
-        f"Separated Geometry: {len(body_mesh)} Body Mesh(es) ({body_mesh}), "
-        f"{len(clothes)} Clothing Item(s) ({clothes}) in {elapsed:.2f}s. "
+        f"Semantic Geometry Separation: {len(body_meshes)} Body Mesh(es) ({body_meshes}), "
+        f"{len(wardrobe_items)} Wardrobe Group(s) ({len(clothes_flat)} sub-meshes) in {elapsed:.2f}s. "
         f"Structure: {'Monolithic (Full Body)' if is_monolithic else 'Modular (Wardrobe Array)'}."
     )
     print(f"[classify_mesh_types] [SUCCESS] {summary}", flush=True)
 
     return {
-        "body_meshes": body_mesh,
+        "body_meshes": body_meshes,
+        "wardrobe_items": wardrobe_items,
         "clothes": clothes,
-        "cloth_map": cloth_map,
+        "clothes_flat": clothes_flat,
         "is_monolithic": is_monolithic,
         "summary": summary
     }

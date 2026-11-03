@@ -3,35 +3,19 @@
 All-In-One Character & Wardrobe Ingestion Node for Unreal Engine
 Runs inside Unreal Engine via Python API (Unreal Engine 5.x) or Agent Worker Dry-Run.
 
-Consumes:
-  1. manifest: Unified Character Manifest from classify_character_manifest.py.
-  2. fbx_files (optional): List of FBX asset file paths (auto-extracted from manifest if omitted).
-  3. destination_folder (optional): Unreal destination package path (overrides manifest).
-  4. skeleton_path (optional): Skeletal Mesh Skeleton asset path.
-  5. normal_import_method (optional): 'FBXNIM_IMPORT_NORMALS' (default).
-  6. dry_run (optional): Simulate without modifying Unreal assets.
-
-Performs:
-  - Batch imports FBX files with standard prefix 'SKM_*'.
-  - Automatically creates and binds Material Instances ('MI_*') from Master Materials.
-  - Ingests associated PNG thumbnails with prefix 'T_*'.
-  - Registers Primary Data Assets with standard prefix 'DA_*' (never 'PDA_*').
-  - Sets all struct GameplayTags (SlotTag, ItemTag, CharacterTag) and DisplayName.
-  - Saves all created assets cleanly in a single session.
-
-Outputs:
-  - status: "Success" or "Failed"
-  - items_count: Total processed items
-  - imported_meshes: List of Skeletal Mesh package paths
-  - created_data_assets: List of Data Asset package paths
-  - summary: Human-readable execution summary.
+Strictly Contract-Driven Pipeline:
+  1. Import Skeletal Mesh (SKM_*) with designated Skeleton.
+  2. Ingest Textures with exact settings from Master Material Contract (TC_*, sRGB, VT).
+  3. Create Material Instances (MI_*) and bind texture parameters.
+  4. Bind Material Instances to Skeletal Mesh material slots 1-to-1.
+  5. Ingest companion Thumbnail (T_*) with TC_EditorIcon.
+  6. Create Primary Data Asset (DA_*) and bind Mesh, Thumbnail, and GameplayTags.
 """
 
 import os
 import sys
 import json
-import hashlib
-from typing import Dict, Any, List, Optional, Union, Literal
+from typing import Dict, Any, List, Optional, Literal, Tuple
 
 NormalImportMethodType = Literal[
     "FBXNIM_IMPORT_NORMALS",
@@ -64,114 +48,220 @@ def sanitize_asset_name(name: str) -> str:
     return name.strip("_")
 
 
-def sync_tags_to_ini(tags: List[str]) -> List[str]:
-    """
-    Ensures that dynamically generated tags exist in Config/DefaultGameplayTags.ini.
-    Appends missing tags to prevent Unreal from returning empty gameplay tag structs.
-    """
-    if not tags:
-        return []
+def ensure_gameplay_tags(tags: List[str]):
+    """Registers missing tags to DefaultGameplayTags.ini to prevent Unreal from ignoring them."""
+    if not tags or not HAS_UNREAL or not hasattr(unreal, "Paths"):
+        return
+    try:
+        ini_path = os.path.join(unreal.Paths.project_config_dir(), "DefaultGameplayTags.ini")
+        if not os.path.isfile(ini_path):
+            return
 
-    ini_path = ""
-    if HAS_UNREAL and hasattr(unreal, "Paths"):
-        try:
-            cand = os.path.join(unreal.Paths.project_config_dir(), "DefaultGameplayTags.ini")
-            if os.path.exists(cand) or os.path.exists(os.path.dirname(cand)):
-                ini_path = cand
-        except Exception:
-            pass
+        with open(ini_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
 
-    if not ini_path or not os.path.exists(ini_path):
-        curr = os.getcwd()
-        for _ in range(6):
-            for item in os.listdir(curr):
-                if item.endswith(".uproject"):
-                    candidate = os.path.join(curr, "Config", "DefaultGameplayTags.ini")
-                    if os.path.exists(candidate) or os.path.exists(os.path.dirname(candidate)):
-                        ini_path = candidate
-                        break
-            if ini_path:
-                break
-            parent = os.path.dirname(curr)
-            if parent == curr:
-                break
-            curr = parent
+        lines_to_add = [
+            f'+GameplayTagList=(Tag="{t.strip()}",DevComment="")\n'
+            for t in tags if t.strip() and f'Tag="{t.strip()}"' not in content
+        ]
+        if not lines_to_add:
+            return
 
-    if not ini_path:
-        return []
+        section = "[/Script/GameplayTags.GameplayTagsSettings]"
+        if section in content:
+            content = content.replace(section, section + "\n" + "".join(lines_to_add), 1)
+        else:
+            content += f"\n{section}\n" + "".join(lines_to_add)
 
-    existing_content = ""
-    if os.path.exists(ini_path):
-        try:
-            with open(ini_path, "r", encoding="utf-8", errors="ignore") as f:
-                existing_content = f.read()
-        except Exception:
-            pass
-
-    new_tags_added = []
-    lines_to_append = []
-    for tag in tags:
-        tag_clean = tag.strip()
-        if not tag_clean:
-            continue
-        pattern = f'Tag="{tag_clean}"'
-        if pattern not in existing_content:
-            lines_to_append.append(f'+GameplayTagList=(Tag="{tag_clean}",DevComment="")\n')
-            new_tags_added.append(tag_clean)
-
-    if lines_to_append:
-        try:
-            # Ensure folder exists
-            os.makedirs(os.path.dirname(ini_path), exist_ok=True)
-            with open(ini_path, "a", encoding="utf-8") as f:
-                if existing_content and not existing_content.endswith("\n"):
-                    f.write("\n")
-                if "[/Script/GameplayTags.GameplayTagsList]" not in existing_content:
-                    f.write("[/Script/GameplayTags.GameplayTagsList]\n")
-                f.writelines(lines_to_append)
-            print(f"[import_wardrobe] Registered {len(new_tags_added)} new GameplayTags to '{ini_path}': {new_tags_added}", flush=True)
-        except Exception as ex:
-            print(f"[import_wardrobe] Warning appending tags to ini: {ex}", flush=True)
-
-    return new_tags_added
+        with open(ini_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        print(f"[import_wardrobe] Registered {len(lines_to_add)} new GameplayTags to '{ini_path}'", flush=True)
+    except Exception as ex:
+        print(f"[import_wardrobe] Warning registering tags: {ex}", flush=True)
 
 
 def find_neighbor_thumbnail(fbx_path: str) -> Optional[str]:
-    """
-    Automatically discovers an image in the same directory as the FBX
-    matching the asset's base name (e.g. Laura.png, Laura_thumb.jpg, etc.).
-    """
+    """Finds companion thumbnail image next to the FBX."""
     if not fbx_path or not os.path.isfile(fbx_path):
         return None
-    fbx_dir = os.path.dirname(os.path.abspath(fbx_path))
-    fbx_base = os.path.splitext(os.path.basename(fbx_path))[0]
-
-    extensions = [".png", ".jpg", ".jpeg", ".tga", ".webp", ".bmp"]
-
-    # 1. Exact match: <base><ext>
-    for ext in extensions:
-        cand = os.path.join(fbx_dir, f"{fbx_base}{ext}")
-        if os.path.isfile(cand):
-            return cand
-
-    # 2. Suffix match: <base>_thumb<ext>, <base>_icon<ext>
-    for suffix in ["_thumb", "_thumbnail", "_icon", "_Icon", "_Preview", "_preview"]:
-        for ext in extensions:
-            cand = os.path.join(fbx_dir, f"{fbx_base}{suffix}{ext}")
+    base_dir = os.path.dirname(os.path.abspath(fbx_path))
+    stem = os.path.splitext(os.path.basename(fbx_path))[0]
+    for ext in [".png", ".jpg", ".jpeg", ".webp"]:
+        for suffix in ["", "_thumb", "_thumbnail", "_icon", "_preview"]:
+            cand = os.path.join(base_dir, f"{stem}{suffix}{ext}")
             if os.path.isfile(cand):
                 return cand
-
     return None
+
+
+def extract_skeleton_from_asset(asset: Any) -> Optional[Any]:
+    """Ensures asset is an unreal.Skeleton. If it is a SkeletalMesh, extracts its underlying skeleton."""
+    if not asset or not HAS_UNREAL:
+        return None
+    if hasattr(unreal, "Skeleton") and isinstance(asset, unreal.Skeleton):
+        return asset
+    if hasattr(unreal, "SkeletalMesh") and isinstance(asset, unreal.SkeletalMesh):
+        try:
+            skel = asset.get_editor_property("skeleton")
+            if skel and (not hasattr(unreal, "Skeleton") or isinstance(skel, unreal.Skeleton)):
+                return skel
+        except Exception:
+            pass
+        skel = getattr(asset, "skeleton", None)
+        if skel and (not hasattr(unreal, "Skeleton") or isinstance(skel, unreal.Skeleton)):
+            return skel
+    return None
+
+
+def normalize_unreal_package_path(raw_path: str) -> str:
+    """Normalizes Windows disk path, typo root (/Games/), or relative path to standard Unreal /Game/... package path."""
+    if not raw_path or not raw_path.strip():
+        return ""
+    p = raw_path.strip().replace("\\", "/")
+    
+    # Strip extension (.uasset)
+    if p.endswith(".uasset"):
+        p = p[:-7]
+        
+    # Check if Windows disk path containing /Content/
+    if "/content/" in p.lower():
+        idx = p.lower().find("/content/")
+        rel = p[idx + 9:].lstrip("/")
+        return f"/Game/{rel}"
+        
+    # Fix common typo /Games/ -> /Game/
+    if p.lower().startswith("/games/"):
+        return f"/Game/{p[7:]}"
+    elif p.lower().startswith("games/"):
+        return f"/Game/{p[6:]}"
+        
+    # If starts with Content/
+    if p.lower().startswith("/content/"):
+        return f"/Game/{p[9:]}"
+    elif p.lower().startswith("content/"):
+        return f"/Game/{p[8:]}"
+        
+    if p.startswith("/Game/"):
+        return p
+    if p.startswith("/"):
+        return p
+        
+    return f"/Game/{p}"
+
+
+def resolve_skeleton(
+    target_skeleton: str,
+    contracts: Optional[Dict[str, Any]] = None,
+    character_name: str = ""
+) -> Tuple[Optional[Any], str]:
+    """
+    Finds and loads the target unreal.Skeleton asset.
+    Checks target_skeleton variations, then falls back to contracts['skeletons'].
+    """
+    if not HAS_UNREAL:
+        return None, target_skeleton
+
+    candidates = []
+    target_stem = ""
+    if target_skeleton and target_skeleton.strip():
+        raw_s = target_skeleton.strip()
+        norm_s = normalize_unreal_package_path(raw_s)
+        for s in (norm_s, raw_s):
+            if not s:
+                continue
+            candidates.append(s)
+            base = s.split(".")[0]
+            sub = base.split("/")[-1]
+            candidates.append(base)
+            candidates.append(f"{base}.{sub}")
+        target_stem = os.path.splitext(os.path.basename(norm_s))[0].lower()
+
+    # Check contracts skeletons
+    skeletons_map = (contracts or {}).get("skeletons", {})
+    if skeletons_map:
+        for skel_key, skel_info in skeletons_map.items():
+            pkg = skel_info.get("package_path", "")
+            if not pkg:
+                continue
+            if target_stem and target_stem in skel_key.lower():
+                candidates.insert(0, pkg)
+            elif character_name and character_name.lower() in skel_key.lower():
+                candidates.insert(0, pkg)
+            elif "g9" in skel_key.lower() or "genesis9" in skel_key.lower() or "genesis_9" in skel_key.lower():
+                candidates.append(pkg)
+            else:
+                candidates.append(pkg)
+
+    for cand in candidates:
+        if not cand:
+            continue
+        cand_clean = cand.split(".")[0]
+        cand_sub = f"{cand_clean}.{cand_clean.split('/')[-1]}"
+        for c in (cand, cand_clean, cand_sub):
+            if not c.startswith("/Game"):
+                continue
+            if unreal.EditorAssetLibrary.does_asset_exist(c):
+                raw_asset = unreal.EditorAssetLibrary.load_asset(c)
+                skel = extract_skeleton_from_asset(raw_asset)
+                if skel:
+                    return skel, c
+
+    # 3. Dynamic Unreal AssetRegistry query fallback for Skeleton
+    if HAS_UNREAL and hasattr(unreal, "AssetRegistryHelpers"):
+        try:
+            ar = unreal.AssetRegistryHelpers.get_asset_registry()
+            assets = []
+            if hasattr(unreal, "TopLevelAssetPath"):
+                try:
+                    class_path = unreal.TopLevelAssetPath("/Script/Engine", "Skeleton")
+                    assets = ar.get_assets_by_class(class_path_name=class_path, search_sub_classes=False)
+                except Exception:
+                    pass
+            if not assets:
+                try:
+                    assets = ar.get_assets_by_class(class_name="Skeleton", search_sub_classes=False)
+                except Exception:
+                    pass
+
+            for ad in assets:
+                pkg_name = str(getattr(ad, "package_name", ""))
+                asset_name = str(getattr(ad, "asset_name", ""))
+                if not pkg_name.startswith("/Game"):
+                    continue
+                full_path = f"{pkg_name}.{asset_name}"
+                if target_stem and target_stem in asset_name.lower():
+                    raw_asset = unreal.EditorAssetLibrary.load_asset(full_path)
+                    skel = extract_skeleton_from_asset(raw_asset)
+                    if skel:
+                        print(f"[import_character_wardrobe] Auto-matched designated skeleton by stem '{target_stem}' from Unreal AssetRegistry: '{full_path}'", flush=True)
+                        return skel, full_path
+                elif character_name and character_name.lower() in asset_name.lower():
+                    raw_asset = unreal.EditorAssetLibrary.load_asset(full_path)
+                    skel = extract_skeleton_from_asset(raw_asset)
+                    if skel:
+                        print(f"[import_character_wardrobe] Auto-discovered character skeleton from Unreal AssetRegistry: '{full_path}'", flush=True)
+                        return skel, full_path
+                elif "g9" in asset_name.lower() or "genesis9" in asset_name.lower() or "genesis_9" in asset_name.lower():
+                    raw_asset = unreal.EditorAssetLibrary.load_asset(full_path)
+                    skel = extract_skeleton_from_asset(raw_asset)
+                    if skel:
+                        print(f"[import_character_wardrobe] Auto-discovered G9/Genesis9 skeleton from Unreal AssetRegistry: '{full_path}'", flush=True)
+                        return skel, full_path
+        except Exception as ex:
+            print(f"[import_character_wardrobe] Notice during AssetRegistry skeleton scan: {ex}", flush=True)
+
+    return None, ""
 
 
 def import_fbx_mesh(
     fbx_path: str,
     dest_folder: str,
     mesh_name: str,
-    skeleton_path: str,
+    skeleton_obj: Any,
+    skeleton_path_log: str,
     normal_import_method: str = "FBXNIM_IMPORT_NORMALS"
 ):
-    """Imports FBX as Skeletal Mesh."""
+    """Imports FBX as Skeletal Mesh with designated Skeleton."""
     task = unreal.AssetImportTask()
     task.set_editor_property("filename", os.path.abspath(fbx_path))
     task.set_editor_property("destination_path", dest_folder)
@@ -181,43 +271,53 @@ def import_fbx_mesh(
     task.set_editor_property("save", True)
 
     fbx_options = unreal.FbxImportUI()
+    fbx_options.set_editor_property("automated_import_should_detect_type", False)
+    fbx_options.set_editor_property("mesh_type_to_import", unreal.FBXImportType.FBXIT_SKELETAL_MESH)
     fbx_options.set_editor_property("import_mesh", True)
     fbx_options.set_editor_property("import_as_skeletal", True)
     fbx_options.set_editor_property("import_materials", False)
     fbx_options.set_editor_property("import_textures", False)
     fbx_options.set_editor_property("create_physics_asset", False)
 
-    if skeleton_path and unreal.EditorAssetLibrary.does_asset_exist(skeleton_path):
-        fbx_options.skeleton = unreal.EditorAssetLibrary.load_asset(skeleton_path)
-
-    if hasattr(fbx_options, "skeletal_mesh_import_data") and fbx_options.skeletal_mesh_import_data:
+    if skeleton_obj:
         try:
-            if hasattr(unreal, "FBXImportContentType"):
-                fbx_options.skeletal_mesh_import_data.set_editor_property(
-                    "import_content_type", unreal.FBXImportContentType.FBXIT_GEOMETRY_AND_SKINNING
-                )
-            if hasattr(unreal, "FBXNormalImportMethod"):
-                method_enum = getattr(unreal.FBXNormalImportMethod, normal_import_method, unreal.FBXNormalImportMethod.FBXNIM_IMPORT_NORMALS)
-                fbx_options.skeletal_mesh_import_data.set_editor_property("normal_import_method", method_enum)
-        except Exception as e:
-            print(f"[import_wardrobe] Warning setting skeletal mesh options: {e}", flush=True)
+            fbx_options.set_editor_property("skeleton", skeleton_obj)
+        except Exception:
+            fbx_options.skeleton = skeleton_obj
+        print(f"[import_character_wardrobe] Bound designated Skeleton: '{skeleton_path_log}'", flush=True)
+    else:
+        print(f"[import_character_wardrobe] WARNING: No designated Skeleton found ('{skeleton_path_log}'). Unreal will generate a new skeleton.", flush=True)
+
+    import_data = getattr(fbx_options, "skeletal_mesh_import_data", None)
+    if import_data:
+        if hasattr(unreal, "FBXImportContentType"):
+            content_type = getattr(unreal.FBXImportContentType, "FBXICT_ALL", None)
+            if content_type is not None:
+                import_data.set_editor_property("import_content_type", content_type)
+        if hasattr(unreal, "FBXNormalImportMethod"):
+            method_enum = getattr(unreal.FBXNormalImportMethod, normal_import_method, unreal.FBXNormalImportMethod.FBXNIM_IMPORT_NORMALS)
+            import_data.set_editor_property("normal_import_method", method_enum)
 
     task.set_editor_property("options", fbx_options)
     unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
 
-    imported_path = f"{dest_folder}/{mesh_name}"
-    if unreal.EditorAssetLibrary.does_asset_exist(imported_path):
-        return unreal.EditorAssetLibrary.load_asset(imported_path)
-    return None
+    target_path = f"{dest_folder}/{mesh_name}"
+    return unreal.EditorAssetLibrary.load_asset(target_path) if unreal.EditorAssetLibrary.does_asset_exist(target_path) else None
 
 
-def import_texture_file(file_path: str, dest_folder: str, texture_name: str, is_normal: bool = False, is_ui: bool = False, is_virtual: bool = False):
-    """Imports image file into Unreal as Texture2D, handling normal maps, UI, and Virtual Texture streaming."""
+def import_texture_file(
+    file_path: str,
+    dest_folder: str,
+    texture_name: str,
+    compression: str = "TC_DEFAULT",
+    srgb: bool = True,
+    is_virtual: bool = True
+):
+    """Imports image file into Unreal as Texture2D with contract specifications."""
     target_path = f"{dest_folder}/{texture_name}"
-    tex = None
-    if unreal.EditorAssetLibrary.does_asset_exist(target_path):
-        tex = unreal.EditorAssetLibrary.load_asset(target_path)
-    else:
+    tex = unreal.EditorAssetLibrary.load_asset(target_path) if unreal.EditorAssetLibrary.does_asset_exist(target_path) else None
+
+    if not tex:
         task = unreal.AssetImportTask()
         task.set_editor_property("filename", os.path.abspath(file_path))
         task.set_editor_property("destination_path", dest_folder)
@@ -225,46 +325,29 @@ def import_texture_file(file_path: str, dest_folder: str, texture_name: str, is_
         task.set_editor_property("replace_existing", True)
         task.set_editor_property("automated", True)
         task.set_editor_property("save", True)
-
         unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
-        if unreal.EditorAssetLibrary.does_asset_exist(target_path):
-            tex = unreal.EditorAssetLibrary.load_asset(target_path)
+        tex = unreal.EditorAssetLibrary.load_asset(target_path) if unreal.EditorAssetLibrary.does_asset_exist(target_path) else None
 
     if tex:
         changed = False
-        if is_normal and hasattr(unreal, "TextureCompressionSettings"):
+        if compression and hasattr(unreal, "TextureCompressionSettings"):
+            comp_enum = getattr(unreal.TextureCompressionSettings, compression, None)
+            if comp_enum is not None:
+                tex.set_editor_property("compression_settings", comp_enum)
+                changed = True
+        if srgb is not None:
+            tex.set_editor_property("srgb", bool(srgb))
+            changed = True
+        if hasattr(tex, "virtual_texture_streaming"):
             try:
-                tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_NORMALMAP)
-                tex.set_editor_property("srgb", False)
+                tex.set_editor_property("virtual_texture_streaming", bool(is_virtual))
                 changed = True
             except Exception:
                 pass
-        elif is_ui and hasattr(unreal, "TextureCompressionSettings"):
-            try:
-                tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_EDITOR_ICON)
-                tex.set_editor_property("srgb", True)
-                changed = True
-            except Exception:
-                pass
-
-        if is_virtual:
-            try:
-                tex.set_editor_property("virtual_texture_streaming", True)
-                if hasattr(tex, "modify"):
-                    tex.modify(True)
-                changed = True
-                print(f"   [FORGITY] Enabled Virtual Texture Streaming on '{texture_name}'", flush=True)
-            except Exception as e:
-                print(f"   [FORGITY :: WARN] Could not set virtual_texture_streaming on '{texture_name}': {e}", flush=True)
-
         if changed:
             unreal.EditorAssetLibrary.save_loaded_asset(tex)
-            try:
-                unreal.EditorAssetLibrary.save_asset(target_path, only_if_is_dirty=False)
-            except Exception:
-                pass
-        return tex
-    return None
+
+    return tex
 
 
 def create_material_instance(
@@ -273,15 +356,12 @@ def create_material_instance(
     textures_folder: str,
     mi_name: str,
     textures: Dict[str, str],
-    contracts: Optional[Dict[str, Any]] = None,
-    material_tag: str = ""
+    contract_slots: Dict[str, Any]
 ):
-    """Creates a MaterialInstanceConstant in materials_folder and binds textures stored in textures_folder."""
+    """Creates a MaterialInstanceConstant and binds textures strictly following contract slots."""
     if not master_mat_path or not unreal.EditorAssetLibrary.does_asset_exist(master_mat_path):
-        master_mat_path = "/Game/Characters/Materials/M_Cloth"
-        if not unreal.EditorAssetLibrary.does_asset_exist(master_mat_path):
-            print(f"[import_wardrobe] Warning: Master Material '{master_mat_path}' not found.", flush=True)
-            return None
+        print(f"[import_wardrobe] Warning: Master Material '{master_mat_path}' not found.", flush=True)
+        return None
 
     master_mat = unreal.EditorAssetLibrary.load_asset(master_mat_path)
     asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
@@ -290,57 +370,38 @@ def create_material_instance(
     mi_asset = asset_tools.create_asset(mi_name, materials_folder, unreal.MaterialInstanceConstant, factory)
     if not mi_asset:
         target_path = f"{materials_folder}/{mi_name}"
-        if unreal.EditorAssetLibrary.does_asset_exist(target_path):
-            mi_asset = unreal.EditorAssetLibrary.load_asset(target_path)
+        mi_asset = unreal.EditorAssetLibrary.load_asset(target_path) if unreal.EditorAssetLibrary.does_asset_exist(target_path) else None
 
     if not mi_asset:
         return None
 
     unreal.MaterialEditingLibrary.set_material_instance_parent(mi_asset, master_mat)
 
-    # 1. Resolve Virtual Texture requirements from contracts if available
-    contracts_materials = {}
-    if contracts and isinstance(contracts, dict):
-        contracts_materials = contracts.get("materials", {})
+    for param_name, raw_tex_path in textures.items():
+        if not raw_tex_path:
+            continue
+        norm_path = os.path.normpath(raw_tex_path).replace("\\", "/")
+        if not os.path.isfile(norm_path):
+            print(f"   [FORGITY :: WARN] Texture file missing: '{norm_path}'", flush=True)
+            continue
 
-    target_mat_contract = None
-    if material_tag and material_tag in contracts_materials:
-        target_mat_contract = contracts_materials[material_tag]
-    else:
-        # Match by master_material_path
-        clean_target_path = master_mat_path.split(".")[0].lower()
-        for c_tag, c_mat in contracts_materials.items():
-            c_path = c_mat.get("master_material_path", "").split(".")[0].lower()
-            if c_path == clean_target_path:
-                target_mat_contract = c_mat
-                break
+        slot_spec = contract_slots.get(param_name, {})
+        raw_base = sanitize_asset_name(os.path.splitext(os.path.basename(norm_path))[0])
+        tex_base = f"T_{raw_base}" if not raw_base.startswith("T_") else raw_base
 
-    contract_texture_slots = target_mat_contract.get("texture_slots", {}) if target_mat_contract else {}
-
-    # Heuristic fallback: Genesis9 character materials use Virtual Textures
-    is_genesis_character_mat = any(
-        kw in master_mat_path.lower()
-        for kw in ["skin", "cloth", "eye", "eyelash", "hair", "genesis9", "character", "body", "head", "face", "mouth", "bra", "leggings", "shoes"]
-    )
-
-    # Bind textures
-    for param_name, tex_path in textures.items():
-        if tex_path and os.path.isfile(tex_path):
-            raw_base = sanitize_asset_name(os.path.splitext(os.path.basename(tex_path))[0])
-            tex_base = f"T_{raw_base}" if not raw_base.startswith("T_") else raw_base
-            is_norm = "normal" in param_name.lower() or "normal" in tex_base.lower() or "nm" in tex_base.lower()
-
-            # Determine Virtual Texture requirement
-            if param_name in contract_texture_slots:
-                is_vt = contract_texture_slots[param_name].get("vt", True)
-            else:
-                is_vt = is_genesis_character_mat or "vt" in param_name.lower()
-
-            tex_obj = import_texture_file(tex_path, textures_folder, tex_base, is_normal=is_norm, is_virtual=is_vt)
-            if tex_obj:
-                unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(
-                    mi_asset, param_name, tex_obj
-                )
+        tex_obj = import_texture_file(
+            norm_path,
+            textures_folder,
+            tex_base,
+            compression=slot_spec.get("compression", "TC_DEFAULT"),
+            srgb=slot_spec.get("srgb", True),
+            is_virtual=slot_spec.get("vt", True)
+        )
+        if tex_obj:
+            unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(
+                mi_asset, param_name, tex_obj
+            )
+            print(f"   [FORGITY] Param '{param_name}' -> '{tex_base}' on '{mi_name}'", flush=True)
 
     try:
         unreal.MaterialEditingLibrary.update_material_instance(mi_asset)
@@ -351,267 +412,166 @@ def create_material_instance(
     return mi_asset
 
 
-def resolve_data_asset_class(schema_name_or_path: str):
-    """
-    Robustly resolves a Blueprint PrimaryDataAsset class in Unreal Engine.
-    Tries package path without _C for load_blueprint_class,
-    and class_candidate with .ClassName_C for load_class.
-    """
-    clean = (schema_name_or_path or "").strip().strip("'").strip('"')
-    if not clean:
-        clean = "PDA_WardrobeItem"
+def bind_materials_to_mesh(mesh_obj, created_mis: Dict[str, Any]):
+    """Assigns created Material Instances to Skeletal Mesh slots 1-to-1."""
+    if not mesh_obj or not hasattr(mesh_obj, "materials") or not mesh_obj.materials:
+        return
+    mesh_materials = list(mesh_obj.materials)
+    for slot_idx, skeletal_mat in enumerate(mesh_materials):
+        slot_name = str(skeletal_mat.material_slot_name)
+        assigned_mi = created_mis.get(slot_name)
+        if not assigned_mi:
+            clean_name = sanitize_asset_name(slot_name).lower()
+            for k, mi in created_mis.items():
+                if sanitize_asset_name(k).lower() == clean_name:
+                    assigned_mi = mi
+                    break
+        if not assigned_mi and len(mesh_materials) == 1 and len(created_mis) == 1:
+            assigned_mi = list(created_mis.values())[0]
 
-    # Strip any trailing .ClassName_C or _C to get clean base package path
-    base_pkg = clean.split(".")[0]
-    if base_pkg.endswith("_C"):
-        base_pkg = base_pkg[:-2]
+        if assigned_mi:
+            skeletal_mat.material_interface = assigned_mi
+            print(f"   [FORGITY] Mesh Slot '{slot_name}' -> '{assigned_mi.get_name()}'", flush=True)
+        else:
+            print(f"   [FORGITY :: WARN] Mesh Slot '{slot_name}' has no matching Material Instance.", flush=True)
 
-    # Generate candidate package paths
-    candidates = []
-    if "/" in base_pkg:
-        candidates.append(base_pkg)
-    else:
-        candidates.extend([
-            f"/Game/Systems/Wardrobe/Schemas/{base_pkg}",
-            f"/Game/Characters/Genesis9/Common/Schemas/{base_pkg}",
-            f"/Game/Characters/Schemas/{base_pkg}",
-            f"/Game/Systems/Characters/Schemas/{base_pkg}",
-        ])
+    mesh_obj.set_editor_property("materials", mesh_materials)
+    unreal.EditorAssetLibrary.save_loaded_asset(mesh_obj)
 
-    for pkg_path in candidates:
-        if not unreal.EditorAssetLibrary.does_asset_exist(pkg_path):
-            continue
 
-        schema_name = pkg_path.split("/")[-1]
+def load_schema_class(schema_path: str):
+    """Loads UClass for Blueprint DataAsset schema."""
+    if not schema_path:
+        schema_path = "/Game/Systems/Wardrobe/Schemas/PDA_WardrobeItem"
+    clean_path = schema_path.split(".")[0]
+    schema_name = clean_path.split("/")[-1]
 
-        # 1. Try load_blueprint_class (expects clean asset path without _C)
-        if hasattr(unreal.EditorAssetLibrary, "load_blueprint_class"):
-            try:
-                cls = unreal.EditorAssetLibrary.load_blueprint_class(pkg_path)
-                if cls:
-                    print(f"   [FORGITY] Loaded Schema Class via load_blueprint_class: '{pkg_path}'", flush=True)
-                    return cls
-            except Exception:
-                pass
-
-        # 2. Try load_class with object path .ClassName_C
+    if hasattr(unreal.EditorAssetLibrary, "load_blueprint_class"):
         try:
-            cls = unreal.load_class(None, f"{pkg_path}.{schema_name}_C")
+            cls = unreal.EditorAssetLibrary.load_blueprint_class(clean_path)
             if cls:
-                print(f"   [FORGITY] Loaded Schema Class via load_class: '{pkg_path}.{schema_name}_C'", flush=True)
                 return cls
         except Exception:
             pass
 
-        # 3. Try load_asset and read generated_class
-        try:
-            bp = unreal.EditorAssetLibrary.load_asset(pkg_path)
-            if bp and hasattr(bp, "generated_class") and bp.generated_class:
-                print(f"   [FORGITY] Loaded Schema Class via bp.generated_class: '{pkg_path}'", flush=True)
-                return bp.generated_class
-        except Exception:
-            pass
-
+    try:
+        return unreal.load_class(None, f"{clean_path}.{schema_name}_C")
+    except Exception:
+        pass
     return None
 
 
-def _make_gameplay_tag(tag_str: str) -> Any:
-    """Construct an FGameplayTag in Unreal Engine robustly."""
-    if not tag_str:
-        return None
-    clean = str(tag_str).strip()
-    try:
-        tag = unreal.GameplayTag()
-        if hasattr(tag, "import_text"):
-            # Try formatted struct import first, then raw string
-            try:
-                tag.import_text(f'(TagName="{clean}")')
-                return tag
-            except Exception:
-                pass
-            try:
-                tag.import_text(clean)
-                return tag
-            except Exception:
-                pass
-            return tag
-    except Exception:
-        pass
-    try:
-        tag = unreal.GameplayTag()
-        tag.tag_name = unreal.Name(clean)
-        return tag
-    except Exception:
-        pass
-    return unreal.Name(clean)
-
-
 def create_and_populate_data_asset(
-    schema_name_or_path: str,
+    schema_path: str,
     dest_folder: str,
     data_asset_name: str,
     mesh_obj,
     thumbnail_obj,
     properties: Dict[str, Any]
 ):
-    """
-    Creates or loads Data Asset instance (DA_*) and sets properties.
-    Uses convention-based injection:
-      - SELF_MESH: binds imported SkeletalMesh to BodyMesh/ItemMesh
-      - SELF_THUMBNAIL: binds imported Texture2D to Thumbnail/ItemThumbnail
-      - Semantic AI fields: GameplayTags, DisplayName
-      - Custom fields: graceful try/except reflection without fragile hasattr()
-    """
-    target_class = resolve_data_asset_class(schema_name_or_path)
+    """Creates a PrimaryDataAsset (DA_*) and sets mesh, thumbnail, and semantic properties."""
+    target_class = load_schema_class(schema_path)
     if not target_class:
-        print(f"   [FORGITY :: ERROR] Failed to resolve Schema Class for '{schema_name_or_path}'", flush=True)
+        print(f"   [FORGITY :: ERROR] Could not load schema class for '{schema_path}'", flush=True)
         return None
 
-    asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
+    full_path = f"{dest_folder}/{data_asset_name}"
     factory = unreal.DataAssetFactory()
     try:
         factory.set_editor_property("data_asset_class", target_class)
     except Exception:
         pass
 
-    full_path = f"{dest_folder}/{data_asset_name}"
-    da_asset = None
-
-    # Load existing or create new Data Asset
-    if unreal.EditorAssetLibrary.does_asset_exist(full_path):
-        da_asset = unreal.EditorAssetLibrary.load_asset(full_path)
+    da_asset = unreal.EditorAssetLibrary.load_asset(full_path) if unreal.EditorAssetLibrary.does_asset_exist(full_path) else None
+    if not da_asset:
+        da_asset = unreal.AssetToolsHelpers.get_asset_tools().create_asset(data_asset_name, dest_folder, target_class, factory)
 
     if not da_asset:
-        da_asset = asset_tools.create_asset(data_asset_name, dest_folder, target_class, factory)
-
-    if not da_asset and unreal.EditorAssetLibrary.does_asset_exist(full_path):
-        da_asset = unreal.EditorAssetLibrary.load_asset(full_path)
-
-    if not da_asset:
-        print(f"   [FORGITY :: ERROR] Failed to create or load Data Asset '{data_asset_name}' with factory.", flush=True)
         return None
 
-    # 1. Convention: SELF_MESH injection (Direct set_editor_property without hasattr)
+    # Bind Mesh
     if mesh_obj:
-        bound_mesh = False
-        for prop in ["BodyMesh", "ItemMesh", "Mesh", "SkeletalMesh", "CharacterMesh", "Body_Mesh", "Item_Mesh", "Skeletal_Mesh"]:
+        for prop in ["ItemMesh", "BodyMesh", "Mesh"]:
             try:
                 da_asset.set_editor_property(prop, mesh_obj)
-                print(f"   [FORGITY] [SELF_MESH] Successfully bound Mesh -> '{prop}' on '{data_asset_name}'", flush=True)
-                bound_mesh = True
+                print(f"   [FORGITY] Bound Mesh -> '{prop}'", flush=True)
                 break
             except Exception:
                 pass
-        if not bound_mesh:
-            print(f"   [FORGITY :: DEBUG] No compatible Mesh property on '{data_asset_name}' (tried BodyMesh, ItemMesh, etc.)", flush=True)
 
-    # 2. Convention: SELF_THUMBNAIL injection
+    # Bind Thumbnail
     if thumbnail_obj:
-        bound_thumb = False
-        for prop in ["Thumbnail", "ItemThumbnail", "Icon", "Texture", "Item_Thumbnail", "Preview"]:
+        for prop in ["ItemThumbnail", "Thumbnail", "Icon"]:
             try:
                 da_asset.set_editor_property(prop, thumbnail_obj)
-                print(f"   [FORGITY] [SELF_THUMBNAIL] Successfully bound Thumbnail -> '{prop}' on '{data_asset_name}'", flush=True)
-                bound_thumb = True
+                print(f"   [FORGITY] Bound Thumbnail -> '{prop}'", flush=True)
                 break
             except Exception:
                 pass
-        if not bound_thumb:
-            print(f"   [FORGITY :: DEBUG] No compatible Thumbnail property on '{data_asset_name}' (tried Thumbnail, ItemThumbnail, etc.)", flush=True)
 
-    # 3. Dynamic Properties & AI Fields injection (Tags, Text, Custom)
+    # Bind Properties (Tags, DisplayName, custom fields)
     for field_name, field_val in properties.items():
         if field_val is None or field_val == "":
             continue
-
         clean_val = str(field_val).strip()
 
-        # GameplayTag fields
         if "tag" in field_name.lower():
-            tag_obj = _make_gameplay_tag(clean_val)
-            tag_set = False
-            prop_candidates = [field_name]
-            if "_" in field_name:
-                prop_candidates.append(field_name.replace("_", ""))
-            else:
-                import re
-                underscored = re.sub(r'(?<!^)(?=[A-Z])', '_', field_name)
-                if underscored != field_name:
-                    prop_candidates.append(underscored)
-
-            for cand in prop_candidates:
+            tag_obj = unreal.GameplayTag()
+            tag_obj.import_text(clean_val)
+            try:
+                da_asset.set_editor_property(field_name, tag_obj)
+                print(f"   [FORGITY] Set Tag '{field_name}' = '{clean_val}'", flush=True)
+            except Exception:
                 try:
-                    da_asset.set_editor_property(cand, tag_obj)
-                    print(f"   [FORGITY] Set GameplayTag '{cand}' = '{clean_val}' on '{data_asset_name}'", flush=True)
-                    tag_set = True
-                    break
-                except Exception:
-                    try:
-                        da_asset.set_editor_property(cand, unreal.Name(clean_val))
-                        print(f"   [FORGITY] Set Name fallback '{cand}' = '{clean_val}' on '{data_asset_name}'", flush=True)
-                        tag_set = True
-                        break
-                    except Exception:
-                        pass
-            if not tag_set:
-                print(f"   [FORGITY :: WARN] Could not set tag property '{field_name}' on '{data_asset_name}'.", flush=True)
-
-        # DisplayName / Strings
-        elif field_name in ["DisplayName", "ItemName", "Title", "Name"]:
-            text_set = False
-            prop_candidates = [field_name]
-            if "_" in field_name:
-                prop_candidates.append(field_name.replace("_", ""))
-            else:
-                import re
-                underscored = re.sub(r'(?<!^)(?=[A-Z])', '_', field_name)
-                if underscored != field_name:
-                    prop_candidates.append(underscored)
-
-            for cand in prop_candidates:
+                    da_asset.set_editor_property(field_name, unreal.Name(clean_val))
+                except Exception as ex:
+                    print(f"   [FORGITY :: WARN] Could not set tag '{field_name}': {ex}", flush=True)
+        elif field_name in ["DisplayName", "ItemName", "Title"]:
+            try:
+                da_asset.set_editor_property(field_name, unreal.Text(clean_val))
+                print(f"   [FORGITY] Set Text '{field_name}' = '{clean_val}'", flush=True)
+            except Exception:
                 try:
-                    da_asset.set_editor_property(cand, unreal.Text(clean_val))
-                    print(f"   [FORGITY] Set DisplayName (Text) '{cand}' = '{clean_val}' on '{data_asset_name}'", flush=True)
-                    text_set = True
-                    break
+                    da_asset.set_editor_property(field_name, clean_val)
                 except Exception:
-                    try:
-                        da_asset.set_editor_property(cand, clean_val)
-                        print(f"   [FORGITY] Set DisplayName (Str) '{cand}' = '{clean_val}' on '{data_asset_name}'", flush=True)
-                        text_set = True
-                        break
-                    except Exception:
-                        pass
-            if not text_set:
-                print(f"   [FORGITY :: DEBUG] Schema has no '{field_name}' property. Skipped.", flush=True)
-
-        # Custom Handle / Arbitrary Fields
+                    pass
         else:
             try:
                 da_asset.set_editor_property(field_name, field_val)
-                print(f"   [FORGITY] Set Custom Field '{field_name}' = '{field_val}' on '{data_asset_name}'", flush=True)
-            except Exception as e:
-                print(f"   [FORGITY :: DEBUG] Custom property '{field_name}' skipped: {e}", flush=True)
+                print(f"   [FORGITY] Set '{field_name}' = '{field_val}'", flush=True)
+            except Exception:
+                pass
 
     unreal.EditorAssetLibrary.save_loaded_asset(da_asset)
-    try:
-        unreal.EditorAssetLibrary.save_asset(full_path, only_if_is_dirty=False)
-    except Exception:
-        pass
     return da_asset
 
 
 def main(
     manifest: Dict[str, Any],
-    fbx_files: Optional[List[str]] = None,
+    contracts: Dict[str, Any],
     destination_folder: str = "",
     skeleton_path: str = "/Game/Characters/Genesis9/Common/Skeleton/Genesis9_Skeleton.Genesis9_Skeleton",
     normal_import_method: NormalImportMethodType = "FBXNIM_IMPORT_NORMALS",
-    dry_run: bool = False,
-    **kwargs
+    dry_run: bool = False
 ) -> Dict[str, Any]:
     """
-    Main entry point for All-In-One Character & Wardrobe Ingestion.
+    Main entry point for Character & Wardrobe Ingestion.
+    Executes in 5 standardized steps driven strictly by Manifest and Shader Contracts.
+
+    Inputs:
+      - manifest: Semantic classification manifest produced by classify_character_manifest.py. (Required)
+      - contracts: Technical game contracts produced by inspect_game_contracts.py. (Required)
+      - destination_folder: Optional Unreal destination package folder override.
+      - skeleton_path: Optional Skeleton asset package path override.
+      - normal_import_method: Method for normal import ('FBXNIM_IMPORT_NORMALS').
+      - dry_run: Simulate ingestion without modifying Unreal assets.
+
+    Outputs:
+      - status: "Success" or "Failed".
+      - items_count: Number of processed items.
+      - imported_meshes: List of Skeletal Mesh package paths.
+      - created_data_assets: List of Primary Data Asset package paths.
+      - summary: Human-readable execution summary.
     """
     if isinstance(manifest, str):
         try:
@@ -619,54 +579,45 @@ def main(
         except Exception:
             manifest = {}
 
+    if isinstance(contracts, str):
+        try:
+            contracts = json.loads(contracts)
+        except Exception:
+            contracts = {}
+
     manifest_items = manifest.get("items", [])
-    if not manifest_items and "objects_map" in manifest:
-        # Backward compatibility with objects_map format
-        manifest_items = list(manifest["objects_map"].values())
-
-    resolved_fbx_files: List[str] = list(fbx_files or [])
-    if not resolved_fbx_files:
-        for item in manifest_items:
-            p = item.get("fbx_file", item.get("file_path", ""))
-            if p and p not in resolved_fbx_files:
-                resolved_fbx_files.append(p)
-
-    if not resolved_fbx_files and not manifest_items:
-        raise ValueError("Neither fbx_files nor valid items in manifest were provided to import_character_wardrobe.")
-
-    fbx_files = resolved_fbx_files
+    if not manifest_items:
+        raise ValueError("No items found in manifest for import_character_wardrobe.")
 
     clean_dest_folder = _clean_ue_path(
         destination_folder or manifest.get("destination_folder", "/Game/Characters/Genesis9/Wardrobe")
     )
 
     if dry_run or not HAS_UNREAL:
-        sim_meshes = [f"{clean_dest_folder}/SKM_{os.path.splitext(os.path.basename(f))[0]}" for f in fbx_files]
-        sim_das = [f"{clean_dest_folder}/DA_{os.path.splitext(os.path.basename(f))[0]}" for f in fbx_files]
-        summary = f"[DryRun] Simulated ingestion of {len(fbx_files)} items to '{clean_dest_folder}'."
+        sim_meshes = [f"{clean_dest_folder}/SKM_{item.get('asset_name', 'Item')}" for item in manifest_items]
+        sim_das = [f"{clean_dest_folder}/DA_{item.get('asset_name', 'Item')}" for item in manifest_items]
+        summary = f"[DryRun] Simulated ingestion of {len(manifest_items)} items to '{clean_dest_folder}'."
         print(summary, flush=True)
         return {
             "status": "Success",
-            "items_count": len(fbx_files),
+            "items_count": len(manifest_items),
             "imported_meshes": sim_meshes,
             "created_data_assets": sim_das,
             "summary": summary
         }
 
-    # Unreal Engine Execution
-    unreal.EditorAssetLibrary.make_directory(clean_dest_folder)
-    fbx_map = {os.path.abspath(f): f for f in fbx_files}
-
-    # Pre-scan and register all dynamic Character/Item/Slot tags to DefaultGameplayTags.ini
-    tags_to_sync = []
+    # Register missing GameplayTags once
+    all_tags = []
     for item in manifest_items:
         props = item.get("properties", {})
         for tf in ["SlotTag", "ItemTag", "CharacterTag"]:
-            t_val = props.get(tf, "").strip()
-            if t_val and t_val not in tags_to_sync:
-                tags_to_sync.append(t_val)
-    if tags_to_sync:
-        sync_tags_to_ini(tags_to_sync)
+            val = props.get(tf, "").strip()
+            if val and val not in all_tags:
+                all_tags.append(val)
+    if all_tags:
+        ensure_gameplay_tags(all_tags)
+
+    contracts_materials = contracts.get("materials", {})
 
     imported_meshes = []
     created_data_assets = []
@@ -674,125 +625,82 @@ def main(
     for item in manifest_items:
         fbx_path = os.path.abspath(item.get("fbx_file", item.get("file_path", "")))
         if not fbx_path or not os.path.isfile(fbx_path):
-            # Match by filename if absolute path differs
-            cand_name = os.path.basename(fbx_path).lower()
-            matched = None
-            for p in fbx_map.keys():
-                if os.path.basename(p).lower() == cand_name:
-                    matched = p
-                    break
-            if matched:
-                fbx_path = matched
-            else:
-                print(f"[import_wardrobe] Warning: FBX file not found for item '{item.get('asset_name')}'. Skipping.", flush=True)
-                continue
+            print(f"[import_wardrobe] Warning: FBX file not found: '{fbx_path}'. Skipping.", flush=True)
+            continue
 
         asset_name = sanitize_asset_name(item.get("asset_name", os.path.splitext(os.path.basename(fbx_path))[0]))
         mesh_name = item.get("mesh_name", f"SKM_{asset_name}")
         da_name = item.get("data_asset_name", f"DA_{asset_name}")
-        item_dest_folder = _clean_ue_path(item.get("destination_folder") or clean_dest_folder)
-        root_dest_folder = item_dest_folder
-        materials_folder = f"{root_dest_folder}/Materials"
-        textures_folder = f"{root_dest_folder}/Textures"
 
-        unreal.EditorAssetLibrary.make_directory(root_dest_folder)
+        root_folder = _clean_ue_path(item.get("destination_folder") or clean_dest_folder)
+        materials_folder = f"{root_folder}/Materials"
+        textures_folder = f"{root_folder}/Textures"
+
+        unreal.EditorAssetLibrary.make_directory(root_folder)
         unreal.EditorAssetLibrary.make_directory(materials_folder)
         unreal.EditorAssetLibrary.make_directory(textures_folder)
 
-        print(f"\n[import_wardrobe] Processing item '{asset_name}' -> Root: {root_dest_folder} (Materials: {materials_folder}, Textures: {textures_folder})", flush=True)
+        print(f"\n[import_wardrobe] Processing '{asset_name}' -> '{root_folder}'", flush=True)
 
-        # Resolve target skeleton path
-        item_skeleton = item.get("skeleton_path") or skeleton_path
-        if not item_skeleton or not unreal.EditorAssetLibrary.does_asset_exist(item_skeleton):
-            candidates = [
-                "/Game/Characters/Genesis9/Base/Rig/G9_Skeleton",
-                "/Game/Characters/Genesis9/Base/Rig/G9_Skeleton.G9_Skeleton",
-                "/Game/Characters/Genesis9/Common/Skeleton/Genesis9_Skeleton",
-            ]
-            contracts_skeletons = manifest.get("contracts", {}).get("skeletons", {})
-            for sk_info in contracts_skeletons.values():
-                if isinstance(sk_info, dict) and sk_info.get("package_path"):
-                    candidates.insert(0, sk_info["package_path"])
-
-            for c in candidates:
-                if c and unreal.EditorAssetLibrary.does_asset_exist(c):
-                    item_skeleton = c
-                    print(f"   [FORGITY] Auto-resolved Skeleton for '{asset_name}': '{item_skeleton}'", flush=True)
-                    break
-
-        # 1. Import Mesh into Root
-        mesh_obj = import_fbx_mesh(fbx_path, root_dest_folder, mesh_name, item_skeleton, normal_import_method)
-        if mesh_obj:
-            imported_meshes.append(f"{root_dest_folder}/{mesh_name}")
-        else:
+        # 1. Import Skeletal Mesh with designated Skeleton
+        target_skeleton = item.get("skeleton_path") or skeleton_path
+        char_tag = item.get("properties", {}).get("CharacterTag", "")
+        skel_obj, skel_resolved_path = resolve_skeleton(target_skeleton, contracts, character_name=char_tag)
+        mesh_obj = import_fbx_mesh(fbx_path, root_folder, mesh_name, skel_obj, skel_resolved_path or target_skeleton, normal_import_method)
+        if not mesh_obj:
             print(f"[import_wardrobe] Error: Failed to import Skeletal Mesh '{mesh_name}'.", flush=True)
             continue
+        imported_meshes.append(f"{root_folder}/{mesh_name}")
 
-        # 2. Setup Material Instances in Materials/ and Textures in Textures/
+        # 2. Ingest Textures & Create Material Instances
         materials_dict = item.get("materials", {})
         if isinstance(materials_dict, list):
             materials_dict = {s.get("slot_name", f"slot_{i}"): s for i, s in enumerate(materials_dict)}
 
         created_mis = {}
-        contracts_data = manifest.get("contracts") or kwargs.get("contracts")
         for slot_key, slot_info in materials_dict.items():
             master_path = slot_info.get("master_material_path", "/Game/Characters/Materials/M_Cloth")
-            textures = slot_info.get("textures", {})
             mat_tag = slot_info.get("material_tag", "")
+            textures = slot_info.get("textures", {})
             mi_name = f"MI_{mesh_name}_{sanitize_asset_name(slot_key)}"
 
+            # Resolve contract texture slots
+            mat_contract = contracts_materials.get(mat_tag, {})
+            if not mat_contract:
+                clean_target = master_path.split(".")[0].lower()
+                for c_mat in contracts_materials.values():
+                    if c_mat.get("master_material_path", "").split(".")[0].lower() == clean_target:
+                        mat_contract = c_mat
+                        break
+
+            contract_slots = mat_contract.get("texture_slots", {}) if mat_contract else {}
             mi_obj = create_material_instance(
-                master_path, materials_folder, textures_folder, mi_name, textures,
-                contracts=contracts_data, material_tag=mat_tag
+                master_path, materials_folder, textures_folder, mi_name, textures, contract_slots
             )
             if mi_obj:
                 created_mis[slot_key] = mi_obj
-                if mat_tag:
-                    created_mis[mat_tag] = mi_obj
 
-        # 3. Bind Material Instances to Skeletal Mesh Slots (Direct Contract-driven 1-to-1)
-        if hasattr(mesh_obj, "materials") and mesh_obj.materials:
-            mesh_materials = list(mesh_obj.materials)
+        # 3. Bind Material Instances to Skeletal Mesh Slots
+        bind_materials_to_mesh(mesh_obj, created_mis)
 
-            for slot_idx, skeletal_mat in enumerate(mesh_materials):
-                slot_name = str(skeletal_mat.material_slot_name)
-                slot_clean = sanitize_asset_name(slot_name).lower()
-
-                assigned_mi = None
-                # Direct lookup by slot name or sanitized slot key
-                for k, mi in created_mis.items():
-                    if k.lower() == slot_name.lower() or sanitize_asset_name(k).lower() == slot_clean:
-                        assigned_mi = mi
-                        break
-
-                if assigned_mi:
-                    skeletal_mat.material_interface = assigned_mi
-                    print(f"   [FORGITY] Bound Slot {slot_idx} ('{slot_name}') -> '{assigned_mi.get_name()}'", flush=True)
-                else:
-                    print(f"   [FORGITY] Notice: Slot {slot_idx} ('{slot_name}') has no direct mapping in manifest.", flush=True)
-
-            # Persist updated materials to SkeletalMesh
-            mesh_obj.set_editor_property("materials", mesh_materials)
-            unreal.EditorAssetLibrary.save_loaded_asset(mesh_obj)
-
-        # 4. Ingest Thumbnail into Textures/ (Auto-scan neighbor files if not provided in manifest)
+        # 4. Ingest Thumbnail (if present)
         thumbnail_obj = None
-        thumb_path = item.get("thumbnail_file", "")
-        if not thumb_path or not os.path.isfile(thumb_path):
-            thumb_path = find_neighbor_thumbnail(fbx_path)
-
+        thumb_path = item.get("thumbnail_file") or find_neighbor_thumbnail(fbx_path)
         if thumb_path and os.path.isfile(thumb_path):
             thumb_name = f"T_{asset_name}"
-            print(f"   [FORGITY] Ingesting Thumbnail: '{thumb_path}' -> '{thumb_name}' into '{textures_folder}'", flush=True)
-            thumbnail_obj = import_texture_file(thumb_path, textures_folder, thumb_name, is_ui=True)
+            print(f"   [FORGITY] Ingesting Thumbnail: '{thumb_path}' -> '{thumb_name}'", flush=True)
+            thumbnail_obj = import_texture_file(
+                thumb_path, textures_folder, thumb_name,
+                compression="TC_EditorIcon", srgb=True, is_virtual=False
+            )
 
-        # 5. Create Data Asset (DA_*) in Root
+        # 5. Create Primary Data Asset (DA_*)
         target_schema = item.get("target_schema_path") or item.get("target_schema", "PDA_WardrobeItem")
         properties = item.get("properties", {})
-        da_obj = create_and_populate_data_asset(target_schema, root_dest_folder, da_name, mesh_obj, thumbnail_obj, properties)
+        da_obj = create_and_populate_data_asset(target_schema, root_folder, da_name, mesh_obj, thumbnail_obj, properties)
         if da_obj:
-            created_data_assets.append(f"{root_dest_folder}/{da_name}")
-            print(f"[import_wardrobe] Successfully created Data Asset '{root_dest_folder}/{da_name}' with Tags.", flush=True)
+            created_data_assets.append(f"{root_folder}/{da_name}")
+            print(f"[import_wardrobe] Successfully created Data Asset '{root_folder}/{da_name}'", flush=True)
 
     summary = (
         f"Completed Ingestion: {len(imported_meshes)} Skeletal Meshes (SKM_*), "
@@ -810,26 +718,29 @@ def main(
 
 
 if __name__ == "__main__":
-    # Smoke test on host without unreal
     print("Testing import_character_wardrobe main() in Dry-Run mode...")
     test_manifest = {
-        "destination_folder": "/Game/Characters/Genesis9/Eva/Outfits",
+        "destination_folder": "/Game/Characters/Genesis9/Laura/Outfits",
         "items": [
             {
-                "asset_name": "Eva_Outfit1_BRZ_US_Bra",
-                "mesh_name": "SKM_Eva_Outfit1_BRZ_US_Bra",
-                "data_asset_name": "DA_Eva_Outfit1_BRZ_US_Bra",
-                "fbx_file": "D:/test/Eva_Outfit1_BRZ_US_Bra.fbx",
+                "asset_name": "Laura_Outfit1_Dress",
+                "mesh_name": "SKM_Laura_Outfit1_Dress",
+                "data_asset_name": "DA_Laura_Outfit1_Dress",
+                "fbx_file": "D:/test/Laura_Outfit1_Dress.fbx",
                 "target_schema": "PDA_WardrobeItem",
                 "properties": {
-                    "DisplayName": "BRZ US Bra",
-                    "SlotTag": "System.Wardrobe.Slots.Inner_Top",
-                    "ItemTag": "Character.Eva.Outfits.Eva_Outfit1_BRZ_US_Bra",
-                    "CharacterTag": "Character.Eva"
+                    "DisplayName": "Laura Dress",
+                    "SlotTag": "System.Wardrobe.Slots.Torso",
+                    "ItemTag": "Character.Laura.Outfits.Dress",
+                    "CharacterTag": "Character.Laura"
                 }
             }
         ]
     }
-    res = main(fbx_files=["D:/test/Eva_Outfit1_BRZ_US_Bra.fbx"], manifest=test_manifest, dry_run=True)
+    test_contracts = {
+        "materials": {},
+        "schemas": {},
+        "skeletons": {}
+    }
+    res = main(manifest=test_manifest, contracts=test_contracts, dry_run=True)
     print("Result:", res)
-

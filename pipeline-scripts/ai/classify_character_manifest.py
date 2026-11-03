@@ -4,23 +4,16 @@ AI Character & Wardrobe Manifest Classifier (Unified Semantic Orchestrator)
 Runs on Generic Python Executor or Local Host.
 
 Consumes:
-  1. fbx_files: List of FBX asset file paths exported from Blender/DAZ.
-  2. contracts: Game Contracts dictionary (output of inspect_game_contracts.py) containing:
-      - "materials": Master Material parameters and sampler presets.
-      - "schemas": Blueprint PrimaryDataAsset schemas (e.g. PDA_WardrobeItem).
-      - "gameplay_tags": Valid registered gameplay tags from DefaultGameplayTags.ini.
-  3. texture_files (optional): List of texture paths. If omitted, scanned automatically from FBX folder.
-  4. thumbnail_files (optional): List of PNG thumbnail paths. If omitted, scanned automatically from FBX folder.
-  5. character_name (optional): e.g. "Eva" or "Laura". Auto-inferred if omitted.
-  6. character_tag (optional): e.g. "Character.Eva". Auto-inferred if omitted.
-  7. destination_folder (optional): Target Unreal package path (default "/Game/Characters/Genesis9/{character}/Outfits").
-  8. endpoint (optional): AI API endpoint or provider alias ('groq', 'gemini', 'ollama', 'openai', etc.).
-  9. model (optional): AI Model identifier.
+  1. fbx_files: List of FBX asset file paths exported from Blender/DAZ. (Required)
+  2. contracts: Game Contracts dictionary (output of inspect_game_contracts.py). (Required)
+  3. raw_manifest (optional): Pre-existing DAM inspection metadata containing slots/bindings.
+  4. destination_folder (optional): Target Unreal package path override.
+  5. endpoint (optional): AI API endpoint provider ('groq' or 'openai').
+  6. model (optional): AI Model identifier.
 
 Produces:
-  Unified Manifest ready for All-In-One Unreal Character Ingestion:
-  - manifest: Complete dictionary with characters, items, mesh naming (SKM_*),
-    DataAsset naming (DA_*), GameplayTags, Thumbnails, and Material bindings.
+  - manifest: Semantic classification manifest mapping items to contracts.
+  - items_count: Total classified items count.
   - summary: Execution summary.
 """
 
@@ -124,48 +117,75 @@ def resolve_endpoint(endpoint_or_provider: str, model_candidate: str = "") -> Tu
     return target_endpoint, provider_key, target_model, (provider_key == "ollama")
 
 
+def is_valid_key(val: str) -> bool:
+    if not val:
+        return False
+    v = val.strip().lower()
+    if len(v) < 15:
+        return False
+    if v in {"123456", "12345678", "none", "null", "gemini", "openai"}:
+        return False
+    return True
+
+
 def resolve_api_key(provider_key: str, is_local: bool) -> str:
     if is_local:
         return "ollama"
 
-    env_map = {
-        "groq": ["GROQ_API_KEY", "AI_API_KEY"],
-        "gemini": ["GEMINI_API_KEY", "GOOGLE_API_KEY", "AI_API_KEY"],
-        "openai": ["OPENAI_API_KEY", "AI_API_KEY"],
-        "deepseek": ["DEEPSEEK_API_KEY", "AI_API_KEY"],
-        "openrouter": ["OPENROUTER_API_KEY", "AI_API_KEY"],
-    }
-    keys_to_check = env_map.get(provider_key, ["AI_API_KEY"])
-    for k in keys_to_check:
-        val = os.getenv(k, "").strip()
-        if val:
-            return val
+    provider_clean = (provider_key or "groq").strip().upper()
+    target_env_var = f"{provider_clean}_API_KEY"
 
-    # Try reading from runner.toml in parent folders
+    # 1. Read runner.toml directly from disk
+    config_paths = [
+        r"D:\FullStack\Automation\runner\runner.toml",
+        os.path.expandvars(r"%LOCALAPPDATA%\Forgity\runner.toml"),
+        os.path.abspath("runner.toml"),
+        os.path.join(os.getcwd(), "runner.toml"),
+        os.path.join(os.getcwd(), "runner", "runner.toml"),
+    ]
+    # Check parent dirs
     curr = os.getcwd()
     for _ in range(4):
-        toml_path = os.path.join(curr, "runner.toml")
-        if os.path.isfile(toml_path):
-            try:
-                with open(toml_path, "r", encoding="utf-8", errors="ignore") as f:
-                    for line in f:
-                        line = line.strip()
-                        for k in keys_to_check:
-                            if line.startswith(f"{k} =") or line.startswith(f'{k}='):
-                                parts = line.split("=", 1)
-                                if len(parts) == 2:
-                                    clean = parts[1].strip().strip('"').strip("'")
-                                    if clean:
-                                        return clean
-            except Exception:
-                pass
+        cand = os.path.join(curr, "runner.toml")
+        if cand not in config_paths:
+            config_paths.append(cand)
+        cand_sub = os.path.join(curr, "runner", "runner.toml")
+        if cand_sub not in config_paths:
+            config_paths.append(cand_sub)
         parent = os.path.dirname(curr)
         if parent == curr:
             break
         curr = parent
 
+    for p in config_paths:
+        if os.path.isfile(p):
+            try:
+                import tomllib
+                with open(p, "rb") as f:
+                    cfg = tomllib.load(f)
+                    env_table = cfg.get("env", {})
+                    for candidate in [
+                        env_table.get("AI_API_KEY"),
+                        env_table.get(target_env_var),
+                        env_table.get("GROQ_API_KEY"),
+                        env_table.get("GEMINI_API_KEY"),
+                        env_table.get("LLM_API_KEY"),
+                        env_table.get("OPENAI_API_KEY"),
+                    ]:
+                        if candidate and is_valid_key(str(candidate)):
+                            return str(candidate).strip()
+            except Exception:
+                pass
+
+    # 2. Check OS Environment variable
+    env_vars = ["AI_API_KEY", target_env_var, "GROQ_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY", "OPENROUTER_API_KEY"]
+    for env_var in env_vars:
+        env_val = os.environ.get(env_var, "").strip()
+        if is_valid_key(env_val):
+            return env_val
+
     raise RuntimeError(
-        f"API Key for '{provider_key}' not found. Please set {keys_to_check[0]} in environment or runner.toml."
+        f"API Key for '{provider_key}' not found. Please set AI_API_KEY or {target_env_var} in environment or runner.toml."
     )
 
 
@@ -235,18 +255,71 @@ def extract_fbx_material_slots(fbx_path: str) -> List[str]:
         return []
 
 
-def discover_textures_in_folder(fbx_files: List[str]) -> List[str]:
-    """Scans folders containing FBX files for texture files."""
-    tex_exts = {".png", ".jpg", ".jpeg", ".tga", ".exr", ".hdr"}
-    discovered = []
-    folders = {os.path.dirname(f) for f in fbx_files if f and os.path.isfile(f)}
-    for folder in folders:
-        for root, _, files in os.walk(folder):
-            for file in files:
-                ext = os.path.splitext(file)[1].lower()
-                if ext in tex_exts and not file.endswith("_thumb.png"):
-                    discovered.append(os.path.join(root, file))
-    return discovered
+def extract_metadata_for_fbx(fbx_path: str, parsed_raw_manifest: Any) -> Dict[str, Any]:
+    """
+    Extracts inspection metadata (slots, texture_bindings) for a specific FBX from raw_manifest.
+    Supports all known monorepo formats:
+    - Single asset inspection JSON with root 'slots'
+    - Multi-asset dictionary keyed by asset name, filename, or relative path
+    - List of asset objects or DAM records
+    - Nested 'objects', 'items', or 'Inspection' structures
+    """
+    if not parsed_raw_manifest or not fbx_path:
+        return {}
+
+    fbx_file_name = os.path.basename(fbx_path)
+    fbx_base = os.path.splitext(fbx_file_name)[0]
+    fbx_norm = os.path.normpath(fbx_path).replace("\\", "/").lower()
+
+    # 1. If parsed_raw_manifest is a dict
+    if isinstance(parsed_raw_manifest, dict):
+        # Case A: Top-level match by exact base name or filename
+        for k, v in parsed_raw_manifest.items():
+            if not isinstance(v, dict):
+                continue
+            k_clean = os.path.splitext(os.path.basename(str(k)))[0].lower()
+            if k_clean == fbx_base.lower() or str(k).lower() in fbx_norm or fbx_norm.endswith(str(k).lower()):
+                return v
+
+        # Case B: Nested in 'objects' or 'items'
+        for container_key in ["objects", "items"]:
+            container = parsed_raw_manifest.get(container_key)
+            if isinstance(container, dict):
+                for k, v in container.items():
+                    if not isinstance(v, dict):
+                        continue
+                    k_clean = os.path.splitext(os.path.basename(str(k)))[0].lower()
+                    if k_clean == fbx_base.lower() or str(k).lower() in fbx_norm or fbx_norm.endswith(str(k).lower()):
+                        return v
+            elif isinstance(container, list):
+                for el in container:
+                    if isinstance(el, dict):
+                        name = el.get("asset_name") or el.get("name") or el.get("file_path") or ""
+                        name_clean = os.path.splitext(os.path.basename(str(name)))[0].lower()
+                        if name_clean == fbx_base.lower() or str(name).lower() in fbx_norm or fbx_norm.endswith(str(name).lower()):
+                            return el
+
+        # Case C: Single asset inspection root with 'slots' or 'Inspection'
+        if "slots" in parsed_raw_manifest or "Inspection" in parsed_raw_manifest:
+            return parsed_raw_manifest
+
+    # 2. If parsed_raw_manifest is a list
+    elif isinstance(parsed_raw_manifest, list):
+        for el in parsed_raw_manifest:
+            if isinstance(el, dict):
+                name = (
+                    el.get("asset_name")
+                    or el.get("name")
+                    or el.get("resourceFile")
+                    or el.get("relative_path")
+                    or el.get("file_path")
+                    or ""
+                )
+                name_clean = os.path.splitext(os.path.basename(str(name)))[0].lower()
+                if name_clean == fbx_base.lower() or str(name).lower() in fbx_norm or fbx_norm.endswith(str(name).lower()):
+                    return el.get("metadata") or el.get("Metadata") or el
+
+    return {}
 
 
 # ==============================================================================
@@ -255,12 +328,8 @@ def discover_textures_in_folder(fbx_files: List[str]) -> List[str]:
 
 def main(
     fbx_files: List[str],
-    contracts: Optional[Dict[str, Any]] = None,
+    contracts: Dict[str, Any],
     raw_manifest: Optional[Union[Dict[str, Any], str]] = None,
-    texture_files: Optional[List[str]] = None,
-    thumbnail_files: Optional[List[str]] = None,
-    character_name: str = "",
-    character_tag: str = "",
     destination_folder: str = "",
     endpoint: str = "groq",
     model: str = "",
@@ -268,11 +337,25 @@ def main(
 ) -> Dict[str, Any]:
     """
     Main orchestration entry point.
+
+    Inputs:
+      - fbx_files: List of FBX asset file paths exported from Blender/DAZ. (Required)
+      - contracts: Game Contracts dictionary from inspect_game_contracts.py. (Required)
+      - raw_manifest: Optional DAM inspection metadata containing slots/bindings.
+      - destination_folder: Optional Unreal package path override.
+      - endpoint: AI provider endpoint ('groq' or 'openai').
+      - model: AI model identifier.
+
+    Outputs:
+      - manifest: Semantic classification manifest mapping items to contracts.
+      - items_count: Total classified items count.
+      - summary: Human-readable execution summary.
     """
     if not fbx_files:
         raise ValueError("No FBX files provided to classify_character_manifest.")
 
     valid_fbx = [os.path.abspath(f) for f in fbx_files if f and os.path.isfile(f)]
+    valid_fbx = list(dict.fromkeys(valid_fbx))
     if not valid_fbx:
         raise FileNotFoundError(f"None of the provided FBX files exist on disk: {fbx_files}")
 
@@ -287,15 +370,11 @@ def main(
         elif isinstance(raw_manifest, dict):
             parsed_raw_manifest = raw_manifest
 
-    # Auto-infer character name from first FBX if omitted
-    if not character_name:
-        first_base = os.path.splitext(os.path.basename(valid_fbx[0]))[0]
-        # Example: Eva_Outfit1_BrzUsBra.fbx -> "Eva"
-        parts = first_base.split("_")
-        character_name = parts[0] if parts else "Genesis9"
-
-    if not character_tag:
-        character_tag = f"Character.{character_name}"
+    # Auto-infer character name from first FBX
+    first_base = os.path.splitext(os.path.basename(valid_fbx[0]))[0]
+    parts = first_base.split("_")
+    character_name = parts[0] if parts else "Genesis9"
+    character_tag = f"Character.{character_name}"
 
     base_character_folder = f"/Game/Characters/Genesis9/{character_name}"
     outfits_folder = f"{base_character_folder}/Outfits"
@@ -303,33 +382,65 @@ def main(
     if not destination_folder:
         destination_folder = base_character_folder
 
-    # Discover textures & thumbnails
-    textures = list(texture_files or [])
-    if not textures:
-        textures = discover_textures_in_folder(valid_fbx)
-
-    thumbnails = list(thumbnail_files or [])
+    # Textures & thumbnails: auto-discovered from FBX inspection metadata or disk
+    textures: List[str] = []
+    thumbnails: List[str] = []
 
     # Pre-associate thumbnails & extract exact material slots from FBX / raw_manifest
     fbx_with_meta = []
+    fbx_slots_detailed_map = {}
     for fbx in valid_fbx:
         thumb = find_associated_thumbnail(fbx, thumbnails)
         real_slots = extract_fbx_material_slots(fbx)
 
-        # If raw_manifest has slots metadata for this object, merge them
-        if parsed_raw_manifest:
-            obj_name = os.path.splitext(os.path.basename(fbx))[0]
-            objects_dict = parsed_raw_manifest.get("objects", {})
-            if obj_name in objects_dict:
-                for s in objects_dict[obj_name].get("slots", []):
-                    s_name = s.get("name") or s.get("slot_name")
-                    if s_name and s_name not in real_slots:
-                        real_slots.append(s_name)
+        # Extract inspection metadata (slots, texture_bindings) from raw_manifest
+        meta_data = extract_metadata_for_fbx(fbx, parsed_raw_manifest)
+        raw_slots = meta_data.get("slots", []) or meta_data.get("Inspection", {}).get("slots", [])
+
+        detailed_slots = []
+        fbx_dir = os.path.dirname(os.path.abspath(fbx))
+
+        for s in raw_slots:
+            s_name = s.get("name") or s.get("slot_name")
+            if not s_name:
+                continue
+            if s_name not in real_slots:
+                real_slots.append(s_name)
+
+            clean_bindings = []
+            for b in s.get("texture_bindings", []):
+                raw_p = b.get("path", "")
+                if not raw_p:
+                    continue
+                norm_p = os.path.normpath(raw_p).replace("\\", "/")
+                joined_p = os.path.normpath(os.path.join(fbx_dir, raw_p)).replace("\\", "/")
+                resolved_p = norm_p if os.path.isfile(norm_p) else (joined_p if os.path.isfile(joined_p) else norm_p)
+
+                clean_bindings.append({
+                    "path": resolved_p,
+                    "filename": os.path.basename(resolved_p),
+                    "target_socket": b.get("target_socket", ""),
+                    "via_node": b.get("via_node", ""),
+                    "colorspace": b.get("colorspace", "")
+                })
+                if resolved_p not in textures and os.path.isfile(resolved_p):
+                    textures.append(resolved_p)
+
+            detailed_slots.append({
+                "slot_name": s_name,
+                "material_name": s.get("material_name", s_name),
+                "source_object": s.get("source_object", ""),
+                "texture_bindings": clean_bindings
+            })
+
+        fbx_norm_key = os.path.normpath(fbx).replace("\\", "/").lower()
+        fbx_slots_detailed_map[fbx_norm_key] = detailed_slots
 
         fbx_with_meta.append({
             "fbx_file": fbx,
             "filename": os.path.basename(fbx),
             "material_slots": real_slots,
+            "slots_detailed": detailed_slots,
             "thumbnail_file": thumb,
             "has_thumbnail": bool(thumb)
         })
@@ -345,6 +456,22 @@ def main(
     pda_schemas = contracts_payload.get("schemas", {})
     valid_tags = contracts_payload.get("gameplay_tags", [])
     valid_slots = contracts_payload.get("wardrobe_slots", [])
+    if not valid_slots:
+        valid_slots = [
+            "System.Wardrobe.Slots.Top",
+            "System.Wardrobe.Slots.Bottom",
+            "System.Wardrobe.Slots.Dress",
+            "System.Wardrobe.Slots.OnePiece",
+            "System.Wardrobe.Slots.Inner_Top",
+            "System.Wardrobe.Slots.Inner_Bottom",
+            "System.Wardrobe.Slots.Hair",
+            "System.Wardrobe.Slots.Shoes",
+            "System.Wardrobe.Slots.Socks",
+            "System.Wardrobe.Slots.Gloves",
+            "System.Wardrobe.Slots.Hat",
+            "System.Wardrobe.Slots.Eyebrows",
+            "System.Wardrobe.Slots.Body"
+        ]
 
     # Setup OpenAI Client
     target_endpoint, provider_key, target_model, is_local = resolve_endpoint(endpoint, model)
@@ -390,31 +517,51 @@ def main(
         "     * For 'PDA_CharacterProfile': populate ONLY 'CharacterTag' and 'DisplayName'. NEVER generate 'SlotTag' or 'ItemTag'!\n"
         "     * For 'PDA_WardrobeItem': populate 'SlotTag', 'ItemTag', 'CharacterTag', and 'DisplayName'.\n"
         "   - DO NOT generate or worry about 'system_bound_fields' (e.g. BodyMesh, ItemMesh, ItemThumbnail) - "
-        "the ingestion engine automatically binds them.\n"
+        "the ingestion engine automatically binds them.\n\n"
+        "5. DETERMINISTIC TEXTURE BINDING RULE (SEMANTIC BRIDGE):\n"
+        "   - In 'fbx_assets', each asset provides 'slots_detailed' containing raw material slots and their 'texture_bindings'.\n"
+        "   - For each slot, examine 'texture_bindings' and map to the shader parameters defined in 'master_materials':\n"
+        "     * 'target_socket' containing 'Base Color' or 'Color' or 'Albedo' -> BaseColorMap (or contract Base Color param)\n"
+        "     * 'target_socket' containing 'Normal' or via_node 'Normal Map' -> NormalMap (or contract Normal param)\n"
+        "     * 'target_socket' containing 'Alpha' or 'Opacity' -> OpacityMap (or contract Opacity param)\n"
+        "     * 'target_socket' containing 'Metallic', 'Roughness', 'ORM', or 'AO' -> ORMMap (or contract ORM param)\n"
+        "     * 'target_socket' containing 'Emission' -> EmissiveMap\n"
+        "   - ALWAYS PRESERVE THE EXACT FULL FILE PATH from 'texture_bindings' or 'available_textures'!\n"
+        "   - If 'texture_bindings' is empty for a slot, inspect 'available_textures' to match textures by asset/slot name or semantic suffixes (_diff, _norm, _orm, _mask).\n"
     )
+
+    # Compact contracts representation to minimize tokens
+    compact_master_materials = {}
+    for k, v in materials_contracts.items():
+        if isinstance(v, dict):
+            t_slots = v.get("texture_slots", {})
+            compact_master_materials[k] = {
+                "master_material_path": v.get("master_material_path", ""),
+                "required_parameters": {
+                    p_name: (p_info.get("semantic", "TEXTURE") if isinstance(p_info, dict) else str(p_info))
+                    for p_name, p_info in t_slots.items()
+                }
+            }
+
+    compact_skeletons = {}
+    raw_skeletons = contracts_payload.get("skeletons", {})
+    if isinstance(raw_skeletons, dict):
+        for sk_name, sk_data in raw_skeletons.items():
+            if isinstance(sk_data, dict):
+                compact_skeletons[sk_name] = sk_data.get("package_path", "")
+            else:
+                compact_skeletons[sk_name] = str(sk_data)
 
     user_payload = {
         "character_name": character_name,
         "character_tag": character_tag,
         "destination_folder": destination_folder,
         "fbx_assets": fbx_with_meta,
-        "available_textures": textures[:150],  # Bound to avoid token explosion
-        "valid_gameplay_tags": valid_tags,
+        "available_textures": textures,  # Purely from FBX metadata bindings
+        "valid_gameplay_tags": valid_tags[:50],  # Bound tags
         "allowed_wardrobe_slots": valid_slots,
-        "master_materials": {
-            k: {
-                "master_material_path": v.get("master_material_path", ""),
-                "required_parameters": {
-                    param_name: {
-                        "semantic": p_info.get("semantic", "BASE_COLOR"),
-                        "vt": p_info.get("vt", False)
-                    }
-                    for param_name, p_info in v.get("texture_slots", {}).items()
-                }
-            }
-            for k, v in materials_contracts.items()
-        },
-        "available_skeletons": contracts_payload.get("skeletons", {}),
+        "master_materials": compact_master_materials,
+        "available_skeletons": compact_skeletons,
         "target_schemas": {
             k: {
                 "package_path": v.get("package_path", ""),
@@ -438,17 +585,81 @@ def main(
 
     print(f"[classify_character_manifest] Requesting AI classification ({target_model} via {provider_key})...", flush=True)
 
-    completion = client.beta.chat.completions.parse(
-        model=target_model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": json.dumps(user_payload, indent=2, ensure_ascii=False)},
-        ],
-        response_format=ManifestClassificationResult,
-    )
+    # For OpenAI, beta parse works nicely. For Groq/Ollama/OpenRouter, use direct json_object to avoid grammar engine loops.
+    use_beta_parse = provider_key in ["openai"]
+    manifest_dict = {}
 
-    result_model: ManifestClassificationResult = completion.choices[0].message.parsed
-    manifest_dict: Dict[str, Any] = result_model.model_dump()
+    if use_beta_parse:
+        try:
+            completion = client.beta.chat.completions.parse(
+                model=target_model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": json.dumps(user_payload, indent=2, ensure_ascii=False)},
+                ],
+                response_format=ManifestClassificationResult,
+            )
+            result_model: ManifestClassificationResult = completion.choices[0].message.parsed
+            manifest_dict = result_model.model_dump()
+        except Exception as parse_err:
+            use_beta_parse = False
+
+    if not manifest_dict:
+        schema_instruction = (
+            "\n\nCRITICAL JSON SCHEMA REQUIREMENT:\n"
+            "Respond ONLY with a JSON object matching this exact structure:\n"
+            "{\n"
+            '  "character_name": "<name>",\n'
+            '  "character_tag": "Character.<name>",\n'
+            '  "destination_folder": "<unreal_path>",\n'
+            '  "items": [\n'
+            "    {\n"
+            '      "asset_name": "<clean_name>",\n'
+            '      "mesh_name": "SKM_<clean_name>",\n'
+            '      "data_asset_name": "DA_<clean_name>",\n'
+            '      "asset_kind": "Body" or "Wardrobe",\n'
+            '      "destination_folder": "<folder>",\n'
+            '      "skeleton_path": "<target_skeleton_package_path>",\n'
+            '      "target_schema_path": "<schema_pkg_path>",\n'
+            '      "target_schema": "PDA_WardrobeItem",\n'
+            '      "fbx_file": "<exact_fbx_file_path>",\n'
+            '      "thumbnail_file": "<thumbnail_path_or_empty>",\n'
+            '      "properties": [\n'
+            '        {"name": "SlotTag", "value": "..."},\n'
+            '        {"name": "ItemTag", "value": "..."},\n'
+            '        {"name": "CharacterTag", "value": "..."},\n'
+            '        {"name": "DisplayName", "value": "..."}\n'
+            "      ],\n"
+            '      "materials": [\n'
+            "        {\n"
+            '          "slot_name": "<exact_slot_name>",\n'
+            '          "material_tag": "<Cloth/Hair/Skin/Eye/etc>",\n'
+            '          "master_material_path": "<master_material_path>",\n'
+            '          "textures": [\n'
+            '            {"param_name": "BaseColorMap", "texture_path": "<norm_path>"},\n'
+            '            {"param_name": "NormalMap", "texture_path": "<norm_path>"}\n'
+            "          ]\n"
+            "        }\n"
+            "      ]\n"
+            "    }\n"
+            "  ]\n"
+            "}"
+        )
+        completion = client.chat.completions.create(
+            model=target_model,
+            messages=[
+                {"role": "system", "content": system_prompt + schema_instruction},
+                {"role": "user", "content": json.dumps(user_payload, indent=2, ensure_ascii=False)},
+            ],
+            response_format={"type": "json_object"}
+        )
+        content_str = completion.choices[0].message.content or "{}"
+        parsed_json = json.loads(content_str)
+        try:
+            result_model = ManifestClassificationResult.model_validate(parsed_json)
+            manifest_dict = result_model.model_dump()
+        except Exception as val_err:
+            manifest_dict = parsed_json
 
     # Reconstruct dictionary maps for downstream compatibility
     for item in manifest_dict.get("items", []):
@@ -475,6 +686,74 @@ def main(
                 m["textures"] = tex_dict
                 mat_dict[m.get("slot_name", "")] = m
         item["materials"] = mat_dict
+
+    # Deterministic Reconciliation: Guarantee 100% texture binding coverage
+    for item in manifest_dict.get("items", []):
+        item_fbx_norm = os.path.normpath(item.get("fbx_file", "")).replace("\\", "/").lower()
+        item_detailed_slots = fbx_slots_detailed_map.get(item_fbx_norm, [])
+        detailed_by_slot = {s["slot_name"].lower(): s for s in item_detailed_slots}
+
+        materials_dict = item.get("materials", {})
+        for slot_name, slot_data in materials_dict.items():
+            s_det = detailed_by_slot.get(slot_name.lower())
+            if not s_det:
+                for k, v in detailed_by_slot.items():
+                    if k in slot_name.lower() or slot_name.lower() in k:
+                        s_det = v
+                        break
+
+            if s_det and s_det.get("texture_bindings"):
+                slot_texs = slot_data.setdefault("textures", {})
+                for b in s_det["texture_bindings"]:
+                    sock = b.get("target_socket", "").lower()
+                    via = b.get("via_node", "").lower()
+                    tex_p = b.get("path", "")
+                    if not tex_p:
+                        continue
+
+                    cand_param = ""
+                    if "base color" in sock or "color" in sock or "albedo" in sock:
+                        cand_param = "BaseColorMap"
+                    elif "normal" in sock or "normal" in via:
+                        cand_param = "NormalMap"
+                    elif "alpha" in sock or "opacity" in sock:
+                        cand_param = "OpacityMap"
+                    elif any(w in sock for w in ["metallic", "roughness", "orm", "ao"]):
+                        cand_param = "ORMMap"
+                    elif "emission" in sock:
+                        cand_param = "EmissiveMap"
+
+                    if cand_param:
+                        mat_tag = slot_data.get("material_tag", "")
+                        mat_contract = materials_contracts.get(mat_tag, {})
+                        contract_slots = mat_contract.get("texture_slots", {}) if isinstance(mat_contract, dict) else {}
+
+                        target_param = cand_param
+                        for cp_name, cp_info in contract_slots.items():
+                            cp_sem = (cp_info.get("semantic", "") if isinstance(cp_info, dict) else str(cp_info)).upper()
+                            if cand_param == "BaseColorMap" and any(x in cp_sem for x in ["BASE_COLOR", "DIFFUSE", "COLOR"]):
+                                target_param = cp_name
+                                break
+                            elif cand_param == "NormalMap" and "NORMAL" in cp_sem:
+                                target_param = cp_name
+                                break
+                            elif cand_param == "OpacityMap" and any(x in cp_sem for x in ["OPACITY", "ALPHA", "GRAYSCALE"]):
+                                target_param = cp_name
+                                break
+                            elif cand_param == "ORMMap" and any(x in cp_sem for x in ["MASKS", "ORM", "ROUGHNESS"]):
+                                target_param = cp_name
+                                break
+
+                        if target_param not in slot_texs or not slot_texs[target_param]:
+                            slot_texs[target_param] = tex_p
+                            print(f"[classify_character_manifest] [Deterministic Bind] Item '{item.get('asset_name')}', Slot '{slot_name}' -> '{target_param}': '{tex_p}'", flush=True)
+
+        # Canonicalize all texture paths
+        for slot_name, slot_data in materials_dict.items():
+            texs = slot_data.get("textures", {})
+            for pk, pv in list(texs.items()):
+                if pv:
+                    texs[pk] = os.path.normpath(pv).replace("\\", "/")
 
     # Guard: If only 1 monolithic FBX was provided, guarantee 1 item output
     if len(valid_fbx) == 1 and len(manifest_dict.get("items", [])) > 1:
@@ -536,31 +815,6 @@ def main(
         destination_folder = base_character_folder
     manifest_dict["destination_folder"] = destination_folder
 
-    # Convert to objects_map for backward compatibility
-    objects_map = {}
-    for item in manifest_dict.get("items", []):
-        objects_map[item["asset_name"]] = {
-            "asset_name": item["asset_name"],
-            "mesh_name": item["mesh_name"],
-            "data_asset_name": item["data_asset_name"],
-            "file_path": item["fbx_file"],
-            "destination_folder": item.get("destination_folder", destination_folder),
-            "slots": [
-                {
-                    "slot_name": slot_key,
-                    "material_tag": slot_data["material_tag"],
-                    "master_material_path": slot_data.get("master_material_path", ""),
-                    "textures": slot_data.get("textures", {})
-                }
-                for slot_key, slot_data in item.get("materials", {}).items()
-            ],
-            "properties": item.get("properties", {}),
-            "thumbnail_file": item.get("thumbnail_file", "")
-        }
-
-    if contracts:
-        manifest_dict["contracts"] = contracts
-
     summary = (
         f"Classified {len(manifest_dict.get('items', []))} items for Character '{character_name}'. "
         f"Prefixes unified (SKM_* for meshes, DA_* for data assets). "
@@ -571,12 +825,7 @@ def main(
 
     return {
         "manifest": manifest_dict,
-        "objects_map": objects_map,
         "items_count": len(manifest_dict.get("items", [])),
-        "character_name": character_name,
-        "character_tag": character_tag,
-        "destination_folder": destination_folder,
-        "contracts": contracts,
         "summary": summary
     }
 
