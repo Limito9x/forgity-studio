@@ -23,6 +23,6 @@ export interface CreateRepositoryCommand {
   /** @nullable */
   supportedExtensions?: unknown[] | null;
   /** @nullable */
-  includedSubPaths?: string[] | null;
+  includedSubPaths?: unknown[] | null;
   maxScanFiles?: number;
 }

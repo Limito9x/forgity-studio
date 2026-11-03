@@ -108,7 +108,26 @@ Khi thực hiện tác vụ, hãy xác định khu vực mã nguồn đang thao 
 
 ---
 
-## 9. Quy Chuẩn Vòng Đời Kế Hoạch & Lưu Trữ Theo Tháng (Plan Lifecycle & Monthly Archiving)
+## 9. Triết Lý Dumb Executor & Chống Chữa Cháy Chắp Vá (Anti-Heuristic Compounding)
+
+> **BÀI HỌC CỐT TỬ TỪ THỰC TẾ:** Mọi sự suy đoán (heuristics) và các giải pháp chắp vá (band-aid fixes) sinh ra bên trong các hàm thực thi hạ nguồn (downstream executors) là **mầm mống phá hoại kiến trúc**, biến các hàm đơn giản 200 dòng thành "quái vật" 1000 dòng không thể bảo trì.
+
+### 1. Nguyên Tắc Palette vs Dumb Executor (The Palette Mental Model):
+- **Tương tự Canvas Pipeline:** Mỗi Node trên canvas không cần tự nắm giữ quy luật hay tự quyết định cách hiển thị. Người quản lý và ra luật là **Palette (Single Source of Truth / Contract)**.
+- **Node chỉ là Thợ Cơ Học (Dumb Executor):** Nhiệm vụ của Node là nhận dữ liệu đã được phân giải chuẩn mực từ Upstream (Contract/Manifest/DTO) và thực thi máy móc đúng các bước theo quy chuẩn (Convention).
+- **Tuyệt đối CẤM suy đoán (Zero Heuristics Policy):**
+  - CẤM viết regex đoán tên thuộc tính (như chuyển `camelCase` sang `snake_case`, đoán `SlotTag` hay `Slot_Tag`).
+  - CẤM tạo các vòng lặp fallback mò mẫm đường dẫn thư mục (ví dụ duyệt ngược cây thư mục để tìm file config, tự bịa danh sách folder candidate để dò UClass).
+  - CẤM viết các chuỗi `try-catch` lồng nhau để "thử vận may" gán kiểu dữ liệu.
+
+### 2. Tư Duy Xử Lý Đứt Gãy (Fail-Fast & Fix Upstream):
+- Khi một hàm hạ nguồn thiếu thông tin (ví dụ không biết `skeleton_path`, không biết `target_schema_path`, không biết texture slot là `TC_Normalmap` hay `TC_Grayscale`):
+  - **HÀNH ĐỘNG SAI (Anti-Pattern):** Tự viết thêm 50-100 dòng code fallback, regex, duyệt folder mò mẫm để "chữa cháy tạm bợ" cho chạy được.
+  - **HÀNH ĐỘNG ĐÚNG (Architectural Fix):** Dừng lại ngay lập tức (Fail-Fast). Đẩy trách nhiệm về khâu **Upstream Resolver / Contract Inspector**. Nếu Contract thiếu ➔ Bổ sung vào Contract. Nếu AI Manifest bind thiếu ➔ Sửa prompt / logic phân loại của AI. Executor hạ nguồn PHẢI giữ sạch sẽ, tối giản và thuần túy cơ học.
+
+---
+
+## 10. Quy Chuẩn Vòng Đời Kế Hoạch & Lưu Trữ Theo Tháng (Plan Lifecycle & Monthly Archiving)
 
 - **Thư Mục Gốc `.agents/plans/` Tinh Gọn:** Chỉ lưu giữ duy nhất `BACKLOG.md`, `README.md` và các Active Plans đang triển khai (tối đa 1–3 file).
 - **Lưu Trữ (Archive) Định Kỳ Theo Tháng:** Toàn bộ kế hoạch kỹ thuật sau khi đã nghiệm thu và hoàn thành BẮT BUỘC phải di chuyển vào kho lưu trữ theo tháng: `.agents/plans/archive/YYYY-MM/` và cập nhật chỉ mục tương ứng tại `README.md`.

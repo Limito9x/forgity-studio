@@ -4,6 +4,7 @@ import { useRepositories } from "@/features/repositories/hooks/useRepositories";
 import { useGetRepositoryResources } from "@/gen/endpoints/repositories/repositories";
 import { useAssignResourcesContent } from "@/gen/endpoints/resources/resources";
 import type { WorkspaceResourceDto, RepositoryDto } from "@/gen/model";
+import { useDebounce } from "@/hooks/use-debounce";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -36,6 +37,7 @@ export function LinkContentResourcesDialog({
   const activeRepoId = selectedRepoId || (repositories[0]?.id ? String(repositories[0].id) : "");
 
   const [keyword, setKeyword] = useState("");
+  const debouncedKeyword = useDebounce(keyword, 350);
   const [selectedResourceIds, setSelectedResourceIds] = useState<string[]>([]);
   const [hideAlreadyAssigned, setHideAlreadyAssigned] = useState(true);
 
@@ -47,7 +49,7 @@ export function LinkContentResourcesDialog({
       workspaceId: activeRepoId,
       page: 1,
       pageSize: 50,
-      globalKeyword: keyword.trim() || undefined,
+      globalKeyword: debouncedKeyword.trim() || undefined,
     },
     {
       query: {

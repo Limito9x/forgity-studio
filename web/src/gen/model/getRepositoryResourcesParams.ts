@@ -21,6 +21,14 @@ export type GetRepositoryResourcesParams = {
   /**
    * @nullable
    */
+  contentId?: string | null;
+  /**
+   * @nullable
+   */
+  isLinked?: boolean | null;
+  /**
+   * @nullable
+   */
   page?: number | null;
   /**
    * @nullable

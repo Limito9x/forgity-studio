@@ -13,4 +13,6 @@ export interface AssignResourcesContentCommand {
   contentId: string | null;
   /** @nullable */
   anchorPath?: string | null;
+  /** @nullable */
+  contentItemIdToUnlink?: string | null;
 }

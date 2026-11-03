@@ -28,4 +28,6 @@ export interface ResourceItemDto {
   /** @nullable */
   lockedAt?: string | null;
   workspaceId?: string;
+  /** @nullable */
+  thumbnailUrl?: string | null;
 }

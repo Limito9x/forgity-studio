@@ -72,9 +72,6 @@ public class GetRepositoryResourcesHandler(
     {
         var baseQuery = db
             .ResourceItems.AsNoTracking()
-            .Include(r => r.Versions)
-                .ThenInclude(v => v.Locations)
-                    .ThenInclude(l => l.RepositoryRunner)
             .Where(r => r.RepositoryId == query.RepositoryId);
 
         // Lọc theo Workstation Root cụ thể nếu có
@@ -172,23 +169,56 @@ public class GetRepositoryResourcesHandler(
             }
         }
 
+        // 3.2. Query Versions cho các resource trong trang hiện tại (CHỈ SELECT các trường cần thiết, TUYỆT ĐỐI KHÔNG SELECT Metadata JSON)
+        var versionSummaries = pageResourceIds.Count > 0
+            ? await db.ResourceVersions.AsNoTracking()
+                .Where(v => pageResourceIds.Contains(v.ResourceId))
+                .Select(v => new
+                {
+                    v.Id,
+                    v.ResourceId,
+                    v.VersionNo,
+                    v.Status,
+                    Locations = v.Locations.Select(l => new
+                    {
+                        l.IsOrigin,
+                        l.DiscoveredAt,
+                        RunnerId = l.RepositoryRunner != null ? (Guid?)l.RepositoryRunner.RunnerId : null
+                    }).ToList()
+                })
+                .ToListAsync(ct)
+            : [];
+
+        var versionsByResource = versionSummaries
+            .GroupBy(v => v.ResourceId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         // Lấy thông tin Runner cho các resource đang bị lock và các resource có holding location
         var lockedRunnerIds = pagedResult.Value.Items
             .Where(r => r.IsLocked && r.LockedByRunnerId.HasValue)
             .Select(r => r.LockedByRunnerId!.Value);
 
         var holdingRunnerIdMap = new Dictionary<Guid, Guid>();
-        foreach (var item in pagedResult.Value.Items)
-        {
-            var latestVersion = item.Versions.OrderByDescending(v => v.VersionNo).FirstOrDefault();
-            var holdingLocation = latestVersion?.Locations
-                .OrderByDescending(l => l.IsOrigin)
-                .ThenByDescending(l => l.DiscoveredAt)
-                .FirstOrDefault();
+        var latestVersionIdStrings = new List<string>();
 
-            if (holdingLocation?.RepositoryRunner?.RunnerId is { } rId)
+        foreach (var resourceId in pageResourceIds)
+        {
+            if (versionsByResource.TryGetValue(resourceId, out var vers))
             {
-                holdingRunnerIdMap[item.Id] = rId;
+                var latestVer = vers.OrderByDescending(v => v.VersionNo).FirstOrDefault();
+                if (latestVer != null)
+                {
+                    latestVersionIdStrings.Add(latestVer.Id.ToString());
+                    var holdingLocation = latestVer.Locations
+                        .OrderByDescending(l => l.IsOrigin)
+                        .ThenByDescending(l => l.DiscoveredAt)
+                        .FirstOrDefault();
+
+                    if (holdingLocation?.RunnerId is { } rId)
+                    {
+                        holdingRunnerIdMap[resourceId] = rId;
+                    }
+                }
             }
         }
 
@@ -208,13 +238,6 @@ public class GetRepositoryResourcesHandler(
         }
 
         // 3.3. Batch query Thumbnail URLs từ Module Files (Slot: Thumbnail)
-        var latestVersionIdStrings = pagedResult.Value.Items
-            .Select(r => r.Versions.OrderByDescending(v => v.VersionNo).FirstOrDefault()?.Id.ToString())
-            .Where(id => !string.IsNullOrEmpty(id))
-            .Cast<string>()
-            .Distinct()
-            .ToList();
-
         var thumbnailUrlMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (latestVersionIdStrings.Count > 0 && assetApi != null)
         {
@@ -263,7 +286,9 @@ public class GetRepositoryResourcesHandler(
                     );
                 }).ToList() ?? (IReadOnlyList<ResourceLinkedAnchorDto>)[];
 
-                var latestVersion = r.Versions.OrderByDescending(v => v.VersionNo).FirstOrDefault();
+                versionsByResource.TryGetValue(r.Id, out var vers);
+                var versionCount = vers?.Count ?? 0;
+                var latestVersion = vers?.OrderByDescending(v => v.VersionNo).FirstOrDefault();
                 var latestVerId = latestVersion?.Id;
                 var thumbUrl = latestVerId.HasValue && thumbnailUrlMap.TryGetValue(latestVerId.Value.ToString(), out var tUrl)
                     ? tUrl
@@ -280,7 +305,7 @@ public class GetRepositoryResourcesHandler(
                     ContentTypeName: contentId != null && contentMap.TryGetValue(contentId.Value, out var c2) ? c2.ContentTypeName : null,
                     ContentTypeColor: contentId != null && contentMap.TryGetValue(contentId.Value, out var c3) ? c3.ContentTypeColor : null,
                     ContentTypeIcon: contentId != null && contentMap.TryGetValue(contentId.Value, out var c4) ? c4.ContentTypeIcon : null,
-                    VersionCount: r.Versions.Count,
+                    VersionCount: versionCount,
                     CreatedAt: r.CreatedAt,
                     LatestVersionId: latestVerId,
                     LatestVersionNo: latestVersion?.VersionNo,

@@ -50,38 +50,32 @@ import { useProjectNav } from "@/lib/navigation/useProjectNav";
 
 import { useDialogStore } from "@/stores/dialogStore";
 
-import { FileTypeIcon } from "@/components/custom-ui/FileTypeIcon";
+import { ResourceThumbnail } from "@/components/custom-ui/ResourceThumbnail";
 
 
 
 export interface UseRepositoryResourceTableOptions {
-
   data: WorkspaceResourceDto[];
-
   totalCount: number;
-
   projectId: string;
-
   repositoryId: string;
-
   onOpenAssignPanel: (resourceId?: string) => void;
-
+  page?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
 }
 
-
-
 export function useRepositoryResourceTable({
-
   data,
-
   totalCount,
-
   projectId,
-
   repositoryId,
-
   onOpenAssignPanel,
-
+  page,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
 }: UseRepositoryResourceTableOptions) {
 
   const { studioSlug } = useCurrentStudio();
@@ -326,14 +320,11 @@ export function useRepositoryResourceTable({
 
             <div className="flex items-center gap-2.5 py-1 min-w-[200px]">
 
-              <FileTypeIcon
-
-                fileName={item.displayName}
-
-                relativePath={item.relativePath ?? undefined}
-
+              <ResourceThumbnail
+                displayName={item.displayName}
+                relativePath={item.relativePath}
+                thumbnailUrl={item.thumbnailUrl}
                 size="md"
-
               />
 
               <div className="min-w-0">
@@ -634,32 +625,40 @@ export function useRepositoryResourceTable({
 
 
 
+  const pageIndex = (page ?? 1) - 1;
+  const currentPageSize = pageSize ?? 25;
+
   const table = useReactTable({
-
     data,
-
     columns,
-
     getCoreRowModel: getCoreRowModel(),
-
     getSortedRowModel: getSortedRowModel(),
-
+    manualPagination: true,
+    pageCount: currentPageSize > 0 ? Math.ceil(totalCount / currentPageSize) : -1,
     rowCount: totalCount,
-
     getRowId: (row) => row.id,
-
     state: {
-
       rowSelection,
-
       sorting,
-
+      pagination: {
+        pageIndex,
+        pageSize: currentPageSize,
+      },
     },
-
     onRowSelectionChange: setRowSelection,
-
     onSortingChange: setSorting,
-
+    onPaginationChange: (updater) => {
+      const next =
+        typeof updater === "function"
+          ? updater({ pageIndex, pageSize: currentPageSize })
+          : updater;
+      if (next.pageIndex !== pageIndex) {
+        onPageChange?.(next.pageIndex + 1);
+      }
+      if (next.pageSize !== currentPageSize) {
+        onPageSizeChange?.(next.pageSize);
+      }
+    },
   });
 
 

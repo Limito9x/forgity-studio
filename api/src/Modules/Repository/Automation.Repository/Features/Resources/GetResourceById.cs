@@ -1,4 +1,5 @@
 using Automation.Content.Contracts;
+using Automation.Files.Contracts;
 using Automation.Repository.Constants;
 using Automation.Repository.Contracts.Extensions;
 using Automation.Repository.Infrastructure.Persistence;
@@ -45,7 +46,8 @@ public class GetResourceByIdHandler(
     RepositoryDbContext db,
     ITagApi tagApi,
     IRunnerApi runnerApi,
-    IContentApi contentApi
+    IContentApi contentApi,
+    IAssetApi assetApi
 )
 {
     public async Task<Result<ResourceItemDto>> HandleAsync(
@@ -165,6 +167,23 @@ public class GetResourceByIdHandler(
             contentId = links[0].ContentItemId;
         }
 
+        // 4. Resolve Thumbnail URL from latest ResourceVersion
+        string? thumbnailUrl = null;
+        var latestVersion = resource.Versions.OrderByDescending(v => v.VersionNo).FirstOrDefault();
+        if (latestVersion != null && assetApi != null)
+        {
+            var thumbRes = await assetApi.GetFilesAsync(
+                [latestVersion.Id.ToString()],
+                "ResourceVersion",
+                ResourceAssetSlots.Thumbnail,
+                ct
+            );
+            if (thumbRes.IsSuccess && thumbRes.Value != null && thumbRes.Value.TryGetValue(latestVersion.Id.ToString(), out var thumbLinks))
+            {
+                thumbnailUrl = thumbLinks.FirstOrDefault()?.PublicUrl;
+            }
+        }
+
         var dto = new ResourceItemDto(
             resource.Id,
             resource.Repository?.ProjectId ?? Guid.Empty,
@@ -179,7 +198,10 @@ public class GetResourceByIdHandler(
             resource.LockedByRunnerId,
             lockedRunnerName,
             resource.LockedAt
-        );
+        )
+        {
+            ThumbnailUrl = thumbnailUrl
+        };
 
         return Result.Ok(dto);
     }

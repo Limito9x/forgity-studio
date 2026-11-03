@@ -17,4 +17,8 @@ export interface SyncLocalChangesCommand {
   targetPaths: ListOfString;
   /** @nullable */
   removedPaths?: unknown[] | null;
+  /** @nullable */
+  approvedPipelineIds?: unknown[] | null;
+  /** @nullable */
+  contentTypeId?: string | null;
 }

@@ -39,6 +39,10 @@ export type ExtendedWorkspaceResourceDto = WorkspaceResourceDto & {
   linkedAnchors?: ResourceLinkedAnchorDto[] | null;
 };
 
+export type ExtendedRepositoryDetailDto = RepositoryDetailDto & {
+  resourceCount?: number;
+};
+
 export type ExtendedGetRepositoryResourcesParams = GetRepositoryResourcesParams & {
   contentId?: string | null;
   isLinked?: boolean | null;
@@ -172,7 +176,7 @@ export const useRepositoryResources = (
       projectId,
       workspaceId: repositoryId,
       page: 1,
-      pageSize: 100,
+      pageSize: 25,
       ...params,
     } as any,
     {

@@ -28,6 +28,14 @@ interface RepositoryResourceTableProps {
   runners?: RepositoryRunnerDto[];
   assignmentFilter?: "all" | "assigned" | "unassigned";
   onAssignmentFilterChange?: (filter: "all" | "assigned" | "unassigned") => void;
+  page?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
+  search?: string;
+  onSearchChange?: (search: string) => void;
+  selectedRunnerFilter?: string;
+  onRunnerFilterChange?: (runnerId: string) => void;
 }
 
 export function RepositoryResourceTable({
@@ -39,17 +47,50 @@ export function RepositoryResourceTable({
   runners = [],
   assignmentFilter = "all",
   onAssignmentFilterChange,
+  page,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+  search: controlledSearch,
+  onSearchChange,
+  selectedRunnerFilter: controlledRunnerFilter,
+  onRunnerFilterChange,
 }: RepositoryResourceTableProps) {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [selectedRunnerFilter, setSelectedRunnerFilter] = useState<string>("ALL");
+  const [localSearch, setLocalSearch] = useState("");
+  const [localRunnerFilter, setLocalRunnerFilter] = useState<string>("ALL");
+
+  const search = controlledSearch !== undefined ? controlledSearch : localSearch;
+  const handleSearchChange = (val: string) => {
+    if (onSearchChange) {
+      onSearchChange(val);
+    } else {
+      setLocalSearch(val);
+    }
+  };
+
+  const selectedRunnerFilter =
+    controlledRunnerFilter !== undefined ? controlledRunnerFilter : localRunnerFilter;
+  const handleRunnerFilterChange = (val: string) => {
+    if (onRunnerFilterChange) {
+      onRunnerFilterChange(val);
+    } else {
+      setLocalRunnerFilter(val);
+    }
+  };
+
   const [activeDragItem, setActiveDragItem] = useState<{
     id: string;
     resourceIds: string[];
     displayName?: string;
   } | null>(null);
 
-  const filteredData = useMemo(() => {
+  // If server controls search/filter, use data directly; otherwise fallback to client-side filtering
+  const isServerFiltered = onSearchChange !== undefined || onRunnerFilterChange !== undefined;
+
+  const displayData = useMemo(() => {
+    if (isServerFiltered) return data;
+
     let result = data;
     if (selectedRunnerFilter !== "ALL") {
       result = result.filter((r) => r.holdingRunnerId === selectedRunnerFilter);
@@ -71,7 +112,7 @@ export function RepositoryResourceTable({
               (a.anchorPath && a.anchorPath.toLowerCase().includes(q))
           ))
     );
-  }, [data, search, selectedRunnerFilter]);
+  }, [isServerFiltered, data, search, selectedRunnerFilter]);
 
   const handleOpenAssignPanel = useCallback((_resourceId?: string) => {
     setIsPanelOpen(true);
@@ -87,11 +128,15 @@ export function RepositoryResourceTable({
     assignMutation,
     deleteMutation,
   } = useRepositoryResourceTable({
-    data: filteredData,
-    totalCount: filteredData.length,
+    data: displayData,
+    totalCount: isServerFiltered ? totalCount : displayData.length,
     projectId,
     repositoryId,
     onOpenAssignPanel: handleOpenAssignPanel,
+    page,
+    pageSize,
+    onPageChange,
+    onPageSizeChange,
   });
 
   const sensors = useSensors(
@@ -182,7 +227,7 @@ export function RepositoryResourceTable({
                 <Input
                   placeholder="Search name, path, content..."
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                   className="pl-9 text-xs"
                 />
               </div>
@@ -236,7 +281,7 @@ export function RepositoryResourceTable({
                 <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border/50 text-xs shrink-0">
                   <button
                     type="button"
-                    onClick={() => setSelectedRunnerFilter("ALL")}
+                    onClick={() => handleRunnerFilterChange("ALL")}
                     className={cn(
                       "px-2.5 py-1 rounded-md font-medium transition-all text-xs cursor-pointer",
                       selectedRunnerFilter === "ALL"
@@ -252,7 +297,7 @@ export function RepositoryResourceTable({
                       <button
                         key={r.runnerId}
                         type="button"
-                        onClick={() => setSelectedRunnerFilter(r.runnerId)}
+                        onClick={() => handleRunnerFilterChange(r.runnerId)}
                         className={cn(
                           "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium transition-all text-xs cursor-pointer",
                           isSelected
@@ -321,7 +366,7 @@ export function RepositoryResourceTable({
 
               {/* Total Count */}
               <div className="text-xs text-muted-foreground font-medium pl-1">
-                <span className="text-foreground font-semibold">{filteredData.length}</span> /{" "}
+                <span className="text-foreground font-semibold">{displayData.length}</span> /{" "}
                 <span className="text-foreground font-semibold">{totalCount}</span>
               </div>
             </div>

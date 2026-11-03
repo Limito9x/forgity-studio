@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useDebounce } from "@/hooks/use-debounce";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +56,7 @@ export function LocalChangesTable({
   onFilterStatusChange,
 }: LocalChangesTableProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearch = useDebounce(searchTerm, 300);
 
   const counts = useMemo(() => {
     const added = items.filter((i) => i.status === "added").length;
@@ -70,12 +72,12 @@ export function LocalChangesTable({
         item.status === filterStatus ||
         (filterStatus === "deleted" && item.status === "missing");
       const matchSearch =
-        !searchTerm.trim() ||
-        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.relativePath.toLowerCase().includes(searchTerm.toLowerCase());
+        !debouncedSearch.trim() ||
+        item.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        item.relativePath.toLowerCase().includes(debouncedSearch.toLowerCase());
       return matchStatus && matchSearch;
     });
-  }, [items, filterStatus, searchTerm]);
+  }, [items, filterStatus, debouncedSearch]);
 
   const selectableItems = useMemo(
     () => filteredItems.filter((i) => !i.isLockedByOther),
