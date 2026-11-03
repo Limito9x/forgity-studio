@@ -23,7 +23,7 @@ import os
 import sys
 import time
 import json
-from typing import List, Dict, Optional, Any, Union
+from typing import List, Dict, Optional, Any, Union, Tuple
 from pydantic import BaseModel, Field
 
 try:
@@ -64,7 +64,7 @@ class BatchClassificationResult(BaseModel):
 PROVIDER_DEFAULTS = {
     "groq": {
         "endpoint": "https://api.groq.com/openai/v1",
-        "model": "llama-3.3-70b-versatile",
+        "model": "qwen/qwen3.8-27b",
     },
     "gemini": {
         "endpoint": "https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -87,6 +87,69 @@ PROVIDER_DEFAULTS = {
         "model": "meta-llama/llama-3.3-70b-instruct:free",
     },
 }
+
+
+def resolve_endpoint_and_provider(endpoint_or_provider: str, model_candidate: str = "") -> Tuple[str, str, str, bool]:
+    """
+    Resolves unified endpoint input into (base_url, provider_key, target_model, is_local).
+    Accepts:
+      - Short aliases: 'groq', 'gemini', 'ollama', 'openai', 'deepseek', 'openrouter'
+      - Direct URLs: 'http://localhost:11434/v1', 'http://127.0.0.1:1234/v1', 'https://api.groq.com/openai/v1'
+    """
+    raw = (endpoint_or_provider or "groq").strip()
+    raw_lower = raw.lower()
+
+    if raw_lower.startswith(("http://", "https://")):
+        is_local = any(h in raw_lower for h in ["localhost", "127.0.0.1", ":11434", ":1234", ":8000"])
+        provider_key = "ollama" if ("11434" in raw_lower or "ollama" in raw_lower) else "custom"
+        for p in PROVIDER_DEFAULTS.keys():
+            if p in raw_lower:
+                provider_key = p
+                break
+        target_model = model_candidate.strip() if model_candidate else ("qwen2.5:7b" if is_local else "llama-3.3-70b-versatile")
+        return raw, provider_key, target_model, is_local
+
+    provider_key = raw_lower if raw_lower in PROVIDER_DEFAULTS else "groq"
+    default_config = PROVIDER_DEFAULTS[provider_key]
+    target_endpoint = default_config["endpoint"]
+    target_model = model_candidate.strip() or default_config["model"]
+    if provider_key == "groq" and "llama" in target_model.lower():
+        target_model = "qwen/qwen3.8-27b"
+    is_local = provider_key == "ollama"
+    return target_endpoint, provider_key, target_model, is_local
+
+
+def parse_gameplay_tags_ini(tags_ini_path: str) -> List[str]:
+    """Parse GameplayTags from DefaultGameplayTags.ini file or directory."""
+    if not tags_ini_path:
+        return []
+    p = os.path.abspath(tags_ini_path.strip().strip('"').strip("'"))
+    if os.path.isdir(p):
+        for candidate in [
+            os.path.join(p, "Config", "DefaultGameplayTags.ini"),
+            os.path.join(p, "DefaultGameplayTags.ini"),
+        ]:
+            if os.path.isfile(candidate):
+                p = candidate
+                break
+
+    if not os.path.isfile(p):
+        return []
+
+    tags: List[str] = []
+    import re
+    try:
+        with open(p, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                m = re.search(r'Tag="([^"]+)"', line)
+                if m:
+                    tag = m.group(1).strip()
+                    if tag and tag not in tags:
+                        tags.append(tag)
+    except Exception as ex:
+        print(f"[classify_material_manifest] Warning reading tags ini '{p}': {ex}", flush=True)
+
+    return tags
 
 
 def is_valid_key(val: str) -> bool:
@@ -158,25 +221,28 @@ def resolve_api_key(explicit_key: str = "", provider: str = "gemini") -> str:
 def main(
     raw_manifest: Union[Dict[str, Any], str],
     contracts: Optional[Dict[str, Any]] = None,
-    provider: str = "groq",
-    model: str = "llama-3.3-70b-versatile",
+    tags_ini_path: str = "",
+    endpoint: str = "groq",
+    model: str = "qwen/qwen3.8-27b",
+    notes: str = "",
     **kwargs
 ) -> Dict[str, Any]:
     """
     AI-powered Material Manifest Classifier for Unreal Engine 5 Batch Ingestion.
     Sends raw JSON tree directly to LLM for zero-brittle semantic parsing.
     Focuses purely on classifying material slots, textures, and shader parameter mapping.
-    Object identity and cloth_type are preserved directly from raw_manifest.
+    Object identity, cloth_type, and asset naming are preserved directly from raw_manifest.
 
     Args:
         raw_manifest: Raw metadata JSON tree from GetResourceRelativePaths, Blender Inspection, or upstream.
-        contracts: Master Material Contracts dictionary (ContentMap) for shader parameter names.
-        provider: AI provider ('groq', 'gemini', 'ollama', 'openai', 'deepseek', 'openrouter'). Default 'groq'.
+        contracts: Master Material Contracts dictionary (from inspect_uasset_materials or ContentMap).
+        tags_ini_path: Optional path to Unreal Project DefaultGameplayTags.ini file or Config/ folder.
+        endpoint: AI provider alias ('groq', 'gemini', 'ollama', 'openai') or custom URL ('http://localhost:11434/v1'). Default 'groq'.
         model: Model identifier such as llama-3.3-70b-versatile, gemini-1.5-flash, or qwen2.5:7b. Default llama-3.3-70b-versatile.
+        notes: Optional user notes or prompt injection instructions for special clothing roles or hints.
     """
     start_time = time.time()
     api_key = kwargs.get("api_key", "")
-    endpoint = kwargs.get("endpoint", "")
     folder_path = kwargs.get("folder_path", "")
 
     # Backward compatibility: read cloth_map from kwargs if passed
@@ -210,7 +276,9 @@ def main(
         print("[classify_material_manifest] [WARN] Empty input manifest.", flush=True)
         return {"manifest": {}, "summary": "Empty input"}
 
-    # 2. Parse project contracts if provided
+    # 2. Parse project contracts and tags_ini if provided
+    ini_tags = parse_gameplay_tags_ini(tags_ini_path) if tags_ini_path else []
+
     raw_contracts = contracts or kwargs.get("contracts_map")
     normalized_contracts: Dict[str, Any] = {}
     if isinstance(raw_contracts, str):
@@ -220,6 +288,10 @@ def main(
             pass
     elif isinstance(raw_contracts, dict):
         normalized_contracts = raw_contracts
+
+    # Auto-unwrap if output of Inspect UAsset Materials was passed directly
+    if isinstance(normalized_contracts, dict) and "contracts" in normalized_contracts and isinstance(normalized_contracts["contracts"], dict):
+        normalized_contracts = normalized_contracts["contracts"]
 
     contract_summary: Dict[str, Any] = {}
     contract_clean_whitelist: Dict[str, Dict[str, str]] = {}
@@ -250,29 +322,22 @@ def main(
             "Please install it using 'pip install openai'."
         )
 
-    provider_key = (provider or "gemini").strip().lower()
-    default_config = PROVIDER_DEFAULTS.get(provider_key, {})
-
-    target_endpoint = (endpoint or "").strip() or default_config.get("endpoint", "")
-    target_model = (model or "").strip()
-    if not target_model or (provider_key == "groq" and "gemini" in target_model) or (provider_key == "gemini" and "llama" in target_model):
-        target_model = default_config.get("model", "llama-3.3-70b-versatile" if provider_key == "groq" else "gemini-1.5-flash")
+    endpoint_param = endpoint or kwargs.get("provider") or "groq"
+    target_endpoint, provider_key, target_model, is_local = resolve_endpoint_and_provider(endpoint_param, model)
 
     resolved_key = resolve_api_key(api_key, provider_key)
-    print(f"[classify_material_manifest] [INFO] Provider: '{provider_key}', Model: '{target_model}', Endpoint: '{target_endpoint or 'default'}'", flush=True)
+    print(f"[classify_material_manifest] [INFO] Provider: '{provider_key}', Model: '{target_model}', Endpoint: '{target_endpoint}' (Local: {is_local})", flush=True)
 
-    is_local_ollama = provider_key == "ollama" or "11434" in target_endpoint
-
-    if not resolved_key and not is_local_ollama:
+    if not resolved_key and not is_local:
         raise RuntimeError(
             f"[classify_material_manifest] No API key found for provider '{provider_key}'. "
             f"Please configure AI_API_KEY (or {provider_key.upper()}_API_KEY) in runner.toml or OS environment."
         )
 
-    if is_local_ollama:
-        client = OpenAI(api_key="ollama", base_url=target_endpoint or "http://localhost:11434/v1")
-    else:
-        client = OpenAI(api_key=resolved_key, base_url=target_endpoint or None)
+    client = OpenAI(
+        api_key="local-llm" if is_local else resolved_key,
+        base_url=target_endpoint or None
+    )
 
     # 4. Build Prompts
     contract_section = ""
@@ -330,7 +395,18 @@ def main(
         "}"
     )
 
-    user_prompt = f"Analyze the following raw metadata JSON tree and produce the classified material structure:\n\n```json\n{json.dumps(raw_data, indent=2)}\n```"
+    user_prompt_parts = [
+        "Analyze the following raw metadata JSON tree and produce the classified material structure:\n",
+        f"```json\n{json.dumps(raw_data, indent=2)}\n```"
+    ]
+    if ini_tags:
+        user_prompt_parts.append(
+            f"\nPROJECT GAMEPLAY TAGS CONTEXT:\n```json\n{json.dumps(ini_tags, indent=2)}\n```"
+        )
+    if notes and str(notes).strip():
+        user_prompt_parts.append(f"\nSPECIAL USER INSTRUCTIONS / NOTES:\n{str(notes).strip()}")
+
+    user_prompt = "\n".join(user_prompt_parts)
 
     print(f"[classify_material_manifest] [INFO] Sending raw JSON tree to {target_model} ({provider_key})...", flush=True)
 
@@ -479,12 +555,33 @@ def main(
 
                 clean_textures[target_key] = full_path
 
+            # Resolve Master Material Path directly from Contract
+            matched_contract_obj = (
+                normalized_contracts.get(s_tag)
+                or normalized_contracts.get(f"M_{s_tag}")
+                or {}
+            )
+            if not matched_contract_obj:
+                s_tag_lower = s_tag.lower()
+                for c_k, c_v in normalized_contracts.items():
+                    if isinstance(c_v, dict) and (c_k.lower() == s_tag_lower or c_k.lower().endswith(s_tag_lower)):
+                        matched_contract_obj = c_v
+                        break
+
+            slot_master_material_path = (
+                matched_contract_obj.get("master_material_path")
+                or matched_contract_obj.get("master_material")
+                or matched_contract_obj.get("material_path")
+                or ""
+            )
+
             formatted_slots.append({
                 "name": s_name,
                 "material_tag": s_tag,
                 "tag": s_tag,
                 "index": idx,
                 "slot_anchor": f"slots[{idx}]",
+                "master_material_path": slot_master_material_path,
                 "textures": clean_textures
             })
 
@@ -511,10 +608,26 @@ def main(
             or obj_data.get("cloth_type")
         )
 
+        clean_asset_name = raw_obj_meta.get("clean_asset_name") or asset_name
+        source_object_name = raw_obj_meta.get("source_object_name") or obj_name
+        file_name = raw_obj_meta.get("file_name") or os.path.basename(file_path)
+        thumbnail_path = raw_obj_meta.get("thumbnail_path") or ""
+        file_size = raw_obj_meta.get("file_size") or 0
+        hash_sha256 = raw_obj_meta.get("hash_sha256") or ""
+        matched_meshes = raw_obj_meta.get("matched_meshes") or []
+
         resolved_manifest[asset_name] = {
             "asset_name": asset_name,
+            "clean_asset_name": clean_asset_name,
+            "source_object_name": source_object_name,
             "cloth_type": cloth_type,
+            "file_name": file_name,
             "file_path": file_path,
+            "local_path": file_path,
+            "thumbnail_path": thumbnail_path,
+            "file_size": file_size,
+            "hash_sha256": hash_sha256,
+            "matched_meshes": matched_meshes,
             "slot_count": len(formatted_slots),
             "slots": formatted_slots
         }

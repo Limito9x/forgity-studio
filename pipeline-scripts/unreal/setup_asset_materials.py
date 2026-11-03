@@ -51,6 +51,7 @@ TEXTURE_PRESET_PACKAGES: Dict[str, Dict[str, Any]] = {
         "compression": "TC_NORMALMAP",
         "srgb": False,
         "lod_group": "TEXTUREGROUP_CHARACTER",
+        "flip_green_channel": True,
         "vt": True,
     },
     "BASE_COLOR": {
@@ -127,10 +128,12 @@ def resolve_texture_preset(param_name: str, texture_type_dict: Dict[str, Any]) -
 
     # If already a resolved rich preset dict (from inspect_uasset_materials), use it directly
     if isinstance(tex_type, dict):
+        comp = tex_type.get("compression", "TC_DEFAULT")
         return {
-            "compression": tex_type.get("compression", "TC_DEFAULT"),
+            "compression": comp,
             "srgb": bool(tex_type.get("srgb", True)),
             "vt": bool(tex_type.get("vt", True)),
+            "flip_green_channel": bool(tex_type.get("flip_green_channel", comp == "TC_NORMALMAP")),
             "semantic": tex_type.get("semantic", "BASE_COLOR"),
             "lod_group": "TEXTUREGROUP_CHARACTER"
         }
@@ -351,7 +354,7 @@ def create_single_mic(
         return ""
 
     if not unreal.EditorAssetLibrary.does_asset_exist(master_material_path):
-        print(f"[setup_asset_materials] Warning: Master Material not found at '{master_material_path}'. Skipping MIC creation.", flush=True)
+        print(f"[setup_asset_materials] Error: Master Material does NOT exist in Unreal at '{master_material_path}'. Skipping MIC '{instance_name}'.", flush=True)
         return ""
 
     parent_mat = unreal.EditorAssetLibrary.load_asset(master_material_path)
@@ -674,6 +677,9 @@ def main(
         raise TypeError(f"Expected manifest to be dict or JSON string, got {type(manifest)}")
 
     # 2. Parse Material Contracts
+    if not material_contracts:
+        material_contracts = kwargs.get("contracts") or kwargs.get("material_contracts") or kwargs.get("contracts_json")
+
     contracts_map: Dict[str, Any] = {}
     if material_contracts:
         if isinstance(material_contracts, str):
@@ -687,6 +693,14 @@ def main(
                     contracts_map = {}
         elif isinstance(material_contracts, dict):
             contracts_map = material_contracts
+
+    # Auto-unwrap if wrapped in {"contracts": {...}} from inspect_uasset_materials output
+    if isinstance(contracts_map, dict) and "contracts" in contracts_map and isinstance(contracts_map["contracts"], dict):
+        contracts_map = contracts_map["contracts"]
+
+    print(f"[setup_asset_materials] Loaded {len(contracts_map)} material contract(s): {list(contracts_map.keys())}", flush=True)
+    if not contracts_map:
+        print("[setup_asset_materials] WARNING: 'material_contracts' is EMPTY! Material Instances (MIC) cannot be created without Master Material contracts.", flush=True)
 
     # Normalize mesh paths map
     mesh_map: Dict[str, str] = {}
@@ -767,14 +781,21 @@ def main(
             contract = _find_contract_for_slot(slot_info, contracts_map) or {}
 
             master_path = (
-                contract.get("master_material_path")
+                slot_info.get("master_material_path")
+                or slot_info.get("master_material")
+                or contract.get("master_material_path")
                 or contract.get("master_material")
                 or contract.get("material_path")
                 or ""
             )
 
             # Contract Texture Dictionary: param_name -> texture_type
-            texture_type_dict = contract.get("texture_map") or contract.get("texture_params") or {}
+            texture_type_dict = (
+                contract.get("texture_map")
+                or contract.get("texture_params")
+                or slot_info.get("texture_map")
+                or {}
+            )
             if isinstance(texture_type_dict, str):
                 try:
                     texture_type_dict = json.loads(texture_type_dict)
@@ -856,7 +877,7 @@ def main(
                     obj_created_mics.append(final_material_path)
                     all_created_mics.append(final_material_path)
             else:
-                print(f"[setup_asset_materials] Warning: No Master Material found for slot '{slot_name}'.", flush=True)
+                print(f"[setup_asset_materials] Warning: No Master Material found for slot '{slot_name}' (Tag: '{slot_tag}'). Available contracts: {list(contracts_map.keys())}", flush=True)
 
             if final_material_path:
                 clean_canon = re.sub(r'[\s\-_]+', '_', str(slot_name).strip().lower()).strip('_')

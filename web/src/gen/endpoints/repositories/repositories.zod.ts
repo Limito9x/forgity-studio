@@ -15,14 +15,18 @@ export const createRepositoryBodyNameMax = 100;
 export const createRepositoryBodyDescriptionMin = 0;
 export const createRepositoryBodyDescriptionMax = 500;
 
-
+export const createRepositoryBodyMaxScanFilesDefault = 2000;
 
 export const CreateRepositoryBody = /*#__PURE__*/ zod.object({
   "projectId": /*#__PURE__*/ zod.uuid().check(/*#__PURE__*/ zod.minLength(1)),
   "name": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(createRepositoryBodyNameMin)).check(/*#__PURE__*/ zod.maxLength(createRepositoryBodyNameMax)),
   "description": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(createRepositoryBodyDescriptionMin)).check(/*#__PURE__*/ zod.maxLength(createRepositoryBodyDescriptionMax))),
-  "supportedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()))
+  "supportedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())),
+  "includedSubPaths": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())),
+  "maxScanFiles": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.int(), createRepositoryBodyMaxScanFilesDefault)
 })
+
+export const createRepositoryResponseMaxScanFilesDefault = 2000;
 
 export const CreateRepositoryResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
@@ -32,12 +36,16 @@ export const CreateRepositoryResponse = /*#__PURE__*/ zod.object({
   "runnerCount": /*#__PURE__*/ zod.int(),
   "resourceCount": /*#__PURE__*/ zod.int(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
-  "supportedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()))
+  "supportedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())),
+  "includedSubPaths": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())),
+  "maxScanFiles": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.int(), createRepositoryResponseMaxScanFilesDefault)
 })
 
 export const GetRepositoriesQueryParams = /*#__PURE__*/ zod.object({
   "projectId": /*#__PURE__*/ zod.uuid()
 })
+
+export const getRepositoriesResponseMaxScanFilesDefault = 2000;
 
 export const GetRepositoriesResponseItem = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
@@ -47,7 +55,9 @@ export const GetRepositoriesResponseItem = /*#__PURE__*/ zod.object({
   "runnerCount": /*#__PURE__*/ zod.int(),
   "resourceCount": /*#__PURE__*/ zod.int(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
-  "supportedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()))
+  "supportedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())),
+  "includedSubPaths": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())),
+  "maxScanFiles": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.int(), getRepositoriesResponseMaxScanFilesDefault)
 })
 export const GetRepositoriesResponse = /*#__PURE__*/ zod.array(GetRepositoriesResponseItem)
 
@@ -77,6 +87,8 @@ export const GetRepositoryByIdParams = /*#__PURE__*/ zod.object({
 })
 
 export const getRepositoryByIdResponseRunnersItemRunnerOneIsOnlineDefault = false;
+export const getRepositoryByIdResponseMaxScanFilesDefault = 2000;
+export const getRepositoryByIdResponseResourceCountDefault = 0;
 
 export const GetRepositoryByIdResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
@@ -137,7 +149,10 @@ export const GetRepositoryByIdResponse = /*#__PURE__*/ zod.object({
   "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 }))
 })),
-  "supportedExtensions": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())
+  "supportedExtensions": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()),
+  "includedSubPaths": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())),
+  "maxScanFiles": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.int(), getRepositoryByIdResponseMaxScanFilesDefault),
+  "resourceCount": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.int(), getRepositoryByIdResponseResourceCountDefault)
 })
 
 export const UpdateRepositoryParams = /*#__PURE__*/ zod.object({
@@ -147,8 +162,12 @@ export const UpdateRepositoryParams = /*#__PURE__*/ zod.object({
 export const UpdateRepositoryBody = /*#__PURE__*/ zod.object({
   "name": /*#__PURE__*/ zod.string(),
   "description": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
-  "supportedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()))
+  "supportedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())),
+  "includedSubPaths": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())),
+  "maxScanFiles": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int())
 })
+
+export const updateRepositoryResponseMaxScanFilesDefault = 2000;
 
 export const UpdateRepositoryResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
@@ -158,7 +177,9 @@ export const UpdateRepositoryResponse = /*#__PURE__*/ zod.object({
   "runnerCount": /*#__PURE__*/ zod.int(),
   "resourceCount": /*#__PURE__*/ zod.int(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
-  "supportedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()))
+  "supportedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())),
+  "includedSubPaths": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())),
+  "maxScanFiles": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.int(), updateRepositoryResponseMaxScanFilesDefault)
 })
 
 export const GetRepositoryResourcesParams = /*#__PURE__*/ zod.object({
@@ -170,6 +191,8 @@ export const GetRepositoryResourcesQueryParams = /*#__PURE__*/ zod.object({
   "workspaceId": /*#__PURE__*/ zod.uuid(),
   "runnerId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
   "repositoryRunnerId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "contentId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "isLinked": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.boolean()),
   "page": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
   "pageSize": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
   "filters": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
@@ -205,7 +228,17 @@ export const GetRepositoryResourcesResponse = /*#__PURE__*/ zod.object({
   "lockedByRunnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "lockedAt": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
   "holdingRunnerId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
-  "holdingRunnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+  "holdingRunnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "anchorPath": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "linkedAnchors": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "contentItemId": /*#__PURE__*/ zod.uuid(),
+  "contentItemName": /*#__PURE__*/ zod.string(),
+  "contentTypeName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "contentTypeColor": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "contentTypeIcon": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "anchorPath": /*#__PURE__*/ zod.string()
+}))),
+  "thumbnailUrl": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 }))),
   "totalCount": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
   "page": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),

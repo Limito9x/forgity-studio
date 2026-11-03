@@ -20,7 +20,7 @@ public class AssignResourcesToContentTool(
     public IReadOnlyList<string> Aliases => ["AssignResources"];
     public string Label => "Assign Resources to Content";
     public string? Category => "Content & Publishing";
-    public string? Description => "Binds a list of Resource items to a designated Content Item (supports finding or auto-creating by Type and Name).";
+    public string? Description => "Binds a list of Resource items to a designated Content Item (supports finding or auto-creating by Type and Name, or explicit AnchorPath).";
     public bool IsPure => false;
     public bool HasDynamicPins => true;
 
@@ -63,6 +63,15 @@ public class AssignResourcesToContentTool(
                         Cardinality = PinCardinality.Array,
                         IsRequired = true,
                         Description = "Batch of Resource entity references to bind"
+                    },
+                    new()
+                    {
+                        Id = "AnchorPath",
+                        Label = "Anchor Path (Optional)",
+                        PrimitiveType = PinPrimitiveType.String,
+                        Cardinality = PinCardinality.Single,
+                        IsRequired = false,
+                        Description = "Virtual branch on Content Anchor Tree (e.g. 'root/file.ext', 'Outfit1/BrzUsBra'). If omitted, inferred from file name."
                     }
                 ],
                 Outputs
@@ -107,6 +116,15 @@ public class AssignResourcesToContentTool(
                     StructType = WellKnownStructTypes.Resource,
                     Cardinality = PinCardinality.Array,
                     IsRequired = true
+                },
+                new()
+                {
+                    Id = "AnchorPath",
+                    Label = "Anchor Path (Optional)",
+                    PrimitiveType = PinPrimitiveType.String,
+                    Cardinality = PinCardinality.Single,
+                    IsRequired = false,
+                    Description = "Virtual branch on Content Anchor Tree (e.g. 'root/file.ext', 'Outfit1/BrzUsBra'). If omitted, inferred from file name."
                 }
             ],
             Outputs
@@ -150,6 +168,15 @@ public class AssignResourcesToContentTool(
             StructType = WellKnownStructTypes.Resource,
             Cardinality = PinCardinality.Array,
             IsRequired = true
+        },
+        new()
+        {
+            Id = "AnchorPath",
+            Label = "Anchor Path (Optional)",
+            PrimitiveType = PinPrimitiveType.String,
+            Cardinality = PinCardinality.Single,
+            IsRequired = false,
+            Description = "Virtual branch on Content Anchor Tree (e.g. 'root/file.ext', 'Outfit1/BrzUsBra'). If omitted, inferred from file name."
         }
     ];
 
@@ -218,6 +245,16 @@ public class AssignResourcesToContentTool(
         string resolvedContentName = string.Empty;
         string resolvedContentType = string.Empty;
 
+        // Resolve ProjectId
+        var projectId = context.ProjectId;
+
+        if (projectId == Guid.Empty)
+        {
+            var pObj = inputs.GetValueOrDefault("ProjectId");
+            var parsed = EntityRefHelper.ExtractRefId(pObj);
+            if (parsed.HasValue) projectId = parsed.Value;
+        }
+
         if (contentGuid == null || contentGuid == Guid.Empty)
         {
             // Resolve via ContentType + ContentName + CreateIfNotExists
@@ -247,16 +284,6 @@ public class AssignResourcesToContentTool(
             if (string.IsNullOrWhiteSpace(rawContentType))
             {
                 throw new ArgumentException("When providing 'ContentName', 'ContentType' must also be specified.");
-            }
-
-            // Resolve ProjectId
-            var projectId = context.ProjectId;
-
-            if (projectId == Guid.Empty)
-            {
-                var pObj = inputs.GetValueOrDefault("ProjectId");
-                var parsed = EntityRefHelper.ExtractRefId(pObj);
-                if (parsed.HasValue) projectId = parsed.Value;
             }
 
             if (projectId == Guid.Empty)
@@ -318,10 +345,23 @@ public class AssignResourcesToContentTool(
             };
         }
 
-        // 3. Assign via RepositoryApi
-        var assignResult = await workspaceApi.AssignResourceToContentAsync(
+        // 3. Assign via ContentApi into ContentAnchorTree
+        var anchorPath = inputs.GetValueOrDefault("AnchorPath")?.ToString()?.Trim();
+        var resListResult = await workspaceApi.GetResourcesByIdsAsync(resourceGuids, ct);
+        var smartInputs = resListResult.IsSuccess && resListResult.Value.Count > 0
+            ? resListResult.Value.Select(r => new ResourceSmartLinkInput(
+                r.ResourceId,
+                r.DisplayName,
+                r.RelativePath,
+                anchorPath
+            )).ToList()
+            : resourceGuids.Select(id => new ResourceSmartLinkInput(id, id.ToString(), null, anchorPath)).ToList();
+
+        var assignResult = await contentApi.AssignResourcesToAnchorAsync(
+            projectId,
             contentGuid.Value,
-            resourceGuids,
+            anchorPath,
+            smartInputs,
             ct
         );
 
@@ -340,10 +380,11 @@ public class AssignResourcesToContentTool(
         }
 
         logger.LogInformation(
-            "Successfully assigned {Count} resources to Content {ContentId} ({ContentName})",
+            "Successfully assigned {Count} resources to Content {ContentId} ({ContentName}) on AnchorPath '{AnchorPath}'",
             resourceGuids.Count,
             contentGuid.Value,
-            resolvedContentName
+            resolvedContentName,
+            anchorPath ?? "auto"
         );
 
         var outputIds = resourceGuids.Select(id => id.ToString()).ToArray();

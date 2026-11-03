@@ -1,3 +1,5 @@
+using Automation.Content.Contracts;
+using Automation.Files.Contracts;
 using Automation.Repository.Constants;
 using Automation.Repository.Contracts.Extensions;
 using Automation.Repository.Infrastructure.Persistence;
@@ -40,7 +42,13 @@ public class GetResourceByIdEndpoint(IMessageBus bus) : EndpointWithoutRequest<R
 
 // 3. Handler
 [NonTransactional]
-public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi, IRunnerApi runnerApi)
+public class GetResourceByIdHandler(
+    RepositoryDbContext db,
+    ITagApi tagApi,
+    IRunnerApi runnerApi,
+    IContentApi contentApi,
+    IAssetApi assetApi
+)
 {
     public async Task<Result<ResourceItemDto>> HandleAsync(
         GetResourceByIdQuery query,
@@ -66,7 +74,7 @@ public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi, IRun
                 ? resourceTagResult.Value
                 : [];
 
-        // 3. Query Runner metadata for all attached locations
+        // 2. Query Runner metadata for all attached locations
         var allRunnerIds = resource
             .Versions.SelectMany(v => v.Locations)
             .Where(l => l.RepositoryRunner != null)
@@ -105,7 +113,6 @@ public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi, IRun
             .Versions.OrderByDescending(v => v.VersionNo)
             .Select(v =>
             {
-
                 var locationDtos = v
                     .Locations.Select(l =>
                     {
@@ -152,6 +159,31 @@ public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi, IRun
             lockedRunnerName = lockedRunner.Name;
         }
 
+        // 3. Resolve ContentId from ContentAnchorLinks
+        Guid? contentId = null;
+        var anchorRes = await contentApi.GetResourceAnchorLinksAsync([resource.Id], ct);
+        if (anchorRes.IsSuccess && anchorRes.Value.TryGetValue(resource.Id, out var links) && links.Count > 0)
+        {
+            contentId = links[0].ContentItemId;
+        }
+
+        // 4. Resolve Thumbnail URL from latest ResourceVersion
+        string? thumbnailUrl = null;
+        var latestVersion = resource.Versions.OrderByDescending(v => v.VersionNo).FirstOrDefault();
+        if (latestVersion != null && assetApi != null)
+        {
+            var thumbRes = await assetApi.GetFilesAsync(
+                [latestVersion.Id.ToString()],
+                "ResourceVersion",
+                ResourceAssetSlots.Thumbnail,
+                ct
+            );
+            if (thumbRes.IsSuccess && thumbRes.Value != null && thumbRes.Value.TryGetValue(latestVersion.Id.ToString(), out var thumbLinks))
+            {
+                thumbnailUrl = thumbLinks.FirstOrDefault()?.PublicUrl;
+            }
+        }
+
         var dto = new ResourceItemDto(
             resource.Id,
             resource.Repository?.ProjectId ?? Guid.Empty,
@@ -159,14 +191,17 @@ public class GetResourceByIdHandler(RepositoryDbContext db, ITagApi tagApi, IRun
             resource.DisplayName,
             resource.RelativePath,
             resource.Extension,
-            resource.ContentId,
+            contentId,
             resource.CreatedAt,
             versionDtos,
             resource.IsLocked,
             resource.LockedByRunnerId,
             lockedRunnerName,
             resource.LockedAt
-        );
+        )
+        {
+            ThumbnailUrl = thumbnailUrl
+        };
 
         return Result.Ok(dto);
     }

@@ -15,7 +15,10 @@ public record RepositoryDetailDto(
     string? Description,
     DateTimeOffset CreatedAt,
     IReadOnlyList<RepositoryRunnerDto> Runners,
-    IReadOnlyList<string> SupportedExtensions
+    IReadOnlyList<string> SupportedExtensions,
+    IReadOnlyList<string>? IncludedSubPaths = null,
+    int MaxScanFiles = 2000,
+    int ResourceCount = 0
 );
 
 public class GetRepositoryByIdEndpoint(IMessageBus bus)
@@ -70,6 +73,9 @@ public class GetRepositoryByIdHandler(RepositoryDbContext db, IRunnerApi runnerA
             runnerMap.TryGetValue(rr.RunnerId, out var rDto) ? rDto : null
         )).ToList();
 
+        var resourceCount = await db.ResourceItems
+            .CountAsync(r => r.RepositoryId == query.Id, ct);
+
         var detail = new RepositoryDetailDto(
             repo.Id,
             repo.ProjectId,
@@ -77,7 +83,10 @@ public class GetRepositoryByIdHandler(RepositoryDbContext db, IRunnerApi runnerA
             repo.Description,
             repo.CreatedAt,
             runners,
-            repo.SupportedExtensions
+            repo.SupportedExtensions,
+            repo.IncludedSubPaths,
+            repo.MaxScanFiles,
+            resourceCount
         );
 
         return Result.Ok(detail);

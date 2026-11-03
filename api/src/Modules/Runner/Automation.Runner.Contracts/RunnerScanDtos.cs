@@ -10,7 +10,9 @@ public record RunnerScanResultDto(
     string CommandId,
     bool Success,
     string? ErrorMessage,
-    IReadOnlyList<RunnerScanItemDto>? Items
+    IReadOnlyList<RunnerScanItemDto>? Items,
+    bool HasReachedLimit = false,
+    int TotalScanned = 0
 );
 
 public record RunnerBrowseItemDto(

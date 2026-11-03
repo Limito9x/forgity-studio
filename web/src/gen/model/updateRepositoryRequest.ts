@@ -12,4 +12,8 @@ export interface UpdateRepositoryRequest {
   description?: string | null;
   /** @nullable */
   supportedExtensions?: unknown[] | null;
+  /** @nullable */
+  includedSubPaths?: unknown[] | null;
+  /** @nullable */
+  maxScanFiles?: number | null;
 }

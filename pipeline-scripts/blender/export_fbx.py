@@ -1,10 +1,27 @@
 # pyrefly: ignore [missing-import]
-import bpy
-import json
+"""
+Unified Blender FBX Exporter & Headless 3D Thumbnail Renderer.
+Supports both Single (Unified Mesh / Full Body) and Batch (Modular Outfits / Separated Meshes) export modes.
+Automatically frames meshes in 3/4 isometric perspective and renders transparent 512x512 PNG thumbnails via Workbench.
+"""
+try:
+    import bpy
+    from mathutils import Vector
+except ImportError:
+    bpy = None  # type: ignore
+    Vector = None  # type: ignore
+
 import os
 import re
-from typing import Dict, List, Optional, Any, Set, Tuple
+import json
+import math
+import hashlib
+from typing import Dict, List, Optional, Any, Set, Tuple, Union, Literal
 
+
+# ==============================================================================
+# Helper Classes & Preset Capture
+# ==============================================================================
 
 class MockOp:
     """Mock operator object to capture preset options from FBX exporter presets."""
@@ -17,6 +34,143 @@ class MockOp:
         else:
             self.options[name] = val
 
+
+def compute_sha256(filepath: str) -> str:
+    """Compute SHA256 hash of a file."""
+    sha256 = hashlib.sha256()
+    with open(filepath, 'rb') as f:
+        while chunk := f.read(65536):
+            sha256.update(chunk)
+    return sha256.hexdigest()
+
+
+def normalize_name(name: str) -> str:
+    """Strip blender suffixes like .001 and normalize separators."""
+    name = re.sub(r'\.\d{3}$', '', name)
+    return name.lower().replace("-", "_").replace(" ", "_")
+
+
+def clean_asset_name(raw_name: str) -> str:
+    """
+    Clean raw Blender/DAZ object name into a concise, PascalCase canonical asset identifier.
+    Examples:
+        'BRZ US Bra Mesh' -> 'BrzUsBra'
+        'Iridessa Hair Genesis 9 Mesh' -> 'IridessaHair'
+        'Tactical_Combat_Shirt.001' -> 'TacticalCombatShirt'
+    """
+    if not raw_name:
+        return "UnnamedAsset"
+
+    cleaned = re.sub(r'\.\d{3}$', '', raw_name.strip())
+
+    # Remove DAZ figure boilerplate phrases (case-insensitive)
+    noise_patterns = [
+        r'\bfor\s+genesis\s*[2389]\s*(?:female|male|feminine|masculine)?\b',
+        r'\bgenesis\s*[2389]\s*(?:female|male|feminine|masculine)?\b',
+        r'\bg[2389][fm]?\b',
+    ]
+    for pat in noise_patterns:
+        cleaned = re.sub(pat, '', cleaned, flags=re.IGNORECASE)
+
+    # Strip trailing generic geometry words (Mesh, Shape, Object, Geometry)
+    while True:
+        next_cleaned = re.sub(
+            r'[\s_\-]+(?:mesh|shape|object|geometry)$',
+            '',
+            cleaned.strip(),
+            flags=re.IGNORECASE
+        )
+        if next_cleaned == cleaned:
+            break
+        cleaned = next_cleaned
+
+    # Split into alphanumeric tokens and format into PascalCase
+    tokens = [t for t in re.split(r'[^a-zA-Z0-9]+', cleaned) if t]
+    if tokens:
+        cleaned = ''.join(t.capitalize() for t in tokens)
+    else:
+        fallback_tokens = [t for t in re.split(r'[^a-zA-Z0-9]+', raw_name) if t]
+        cleaned = ''.join(t.capitalize() for t in fallback_tokens) or "UnnamedAsset"
+
+    return cleaned
+
+
+def find_matching_meshes(target_key: str) -> list:
+    """Find meshes in scene based on exact, normalized, clean canonical, or substring match."""
+    if not hasattr(bpy, "data"):
+        return []
+    target_norm = normalize_name(target_key)
+    target_clean = clean_asset_name(target_key).lower()
+    all_meshes = [obj for obj in bpy.data.objects if obj.type == 'MESH']
+
+    # 1. Exact match
+    exact = [obj for obj in all_meshes if obj.name == target_key]
+    if exact:
+        return exact
+
+    # 2. Normalized match
+    normalized = [obj for obj in all_meshes if normalize_name(obj.name) == target_norm]
+    if normalized:
+        return normalized
+
+    # 3. Clean canonical name match
+    if target_clean:
+        cleaned_exact = [obj for obj in all_meshes if clean_asset_name(obj.name).lower() == target_clean]
+        if cleaned_exact:
+            return cleaned_exact
+
+    # 4. Substring match
+    substring = [
+        obj for obj in all_meshes
+        if target_norm in normalize_name(obj.name)
+        or normalize_name(obj.name) in target_norm
+        or (
+            target_clean
+            and (
+                target_clean in clean_asset_name(obj.name).lower()
+                or clean_asset_name(obj.name).lower() in target_clean
+            )
+        )
+    ]
+    if substring:
+        return substring
+
+    # 5. Custom Property match (fallback)
+    custom_props = []
+    for obj in all_meshes:
+        for prop_name in obj.keys():
+            if prop_name.startswith("_"):
+                continue
+            if target_norm in normalize_name(str(obj[prop_name])):
+                custom_props.append(obj)
+                break
+
+    return custom_props
+
+
+def select_mesh_with_armature(target_meshes: list):
+    """Deselect all and ONLY select target meshes + their armature hierarchy."""
+    if not hasattr(bpy, "ops"):
+        return
+    bpy.ops.object.select_all(action='DESELECT')
+
+    for mesh in target_meshes:
+        mesh.select_set(True)
+        bpy.context.view_layer.objects.active = mesh
+
+        # 1. Armature via Parent
+        if mesh.parent and mesh.parent.type == 'ARMATURE':
+            mesh.parent.select_set(True)
+
+        # 2. Armature via Modifiers
+        for mod in mesh.modifiers:
+            if mod.type == 'ARMATURE' and mod.object:
+                mod.object.select_set(True)
+
+
+# ==============================================================================
+# Material & Texture Inspection Helpers
+# ==============================================================================
 
 def _normalize_target_list(raw: Optional[List[str]]) -> List[str]:
     """Batch-first: only List[str]. No comma-split string parsing."""
@@ -46,11 +200,7 @@ def count_used_slot_indices(obj: Any) -> Set[int]:
 
 
 def trace_image_node_destination(node: Any, max_depth: int = 4) -> Tuple[str, str]:
-    """
-    Traces downstream links from a ShaderNodeTexImage to find the immediate intermediate node
-    and the final target shader socket (e.g. Principled BSDF / Material Output).
-    Returns: (via_node, target_socket)
-    """
+    """Traces downstream links from a ShaderNodeTexImage to find the target shader socket."""
     color_out = node.outputs.get("Color")
     if not color_out or not color_out.links:
         alpha_out = node.outputs.get("Alpha")
@@ -66,7 +216,6 @@ def trace_image_node_destination(node: Any, max_depth: int = 4) -> Tuple[str, st
     via_node = next_node.type.replace("BSDF_", "").replace("SHADER_", "").title()
     if next_node.type == 'NORMAL_MAP':
         via_node = "Normal Map"
-        # Check downstream of Normal Map
         norm_out = next_node.outputs.get("Normal")
         if norm_out and norm_out.links:
             dest = norm_out.links[0]
@@ -91,7 +240,6 @@ def trace_image_node_destination(node: Any, max_depth: int = 4) -> Tuple[str, st
     elif next_node.type == 'GROUP':
         return f"Group ({next_node.name})", f"Group Input: {next_socket.name}"
 
-    # General traversal for Mix, Math, Invert, etc.
     curr_node = next_node
     depth = 0
     while curr_node and depth < max_depth:
@@ -110,10 +258,7 @@ def trace_image_node_destination(node: Any, max_depth: int = 4) -> Tuple[str, st
 
 
 def extract_material_textures(mat: Any, blend_dir: str = "") -> Tuple[List[str], List[Dict[str, Any]]]:
-    """
-    Extract texture file paths and their rich semantic graph bindings (Full Absolute Paths).
-    Returns: (textures, texture_bindings)
-    """
+    """Extract texture file paths and their rich semantic graph bindings (Full Absolute Paths)."""
     if not mat:
         return [], []
 
@@ -163,7 +308,7 @@ def extract_material_textures(mat: Any, blend_dir: str = "") -> Tuple[List[str],
     return textures, bindings
 
 
-def inspect_selected_meshes(meshes: List[bpy.types.Object]) -> List[Dict[str, Any]]:
+def inspect_selected_meshes(meshes: List[Any]) -> List[Dict[str, Any]]:
     """Inspect slots and linked textures across selected mesh objects."""
     blend_dir = os.path.dirname(os.path.abspath(bpy.data.filepath)) if hasattr(bpy, "data") and bpy.data.filepath else ""
     slots_list: List[Dict[str, Any]] = []
@@ -202,145 +347,622 @@ def inspect_selected_meshes(meshes: List[bpy.types.Object]) -> List[Dict[str, An
     return slots_list
 
 
-def main(
-    output_path: str,
-    target_objects: Optional[List[str]] = None,
-    preset_path: str = "",
-    **kwargs
-) -> dict:
+# ==============================================================================
+# Headless 3D Thumbnail Renderer (Workbench Auto-Framing + Active Texture Binding)
+# ==============================================================================
+
+def _activate_diffuse_textures_for_workbench(active_meshes: List[Any]) -> List[Tuple[Any, Any, Any]]:
     """
-    Export scene objects to FBX and auto-inspect material slots/textures into a unified manifest.
+    Ensures every material on active_meshes has its Base Color / Diffuse ShaderNodeTexImage
+    set as `mat.node_tree.nodes.active` so BLENDER_WORKBENCH (`color_type = 'TEXTURE'`)
+    renders the actual diffuse texture instead of grey clay or normal/roughness maps.
+    Returns a restore list of (mat, orig_active_node, temp_created_node).
+    """
+    restore_list: List[Tuple[Any, Any, Any]] = []
+    seen_mats: Set[Any] = set()
+
+    def _collect_img_nodes(tree, visited=None):
+        if visited is None:
+            visited = set()
+        if tree in visited:
+            return []
+        visited.add(tree)
+        found = []
+        for n in tree.nodes:
+            if n.type == 'TEX_IMAGE' and getattr(n, 'image', None):
+                found.append((n, tree))
+            elif n.type == 'GROUP' and getattr(n, 'node_tree', None):
+                found.extend(_collect_img_nodes(n.node_tree, visited))
+        return found
+
+    for obj in active_meshes:
+        if not hasattr(obj, "material_slots"):
+            continue
+        for slot in obj.material_slots:
+            mat = slot.material
+            if not mat or mat in seen_mats:
+                continue
+            seen_mats.add(mat)
+
+            if not getattr(mat, "use_nodes", False) or not mat.node_tree:
+                continue
+
+            candidates = _collect_img_nodes(mat.node_tree)
+            if not candidates:
+                continue
+
+            best_node = None
+            best_tree = None
+            best_score = -9999
+
+            for node, tree in candidates:
+                img = node.image
+                via_node, target_socket = trace_image_node_destination(node)
+                sock_lower = target_socket.lower()
+                via_lower = via_node.lower()
+                img_ident = f"{getattr(img, 'name', '')} {getattr(img, 'filepath', '')}".lower()
+                colorspace = getattr(getattr(img, "colorspace_settings", None), "name", "sRGB").lower()
+
+                score = 0
+                if any(k in sock_lower for k in ("base color", "diffuse", "albedo", "color", "subsurface")) and "normal" not in via_lower and "bump" not in via_lower:
+                    score += 100
+                if "srgb" in colorspace:
+                    score += 40
+                if any(k in img_ident for k in ("diff", "albedo", "basecolor", "color", "_d.", "_bc.")):
+                    score += 50
+                if any(k in sock_lower or k in via_lower or k in img_ident for k in (
+                    "normal", "nrm", "bump", "rough", "spec", "metal", "mask", "opacity", "alpha", "cutout", "trans", "ao"
+                )):
+                    score -= 120
+
+                if score > best_score:
+                    best_score = score
+                    best_node = node
+                    best_tree = tree
+
+            # Only activate if a valid diffuse/albedo texture was positively identified
+            if best_node is not None and best_score > 0:
+                orig_active = mat.node_tree.nodes.active
+                if best_tree == mat.node_tree:
+                    try:
+                        best_node.select = True
+                        mat.node_tree.nodes.active = best_node
+                        restore_list.append((mat, orig_active, None))
+                    except Exception:
+                        pass
+                else:
+                    # Image node was inside a nested NodeGroup; create temporary top-level proxy for Workbench
+                    try:
+                        temp_node = mat.node_tree.nodes.new('ShaderNodeTexImage')
+                        temp_node.image = best_node.image
+                        temp_node.select = True
+                        mat.node_tree.nodes.active = temp_node
+                        restore_list.append((mat, orig_active, temp_node))
+                    except Exception:
+                        pass
+            else:
+                # If current active node is a normal/roughness/non-color texture, deactivate it to avoid purple tint
+                curr_active = getattr(mat.node_tree.nodes, "active", None)
+                if curr_active and getattr(curr_active, "type", None) == 'TEX_IMAGE':
+                    act_img = getattr(curr_active, "image", None)
+                    act_name = (getattr(act_img, "name", "") or "").lower()
+                    act_space = getattr(getattr(act_img, "colorspace_settings", None), "name", "")
+                    if act_space == "Non-Color" or any(k in act_name for k in ("normal", "nrm", "bump", "rough", "spec")):
+                        orig_active = curr_active
+                        mat.node_tree.nodes.active = None
+                        restore_list.append((mat, orig_active, None))
+
+    return restore_list
+
+
+def render_mesh_thumbnail(
+    target_meshes: List[Any],
+    output_png_path: str,
+    resolution: int = 512,
+    padding: float = 1.15
+) -> Optional[str]:
+    """
+    Renders an off-screen, transparent 3/4 isometric thumbnail of target_meshes using BLENDER_WORKBENCH
+    with active diffuse textures enabled (`color_type = 'TEXTURE'`).
+    Applies Visibility Isolation (hiding all non-target objects during render).
+    """
+    if not hasattr(bpy, "data") or not hasattr(bpy, "ops") or not target_meshes:
+        return None
+
+    # Filter to mesh objects with geometry
+    active_meshes = [m for m in target_meshes if getattr(m, "type", None) == 'MESH' and hasattr(m, "bound_box")]
+    if not active_meshes:
+        return None
+
+    # 1. Collect world coordinates of bounding boxes
+    all_coords = []
+    for obj in active_meshes:
+        try:
+            for corner in obj.bound_box:
+                all_coords.append(obj.matrix_world @ Vector(corner))
+        except Exception:
+            pass
+
+    if not all_coords:
+        return None
+
+    min_c = Vector((min(c.x for c in all_coords), min(c.y for c in all_coords), min(c.z for c in all_coords)))
+    max_c = Vector((max(c.x for c in all_coords), max(c.y for c in all_coords), max(c.z for c in all_coords)))
+    center = (min_c + max_c) / 2.0
+    radius = max((c - center).length for c in all_coords)
+    if radius <= 0.0001:
+        radius = 1.0
+
+    # 2. Visibility Isolation: record original hide_render states and isolate targets
+    orig_hide_render: Dict[Any, bool] = {}
+    for obj in bpy.data.objects:
+        orig_hide_render[obj] = obj.hide_render
+        obj.hide_render = True
+
+    for obj in active_meshes:
+        obj.hide_render = False
+
+    # 2.1. Activate Diffuse/BaseColor texture nodes for Workbench TEXTURE shading
+    mat_restore_list = _activate_diffuse_textures_for_workbench(active_meshes)
+
+    # 3. Save original Scene render settings
+    scene = bpy.context.scene
+    orig_camera = scene.camera
+    orig_engine = scene.render.engine
+    orig_res_x = scene.render.resolution_x
+    orig_res_y = scene.render.resolution_y
+    orig_res_pct = scene.render.resolution_percentage
+    orig_film_trans = scene.render.film_transparent
+    orig_file_format = scene.render.image_settings.file_format
+    orig_color_mode = scene.render.image_settings.color_mode
+    orig_filepath = scene.render.filepath
+    orig_view_transform = getattr(scene.view_settings, "view_transform", "Standard")
+
+    cam_obj = None
+    cam_data = None
+
+    try:
+        # 4. Create and place camera in 3/4 Isometric perspective (Yaw 40°, Pitch 18°)
+        cam_data = bpy.data.cameras.new("ThumbCamera")
+        cam_data.lens = 50  # 50mm natural perspective
+        cam_obj = bpy.data.objects.new("ThumbCamera", cam_data)
+        scene.collection.objects.link(cam_obj)
+        scene.camera = cam_obj
+        cam_obj.hide_render = False
+
+        half_fov = cam_data.angle / 2.0
+        dist = (radius / math.sin(half_fov)) * padding
+
+        yaw = math.radians(40)
+        pitch = math.radians(18)
+        cam_x = center.x + dist * math.cos(pitch) * math.sin(yaw)
+        cam_y = center.y - dist * math.cos(pitch) * math.cos(yaw)
+        cam_z = center.z + dist * math.sin(pitch)
+        cam_obj.location = Vector((cam_x, cam_y, cam_z))
+
+        direction = center - cam_obj.location
+        rot_quat = direction.to_track_quat('-Z', 'Y')
+        cam_obj.rotation_euler = rot_quat.to_euler()
+
+        # 5. Configure Workbench Renderer with TEXTURE color_type + Studio lighting + Cavity
+        scene.render.engine = 'BLENDER_WORKBENCH'
+        scene.render.resolution_x = resolution
+        scene.render.resolution_y = resolution
+        scene.render.resolution_percentage = 100
+        scene.render.film_transparent = True
+        scene.render.image_settings.file_format = 'PNG'
+        scene.render.image_settings.color_mode = 'RGBA'
+
+        # Standard color view preserves true diffuse albedo without AgX compression
+        try:
+            scene.view_settings.view_transform = 'Standard'
+        except Exception:
+            pass
+
+        clean_out_png = output_png_path.replace("\\", "/")
+        os.makedirs(os.path.dirname(os.path.abspath(clean_out_png)), exist_ok=True)
+        scene.render.filepath = clean_out_png
+
+        if hasattr(scene, "display") and hasattr(scene.display, "shading"):
+            shading = scene.display.shading
+            shading.light = 'STUDIO'
+            shading.color_type = 'TEXTURE'
+            if hasattr(shading, "show_specular_highlight"):
+                shading.show_specular_highlight = False  # Avoid oily/greasy specular sheen on skin
+            if hasattr(shading, "show_cavity"):
+                shading.show_cavity = True
+                if hasattr(shading, "cavity_type"):
+                    shading.cavity_type = 'BOTH'
+
+        # Render offscreen still
+        bpy.ops.render.render(write_still=True)
+        if os.path.exists(clean_out_png):
+            print(f"[export_fbx] Rendered 3D thumbnail ({resolution}x{resolution}) to '{clean_out_png}'.", flush=True)
+            return clean_out_png
+        return None
+
+    except Exception as e:
+        print(f"[export_fbx] Warning: Failed to render thumbnail to '{output_png_path}': {e}", flush=True)
+        return None
+
+    finally:
+        # 6. Clean Restore
+        for mat, orig_active, temp_node in mat_restore_list:
+            try:
+                if temp_node is not None:
+                    mat.node_tree.nodes.remove(temp_node)
+                mat.node_tree.nodes.active = orig_active
+            except Exception:
+                pass
+
+        if cam_obj:
+            try:
+                bpy.data.objects.remove(cam_obj, do_unlink=True)
+            except Exception:
+                pass
+        if cam_data:
+            try:
+                bpy.data.cameras.remove(cam_data, do_unlink=True)
+            except Exception:
+                pass
+
+        scene.camera = orig_camera
+        scene.render.engine = orig_engine
+        scene.render.resolution_x = orig_res_x
+        scene.render.resolution_y = orig_res_y
+        scene.render.resolution_percentage = orig_res_pct
+        scene.render.film_transparent = orig_film_trans
+        scene.render.image_settings.file_format = orig_file_format
+        scene.render.image_settings.color_mode = orig_color_mode
+        scene.render.filepath = orig_filepath
+        try:
+            scene.view_settings.view_transform = orig_view_transform
+        except Exception:
+            pass
+
+        # Restore object visibility
+        for obj, state in orig_hide_render.items():
+            try:
+                obj.hide_render = state
+            except Exception:
+                pass
+
+
+# ==============================================================================
+# Unified Main Exporter Flow
+# ==============================================================================
+
+ExportModeType = Literal["Auto", "Single", "Batch"]
+
+
+def main(
+    output_path: str = "",
+    preset_path: str = "",
+    export_mode: ExportModeType = "Auto",
+    target_objects: Optional[List[str]] = None,
+    prefix: str = "",
+    render_thumbnail: bool = True,
+    thumbnail_resolution: int = 512,
+    **kwargs
+) -> Dict[str, Any]:
+    """
+    Unified FBX Exporter and Headless 3D Thumbnail Renderer.
+    Supports Single (pack entire scene into 1 FBX) and Batch (split modular items via target_objects map).
 
     Args:
-        output_path: Absolute destination path for the .fbx file (e.g. D:/Exports/Laura.fbx).
-        target_objects: Optional list of object names to filter for export. Empty = export all meshes.
-        preset_path: Optional path to FBX export preset script.
-
-    Returns:
-        {
-            "exported_fbx_path": str,
-            "manifest": dict,
-            "objects_count": int,
-            "file_size": int,
-            "metadata_update_map": {full_fbx_path: metadata_json},
-            "exported_files": [str]
-        }
+        output_path: Destination .fbx file path (Single mode) or destination directory (Batch mode).
+        preset_path: Optional path to FBX operator preset script (e.g. DazBodyUE5.py / BlenderUE5_8.py).
+        export_mode: 'Single' (pack all into 1 file), 'Batch' (split by map), or 'Auto'.
+        target_objects: Dictionary mapping object names to slot/role (e.g. cloth_map from classify_mesh_types).
+        prefix: Optional prefix prepended to filenames and asset names (e.g. 'Eva').
+        render_thumbnail: Whether to render companion transparent 3D thumbnail for each item.
+        thumbnail_resolution: Square resolution of thumbnail (default 512).
     """
-    targets = _normalize_target_list(target_objects)
+    preset_path = str(preset_path or kwargs.get("preset_path", "") or "")
+    render_thumbnail = bool(render_thumbnail if render_thumbnail is not None else kwargs.get("render_thumbnail", True))
+    thumbnail_resolution = int(thumbnail_resolution or kwargs.get("thumbnail_resolution", 512) or 512)
 
-    if not output_path:
-        output_path = os.path.join(bpy.app.tempdir if hasattr(bpy, "app") else ".", "exported.fbx")
+    # 1. Resolve raw target source from target_objects or supported kwargs aliases
+    raw_source: Any = target_objects if target_objects is not None else (
+        kwargs.get("cloth_map") or kwargs.get("manifest") or kwargs.get("clothes") or kwargs.get("export_map") or kwargs.get("mesh_names")
+    )
 
-    # Ensure .fbx extension and posix path
-    base, _ = os.path.splitext(output_path)
-    output_path = (base + ".fbx").replace("\\", "/")
-    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    if isinstance(raw_source, str) and raw_source.strip().startswith(("{", "[")):
+        try:
+            raw_source = json.loads(raw_source)
+        except Exception:
+            pass
 
-    # Derive canonical asset name directly from file stem (e.g. "Laura")
-    asset_name = os.path.splitext(os.path.basename(output_path))[0]
+    if isinstance(raw_source, dict):
+        if "cloth_map" in raw_source and isinstance(raw_source["cloth_map"], dict):
+            raw_source = raw_source["cloth_map"]
+        elif "export_map" in raw_source and isinstance(raw_source["export_map"], dict):
+            raw_source = raw_source["export_map"]
 
-    # 1. Selection
-    if hasattr(bpy, "ops"):
-        bpy.ops.object.select_all(action='DESELECT')
-    selected_count = 0
-    selected_meshes: List[bpy.types.Object] = []
-    lowered = [t.lower() for t in targets]
+    # 2. Determine actual mode: 'Single' vs 'Batch'
+    clean_out = (output_path or "").strip().strip('"').strip("'").replace("\\", "/")
+    mode = (export_mode or "Auto").strip().capitalize()
 
-    if hasattr(bpy, "data"):
-        for obj in bpy.data.objects:
-            if not lowered or any(t in obj.name.lower() for t in lowered):
-                if obj.type in ['MESH', 'ARMATURE', 'EMPTY', 'CAMERA', 'LIGHT']:
-                    obj.select_set(True)
-                    selected_count += 1
-                    if obj.type == 'MESH':
-                        selected_meshes.append(obj)
-                    if obj.type in ['MESH', 'ARMATURE']:
-                        bpy.context.view_layer.objects.active = obj
+    if mode == "Auto":
+        if isinstance(raw_source, dict) and len(raw_source) > 0:
+            mode = "Batch"
+        elif clean_out and not clean_out.lower().endswith(".fbx") and isinstance(raw_source, list) and len(raw_source) > 1:
+            mode = "Batch"
+        else:
+            mode = "Single"
 
-    if selected_count == 0:
-        print("[export_fbx] Warning: No objects selected for export based on filter.", flush=True)
+    # 3. Load Preset Options if provided, else use Unreal Engine 5 safe standard defaults
+    preset_options: Dict[str, Any] = {
+        "global_scale": 1.0,
+        "apply_unit_scale": True,
+        "apply_scale_options": "FBX_SCALE_NONE",
+        "use_space_transform": True,
+        "bake_space_transform": False,
+        "object_types": {"ARMATURE", "MESH"},
+        "use_mesh_modifiers": True,
+        "use_mesh_modifiers_render": True,
+        "mesh_smooth_type": "FACE",
+        "colors_type": "SRGB",
+        "add_leaf_bones": False,
+        "primary_bone_axis": "X",
+        "secondary_bone_axis": "Y",
+        "use_armature_deform_only": True,
+        "armature_nodetype": "NULL",
+        "bake_anim": False,
+        "axis_forward": "X",
+        "axis_up": "Z",
+    }
 
-    # 2. Preset Options
-    preset_options = {}
     if preset_path and os.path.exists(preset_path):
         mock = MockOp()
         with open(preset_path, 'r', encoding='utf-8') as f:
             clean_code = "".join([l for l in f if "active_operator" not in l])
             exec(clean_code, {'bpy': bpy, 'op': mock})
-        preset_options = mock.options
+        preset_options.update(mock.options)
+        print(f"[export_fbx] Loaded {len(mock.options)} options from preset: '{preset_path}'", flush=True)
+    else:
+        print("[export_fbx] Using Unreal Engine safe standard FBX export defaults (Forward='X', Up='Z', BoneAxis='X'/'Y').", flush=True)
 
-    if targets:
-        preset_options['use_selection'] = True
-
+    preset_options['use_selection'] = True
     preset_options.pop('filepath', None)
 
-    # 3. Export FBX
-    print(f"[export_fbx] Exporting FBX to '{output_path}' with {selected_count} object(s) (Asset: '{asset_name}')...", flush=True)
-    if hasattr(bpy, "ops"):
-        try:
-            bpy.ops.export_scene.fbx(filepath=output_path, **preset_options)
-            print(f"[export_fbx] Successfully exported to '{output_path}'.", flush=True)
-        except Exception as e:
-            raise RuntimeError(f"Failed to export FBX: {e}")
+    exported_files: List[str] = []
+    manifest_map: Dict[str, Any] = {}
+    metadata_map: Dict[str, str] = {}
+    thumbnail_map: Dict[str, str] = {}
 
-    file_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+    # ==========================================================================
+    # BRANCH A: SINGLE EXPORT MODE (Pack all into 1 FBX file)
+    # ==========================================================================
+    if mode == "Single":
+        if not clean_out:
+            temp_dir = getattr(bpy.app, "tempdir", ".") if hasattr(bpy, "app") else "."
+            clean_out = os.path.join(temp_dir, "exported.fbx").replace("\\", "/")
 
-    # 4. Generate self-contained Manifest (Auto-inspect exported meshes)
-    source_manifest = kwargs.get("source_manifest")
-    manifest = _unwrap_manifest(source_manifest)
-    clean_output = output_path.replace("\\", "/").strip()
-    file_name = os.path.basename(clean_output)
+        if os.path.isdir(clean_out) or not clean_out.lower().endswith(".fbx"):
+            default_stem = prefix.strip("_") if prefix.strip("_") else "Character"
+            final_fbx_path = os.path.join(clean_out, f"{default_stem}.fbx").replace("\\", "/")
+        else:
+            base, _ = os.path.splitext(clean_out)
+            final_fbx_path = (base + ".fbx").replace("\\", "/")
 
-    if not manifest:
-        slots_list = inspect_selected_meshes(selected_meshes)
-        manifest = {
+        os.makedirs(os.path.dirname(os.path.abspath(final_fbx_path)), exist_ok=True)
+
+        asset_name = os.path.splitext(os.path.basename(final_fbx_path))[0]
+        if prefix and not asset_name.lower().startswith(prefix.strip("_").lower()):
+            asset_name = f"{prefix.strip('_')}_{asset_name}"
+
+        # Resolve selection (if no specific target_objects filter, select all exportable objects in scene)
+        target_list: List[str] = []
+        if isinstance(raw_source, list):
+            target_list = [str(x).strip() for x in raw_source if str(x).strip()]
+        elif isinstance(raw_source, dict):
+            target_list = list(raw_source.keys())
+        elif isinstance(raw_source, str) and raw_source.strip():
+            target_list = [raw_source.strip()]
+
+        if hasattr(bpy, "ops"):
+            bpy.ops.object.select_all(action='DESELECT')
+        selected_count = 0
+        selected_meshes: List[Any] = []
+        lowered = [t.lower() for t in target_list]
+
+        if hasattr(bpy, "data"):
+            for obj in bpy.data.objects:
+                if not lowered or any(t in obj.name.lower() for t in lowered):
+                    if obj.type in ['MESH', 'ARMATURE', 'EMPTY', 'CAMERA', 'LIGHT']:
+                        obj.select_set(True)
+                        selected_count += 1
+                        if obj.type == 'MESH':
+                            selected_meshes.append(obj)
+                        if obj.type in ['MESH', 'ARMATURE']:
+                            bpy.context.view_layer.objects.active = obj
+
+        print(f"[export_fbx] [Single Mode] Exporting FBX to '{final_fbx_path}' with {selected_count} object(s) (Asset: '{asset_name}')...", flush=True)
+        if hasattr(bpy, "ops"):
+            try:
+                bpy.ops.export_scene.fbx(filepath=final_fbx_path, **preset_options)
+                print(f"[export_fbx] Successfully exported to '{final_fbx_path}'.", flush=True)
+            except Exception as e:
+                raise RuntimeError(f"Failed to export FBX: {e}")
+
+        file_size = os.path.getsize(final_fbx_path) if os.path.exists(final_fbx_path) else 0
+        file_hash = compute_sha256(final_fbx_path) if file_size > 0 else ""
+
+        # Render Thumbnail (separated into thumbnail_map)
+        thumb_path: Optional[str] = None
+        if render_thumbnail and selected_meshes:
+            png_out = os.path.splitext(final_fbx_path)[0] + "_thumb.png"
+            thumb_path = render_mesh_thumbnail(selected_meshes, png_out, resolution=thumbnail_resolution)
+            if thumb_path:
+                thumbnail_map[final_fbx_path] = thumb_path
+
+        # Build clean metadata & manifest
+        source_manifest = kwargs.get("source_manifest")
+        unwrapped = _unwrap_manifest(source_manifest)
+        file_name = os.path.basename(final_fbx_path)
+        slots_list = unwrapped.get("slots") if unwrapped and "slots" in unwrapped else inspect_selected_meshes(selected_meshes)
+
+        pure_meta = {
+            "object": asset_name,
             "asset_name": asset_name,
-            "mode": "unified",
+            "clean_asset_name": asset_name,
+            "mode": "single",
             "file_name": file_name,
-            "file_path": clean_output,
-            "slot_count": len(slots_list),
-            "objects": {
-                asset_name: {
-                    "asset_name": asset_name,
-                    "file_path": clean_output,
-                    "slot_count": len(slots_list),
-                    "slots": slots_list
-                }
-            },
-            "export": {
-                "file_name": file_name,
-                "local_path": clean_output,
-                "file_size": file_size,
-                "objects_count": selected_count,
-            }
-        }
-        print(f"[export_fbx] Auto-inspected {len(slots_list)} slot(s) for asset '{asset_name}'.", flush=True)
-    else:
-        manifest["asset_name"] = asset_name
-        manifest["file_path"] = clean_output
-        manifest["file_name"] = file_name
-        manifest["export"] = {
-            "file_name": file_name,
-            "local_path": clean_output,
+            "file_path": final_fbx_path,
+            "local_path": final_fbx_path,
             "file_size": file_size,
-            "objects_count": selected_count,
+            "hash_sha256": file_hash,
+            "matched_meshes": [m.name for m in selected_meshes],
+            "slot_count": len(slots_list),
+            "slots": slots_list,
         }
 
-    # 5. Build metadata_update_map for UpdateResourceMetadataTool
-    metadata_update_map: Dict[str, str] = {}
-    try:
-        meta_json = json.dumps(manifest, indent=2, ensure_ascii=False)
-        metadata_update_map[clean_output] = meta_json
-        if file_name != clean_output and file_name not in metadata_update_map:
-            metadata_update_map[file_name] = meta_json
-    except Exception as ex:
-        print(f"[export_fbx] Warning: failed to serialize manifest: {ex}", flush=True)
+        try:
+            meta_json = json.dumps(pure_meta, indent=2, ensure_ascii=False)
+            metadata_map[final_fbx_path] = meta_json
+        except Exception as ex:
+            print(f"[export_fbx] Warning: failed to serialize metadata: {ex}", flush=True)
+
+        manifest_entry = dict(pure_meta)
+        if thumb_path:
+            manifest_entry["thumbnail_path"] = thumb_path
+        manifest_map[asset_name] = manifest_entry
+        exported_files.append(final_fbx_path)
+
+    # ==========================================================================
+    # BRANCH B: BATCH EXPORT MODE (Split Modular Items by Map)
+    # ==========================================================================
+    else:
+        output_dir = clean_out
+        if output_dir and (output_dir.lower().endswith((".blend", ".duf", ".fbx")) or os.path.isfile(output_dir)):
+            output_dir = os.path.dirname(os.path.abspath(output_dir))
+
+        if not output_dir:
+            blend_file = getattr(bpy.data, "filepath", "") if hasattr(bpy, "data") else ""
+            if blend_file and os.path.isdir(os.path.dirname(blend_file)):
+                output_dir = os.path.dirname(blend_file)
+            else:
+                temp_dir = getattr(bpy.app, "tempdir", ".") if hasattr(bpy, "app") else "."
+                output_dir = os.path.join(temp_dir, "modular_export")
+
+        output_dir = output_dir.replace("\\", "/")
+        os.makedirs(output_dir, exist_ok=True)
+
+        flat_map: Dict[str, str] = {}
+        if isinstance(raw_source, list):
+            for item in raw_source:
+                if isinstance(item, dict):
+                    flat_map.update(item)
+                elif isinstance(item, str) and ":" in item:
+                    k, v = item.split(":", 1)
+                    flat_map[k.strip()] = v.strip()
+                elif isinstance(item, str) and item.strip():
+                    flat_map[item.strip()] = ""
+        elif isinstance(raw_source, dict):
+            flat_map = dict(raw_source)
+        elif not raw_source and hasattr(bpy, "data"):
+            for obj in bpy.data.objects:
+                if obj.type == 'MESH':
+                    flat_map[obj.name] = ""
+
+        print(f"[export_fbx] [Batch Mode] Starting modular export for {len(flat_map)} item(s) into '{output_dir}' (Prefix: '{prefix}')...", flush=True)
+
+        clean_prefix = re.sub(r'[\s\-]+', '_', prefix.strip()).strip('_')
+
+        for object_target, raw_output_name in flat_map.items():
+            clean_obj_name = clean_asset_name(object_target)
+            raw_val = (str(raw_output_name) if raw_output_name is not None else "").strip()
+
+            if raw_val.lower().endswith(".fbx"):
+                raw_stem = os.path.splitext(os.path.basename(raw_val))[0]
+                if normalize_name(raw_stem) == normalize_name(object_target):
+                    base_stem = clean_obj_name
+                else:
+                    base_stem = clean_asset_name(raw_stem)
+                cloth_type = ""
+            else:
+                base_stem = clean_obj_name
+                cloth_type = raw_val
+
+            if clean_prefix:
+                if base_stem.lower().startswith(f"{clean_prefix.lower()}_") or base_stem.lower() == clean_prefix.lower():
+                    final_asset_name = base_stem
+                else:
+                    final_asset_name = f"{clean_prefix}_{base_stem}"
+            else:
+                final_asset_name = base_stem
+
+            final_filename = f"{final_asset_name}.fbx"
+            target_meshes = find_matching_meshes(object_target)
+            if not target_meshes:
+                print(f"[export_fbx] Warning: No matching mesh found for '{object_target}'. Skipping.", flush=True)
+                continue
+
+            matched_names = [m.name for m in target_meshes]
+            select_mesh_with_armature(target_meshes)
+
+            export_path = final_filename if os.path.isabs(final_filename) else os.path.join(output_dir, final_filename)
+            export_path = export_path.replace("\\", "/")
+            os.makedirs(os.path.dirname(os.path.abspath(export_path)), exist_ok=True)
+
+            try:
+                print(f"[export_fbx] Exporting '{final_asset_name}' (source='{object_target}', slot='{cloth_type}') to '{export_path}'...", flush=True)
+                if hasattr(bpy, "ops"):
+                    bpy.ops.export_scene.fbx(filepath=export_path, **preset_options)
+
+                file_size = os.path.getsize(export_path) if os.path.exists(export_path) else 0
+                file_hash = compute_sha256(export_path) if file_size > 0 else ""
+
+                # Render Thumbnail (separated into thumbnail_map)
+                thumb_path = None
+                if render_thumbnail:
+                    thumb_out = os.path.splitext(export_path)[0] + "_thumb.png"
+                    thumb_path = render_mesh_thumbnail(target_meshes, thumb_out, resolution=thumbnail_resolution)
+                    if thumb_path:
+                        thumbnail_map[export_path] = thumb_path
+
+                slots_list = inspect_selected_meshes(target_meshes)
+
+                pure_meta = {
+                    "object": final_asset_name,
+                    "asset_name": final_asset_name,
+                    "clean_asset_name": clean_obj_name,
+                    "source_object_name": object_target,
+                    "cloth_type": cloth_type,
+                    "file_name": os.path.basename(export_path),
+                    "file_path": export_path,
+                    "local_path": export_path,
+                    "file_size": file_size,
+                    "hash_sha256": file_hash,
+                    "matched_meshes": matched_names,
+                    "slot_count": len(slots_list),
+                    "slots": slots_list,
+                }
+
+                try:
+                    metadata_map[export_path] = json.dumps(pure_meta, indent=2, ensure_ascii=False)
+                except Exception as ex:
+                    print(f"[export_fbx] Warning: failed to serialize metadata for '{final_asset_name}': {ex}", flush=True)
+
+                manifest_entry = dict(pure_meta)
+                if thumb_path:
+                    manifest_entry["thumbnail_path"] = thumb_path
+                manifest_map[final_asset_name] = manifest_entry
+                exported_files.append(export_path)
+                print(f"[export_fbx] Successfully exported '{final_asset_name}' ({file_size} bytes, {len(slots_list)} slots).", flush=True)
+
+            except Exception as e:
+                print(f"[export_fbx] Error exporting '{object_target}': {e}", flush=True)
+                raise RuntimeError(f"Failed to export '{object_target}': {e}")
 
     return {
-        "exported_fbx_path": output_path,
-        "manifest": manifest,
-        "objects_count": selected_count,
-        "file_size": file_size,
-        "metadata_update_map": metadata_update_map,
-        "exported_files": [output_path]
+        "exported_files": exported_files,
+        "manifest": manifest_map,
+        "metadata_map": metadata_map,
+        "thumbnail_map": thumbnail_map,
+        "origin_mode": "modular" if export_mode == "Batch" else "monolithic",
     }
+
+
+export_fbx = main

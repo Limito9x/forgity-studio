@@ -11,7 +11,9 @@ public record RepositoryDto(
     int RunnerCount,
     int ResourceCount,
     DateTimeOffset CreatedAt,
-    IReadOnlyList<string>? SupportedExtensions = null
+    IReadOnlyList<string>? SupportedExtensions = null,
+    IReadOnlyList<string>? IncludedSubPaths = null,
+    int MaxScanFiles = 2000
 );
 
 public record RepositoryRunnerDto(
@@ -50,6 +52,7 @@ public record ResourceItemDto(
 )
 {
     public Guid WorkspaceId => RepositoryId;
+    public string? ThumbnailUrl { get; init; }
 }
 
 public record WorkspaceAgentDto(
@@ -97,6 +100,15 @@ public record BrowseDirectoryResultDto(
     IReadOnlyList<DirectoryNodeDto> Items
 );
 
+public record ResourceLinkedAnchorDto(
+    Guid ContentItemId,
+    string ContentItemName,
+    string? ContentTypeName,
+    string? ContentTypeColor,
+    string? ContentTypeIcon,
+    string AnchorPath
+);
+
 public record WorkspaceResourceDto(
     Guid Id,
     Guid WorkspaceId,
@@ -118,7 +130,10 @@ public record WorkspaceResourceDto(
     string? LockedByRunnerName = null,
     DateTimeOffset? LockedAt = null,
     Guid? HoldingRunnerId = null,
-    string? HoldingRunnerName = null
+    string? HoldingRunnerName = null,
+    string? AnchorPath = null,
+    IReadOnlyList<ResourceLinkedAnchorDto>? LinkedAnchors = null,
+    string? ThumbnailUrl = null
 );
 
 public record WorkspaceAgentResourceDto(
@@ -144,12 +159,14 @@ public record ResourceVersionDto(
     DateTimeOffset CreatedAt,
     ResourceVersionStatus Status = ResourceVersionStatus.Draft,
     System.Text.Json.JsonDocument? Metadata = null,
-    IReadOnlyDictionary<string, IReadOnlyList<Automation.Tag.Contracts.Dtos.TagLinkDetailDto>>? TagsByPath = null,
+    IReadOnlyDictionary<
+        string,
+        IReadOnlyList<Automation.Tag.Contracts.Dtos.TagLinkDetailDto>
+    >? TagsByPath = null,
     IReadOnlyList<ResourceVersionLocationDto>? Locations = null,
     Guid? AssetLinkId = null,
     bool IsCloudSynced = false
 );
-
 
 public record ResourceDiffItem(
     string RelativePath,
@@ -169,7 +186,9 @@ public record DiffResult(
     List<ResourceDiffItem> Added,
     List<ResourceDiffItem> Modified,
     List<ResourceDiffItem> Deleted,
-    List<ResourceDiffItem> Missing
+    List<ResourceDiffItem> Missing,
+    bool HasReachedLimit = false,
+    int TotalScanned = 0
 )
 {
     public Guid WorkspaceAgentId => RepositoryRunnerId;
@@ -185,5 +204,6 @@ public record ContentResourceDto(
     int LatestVersionNo,
     long LatestSizeBytes,
     int VersionCount,
-    DateTimeOffset CreatedAt
+    DateTimeOffset CreatedAt,
+    string? AnchorPath = null
 );

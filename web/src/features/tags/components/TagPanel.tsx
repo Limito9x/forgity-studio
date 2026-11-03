@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useDebounce } from "@/hooks/use-debounce";
 import { useTagTree, useDeleteTag, type TagTreeNodeDto } from "../hooks/useTags";
 import { useExportTags } from "../hooks/useTagsExportImport";
 import { useProjectToolbarStore } from "@/stores/projectToolbarStore";
@@ -112,6 +113,7 @@ export function TagPanel({ projectId, contextTitle }: TagPanelProps) {
 
     const tree = treeData ?? [];
     const [searchQuery, setSearchQuery] = useState("");
+    const debouncedSearch = useDebounce(searchQuery, 300);
     const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
 
     const allTreePaths = useMemo(() => collectAllTreePaths(tree), [tree]);
@@ -150,9 +152,9 @@ export function TagPanel({ projectId, contextTitle }: TagPanelProps) {
 
     // Filter tree by search query recursively
     const filteredTree = useMemo(() => {
-        if (!searchQuery.trim()) return tree;
+        if (!debouncedSearch.trim()) return tree;
 
-        const query = searchQuery.toLowerCase();
+        const query = debouncedSearch.toLowerCase();
 
         function filterNodes(nodes: TagTreeNodeDto[]): TagTreeNodeDto[] {
             const result: TagTreeNodeDto[] = [];
@@ -176,7 +178,7 @@ export function TagPanel({ projectId, contextTitle }: TagPanelProps) {
         }
 
         return filterNodes(tree);
-    }, [tree, searchQuery]);
+    }, [tree, debouncedSearch]);
 
     // Count total leaf tags
     const totalTagsCount = useMemo(() => {
@@ -423,7 +425,7 @@ export function TagPanel({ projectId, contextTitle }: TagPanelProps) {
                                     projectId={projectId}
                                     expandedPaths={expandedPaths}
                                     toggleExpand={toggleExpand}
-                                    autoExpandAll={Boolean(searchQuery.trim())}
+                                    autoExpandAll={Boolean(debouncedSearch.trim())}
                                 />
                             ))
                         )}

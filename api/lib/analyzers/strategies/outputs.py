@@ -13,11 +13,19 @@ class ReturnDictInspectionStrategy(OutputDiscoveryStrategy):
 
     def discover(self, func_node: ast.FunctionDef, raw_doc: Optional[str]) -> List[Dict[str, Any]]:
         # Index local variable type annotations e.g. body_mesh: List[str] = []
+        # and direct assignments e.g. contracts = { ... } or items = [ ... ]
         local_var_types: Dict[str, Tuple[str, str]] = {}
         for stmt in ast.walk(func_node):
             if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
                 p_type, card, _ = normalize_type_and_cardinality(stmt.annotation)
                 local_var_types[stmt.target.id] = (p_type, card)
+            elif isinstance(stmt, ast.Assign):
+                for target in stmt.targets:
+                    if isinstance(target, ast.Name):
+                        if isinstance(stmt.value, ast.Dict):
+                            local_var_types[target.id] = ("Text", "Map")
+                        elif isinstance(stmt.value, ast.List):
+                            local_var_types[target.id] = ("Text", "Array")
 
         outputs: List[Dict[str, Any]] = []
         seen: Set[str] = set()
@@ -43,11 +51,19 @@ class ReturnDictInspectionStrategy(OutputDiscoveryStrategy):
                                 # 2. Local variable annotation trace
                                 prim_type, cardinality = local_var_types[v.id]
                             else:
-                                # 3. Plural / Suffix naming conventions
-                                if name.endswith("es") or name.endswith("s") or name.endswith("_list"):
-                                    cardinality = "Array"
-                                elif name.endswith("_map") or name.endswith("_dict"):
+                                # 3. Suffix & semantic naming conventions
+                                if (
+                                    name in ("contracts", "manifest", "metadata", "options")
+                                    or name.endswith("_contracts")
+                                    or name.endswith("_manifest")
+                                    or name.endswith("_map")
+                                    or name.endswith("_dict")
+                                ):
                                     cardinality = "Map"
+                                elif name == "status" or name.endswith("_status"):
+                                    cardinality = "Single"
+                                elif name.endswith("es") or name.endswith("s") or name.endswith("_list"):
+                                    cardinality = "Array"
 
                             outputs.append({
                                 "name": name,

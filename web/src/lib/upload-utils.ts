@@ -1,4 +1,3 @@
-import axios from "axios";
 import { requestUpload, confirmUpload } from "@/gen/endpoints/assets/assets";
 import type { ConfirmAssetDto } from "@/gen/model";
 
@@ -87,13 +86,20 @@ export async function uploadAssetFlow(
 
   const { assetId, isAlreadyExists, presignedUrl } = uploadRequests[0];
 
-  // 4. Upload file if it doesn't already exist
+  // 4. Upload file directly to S3/R2 presigned URL using standard fetch
+  // (avoiding Axios default headers like Accept or charset mutation that break AWS4 HMAC signature)
   if (!isAlreadyExists && presignedUrl) {
-    await axios.put(presignedUrl, file, {
+    const uploadRes = await fetch(presignedUrl, {
+      method: "PUT",
+      body: file,
       headers: {
         "Content-Type": detectedType,
       },
     });
+    if (!uploadRes.ok) {
+      const errText = await uploadRes.text().catch(() => "");
+      throw new Error(`Upload to storage failed (${uploadRes.status}): ${errText || uploadRes.statusText}`);
+    }
   }
 
 
@@ -186,11 +192,17 @@ export async function uploadMultipleAssetsFlow(
       const file = itemsPayload[index].file;
 
       if (!isAlreadyExists && presignedUrl) {
-        await axios.put(presignedUrl, file, {
+        const uploadRes = await fetch(presignedUrl, {
+          method: "PUT",
+          body: file,
           headers: {
-            "Content-Type": file.type,
+            "Content-Type": itemsPayload[index].requestItem.contentType,
           },
         });
+        if (!uploadRes.ok) {
+          const errText = await uploadRes.text().catch(() => "");
+          throw new Error(`Upload to storage failed (${uploadRes.status}): ${errText || uploadRes.statusText}`);
+        }
       }
 
       confirmedAssetIds.push(assetId);

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useDebounce } from "@/hooks/use-debounce";
 import { Dialog, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +58,7 @@ export function TagMapPreviewDialog({
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<"all" | "tag_map" | "path_map" | "objects" | "all_tags">("all");
   const [searchFilter, setSearchFilter] = useState("");
+  const debouncedFilter = useDebounce(searchFilter, 300);
 
   const previewResult = useMemo(() => {
     if (!metadata) {
@@ -136,16 +138,16 @@ export function TagMapPreviewDialog({
       });
     }
 
-    if (!searchFilter.trim()) return list;
+    if (!debouncedFilter.trim()) return list;
 
-    const q = searchFilter.toLowerCase().trim();
+    const q = debouncedFilter.toLowerCase().trim();
     return list.filter(
       (entry) =>
         entry.path.toLowerCase().includes(q) ||
         (entry.value && String(entry.value).toLowerCase().includes(q)) ||
         entry.tags.some((t) => t.toLowerCase().includes(q))
     );
-  }, [pathMap, keyMode, searchFilter]);
+  }, [pathMap, keyMode, debouncedFilter]);
 
   const displayedData = useMemo(() => {
     switch (activeTab) {
@@ -169,11 +171,11 @@ export function TagMapPreviewDialog({
   }, [previewResult, activeTab, assetObj]);
 
   const jsonString = useMemo(() => {
-    if (!searchFilter.trim()) {
+    if (!debouncedFilter.trim()) {
       return JSON.stringify(displayedData, null, 2);
     }
 
-    const q = searchFilter.toLowerCase();
+    const q = debouncedFilter.toLowerCase();
     if (typeof displayedData === "object" && displayedData !== null) {
       const filtered: Record<string, any> = {};
       for (const [k, v] of Object.entries(displayedData)) {
@@ -188,7 +190,7 @@ export function TagMapPreviewDialog({
     }
 
     return JSON.stringify(displayedData, null, 2);
-  }, [displayedData, searchFilter]);
+  }, [displayedData, debouncedFilter]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(jsonString);

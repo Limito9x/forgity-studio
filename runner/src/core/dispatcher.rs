@@ -464,6 +464,15 @@ impl StageDispatcher {
                                     "Guest DCC script failed to launch or connect to IPC (exit code {:?}). Check logs at logs/stage_{}.log",
                                     res.exit_code, stage_id
                                 ));
+                            } else if stage_succeeded {
+                                // Guest script explicitly reported success via Named Pipe IPC.
+                                // Do not let benign DCC shutdown noise (e.g. Unreal HttpListener port conflict, addon crash on exit) override a successful pipeline stage.
+                                if !res.success {
+                                    warn!(
+                                        "[Dispatcher] Stage {} completed successfully according to Guest IPC, but DCC host process exited with code {:?} (harmless engine shutdown warning/error). Preserving stage success.",
+                                        stage_id, res.exit_code
+                                    );
+                                }
                             } else if !res.success && stage_error.is_none() {
                                 stage_succeeded = false;
                                 stage_error = Some(format!("Subprocess exited with non-zero code {:?}", res.exit_code));

@@ -95,9 +95,11 @@ def import_fbx_skeletal_mesh(
         if hasattr(fbx_options, "skeletal_mesh_import_data") and fbx_options.skeletal_mesh_import_data:
             try:
                 if hasattr(unreal, "FBXImportContentType"):
-                    fbx_options.skeletal_mesh_import_data.set_editor_property(
-                        "import_content_type", unreal.FBXImportContentType.FBXIT_GEOMETRY_AND_SKINNING
-                    )
+                    content_type = getattr(unreal.FBXImportContentType, "FBXICT_ALL", None)
+                    if content_type is not None:
+                        fbx_options.skeletal_mesh_import_data.set_editor_property(
+                            "import_content_type", content_type
+                        )
                 if hasattr(unreal, "FBXNormalImportMethod"):
                     method_str = str(normal_import_method or "FBXNIM_IMPORT_NORMALS").upper()
                     if "COMPUTE" in method_str:

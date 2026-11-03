@@ -1,4 +1,5 @@
 using Automation.Content.Contracts;
+using Automation.Content.Domain.Enums;
 using Automation.Content.Infrastructure.Persistence;
 using Automation.SharedKernel.Extensions.Strings;
 using FluentResults;
@@ -171,5 +172,388 @@ public class ContentApiService(ContentDbContext db) : IContentApi
             contentType.Color,
             contentType.Icon
         ));
+    }
+
+    public async Task<Result<IReadOnlyList<ContentAnchorLinkDto>>> SmartLinkResourcesByConventionAsync(
+        Guid projectId,
+        string contentTypeKeyOrName,
+        IEnumerable<ResourceSmartLinkInput> resources,
+        CancellationToken ct = default
+    )
+    {
+        var inputList = resources?.ToList() ?? [];
+        if (inputList.Count == 0)
+        {
+            return Result.Ok<IReadOnlyList<ContentAnchorLinkDto>>([]);
+        }
+
+        var results = new List<ContentAnchorLinkDto>();
+        var contentCache = new Dictionary<string, ContentSummaryDto>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var res in inputList)
+        {
+            var parseResult = AnchorConventionParser.Parse(res.FileName);
+            var contentName = parseResult.ContentName;
+            var anchorPath = string.IsNullOrWhiteSpace(res.ExplicitAnchorPath) 
+                ? parseResult.AnchorPath 
+                : res.ExplicitAnchorPath.Trim();
+
+            if (string.IsNullOrWhiteSpace(contentName))
+            {
+                continue;
+            }
+
+            if (!contentCache.TryGetValue(contentName, out var contentItem))
+            {
+                var getOrCreateRes = await GetOrCreateContentItemAsync(
+                    projectId,
+                    contentTypeKeyOrName,
+                    contentName,
+                    createIfNotExists: true,
+                    ct
+                );
+
+                if (getOrCreateRes.IsFailed || getOrCreateRes.Value == null)
+                {
+                    return Result.Fail<IReadOnlyList<ContentAnchorLinkDto>>(getOrCreateRes.Errors);
+                }
+
+                contentItem = getOrCreateRes.Value;
+                contentCache[contentName] = contentItem;
+            }
+
+            var existingLink = await db.ContentAnchorLinks
+                .FirstOrDefaultAsync(l => 
+                    l.ContentItemId == contentItem.Id && 
+                    l.TargetId == res.ResourceId && 
+                    l.TargetType == Domain.Enums.ContentLinkTargetType.Resource, ct);
+
+            if (existingLink != null)
+            {
+                existingLink.AnchorPath = anchorPath;
+                if (!string.IsNullOrWhiteSpace(res.MetadataJson))
+                {
+                    existingLink.MetadataJson = res.MetadataJson;
+                }
+                results.Add(new ContentAnchorLinkDto(
+                    existingLink.Id,
+                    contentItem.Id,
+                    contentItem.Name,
+                    existingLink.AnchorPath,
+                    (int)existingLink.TargetType,
+                    existingLink.TargetId,
+                    res.FileName,
+                    existingLink.MetadataJson
+                ));
+            }
+            else
+            {
+                var newLink = new Domain.Entities.ContentAnchorLink(
+                    projectId,
+                    contentItem.Id,
+                    anchorPath,
+                    Domain.Enums.ContentLinkTargetType.Resource,
+                    res.ResourceId,
+                    res.MetadataJson
+                );
+                db.ContentAnchorLinks.Add(newLink);
+                results.Add(new ContentAnchorLinkDto(
+                    newLink.Id,
+                    contentItem.Id,
+                    contentItem.Name,
+                    newLink.AnchorPath,
+                    (int)newLink.TargetType,
+                    newLink.TargetId,
+                    res.FileName,
+                    newLink.MetadataJson
+                ));
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+        return Result.Ok<IReadOnlyList<ContentAnchorLinkDto>>(results);
+    }
+
+    public async Task<Result<IReadOnlyList<ContentAnchorLinkDto>>> AssignResourcesToAnchorAsync(
+        Guid projectId,
+        Guid contentItemId,
+        string? anchorPath,
+        IEnumerable<ResourceSmartLinkInput> resources,
+        CancellationToken ct = default
+    )
+    {
+        var contentItem = await db.ContentItems.FirstOrDefaultAsync(c => c.Id == contentItemId, ct);
+        if (contentItem == null)
+        {
+            return Result.Fail<IReadOnlyList<ContentAnchorLinkDto>>($"Content item with ID '{contentItemId}' not found.");
+        }
+
+        var inputList = resources?.ToList() ?? [];
+        var results = new List<ContentAnchorLinkDto>();
+
+        foreach (var res in inputList)
+        {
+            var targetPath = !string.IsNullOrWhiteSpace(res.ExplicitAnchorPath)
+                ? res.ExplicitAnchorPath.Trim()
+                : !string.IsNullOrWhiteSpace(anchorPath)
+                    ? anchorPath.Trim()
+                    : AnchorConventionParser.Parse(res.FileName).AnchorPath;
+
+            var existingLink = await db.ContentAnchorLinks
+                .FirstOrDefaultAsync(l => 
+                    l.ContentItemId == contentItemId && 
+                    l.TargetId == res.ResourceId && 
+                    l.TargetType == Domain.Enums.ContentLinkTargetType.Resource, ct);
+
+            if (existingLink != null)
+            {
+                existingLink.AnchorPath = targetPath;
+                if (!string.IsNullOrWhiteSpace(res.MetadataJson))
+                {
+                    existingLink.MetadataJson = res.MetadataJson;
+                }
+                results.Add(new ContentAnchorLinkDto(
+                    existingLink.Id,
+                    contentItem.Id,
+                    contentItem.Name,
+                    existingLink.AnchorPath,
+                    (int)existingLink.TargetType,
+                    existingLink.TargetId,
+                    res.FileName,
+                    existingLink.MetadataJson
+                ));
+            }
+            else
+            {
+                var newLink = new Domain.Entities.ContentAnchorLink(
+                    projectId,
+                    contentItemId,
+                    targetPath,
+                    Domain.Enums.ContentLinkTargetType.Resource,
+                    res.ResourceId,
+                    res.MetadataJson
+                );
+                db.ContentAnchorLinks.Add(newLink);
+                results.Add(new ContentAnchorLinkDto(
+                    newLink.Id,
+                    contentItem.Id,
+                    contentItem.Name,
+                    newLink.AnchorPath,
+                    (int)newLink.TargetType,
+                    newLink.TargetId,
+                    res.FileName,
+                    newLink.MetadataJson
+                ));
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+        return Result.Ok<IReadOnlyList<ContentAnchorLinkDto>>(results);
+    }
+
+    public async Task<Result> UnlinkResourcesAsync(
+        IEnumerable<Guid> resourceIds,
+        Guid? contentItemId = null,
+        CancellationToken ct = default
+    )
+    {
+        var idList = resourceIds?.Distinct().ToList() ?? [];
+        if (idList.Count == 0)
+        {
+            return Result.Ok();
+        }
+
+        var query = db.ContentAnchorLinks
+            .Where(l => idList.Contains(l.TargetId) || idList.Contains(l.Id));
+
+        if (contentItemId.HasValue && contentItemId.Value != Guid.Empty)
+        {
+            query = query.Where(l => l.ContentItemId == contentItemId.Value);
+        }
+
+        var linksToRemove = await query.ToListAsync(ct);
+        if (linksToRemove.Count > 0)
+        {
+            db.ContentAnchorLinks.RemoveRange(linksToRemove);
+            await db.SaveChangesAsync(ct);
+        }
+
+        return Result.Ok();
+    }
+
+    public async Task<Result<IReadOnlyDictionary<Guid, IReadOnlyList<ContentAnchorLinkDto>>>> GetResourceAnchorLinksAsync(
+        IEnumerable<Guid> resourceIds,
+        CancellationToken ct = default
+    )
+    {
+        var idList = resourceIds?.Distinct().ToList() ?? [];
+        if (idList.Count == 0)
+        {
+            return Result.Ok<IReadOnlyDictionary<Guid, IReadOnlyList<ContentAnchorLinkDto>>>(
+                new Dictionary<Guid, IReadOnlyList<ContentAnchorLinkDto>>()
+            );
+        }
+
+        var links = await db.ContentAnchorLinks
+            .AsNoTracking()
+            .Include(l => l.ContentItem)
+            .Where(l => l.TargetType == Domain.Enums.ContentLinkTargetType.Resource && idList.Contains(l.TargetId))
+            .Select(l => new ContentAnchorLinkDto(
+                l.Id,
+                l.ContentItemId,
+                l.ContentItem.Name,
+                l.AnchorPath,
+                (int)l.TargetType,
+                l.TargetId,
+                null,
+                l.MetadataJson
+            ))
+            .ToListAsync(ct);
+
+        var grouped = links
+            .GroupBy(l => l.TargetId)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<ContentAnchorLinkDto>)g.ToList()
+            );
+
+        return Result.Ok<IReadOnlyDictionary<Guid, IReadOnlyList<ContentAnchorLinkDto>>>(grouped);
+    }
+
+    public async Task<Result<ContentAnchorTreeDto>> GetContentAnchorTreeAsync(
+        Guid contentItemId,
+        CancellationToken ct = default
+    )
+    {
+        var contentItem = await db.ContentItems
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == contentItemId, ct);
+
+        if (contentItem == null)
+        {
+            return Result.Fail<ContentAnchorTreeDto>($"Content item with ID '{contentItemId}' not found.");
+        }
+
+        var links = await db.ContentAnchorLinks
+            .AsNoTracking()
+            .Where(l => l.ContentItemId == contentItemId)
+            .ToListAsync(ct);
+
+        var roots = new List<ContentAnchorNodeDto>();
+
+        foreach (var link in links)
+        {
+            var rawPath = (link.AnchorPath ?? "root").Trim().Trim('/');
+            if (string.IsNullOrEmpty(rawPath)) rawPath = "root";
+
+            var segments = rawPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length == 0) segments = ["root"];
+
+            List<ContentAnchorNodeDto> currentChildren = roots;
+            string currentPath = "";
+
+            if (segments.Length == 1)
+            {
+                var folderName = segments[0];
+                var folderNode = currentChildren.FirstOrDefault(n => !n.IsLeaf && n.Name.Equals(folderName, StringComparison.OrdinalIgnoreCase));
+                if (folderNode == null)
+                {
+                    folderNode = new ContentAnchorNodeDto(
+                        folderName,
+                        folderName,
+                        false,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new List<ContentAnchorNodeDto>()
+                    );
+                    currentChildren.Add(folderNode);
+                }
+
+                folderNode.Children.Add(new ContentAnchorNodeDto(
+                    folderName,
+                    $"{folderName}/{link.Id}",
+                    true,
+                    link.TargetId,
+                    (int)link.TargetType,
+                    folderName,
+                    link.MetadataJson,
+                    new List<ContentAnchorNodeDto>()
+                ));
+                continue;
+            }
+
+            for (int i = 0; i < segments.Length - 1; i++)
+            {
+                var folderName = segments[i];
+                currentPath = string.IsNullOrEmpty(currentPath) ? folderName : $"{currentPath}/{folderName}";
+
+                var folderNode = currentChildren.FirstOrDefault(n => !n.IsLeaf && n.Name.Equals(folderName, StringComparison.OrdinalIgnoreCase));
+                if (folderNode == null)
+                {
+                    folderNode = new ContentAnchorNodeDto(
+                        folderName,
+                        currentPath,
+                        false,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new List<ContentAnchorNodeDto>()
+                    );
+                    currentChildren.Add(folderNode);
+                }
+
+                currentChildren = folderNode.Children;
+            }
+
+            var leafName = segments[^1];
+            var leafPath = string.IsNullOrEmpty(currentPath) ? leafName : $"{currentPath}/{leafName}";
+
+            var leafNode = new ContentAnchorNodeDto(
+                leafName,
+                leafPath,
+                true,
+                link.TargetId,
+                (int)link.TargetType,
+                leafName,
+                link.MetadataJson,
+                new List<ContentAnchorNodeDto>()
+            );
+            currentChildren.Add(leafNode);
+        }
+
+        return Result.Ok(new ContentAnchorTreeDto(contentItem.Id, contentItem.Name, roots));
+    }
+
+    public async Task<Result<IReadOnlyList<Guid>>> GetLinkedResourceIdsByContentIdAsync(
+        Guid contentItemId,
+        CancellationToken ct = default
+    )
+    {
+        var resourceIds = await db.ContentAnchorLinks
+            .AsNoTracking()
+            .Where(l => l.ContentItemId == contentItemId && l.TargetType == ContentLinkTargetType.Resource)
+            .Select(l => l.TargetId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        return Result.Ok<IReadOnlyList<Guid>>(resourceIds);
+    }
+
+    public async Task<Result<IReadOnlyList<Guid>>> GetAllLinkedResourceIdsInProjectAsync(
+        Guid projectId,
+        CancellationToken ct = default
+    )
+    {
+        var resourceIds = await db.ContentAnchorLinks
+            .AsNoTracking()
+            .Where(l => l.ContentItem.ProjectId == projectId && l.TargetType == ContentLinkTargetType.Resource)
+            .Select(l => l.TargetId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        return Result.Ok<IReadOnlyList<Guid>>(resourceIds);
     }
 }

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Form, FormGrid, zodResolver, useForm } from "@/components/form";
 import { FormInput, FormTextarea, FormTagsInput } from "@/components/form-controls";
 import {
@@ -23,8 +24,22 @@ export function CreateRepositoryForm({
       name: defaultValues?.name || "",
       description: defaultValues?.description || "",
       supportedExtensions: defaultValues?.supportedExtensions || [],
+      includedSubPaths: defaultValues?.includedSubPaths || [],
+      maxScanFiles: defaultValues?.maxScanFiles ?? 2000,
     },
   });
+
+  useEffect(() => {
+    if (defaultValues) {
+      form.reset({
+        name: defaultValues.name || "",
+        description: defaultValues.description || "",
+        supportedExtensions: defaultValues.supportedExtensions || [],
+        includedSubPaths: defaultValues.includedSubPaths || [],
+        maxScanFiles: defaultValues.maxScanFiles ?? 2000,
+      });
+    }
+  }, [defaultValues, form]);
 
   return (
     <Form form={form} formId={formId} onSubmit={onSubmit}>
@@ -54,6 +69,25 @@ export function CreateRepositoryForm({
           description="Extensions tracked by this repository. Leave empty to allow all files. Stored without dot."
           transformTag={(tag) => tag.replace(/^\.+/, "").toLowerCase().trim()}
           renderTagLabel={(tag) => `.${tag}`}
+        />
+
+        <FormTagsInput
+          control={form.control}
+          label="Included Sub-Paths (Folders)"
+          name="includedSubPaths"
+          placeholder="e.g. Characters, Systems/Wardrobe (press Enter)"
+          description="Target subfolders to scan from RootPath. Leave empty to scan entire root directory."
+          transformTag={(tag) => tag.replace(/^[\/\\]+|[\/\\]+$/g, "").trim()}
+          renderTagLabel={(tag) => `📁 ${tag}`}
+        />
+
+        <FormInput
+          control={form.control}
+          label="Max Scan Limit"
+          name="maxScanFiles"
+          type="number"
+          placeholder="2000"
+          description="Maximum files to scan per sync to prevent memory overload."
         />
       </FormGrid>
     </Form>

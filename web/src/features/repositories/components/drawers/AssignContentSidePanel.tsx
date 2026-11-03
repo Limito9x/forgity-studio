@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useDebounce } from "@/hooks/use-debounce";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ContentDropTargetCard } from "./ContentDropTargetCard";
@@ -26,7 +27,9 @@ export function AssignContentSidePanel({
   onAssignSuccess,
 }: AssignContentSidePanelProps) {
   const [keyword, setKeyword] = useState("");
+  const debouncedKeyword = useDebounce(keyword, 350);
   const [selectedContentTypeId, setSelectedContentTypeId] = useState<string | null>(null);
+  const [customAnchorPath, setCustomAnchorPath] = useState("");
 
   // Fetch content types for project filter pills
   const { data: contentTypesData } = useContentTypes({ page: 1, pageSize: 50 }, projectId);
@@ -36,7 +39,7 @@ export function AssignContentSidePanel({
   const { data: contentItems, isLoading } = useLookupContentItems(
     projectId,
     {
-      keyword: keyword.trim() || undefined,
+      keyword: debouncedKeyword.trim() || undefined,
       contentTypeId: selectedContentTypeId || undefined,
       limit: 40,
     },
@@ -56,6 +59,7 @@ export function AssignContentSidePanel({
         data: {
           resourceIds: selectedResourceIds,
           contentId: contentId,
+          anchorPath: customAnchorPath.trim() || undefined,
         },
       },
       {
@@ -112,6 +116,16 @@ export function AssignContentSidePanel({
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             className="pl-8 h-8 text-xs bg-background"
+          />
+        </div>
+
+        {/* Optional Anchor Path Input */}
+        <div>
+          <Input
+            placeholder="Anchor path (e.g. Outfit1/Bra or empty for auto)..."
+            value={customAnchorPath}
+            onChange={(e) => setCustomAnchorPath(e.target.value)}
+            className="h-7 text-xs bg-background font-mono placeholder:font-sans"
           />
         </div>
 

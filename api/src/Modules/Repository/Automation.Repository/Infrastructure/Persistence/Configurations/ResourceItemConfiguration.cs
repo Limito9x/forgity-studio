@@ -22,7 +22,6 @@ public class ResourceItemConfiguration : IEntityTypeConfiguration<Domain.Entitie
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(x => x.Extension);
-        builder.HasIndex(x => x.ContentId);
         builder.HasIndex(x => new { x.RepositoryId, x.RelativePath })
             .IsUnique()
             .HasFilter("\"DeletedAt\" IS NULL");

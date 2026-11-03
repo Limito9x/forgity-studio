@@ -86,4 +86,75 @@ public class UpdateResourceMetadataToolTests
         await _workspaceApi.Received(1).UpdateMetadataAsync(Arg.Is<Guid>(g => g == versionId1), Arg.Any<JsonDocument>(), Arg.Any<CancellationToken>());
         await _workspaceApi.Received(1).UpdateMetadataAsync(Arg.Is<Guid>(g => g == versionId2), Arg.Any<JsonDocument>(), Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task ExecuteAsync_WithThumbnailMap_ShouldCallUpdateThumbnailAsyncSeparately()
+    {
+        var id1 = Guid.NewGuid();
+
+        _workspaceApi.GetResourceLocationAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Fail<ResourceLocationInfoDto>("Not found, use direct"));
+
+        _workspaceApi.UpdateThumbnailAsync(id1, "D:/Storage/Thumbnails/hero_top.png", Arg.Any<CancellationToken>())
+            .Returns(Result.Ok());
+
+        var tool = new UpdateResourceMetadataTool(_workspaceApi);
+        var inputs = new Dictionary<string, object>
+        {
+            ["ThumbnailMap"] = new Dictionary<string, string>
+            {
+                [$"urn:resource:{id1}"] = "D:/Storage/Thumbnails/hero_top.png"
+            }
+        };
+
+        var result = await tool.ExecuteAsync(inputs, _context);
+
+        result["Success"].Should().Be(true);
+        result["UpdatedCount"].Should().Be(1);
+
+        await _workspaceApi.Received(1).UpdateThumbnailAsync(id1, "D:/Storage/Thumbnails/hero_top.png", Arg.Any<CancellationToken>());
+        await _workspaceApi.DidNotReceive().UpdateMetadataAsync(Arg.Any<Guid>(), Arg.Any<JsonDocument>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithBothMetadataAndThumbnail_ShouldCallBothIndependently()
+    {
+        var id1 = Guid.NewGuid();
+
+        _workspaceApi.GetResourceLocationAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Fail<ResourceLocationInfoDto>("Not found, use direct"));
+
+        JsonDocument? capturedDoc = null;
+        _workspaceApi.UpdateMetadataAsync(id1, Arg.Do<JsonDocument>(doc => capturedDoc = doc), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok());
+
+        _workspaceApi.UpdateThumbnailAsync(id1, "D:/Storage/Thumbnails/hero_top.png", Arg.Any<CancellationToken>())
+            .Returns(Result.Ok());
+
+        var tool = new UpdateResourceMetadataTool(_workspaceApi);
+        var inputs = new Dictionary<string, object>
+        {
+            ["MetadataMap"] = new Dictionary<string, object?>
+            {
+                [$"urn:resource:{id1}"] = new { slot = "Top", character = "Hero" }
+            },
+            ["ThumbnailMap"] = new Dictionary<string, string>
+            {
+                [$"urn:resource:{id1}"] = "D:/Storage/Thumbnails/hero_top.png"
+            }
+        };
+
+        var result = await tool.ExecuteAsync(inputs, _context);
+
+        result["Success"].Should().Be(true);
+        result["UpdatedCount"].Should().Be(1);
+
+        capturedDoc.Should().NotBeNull();
+        capturedDoc!.RootElement.GetProperty("slot").GetString().Should().Be("Top");
+        capturedDoc!.RootElement.GetProperty("character").GetString().Should().Be("Hero");
+        capturedDoc!.RootElement.TryGetProperty("thumbnail_path", out _).Should().BeFalse();
+
+        await _workspaceApi.Received(1).UpdateMetadataAsync(id1, Arg.Any<JsonDocument>(), Arg.Any<CancellationToken>());
+        await _workspaceApi.Received(1).UpdateThumbnailAsync(id1, "D:/Storage/Thumbnails/hero_top.png", Arg.Any<CancellationToken>());
+    }
 }

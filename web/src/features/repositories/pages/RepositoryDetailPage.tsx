@@ -4,7 +4,9 @@ import {
   useRepositoryDetail,
   useRepositoryResources,
   type RepositoryRunnerDto,
+  type ExtendedRepositoryDetailDto,
 } from "../hooks/useRepositories";
+import { useDebounce } from "@/hooks/use-debounce";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -49,18 +51,49 @@ export function RepositoryDetailPage(props: RepositoryDetailPageProps = {}) {
   const nav = useProjectNav({ projectId });
 
   const [activeTab, setActiveTab] = useState<RepositoryTab>("resources");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 350);
+  const [runnerFilter, setRunnerFilter] = useState<string>("ALL");
+  const [assignmentFilter, setAssignmentFilter] = useState<"all" | "assigned" | "unassigned">("all");
+
+  const handleSearchChange = (val: string) => {
+    setSearch(val);
+    setPage(1);
+  };
+
+  const handleAssignmentFilterChange = (filter: "all" | "assigned" | "unassigned") => {
+    setAssignmentFilter(filter);
+    setPage(1);
+  };
+
+  const handleRunnerFilterChange = (runnerId: string) => {
+    setRunnerFilter(runnerId);
+    setPage(1);
+  };
+
+  const isLinkedParam = assignmentFilter === "all" ? undefined : assignmentFilter === "assigned";
+  const repositoryRunnerIdParam = runnerFilter !== "ALL" ? runnerFilter : undefined;
 
   const {
-    data: repository,
+    data: repoData,
     isLoading: isRepoLoading,
     refetch: refetchRepo,
   } = useRepositoryDetail(repositoryId);
+  const repository = repoData as ExtendedRepositoryDetailDto | undefined;
 
   const {
     data: resourcesData,
     isLoading: isResourcesLoading,
     refetch: refetchResources,
-  } = useRepositoryResources(repositoryId, projectId);
+  } = useRepositoryResources(repositoryId, projectId, {
+    page,
+    pageSize,
+    globalKeyword: debouncedSearch.trim() || undefined,
+    repositoryRunnerId: repositoryRunnerIdParam,
+    isLinked: isLinkedParam,
+  });
 
   const handleRefreshAll = () => {
     refetchRepo();
@@ -105,7 +138,7 @@ export function RepositoryDetailPage(props: RepositoryDetailPageProps = {}) {
       icon: FileText,
       badge: (
         <Badge variant="secondary" className="text-[10px] font-mono px-1.5 py-0 h-4 min-w-4 flex items-center justify-center">
-          {resources.length}
+          {repository?.resourceCount ?? resourcesData?.totalCount ?? resources.length}
         </Badge>
       ),
     },
@@ -211,6 +244,8 @@ export function RepositoryDetailPage(props: RepositoryDetailPageProps = {}) {
                     description: repository.description || undefined,
                     projectId: repository.projectId,
                     supportedExtensions: (repository as any).supportedExtensions,
+                    includedSubPaths: (repository.includedSubPaths as string[]) || undefined,
+                    maxScanFiles: repository.maxScanFiles,
                   })
                 }
                 className="gap-2 text-xs cursor-pointer"
@@ -250,11 +285,25 @@ export function RepositoryDetailPage(props: RepositoryDetailPageProps = {}) {
       {/* Tab 1: Resources & Assets */}
       {activeTab === "resources" && (
         <RepositoryResourcesTab
-          projectId={projectId}
+          projectId={projectId || repository.projectId}
           repositoryId={repository.id}
           repository={repository}
           resources={resources}
+          totalCount={resourcesData?.totalCount ?? 0}
           isLoading={isResourcesLoading}
+          assignmentFilter={assignmentFilter}
+          onAssignmentFilterChange={handleAssignmentFilterChange}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={(newSize) => {
+            setPageSize(newSize);
+            setPage(1);
+          }}
+          search={search}
+          onSearchChange={handleSearchChange}
+          selectedRunnerFilter={runnerFilter}
+          onRunnerFilterChange={handleRunnerFilterChange}
           onNavigateToSync={() => setActiveTab("sync")}
           onNavigateToRunners={() => setActiveTab("runners")}
         />
@@ -263,6 +312,7 @@ export function RepositoryDetailPage(props: RepositoryDetailPageProps = {}) {
       {/* Tab 2: Changes & Sync (In-page Diff & Commit Center) */}
       {activeTab === "sync" && (
         <RepositorySyncTab
+          projectId={projectId || repository.projectId}
           repositoryId={repository.id}
           repositoryName={repository.name}
           runners={runners}

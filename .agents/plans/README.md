@@ -15,7 +15,7 @@ Thư mục này lưu trữ các kế hoạch kỹ thuật, lộ trình triển k
 
 | Ngày lập | Mã kế hoạch & Tài liệu | Tóm tắt mục tiêu & Phạm vi |
 | :--- | :--- | :--- |
-| 24/10/2026 | [**topology-aware-resolver-and-trial-readiness**](file:///d:/FullStack/Automation/.agents/plans/2026-10-24-topology-aware-resolver-and-trial-readiness.md) | Topology-Aware Contract Resolution (Auto-Infer Struct Pin từ Incoming Edge), Xử Lý File Unbound (BL-005), Cảnh Báo Trạng Thái Runner Khi Chạy & Làm Sạch DB Cho Trial User. |
+| 30/10/2026 | [**modular-outfit-pipeline-and-data-asset-registration**](file:///d:/FullStack/Automation/.agents/plans/2026-10-30-modular-outfit-pipeline-and-data-asset-registration.md) | Chuẩn Hóa Luồng Xuất Modular Outfit (Blender), Nâng Cấp AI Classify (Local LLM / Notes Prompt Injection / Tags Whitelist) & Tự Động Đăng Ký Unreal Data Assets (`PDA_WardrobeItem`, `PDA_CharacterProfile`, GameplayTags). |
 
 ---
 
@@ -23,8 +23,13 @@ Thư mục này lưu trữ các kế hoạch kỹ thuật, lộ trình triển k
 
 Toàn bộ các kế hoạch hoàn thành được lưu trữ tại thư mục con [archive/2026-10/](file:///d:/FullStack/Automation/.agents/plans/archive/2026-10):
 
+- [**uasset-binary-inspection-and-material-contract-pipeline (29/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/archive/2026-10/2026-10-29-uasset-binary-inspection-and-material-contract-pipeline.md): Pure-Python UAsset Material Inspection & Zero-Config Material Ingestion Pipeline (<5ms không cần Unreal Engine).
+- [**modern-headless-bake-and-material-inspection (28/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/archive/2026-10/2026-10-28-modern-headless-bake-and-material-inspection.md): Headless Bake, Roughness 1 socket traversal, Normal Cycles DirectX/OpenGL, Declarative Channel Packing (ORM/ORMA/RMA).
+- [**trial-readiness-security-trust-and-environment (26/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/archive/2026-10/2026-10-26-trial-readiness-security-trust-and-environment.md): Chuẩn Hóa Trial Readiness — Pipeline Script Trust Gate (1-Prompt AI Audit), Script Viewer & Pre-flight Environment Check (`BL-022`).
+- [**bl-014-form-registry-advanced-pin-inputs (26/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/archive/2026-10/2026-10-26-bl-014-form-registry-advanced-pin-inputs.md): Form-Registry-Driven Advanced Pin Inputs & Preset Mode (Multiline Textarea, Dropdown Presets with TagsInput).
 - [**bl-025-subpipeline-suspend-resume (26/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/archive/2026-10/2026-10-26-bl-025-subpipeline-suspend-resume.md): Sub-Pipeline (Macro) Suspend/Resume tuần tự, WaitingForSubPipeline, Wolverine callback hoàn tất child → resume parent, cascade cancel.
 - [**bl-024-native-python-script-analyzer-sidecar (26/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/archive/2026-10/2026-10-25-bl-024-native-python-script-analyzer-sidecar.md): Native Python Script Analyzer Sidecar (Subprocess AST Ingestion, Automated Dependency Discovery).
+- [**topology-aware-resolver-and-trial-readiness (24/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/archive/2026-10/2026-10-24-topology-aware-resolver-and-trial-readiness.md): Topology-Aware Contract Resolution (Auto-Infer Struct Pin từ Incoming Edge), Xử Lý File Unbound (BL-005), Cảnh Báo Trạng Thái Runner.
 - [**bl-020-pipeline-scripts-and-ai-classify-refactor (25/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/archive/2026-10/2026-10-25-bl-020-pipeline-scripts-and-ai-classify-refactor.md)
 - [**bl-019-content-tools-and-resource-struct-dual-mode (25/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/archive/2026-10/2026-10-25-bl-019-content-tools-and-resource-struct-dual-mode.md)
 - [**bl-018-fetch-filter-resolve-resources-tooling (25/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/archive/2026-10/2026-10-25-bl-018-fetch-filter-resolve-resources-tooling.md)

@@ -218,3 +218,8 @@ File được truyền vào Input Pin của Node (ví dụ file FBX, preset, scr
    - Struct `Workstation` đại diện cho cặp `(Repository, Runner)` cụ thể và ánh xạ đường dẫn vật lý `RootPath`.
    - Node `FilterResourcesTool` cho phép lọc dynamic danh sách resource theo extension, keyword, workstation, trả về cả single `Resource` pin (cắm trực tiếp `BreakStruct`) và `Resources` array.
    - Các tool Workspace như `SyncLocalChangeToRepositoryTool` và `UpdateResourceMetadataTool` nhận trực tiếp pin `Workstation` và đường dẫn tuyệt đối `FullPath`, tự động trích xuất `RootPath` để chuẩn hóa sang POSIX relative path trước khi đồng bộ hoặc ghi metadata. Loại bỏ hoàn toàn sự phụ thuộc vào các node cắt chuỗi trung gian.
+6. **Per-Resource Queue Event Emission & Multi-Repository Scoping (BL-032):**
+   - Khi cấu hình Trigger `OnResourceCreated` hoặc `OnResourceVersionUpdated`:
+     - `allowAllRepositories: bool` (mặc định false) và `repositoryIds: Guid[]` (chọn nhiều repository) bảo vệ an toàn, tránh kích hoạt nhầm toàn project.
+     - `triggerMode`: `Always` (tự động chạy) vs `AskBefore` (yêu cầu user duyệt qua checkbox tại `RepositorySyncTab`).
+     - Start Node tự động cung cấp chân `Resource` (Single Struct/EntityRef) cho mô hình 1-File-1-Job, song song với `Resources` (Array 1 phần tử) và `Workstation`.

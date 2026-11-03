@@ -1,4 +1,5 @@
 using Automation.Content.Contracts;
+using Automation.Files.Contracts;
 using Automation.SharedKernel.Abstractions.Querying;
 using Automation.SharedKernel.Infrastructure.Querying;
 using Automation.Repository.Constants;
@@ -20,6 +21,8 @@ public class GetRepositoryResourcesQuery : PagedQuery
     public Guid WorkspaceId { get => RepositoryId; set => RepositoryId = value; }
     public Guid? RunnerId { get; set; }
     public Guid? RepositoryRunnerId { get; set; }
+    public Guid? ContentId { get; set; }
+    public bool? IsLinked { get; set; }
 }
 
 public class GetRepositoryResourcesEndpoint(IMessageBus bus)
@@ -39,11 +42,15 @@ public class GetRepositoryResourcesEndpoint(IMessageBus bus)
         var projectId = Query<Guid>("projectId");
         var runnerId = Query<Guid?>("runnerId", isRequired: false);
         var repositoryRunnerId = Query<Guid?>("repositoryRunnerId", isRequired: false);
+        var contentId = Query<Guid?>("contentId", isRequired: false);
+        var isLinked = Query<bool?>("isLinked", isRequired: false);
 
         req.RepositoryId = repositoryId;
         req.ProjectId = projectId;
         req.RunnerId = runnerId;
         req.RepositoryRunnerId = repositoryRunnerId;
+        req.ContentId = contentId;
+        req.IsLinked = isLinked;
 
         var result = await bus.InvokeAsync<Result<PagedResult<WorkspaceResourceDto>>>(req, ct);
         await this.SendResultAsync(result, ct);
@@ -54,7 +61,8 @@ public class GetRepositoryResourcesEndpoint(IMessageBus bus)
 public class GetRepositoryResourcesHandler(
     RepositoryDbContext db,
     IContentApi contentApi,
-    IRunnerApi runnerApi
+    IRunnerApi runnerApi,
+    IAssetApi? assetApi = null
 )
 {
     public async Task<Result<PagedResult<WorkspaceResourceDto>>> HandleAsync(
@@ -64,9 +72,6 @@ public class GetRepositoryResourcesHandler(
     {
         var baseQuery = db
             .ResourceItems.AsNoTracking()
-            .Include(r => r.Versions)
-                .ThenInclude(v => v.Locations)
-                    .ThenInclude(l => l.RepositoryRunner)
             .Where(r => r.RepositoryId == query.RepositoryId);
 
         // Lọc theo Workstation Root cụ thể nếu có
@@ -89,6 +94,27 @@ public class GetRepositoryResourcesHandler(
             contentMap = new Dictionary<Guid, ContentSummaryDto>(contentResult.Value);
         }
 
+        // 1.1. Lọc theo ContentId cụ thể hoặc trạng thái gán (IsLinked) nếu có
+        if (query.ContentId.HasValue && query.ContentId.Value != Guid.Empty)
+        {
+            var linkedRes = await contentApi.GetLinkedResourceIdsByContentIdAsync(query.ContentId.Value, ct);
+            var linkedIds = linkedRes.IsSuccess && linkedRes.Value != null ? linkedRes.Value : [];
+            baseQuery = baseQuery.Where(r => linkedIds.Contains(r.Id));
+        }
+        else if (query.IsLinked.HasValue)
+        {
+            var allLinkedRes = await contentApi.GetAllLinkedResourceIdsInProjectAsync(query.ProjectId, ct);
+            var allLinkedIds = allLinkedRes.IsSuccess && allLinkedRes.Value != null ? allLinkedRes.Value : [];
+            if (query.IsLinked.Value)
+            {
+                baseQuery = baseQuery.Where(r => allLinkedIds.Contains(r.Id));
+            }
+            else
+            {
+                baseQuery = baseQuery.Where(r => !allLinkedIds.Contains(r.Id));
+            }
+        }
+
         // 2. Xử lý Omni-Search nếu có từ khóa
         if (!string.IsNullOrWhiteSpace(query.GlobalKeyword))
         {
@@ -101,10 +127,20 @@ public class GetRepositoryResourcesHandler(
                 .Select(c => c.Key)
                 .ToList();
 
+            var matchedResourceIds = new List<Guid>();
+            foreach (var cId in matchedContentIds)
+            {
+                var rRes = await contentApi.GetLinkedResourceIdsByContentIdAsync(cId, ct);
+                if (rRes.IsSuccess && rRes.Value.Count > 0)
+                {
+                    matchedResourceIds.AddRange(rRes.Value);
+                }
+            }
+
             baseQuery = baseQuery.Where(r =>
                 EF.Functions.ILike(r.DisplayName, $"%{kw}%")
                 || EF.Functions.ILike(r.RelativePath, $"%{kw}%")
-                || (r.ContentId != null && matchedContentIds.Contains(r.ContentId.Value))
+                || (matchedResourceIds.Count > 0 && matchedResourceIds.Contains(r.Id))
             );
         }
 
@@ -121,23 +157,68 @@ public class GetRepositoryResourcesHandler(
             return pagedResult.ToResult();
         }
 
+        // 3.1. Lấy thông tin Content Anchor Links cho các resource trong trang hiện tại
+        var pageResourceIds = pagedResult.Value.Items.Select(r => r.Id).ToList();
+        var anchorLinksMap = new Dictionary<Guid, IReadOnlyList<ContentAnchorLinkDto>>();
+        if (pageResourceIds.Count > 0)
+        {
+            var anchorResult = await contentApi.GetResourceAnchorLinksAsync(pageResourceIds, ct);
+            if (anchorResult.IsSuccess && anchorResult.Value != null)
+            {
+                anchorLinksMap = new Dictionary<Guid, IReadOnlyList<ContentAnchorLinkDto>>(anchorResult.Value);
+            }
+        }
+
+        // 3.2. Query Versions cho các resource trong trang hiện tại (CHỈ SELECT các trường cần thiết, TUYỆT ĐỐI KHÔNG SELECT Metadata JSON)
+        var versionSummaries = pageResourceIds.Count > 0
+            ? await db.ResourceVersions.AsNoTracking()
+                .Where(v => pageResourceIds.Contains(v.ResourceId))
+                .Select(v => new
+                {
+                    v.Id,
+                    v.ResourceId,
+                    v.VersionNo,
+                    v.Status,
+                    Locations = v.Locations.Select(l => new
+                    {
+                        l.IsOrigin,
+                        l.DiscoveredAt,
+                        RunnerId = l.RepositoryRunner != null ? (Guid?)l.RepositoryRunner.RunnerId : null
+                    }).ToList()
+                })
+                .ToListAsync(ct)
+            : [];
+
+        var versionsByResource = versionSummaries
+            .GroupBy(v => v.ResourceId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         // Lấy thông tin Runner cho các resource đang bị lock và các resource có holding location
         var lockedRunnerIds = pagedResult.Value.Items
             .Where(r => r.IsLocked && r.LockedByRunnerId.HasValue)
             .Select(r => r.LockedByRunnerId!.Value);
 
         var holdingRunnerIdMap = new Dictionary<Guid, Guid>();
-        foreach (var item in pagedResult.Value.Items)
-        {
-            var latestVersion = item.Versions.OrderByDescending(v => v.VersionNo).FirstOrDefault();
-            var holdingLocation = latestVersion?.Locations
-                .OrderByDescending(l => l.IsOrigin)
-                .ThenByDescending(l => l.DiscoveredAt)
-                .FirstOrDefault();
+        var latestVersionIdStrings = new List<string>();
 
-            if (holdingLocation?.RepositoryRunner?.RunnerId is { } rId)
+        foreach (var resourceId in pageResourceIds)
+        {
+            if (versionsByResource.TryGetValue(resourceId, out var vers))
             {
-                holdingRunnerIdMap[item.Id] = rId;
+                var latestVer = vers.OrderByDescending(v => v.VersionNo).FirstOrDefault();
+                if (latestVer != null)
+                {
+                    latestVersionIdStrings.Add(latestVer.Id.ToString());
+                    var holdingLocation = latestVer.Locations
+                        .OrderByDescending(l => l.IsOrigin)
+                        .ThenByDescending(l => l.DiscoveredAt)
+                        .FirstOrDefault();
+
+                    if (holdingLocation?.RunnerId is { } rId)
+                    {
+                        holdingRunnerIdMap[resourceId] = rId;
+                    }
+                }
             }
         }
 
@@ -156,12 +237,62 @@ public class GetRepositoryResourcesHandler(
             }
         }
 
-        // 4. Enrich dữ liệu Content, Lock và Holding Runner từ Map vào DTO
+        // 3.3. Batch query Thumbnail URLs từ Module Files (Slot: Thumbnail)
+        var thumbnailUrlMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (latestVersionIdStrings.Count > 0 && assetApi != null)
+        {
+            var thumbRes = await assetApi.GetFilesAsync(
+                latestVersionIdStrings,
+                "ResourceVersion",
+                ResourceAssetSlots.Thumbnail,
+                ct
+            );
+            if (thumbRes.IsSuccess && thumbRes.Value != null)
+            {
+                foreach (var (verIdStr, links) in thumbRes.Value)
+                {
+                    var firstThumb = links.FirstOrDefault();
+                    if (firstThumb != null && !string.IsNullOrEmpty(firstThumb.PublicUrl))
+                    {
+                        thumbnailUrlMap[verIdStr] = firstThumb.PublicUrl;
+                    }
+                }
+            }
+        }
+
+        // 4. Enrich dữ liệu Content, Lock, Holding Runner và Thumbnail từ Map vào DTO
         var dtos = pagedResult
             .Value.Items.Select(r =>
             {
                 var holdingRunnerId = holdingRunnerIdMap.TryGetValue(r.Id, out var hid) ? (Guid?)hid : null;
                 var holdingRunnerName = holdingRunnerId != null && runnerMap.TryGetValue(holdingRunnerId.Value, out var hr) ? hr.Name : null;
+
+                anchorLinksMap.TryGetValue(r.Id, out var links);
+                var primaryLink = links?.FirstOrDefault();
+                var contentId = primaryLink?.ContentItemId;
+                var contentName = primaryLink?.ContentItemName;
+                var anchorPath = primaryLink?.AnchorPath;
+
+                var linkedAnchors = links?.Select(l =>
+                {
+                    contentMap.TryGetValue(l.ContentItemId, out var cInfo);
+                    return new ResourceLinkedAnchorDto(
+                        ContentItemId: l.ContentItemId,
+                        ContentItemName: l.ContentItemName,
+                        ContentTypeName: cInfo?.ContentTypeName,
+                        ContentTypeColor: cInfo?.ContentTypeColor,
+                        ContentTypeIcon: cInfo?.ContentTypeIcon,
+                        AnchorPath: l.AnchorPath
+                    );
+                }).ToList() ?? (IReadOnlyList<ResourceLinkedAnchorDto>)[];
+
+                versionsByResource.TryGetValue(r.Id, out var vers);
+                var versionCount = vers?.Count ?? 0;
+                var latestVersion = vers?.OrderByDescending(v => v.VersionNo).FirstOrDefault();
+                var latestVerId = latestVersion?.Id;
+                var thumbUrl = latestVerId.HasValue && thumbnailUrlMap.TryGetValue(latestVerId.Value.ToString(), out var tUrl)
+                    ? tUrl
+                    : null;
 
                 return new WorkspaceResourceDto(
                     Id: r.Id,
@@ -169,22 +300,25 @@ public class GetRepositoryResourcesHandler(
                     DisplayName: r.DisplayName,
                     RelativePath: r.RelativePath,
                     Extension: r.Extension,
-                    ContentId: r.ContentId,
-                    ContentName: r.ContentId != null && contentMap.TryGetValue(r.ContentId.Value, out var c) ? c.Name : null,
-                    ContentTypeName: r.ContentId != null && contentMap.TryGetValue(r.ContentId.Value, out var c2) ? c2.ContentTypeName : null,
-                    ContentTypeColor: r.ContentId != null && contentMap.TryGetValue(r.ContentId.Value, out var c3) ? c3.ContentTypeColor : null,
-                    ContentTypeIcon: r.ContentId != null && contentMap.TryGetValue(r.ContentId.Value, out var c4) ? c4.ContentTypeIcon : null,
-                    VersionCount: r.Versions.Count,
+                    ContentId: contentId,
+                    ContentName: contentName,
+                    ContentTypeName: contentId != null && contentMap.TryGetValue(contentId.Value, out var c2) ? c2.ContentTypeName : null,
+                    ContentTypeColor: contentId != null && contentMap.TryGetValue(contentId.Value, out var c3) ? c3.ContentTypeColor : null,
+                    ContentTypeIcon: contentId != null && contentMap.TryGetValue(contentId.Value, out var c4) ? c4.ContentTypeIcon : null,
+                    VersionCount: versionCount,
                     CreatedAt: r.CreatedAt,
-                    LatestVersionId: r.Versions.OrderByDescending(v => v.VersionNo).Select(v => (Guid?)v.Id).FirstOrDefault(),
-                    LatestVersionNo: r.Versions.OrderByDescending(v => v.VersionNo).Select(v => (int?)v.VersionNo).FirstOrDefault(),
-                    LatestVersionStatus: r.Versions.OrderByDescending(v => v.VersionNo).Select(v => (Automation.Repository.Domain.Enums.ResourceVersionStatus?)v.Status).FirstOrDefault(),
+                    LatestVersionId: latestVerId,
+                    LatestVersionNo: latestVersion?.VersionNo,
+                    LatestVersionStatus: latestVersion?.Status,
                     IsLocked: r.IsLocked,
                     LockedByRunnerId: r.LockedByRunnerId,
                     LockedByRunnerName: r.LockedByRunnerId != null && runnerMap.TryGetValue(r.LockedByRunnerId.Value, out var rn) ? rn.Name : null,
                     LockedAt: r.LockedAt,
                     HoldingRunnerId: holdingRunnerId,
-                    HoldingRunnerName: holdingRunnerName
+                    HoldingRunnerName: holdingRunnerName,
+                    AnchorPath: anchorPath,
+                    LinkedAnchors: linkedAnchors,
+                    ThumbnailUrl: thumbUrl
                 );
             })
             .ToList();

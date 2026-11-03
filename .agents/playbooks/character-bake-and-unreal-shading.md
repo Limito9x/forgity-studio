@@ -1,0 +1,315 @@
+# Cẩm Nang Vận Hành & Khắc Phục Lỗi: Character DCC Bake & Unreal Engine 5 Shading Pipeline
+
+> **Mục tiêu tài liệu**: Đúc kết toàn bộ cơ chế hoạt động tầng sâu (deep mental model), các "cạm bẫy" kinh điển (pitfalls) và cẩm nang xử lý dứt điểm khi đưa nhân vật 3D từ **DAZ Studio / Diffeomorphic -> Blender Headless Bake -> Unreal Engine 5**.
+> **Đối tượng**: Developer, Technical Artist, và Agent làm việc trên pipeline nhân vật của Forgity Studio.
+
+---
+
+## 1. Sơ Đồ Toàn Cảnh Luồng Dữ Liệu Nhân Vật
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1. DAZ Studio / DCC                                                         │
+│    - Mesh Genesis 9 / Nhân vật                                              │
+│    - Textures PBR gốc (OpenGL Y+, Multi-material slots)                     │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Import qua Diffeomorphic
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 2. Blender (pipeline-scripts/blender/bake_mesh.py)                          │
+│    - Shader Tree: Node Groups (Daz Pbr / Extended Principled)                │
+│    - Headless UV Pinning: Tránh đụng độ tọa độ UV                           │
+│    - Emission Routing: Bake BaseColor, Roughness (1 spp siêu tốc)           │
+│    - DirectX Normal Flip: NumPy lật kênh Green (Y- cho UE5)                 │
+│    - Pack Mode: "none" (file rời) hoặc "ORM" (R=AO, G=Roughness, B=Metal)   │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Export FBX (Face Smoothing + Triangulate)
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 3. Unreal Engine 5 Import (import_skeletal_mesh.py)                         │
+│    - FBXNormalImportMethod: FBXNIM_IMPORT_NORMALS (Bảo tồn weighted normals)│
+│    - Tangent Space: MikkTSpace tự động đồng bộ 100%                         │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ Material Ingestion & Shading
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 4. UE5 Shading & Subsurface Profile (M_Skin, SP_Skin, M_EyeMoisture)        │
+│    - Subsurface Profile: MFP Distance 0.4 - 0.6 cm (chống bầm đỏ cổ)         │
+│    - Roughness Sweet Spot: 0.5 - 0.6 (da lì tự nhiên, không bóng sáp)       │
+│    - Eye Moisture: RÚT BỎ Refraction, Opacity 0.05 (mắt long lanh)          │
+│    - Virtual Shadow Maps: r.Shadow.Virtual.NormalBias 2.0 (khử răng cưa)    │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. Bản Chất Kiến Trúc Shader DAZ / Diffeomorphic Trong Blender
+
+### 2.1. Cấu trúc tổ chức vật liệu
+- Diffeomorphic khi nhập nhân vật DAZ vào Blender **không dùng Principled BSDF phẳng ở tầng ngoài**.
+- Thay vào đó, nó bọc toàn bộ logic trong một **Node Group** (thường mang tên `Daz Pbr Group` hoặc `Extended Principled Group`).
+- **Vị trí cắm Texture thực tế:**
+  - Các node `Image Texture` gốc nằm ở **tầng ngoài cùng (Root Level)** của `mat.node_tree`.
+  - Chúng được nối vào các cổng input của Node Group: `"Base Color"`, `"Glossy Roughness"`, `"Roughness"`, `"Normal"`, `"Bump"`.
+
+### 2.2. "Cái Bẫy" Roughness Đen Thui (Black Roughness Pitfall)
+- **Hiện tượng**: Bake map Roughness xuất ra file ảnh đen thùi lùi `(0, 0, 0)`, làm nhân vật khi vào Unreal Engine bị bóng nhẫy như gương/tượng sáp.
+- **Cơ chế lỗi**:
+  - Nếu thuật toán tìm kiếm lặn sâu vào bên trong lõi Node Group để tìm `Principled BSDF`, ở bên trong lõi cổng `Roughness` không có texture nối trực tiếp mà mang giá trị mặc định là **`0.0`**.
+  - Đồng thời, Blender **cấm tuyệt đối nối dây chéo giữa các node tree khác nhau** (`links.new(internal_socket, root_emit_node)` sẽ crash).
+- **Quy tắc giải quyết chuẩn trong `bake_mesh.py`**:
+  1. **Ưu tiên quét tầng ngoài cùng (Root Level)** nơi Texture thực tế được cắm vào Node Group.
+  2. **Mở rộng từ khóa nhận diện**: Hỗ trợ `"Glossy Roughness"`, `"Glossiness"`, `"Specular Roughness"`, `"Rough"`.
+  3. **Proxy Node nếu lặn sâu**: Nếu bắt buộc lấy từ texture bên trong group, tạo một node `ShaderNodeTexImage` tạm thời ở root tree trỏ cùng file `image` để tránh lỗi cross-tree.
+  4. **Fail-safe Guardrail**: Nếu Roughness đọc ra $\le 0.01$, lập tức chặn đứng và fallback về giá trị da người chuẩn (`0.5`), không bao giờ để xuất ra ảnh đen `0.0`.
+
+### 2.3. "Cái Bẫy" Da Cháy Đen (Diffeomorphic SSS Mix Pitfall)
+- **Hiện tượng**: Nhân vật da trắng tự nhiên sau khi bake BaseColor xuất ra file ảnh bị nâu đen sẫm / socola cháy (`R=0.41, G=0.22, B=0.20`), render thumbnail hoặc đưa vào UE5 trông như "người da đen".
+- **Cơ chế lỗi**:
+  - Khi Diffeomorphic import nhân vật DAZ, cổng `Base Color` của `Principled BSDF` không cắm trực tiếp vào texture Diffuse gốc (`_D_100x.jpg`), mà đi qua một node `Mix (Factor=0.85)`.
+  - Cổng A của Mix là texture Diffuse thật, nhưng cổng B là texture Subsurface (`_SSS_100x.jpg`) đã bị đi qua node `Gamma = 3.5` (làm tối đen lại $x^{3.5}$).
+  - Với Factor 0.85, 85% giá trị màu xuất ra bị nuốt bởi màu SSS tối đen (vì trong Cycles họ dựa vào Subsurface Scattering để bù sáng). Khi bake EMIT từ Base Color, file ảnh BaseColor bị cháy đen.
+- **Quy tắc giải quyết chuẩn trong `bake_mesh.py`**:
+  - Khi bake map `diffuse`, nếu upstream socket nối vào node `MIX` / `MIX_RGB`, tự động dò ngược vào **Cổng A** (`Color1` / `A`) để lấy đúng node texture Diffuse/Albedo gốc. Bỏ qua hoàn toàn cổng SSS/Gamma 3.5 để bảo toàn 100% màu da nguyên bản cho UE5 Subsurface Profile.
+
+---
+
+## 3. Cẩm Nang Headless Bake (`bake_mesh.py`)
+
+### 3.1. Tốc độ: Emission Routing vs Raytraced Ambient Occlusion (AO)
+- **Bản chất Emission Routing**: Biến kênh màu/độ nhám thành vật phát sáng (`ShaderNodeEmission`) $\rightarrow$ Cycles chỉ cần bắn **đúng 1 tia (1 sample/pixel)** là lấy được 100% giá trị tuyệt đối. Thời gian bake chỉ mất **1 - 2 giây/map**.
+- **Cạm bẫy Ambient Occlusion (AO)**:
+  - AO là tính toán che khuất bằng tia Raytracing thực sự. Chạy 32 samples trên lưới 86,000 tam giác sẽ ngốn **85% tổng thời gian bake** (từ 5s kéo dài lên 1 phút).
+  - **Kinh nghiệm đồ họa**: Unreal Engine 5 đã có Lumen và GTAO xử lý bóng tiếp xúc thời gian thực cực mạnh. **Không nên bake AO tĩnh vào da nhân vật**, vì nó sẽ làm hốc mắt, cánh mũi, nách bị đen cố định bất kể hướng đèn chiếu.
+  - **Thiết lập chuẩn**: Để kênh AO trong file ORM tự điền giá trị `1.0` (trắng tinh) qua NumPy. Chỉ bake AO khi làm đồ vật môi trường tĩnh (Props/Environments).
+
+### 3.2. Đóng gói kênh (Channel Packing: `pack_mode` - Data-Driven SSOT)
+- Toàn bộ các định dạng đóng gói hiện được quản lý tập trung trong bảng cấu hình `CHANNEL_PACK_PRESETS`:
+  - **`none` (Mặc định khuyên dùng cho Character Shader)**:
+    - Xuất ra các file độc lập: `..._BaseColor.png`, `..._Roughness.png` (ảnh xám 1 kênh), `..._Normal.png`.
+    - Giúp việc cắm vào Material trong Unreal Engine trực quan, cắm chân nào cũng đúng.
+  - **`ORM` (Unreal Engine 5 Standard)**: R=AO (`1.0`), G=**Roughness**, B=Metallic (`0.0`).
+  - **`ORMA` (Unreal Engine 5 with Opacity)**: R=AO, G=Roughness, B=Metallic, A=Alpha.
+  - **`RMA` / `MRA`**: Dành cho các pipeline engine tùy biến khác.
+  - **`UNITY_MASK`**: Dành cho Unity HDRP/URP (R=Metal, G=AO, B=Detail, A=Smoothness [tự động invert Roughness]).
+- **Xóa bỏ cờ dư thừa**: Cờ `bake_orm` cũ đã được loại bỏ khỏi giao diện pin chính để tránh xung đột kép (vẫn hỗ trợ ngầm qua `kwargs` nếu có graph cũ gọi tới).
+
+### 3.3. Định dạng Pháp tuyến: Chuẩn hóa OpenGL ($Y+$) DCC & Tự động Đảo Kênh Green ($Y-$) trong UE5
+
+- **Nguyên lý phối hợp chuẩn công nghiệp**:
+  - **Trong Blender DCC (`bake_mesh.py`)**: Mặc định xuất Normal Map theo chuẩn **OpenGL ($Y+$)** (`normal_format="opengl"`).
+    - *Lý do*: Blender Viewport (Eevee/Cycles/Workbench) hiển thị chuẩn OpenGL. Nếu nướng trực tiếp DirectX ($Y-$) vào texture rồi gán lại vào Blender Material, kênh Y bị ngược làm các lỗ chân lông (pores lõm) bị biến thành nốt mụn lồi (convex bumps), kết hợp với thiếu SSS tạo cảm giác mặt rỗ hạt gai sần sùi ("rổ rổ").
+    - Đồng thời, khi tái tạo vật liệu sau bake (`build_single_baked_material`), đối với các slot da người (`genesis`, `skin`, `body`, `face`, `head`), script tự động đặt `Subsurface Weight = 0.5`, `Subsurface Scale = 0.05`, và `Normal Map Strength = 0.5` để da mịn màng, tự nhiên ngay trong Blender.
+  - **Trong Unreal Engine (`setup_asset_materials.py`)**:
+    - Khi texture thuộc nhóm `TC_NORMALMAP`, script Unreal tự động bật cờ cấu hình uasset:
+      ```python
+      tex_asset.set_editor_property("b_flip_green_channel", True)
+      ```
+    - *Ưu điểm tuyệt đối*: Texture nạp vào giữ nguyên bản gốc không bị suy hao chất lượng khi lưu trữ hay tái sử dụng qua Unity/Blender, trong khi Unreal Engine tự động lật kênh Y ở tầng hardware sampler mà không tốn chi phí runtime.
+
+### 3.4. Chế độ Nướng Nhân vật DAZ Chuyên biệt (`bake_mode`)
+
+Để giải quyết triệt để bài toán suy giảm độ phân giải mặt (Texel Density) và hư hỏng shader mắt trong suốt:
+- **`"head_and_body"` (Mặc định - Chuẩn Hero Character / AAA)**:
+  - **Nhóm HEAD (`M_<Stem>_Head`)**: Tự động nhận diện `Head`, `Face`, `Ears`, `Lips`, `Neck`. Vì là 1 slot riêng nên Head chiếm trọn 100% diện tích tấm texture 4K $\rightarrow$ Zoom cận cảnh soi từng lỗ chân lông và sợi lông mày cực nét.
+  - **Nhóm BODY (`M_<Stem>_Body`)**: Tự động gom `Body`, `Torso`, `Arms`, `Legs`, `Nails` $\rightarrow$ Tự động dịch chuyển UDIM (1001-1005) về $[0, 1]$ và pack các đảo UV vào 1 tấm texture 4K duy nhất $\rightarrow$ Giảm số Draw Call của toàn thân từ 10 xuống còn 1.
+  - **Nhóm Ngoại Lệ (Miễn Bake - Zero Bake)**: `Eyes`, `Iris`, `Sclera`, `Cornea`, `EyeMoisture`, `Eyelashes`, `Mouth`, `Teeth`, `Tear` được tự động bỏ qua, bảo toàn nguyên vẹn slot và texture gốc để sang Unreal Engine áp dụng shader mắt khúc xạ / màng ướt.
+- **`"all_in_one"` (Dành cho NPC / Game Mobile / Tối ưu Draw Call cực hạn)**:
+  - Gom toàn bộ Head + Body vào chung 1 material slot duy nhất `M_<Stem>`. Ngoại lệ mắt/răng miệng vẫn được giữ nguyên để không làm đục mắt.
+
+---
+
+## 4. Cẩm Nang Xuất Nhập FBX & Bảo Toàn Pháp Tuyến (Normals)
+
+### 4.1. Thiết lập Geometry khi Export FBX từ Blender
+
+| Thuộc tính | Giá trị tối ưu | Lý do kỹ thuật |
+| :--- | :--- | :--- |
+| **Smoothing** | **`Face`** | Xuất đúng Smoothing Groups cho UE5, tránh cảnh báo lỗi mesh gãy cạnh. |
+| **Triangulate Faces** | **Tích chọn `[x]`** | **Rất quan trọng!** Tránh xung đột cách chia tam giác giữa Blender và Unreal làm vặn xoắn Normal Map $90^\circ$. |
+| **Tangent Space** | **Bỏ chọn `[ ]`** | Để Unreal Engine tự tính Tangent Space bằng thuật toán chuẩn MikkTSpace. |
+| **Apply Modifiers** | Bỏ chọn nếu có Shape Keys / Armature | Tránh làm phẳng morph targets khuôn mặt. |
+
+### 4.2. Thiết lập Import FBX trong Unreal Engine (`import_skeletal_mesh.py`)
+- **Tuyệt đối KHÔNG dùng**: `FBXNIM_COMPUTE_NORMALS`. Nó vứt bỏ toàn bộ smoothing gốc và weighted normals của khuôn mặt, sinh ra rãnh đen nứt dọc theo mép cắt UV (UV seams).
+- **BẮT BUỘC dùng**: `FBXNIM_IMPORT_NORMALS`. Bảo tồn 100% vector pháp tuyến của mô hình gốc từ DCC tool.
+
+---
+
+## 5. Cẩm Nang Unreal Engine 5 Shading & Subsurface Profile
+
+### 5.1. Bí ẩn: Tại sao cửa sổ Preview (SKM, IK Retargeter) bị răng cưa dither mà vào Game (Play) lại mượt?
+- **Nguyên nhân**:
+  - Các cửa sổ chỉnh sửa nhân vật (Persona Preview Scene) **bị tắt/giảm thuật toán khử răng cưa thời gian (TSR/TAA)** để giữ FPS cao khi nạp animation.
+  - Đồng thời góc đèn chiếu mặc định quét một góc xiên $85^\circ$ (Grazing angle), làm Virtual Shadow Maps (VSM) sinh ra lỗi **Shadow Terminator** lởm chởm theo hình tam giác của mesh.
+  - Khi ra Level thật: Ánh sáng nảy từ môi trường (Lumen GI) và bộ khử răng cưa TSR tự động làm nhòa các hạt dither, tạo bóng mềm mượt.
+- **Khắc phục ngay trong Editor / Retargeter**:
+  Gõ console command:
+  ```
+  r.Shadow.Virtual.NormalBias 2.0
+  ```
+  *(Đẩy bóng ảo lệch khỏi mặt phẳng tam giác một khoảng micro-offset, triệt tiêu ngay răng cưa).*
+
+### 5.2. Cân chỉnh Subsurface Profile (`SP_Skin`) chuẩn Metahuman
+
+```
+[Mặt Trời / Đèn Chính]
+         │
+         ▼
+┌─────────────────────────┐  ◄── Specular (0.35) + Roughness (0.5 - 0.6)
+│   Lớp Biểu Bì Ngoài     │      (Tạo độ lì tự nhiên, không bóng nhờn)
+├─────────────────────────┤
+│   Lớp Mỡ & Mao Mạch     │  ◄── Mean Free Path Distance: 0.4 - 0.6 cm
+│   (Tán xạ dưới da - SSS)│      Mean Free Path Color: Đỏ cam ấm (0.7, 0.35, 0.22)
+└─────────────────────────┘      (Tạo quầng đỏ tự nhiên ở tai/mũi, không bầm cổ)
+```
+
+- **`Mean Free Path Distance`**:
+  - Không để quá mỏng (`0.1 cm`): Da trông như đất sét/nhựa cứng.
+  - Không để quá dày (`> 1.2 cm`): Da ở cổ và ngực bị loang một quầng đỏ máu bầm rộng khi có bóng cằm đổ xuống.
+  - **Ngưỡng chuẩn**: **`0.4` – `0.6 cm`**.
+- **`Mean Free Path Color`**: Đỏ cam ấm (`R: 0.7, G: 0.35, B: 0.22`).
+- **`Roughness`**: **`0.5` – `0.6`** (Ngưỡng vàng chống bóng sáp).
+- **`Specular`**: **`0.35`** (Phù hợp IOR 1.4 của da người).
+
+### 5.3. Bí ẩn Eye Moisture: "Scalability Medium bình thường, lên High lại bị dị/mắt đục?"
+- **Cạm bẫy**: Nối dây `Refraction: 1.333` vào shader `M_EyeMoisture`.
+- **Cơ chế**:
+  - Ở mức `Medium`: Engine tắt hoàn toàn Screen-space Refraction (`r.RefractionQuality = 0`), nên mắt bình thường.
+  - Ở mức `High / Epic`: Engine bật khúc xạ. Lớp vỏ mỏng của EyeMoisture hoạt động như một thấu kính lồi dày, bẻ cong con ngươi phía sau khiến mắt bị phóng đại dị hợm hoặc vệt trắng đục cắt ngang tròng mắt.
+- **Thiết lập chuẩn AAA cho Eye Moisture**:
+  1. **RÚT BỎ HOÀN TOÀN CỔNG `Refraction` (để trống)**.
+  2. **`Opacity`**: Hạ xuống rất thấp, chỉ từ **`0.05` đến `0.1`**.
+  3. **`Roughness`**: `0.02` (cực bóng để bắt điểm sáng đốm trắng Catchlight).
+  4. **`Specular`**: `1.0`.
+  5. **`Blend Mode`**: `Translucent`, **`Lighting Mode`**: `Surface TranslucencyVolume` hoặc `Surface ForwardShading`.
+  - 👉 *Kết quả: Con ngươi trong suốt sáng rõ, mắt long lanh có hồn 100%!*
+
+---
+
+## 6. Bảng Tra Cứu Sự Cố Nhanh (Quick Troubleshooting Cheat-Sheet)
+
+| Dấu hiệu nhận biết | Nguyên nhân gốc rễ | Cách khắc phục ngay |
+| :--- | :--- | :--- |
+| **Da bóng loáng như gương, bôi dầu** | File Roughness bake ra bị đen thui `(0.0)`. | Chạy lại `bake_mesh.py` bản mới; nâng Roughness lên $\ge 0.5$. |
+| **Cổ và ngực bị quầng đỏ như vết bầm** | `Mean Free Path Distance` quá lớn ($> 1.2\text{ cm}$). | Hạ MFP Distance trong `SP_Skin` xuống `0.4 - 0.6 cm`. |
+| **Răng cưa zíc-zắc ở ranh giới bóng** | Virtual Shadow Maps terminator trên mesh hữu cơ. | Gõ `r.Shadow.Virtual.NormalBias 2.0` hoặc tăng `Shadow Bias` trên đèn. |
+| **Đường may UV bị rãnh đen / nứt khối** | Import FBX bị ép `COMPUTE_NORMALS`. | Đổi sang `FBXNIM_IMPORT_NORMALS` trong `import_skeletal_mesh.py`. |
+| **Khối lồi/lõm bị ngược chiều sâu** | Chưa lật kênh Green (DirectX vs OpenGL). | Đảm bảo `flip_normal_y = True` khi bake trong Blender. |
+| **Mắt bị đục trắng, con ngươi bị méo mó** | Cắm `Refraction: 1.333` trên lớp EyeMoisture. | Rút dây `Refraction` ra; giảm `Opacity` xuống `0.05 - 0.1`. |
+| **Mesh vào UE bị vặn xoắn nếp gấp tam giác** | Export FBX từ Blender chưa Triangulate. | Bật `Triangulate Faces [x]` khi xuất FBX từ Blender. |
+| **Setup Material bị rỗng `created_instances`** | Thiếu `master_material_path` từ khâu Inspect/Classify. | Dùng `classify_material_manifest.py` bản mới đã tự động nhúng path vào manifest. |
+
+
+
+---
+
+## Ghi chú sự cố 29/10/2026 — Bake ra BaseColor/Roughness đen (đã kiểm chứng bằng Blender thật)
+
+Cấu trúc node thật của Diffeomorphic (Dual Lobe), đọc từ `Eva.blend`:
+
+```
+TEX_IMAGE (D) -> Mix/Gamma -> Principled BSDF.Base Color      (root tree)
+TEX_IMAGE (GR) -> Math     -> DAZ Dual Lobe PBR.Roughness 1   (root tree, group lái Material Output)
+TEX_IMAGE (NM) -> Normal Map -> Principled.Normal + Dual Lobe.Normal
+Principled BSDF.Roughness = 0.0 (KHÔNG dùng — roughness thật nằm ở Roughness 1/2 của Dual Lobe)
+Principled BSDF -> DAZ Dual Lobe PBR.BSDF -> Material Output.Surface
+```
+
+Bài học (`setup_emission_routing` trong `bake_mesh.py`):
+
+1. **Không quét ảnh theo tên file khi graph đã có link.** `prepare_bake_targets` tạo node `__ModernBake_Target__` chứa ảnh `Bake_<stem>_BaseColor` *trước* bước routing → máy quét tên khớp chữ "basecolor" và nối chính ảnh đích vào emission → feedback ra ảnh đen. Mọi node/ảnh có tiền tố `__ModernBake_` / `Bake_` phải bị loại trừ (`_is_bake_artifact`).
+2. **Socket ứng viên = Principled BSDF + group lái Material Output**, ưu tiên socket đã nối dây; khớp tên chính xác (không so substring — "Roughness 1" từng bị khớp nhầm mà không được ưu tiên đúng).
+3. **Nối thẳng socket upstream trong cùng tree** (giữ nguyên Mix/Gamma/Math tint của DAZ), chỉ tạo proxy texture khi nguồn nằm trong group khác.
+4. **Normal giữ kỹ thuật Cycles `NORMAL`**. Thumbnail normal da DAZ trông "phẳng tím" là bình thường vì chi tiết lỗ chân lông rất mảnh — đừng kết luận lỗi chỉ nhìn thumbnail; kiểm tra bằng std của pixel.
+5. Mỗi kênh in ra một dòng log `[bake_mesh:emit] <mat> [<map>] <- <nguồn>` — đọc log stage trong `%LOCALAPPDATA%\Forgity\logs\stage_*.log` trước khi đoán.
+
+Cách kiểm chứng nhanh không cần chạy pipeline: chạy `blender -b Eva.blend --python <test>.py` gọi `bake_mesh.main(..., resolution=512, output_dir=<tạm>)` rồi in mean/std pixel của từng ảnh.
+
+---
+
+## 7. Cẩm Nang Modular Outfit & Unreal Data Asset Registration (PDA_WardrobeItem & PDA_CharacterProfile)
+
+> **Cập nhật 30/10/2026**: Chuẩn hóa toàn diện quy trình Modular Wardrobe từ Blender $\rightarrow$ AI Semantic Ingestion $\rightarrow$ Unreal Engine 5.
+
+### 7.1. Quy ước đặt tên sạch & Bảo toàn Metadata (Blender `batch_export_fbx.py`)
+- **Tên file & Asset**: Tự động lược bỏ hậu tố rác của Blender/DAZ (`Mesh`, `Genesis 9`, `Shape`, `.001`), áp dụng tiền tố outfit:
+  - Công thức: `{Prefix}_{CleanAssetName}.fbx`
+  - Ví dụ: `Eva_Outfit1_BRZ_US_Bra.fbx`, `Eva_Outfit1_BRZ_US_Panties.fbx`, `Eva_Outfit1_Iridessa_Hair.fbx`.
+- **Thư mục xuất**: Nằm ngay cùng cấp thư mục với file `.blend` (ví dụ `Characters/Eva/outfits/Eva_Outfit1/`), chống đè lộn xộn textures khi quản lý nhiều outfits.
+- **Bảo toàn Manifest**: Lưu giữ nguyên vẹn `clean_asset_name`, `source_object_name`, `cloth_type` (như `Inner_Top`, `Inner_Bottom`, `Hair`), `file_path`, và `slot_bindings`.
+
+### 7.2. AI Semantic Ingestion (`classify_mesh_types.py` & `classify_material_manifest.py`)
+- **Endpoint linh hoạt**: Hỗ trợ alias `"groq"`, `"gemini"`, `"ollama"` hoặc URL Local LLM trực tiếp (`http://localhost:11434/v1`, LM Studio). Bỏ qua yêu cầu API key đối với môi trường cục bộ (`is_local = True`).
+- **Prompt Injection (`notes`)**: Phơi chân pin `notes` trên Canvas để người dùng truyền chỉ dẫn vật liệu đặc biệt (ví dụ: *"đồ lót cotton, chất liệu ren mỏng"*).
+- **GameplayTags Awareness (`tags_ini_path`)**: Tự động đọc danh sách tags hợp lệ từ `Config/DefaultGameplayTags.ini` để AI gán chính xác `System.Wardrobe.Slots.*` thay vì đoán mò.
+
+### 7.3. Đăng ký DataAsset trong Unreal Engine (`register_wardrobe_data_assets.py`)
+- **Thay thế hoàn toàn DataTable**: Sử dụng trực tiếp kiến trúc `PrimaryDataAsset` + `GameplayTags` của Unreal Engine 5:
+  - Schema: `/Game/Systems/Wardrobe/Schemas/PDA_WardrobeItem`
+  - Profile Schema: `/Game/Systems/Characters/Schemas/PDA_CharacterProfile`
+- **Tự động đồng bộ GameplayTags**:
+  - Quét danh sách tags cần thiết (`Character.Eva`, `System.Wardrobe.Slots.*`, `Character.Eva.Outfits.*`).
+  - Tự động bổ sung dòng `+GameplayTagList=(Tag="...",DevComment="")` vào `Config/DefaultGameplayTags.ini` nếu chưa có.
+  - Vận hành idempotent 100% (không bao giờ sinh dòng trùng lặp).
+- **Tạo và liên kết DataAssets**:
+  - `PDA_WardrobeItem`: Gán `CharacterTag`, `SlotTag`, `ItemTag`, và `ItemMesh` (SoftObjectPtr).
+  - `PDA_CharacterProfile`: Tự động nạp `ItemTag` mới vào mảng `IntialItems` và gán `BodyMesh` nếu phát hiện mesh thân nhân vật (`cloth_type == "Body"`).
+- **Hỗ trợ Dry-Run**: Cho phép kiểm thử hoàn chỉnh trên Worker bên ngoài UE5 mà không gây lỗi import `unreal`. Dọn đường chuẩn bị cho Cây Điểm Neo (**`BL-031`**).
+
+---
+
+## 8. Mental Model Cốt Lõi: Contract-Driven Semantic Bridge (Blender DCC <-> Unreal Engine 5)
+
+> **Cập nhật 03/11/2026**: Giải quyết triệt để sự cố vật liệu nhân vật / modular outfit bị đen hoặc trơn vàng mặc định khi vào Unreal Engine.
+
+### 8.1. Bản chất hai "ốc đảo" & Cầu nối Ngữ nghĩa (Semantic Bridge)
+1. **Ốc đảo 1: Blender DCC Metadata (Nguyên liệu thô thực tế)**
+   - Lưu trữ tại bảng `ResourceVersions.Metadata` (từ bước Inspect FBX / Blender).
+   - Chứa chính xác danh sách các slot vật liệu và các kết nối thực tế:
+     - `path`: Đường dẫn vật lý đến file texture (`.../outfits/Laura_Casual1/../textures/Normal.png`).
+     - `target_socket`: Cổng socket trong shader node Blender (`Principled BSDF.Base Color`, `Principled BSDF.Normal`, `Principled BSDF.Alpha`, `Principled BSDF.Roughness`, v.v.).
+     - `via_node`: Node chuyển tiếp (ví dụ `Normal Map`, `Direct`).
+     - `colorspace`: Không gian màu thực tế (`sRGB`, `Non-Color`).
+2. **Ốc đảo 2: Unreal Engine Game Contracts (Đề bài chân lý của Game)**
+   - Quét trực tiếp từ Master Materials trong dự án game (`M_Master_Cloth`, `M_Master_Hair`, `M_Master_Skin`, `M_Master_Eye`).
+   - Định nghĩa chính xác tên tham số shader mà Material Instance cần ghi đè (`BaseColorMap`, `NormalMap`, `ORMMap`, `OpacityMap`, v.v.) kèm yêu cầu Virtual Texture (`vt`) và nén (`TC_NORMALMAP`, `TC_MASKS`, `TC_GRAYSCALE`).
+3. **Cầu nối AI (`classify_character_manifest.py`)**:
+   - AI đóng vai trò là "người giải đề": nhận đề bài (Game Contracts) và nguyên liệu thô (Blender Inspection Metadata).
+   - Nhờ luật **Deterministic Texture Binding Rule**, AI biết chính xác:
+     - `Principled BSDF.Base Color` / `Color` $\rightarrow$ gán vào `BaseColorMap`.
+     - `Principled BSDF.Normal` / via `Normal Map` $\rightarrow$ gán vào `NormalMap`.
+     - `Principled BSDF.Alpha` $\rightarrow$ gán vào `OpacityMap`.
+     - `Principled BSDF.Metallic` / `Roughness` $\rightarrow$ gán vào `ORMMap`.
+   - Kết hợp đối chiếu ngược (Deterministic Fallback Reconciliation): Nếu AI bỏ sót bất kỳ texture nào từ `texture_bindings`, hệ thống tự động bù đắp 100%, đảm bảo không bao giờ có Material Instance bị rỗng texture.
+4. **Bộ máy Ingestion Unreal (`import_character_wardrobe.py`)**:
+   - Chuẩn hóa đường dẫn file với `os.path.normpath()`, giải quyết các bước nhảy thư mục cha (`../textures/`).
+   - Tự động map tên parameter linh hoạt theo hợp đồng Master Material.
+   - Thiết lập chuẩn xác nén ảnh và sRGB (`srgb=False` cho Normal, Opacity/Alpha, ORM/Roughness để tránh sai lệch kênh tuyến tính).
+   - Override tham số trên `MaterialInstanceConstant` và liên kết trực tiếp vào Skeletal Mesh (`SKM_*`).
+
+
+
+
+### 8.2. Quy chuẩn Đồng bộ GameplayTags (`FGameplayTag` Dictionary Validation)
+1. **Bản chất `FGameplayTag` trong Unreal Engine**:
+   - `FGameplayTag` không phải string tự do. Nó là struct ánh xạ vào từ điển tập trung `UGameplayTagsManager`.
+   - Nếu tag chưa được đăng ký trong cấu hình dự án, Unreal sẽ coi là invalid và tự động đưa về `FGameplayTag::EmptyTag` (`None` trên UI).
+2. **Quy chuẩn ghi Section trong `Config/DefaultGameplayTags.ini`**:
+   - Section hợp lệ duy nhất trong Unreal Engine 5 là `[/Script/GameplayTags.GameplayTagsSettings]`.
+   - Tuyệt đối không dùng section cũ `[/Script/GameplayTags.GameplayTagsList]`.
+3. **Danh mục Phân loại Slot chuẩn (`System.Wardrobe.Slots.*`)**:
+   - Các slot tag phải khớp với danh mục được cấp phép (`Categories = "System.Wardrobe.Slots"`): `Top`, `Bottom`, `Dress`, `OnePiece`, `Inner_Top`, `Inner_Bottom`, `Hair`, `Shoes`, `Socks`, `Gloves`, `Hat`, `Eyebrows`, `Body`.
+   - Script AI `classify_character_manifest.py` luôn sử dụng danh mục slot hợp lệ này, tránh tự ý sinh tag không có trong từ điển.
+4. **Khởi tạo và Gán Tag trong Unreal Python**:
+   - Khởi tạo qua `unreal.GameplayTag(tag_name=unreal.Name(tag_str))` hoặc `tag.import_text(tag_str)`.
+   - Script kiểm tra read-back (`da_asset.get_editor_property()`) để cảnh báo tức thì nếu tag bị Unreal reject thành `None`.
+
+
+### 8.3. Mental Model Head vs Body Baking & Channel Packing Optimization
+1. **Head vs Body Baking**:
+   - **Head (Khuôn mặt, tai, cổ)**: Giữ nguyên Texture gốc của DAZ, cắm trực tiếp vào shader `M_Skin_Head` trong Unreal Engine. Tuyệt đối không re-bake để bảo toàn độ nét cận cảnh (Texel Density) và tránh lỗi lệch viền cổ (Neck Seam).
+   - **Body (Torso, Arms, Legs, Nails)**: Gom UV và bake (BaseColor, Normal, Roughness) thành 1 bộ map `Body_*` thống nhất để giảm Draw Call (từ 4-5 material slots xuống còn 1).
+2. **Channel Packing (`pack_mode`) Mặc định**:
+   - `bake_mesh.py` mặc định `pack_mode = "none"` để chỉ xuất các map độc lập (`*_BaseColor.png`, `*_Roughness.png`, `*_Normal.png`), không tự tiện sinh ra file `*_ORM.png` rác khi dự án game không dùng ORM.
+   - `import_character_wardrobe.py`: Phân biệt rành mạch giữa kênh đơn sắc `Roughness` và texture 3 kênh `ORM`, ưu tiên match đúng parameter rời (`Skin_Roughness`, `Cloth_Roughness`) để vật liệu trong Unreal không bị sai lệch kênh ánh sáng.

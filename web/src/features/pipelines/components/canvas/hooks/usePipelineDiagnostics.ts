@@ -68,6 +68,22 @@ export function usePipelineDiagnostics({
     const nodeItems = nodes.map((node) => {
       if (node.type === "scopeContainer") {
         const stageData = (node.data ?? {}) as any;
+        const nodeW =
+          typeof node.width === "number"
+            ? node.width
+            : typeof node.measured?.width === "number"
+              ? node.measured.width
+              : typeof node.style?.width === "number"
+                ? node.style.width
+                : 520;
+        const nodeH =
+          typeof node.height === "number"
+            ? node.height
+            : typeof node.measured?.height === "number"
+              ? node.measured.height
+              : typeof node.style?.height === "number"
+                ? node.style.height
+                : 380;
         return {
           id: node.id,
           refId: "ScopeContainer",
@@ -75,8 +91,8 @@ export function usePipelineDiagnostics({
           parentId: null,
           positionX: node.position.x,
           positionY: node.position.y,
-          width: typeof node.style?.width === "number" ? node.style.width : 520,
-          height: typeof node.style?.height === "number" ? node.style.height : 380,
+          width: Math.round(nodeW),
+          height: Math.round(nodeH),
           configValues: {},
           metadata: {
             name: stageData.name,

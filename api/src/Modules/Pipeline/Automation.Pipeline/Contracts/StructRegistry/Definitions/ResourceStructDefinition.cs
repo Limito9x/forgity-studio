@@ -9,7 +9,7 @@ namespace Automation.Pipeline.Contracts.StructRegistry.Definitions;
 
 public class ResourceStructDefinition(
     IRepositoryApi workspaceApi,
-    IContentApi contentApi,
+    IContentApi? contentApi = null,
     IExecutionEntityStore? entityStore = null
 ) : IEntityStructDefinition
 {
@@ -29,9 +29,6 @@ public class ResourceStructDefinition(
         ["HoldingRunnerId"] = "00000000-0000-0000-0000-000000000005",
         ["RepositoryId"] = "00000000-0000-0000-0000-000000000003",
         ["FileHash"] = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        ["ContentId"] = "00000000-0000-0000-0000-000000000004",
-        ["ContentName"] = "Character Model",
-        ["ContentType"] = "3DModel",
         ["Metadata"] = "{\"vertexCount\": 12500, \"rigged\": true}"
     };
 
@@ -118,28 +115,6 @@ public class ResourceStructDefinition(
             },
             new()
             {
-                Id = "ContentId",
-                Label = "Content ID",
-                PrimitiveType = PinPrimitiveType.EntityRef,
-                StructType = WellKnownStructTypes.ContentItem,
-                Cardinality = PinCardinality.Single,
-            },
-            new()
-            {
-                Id = "ContentName",
-                Label = "Content Name",
-                PrimitiveType = PinPrimitiveType.String,
-                Cardinality = PinCardinality.Single,
-            },
-            new()
-            {
-                Id = "ContentType",
-                Label = "Content Type",
-                PrimitiveType = PinPrimitiveType.String,
-                Cardinality = PinCardinality.Single,
-            },
-            new()
-            {
                 Id = "Metadata",
                 Label = "Metadata JSON",
                 PrimitiveType = PinPrimitiveType.String,
@@ -167,108 +142,57 @@ public class ResourceStructDefinition(
             if (res.ContainsKey("RelativePath") || res.ContainsKey("FileName"))
             {
                 var rPath = res.GetValueOrDefault("RelativePath")?.ToString() ?? string.Empty;
-                if (
-                    !res.ContainsKey("FileName")
-                    || string.IsNullOrEmpty(res["FileName"]?.ToString())
-                )
-                    res["FileName"] = Path.GetFileName(rPath);
-                if (
-                    !res.ContainsKey("BaseName")
-                    || string.IsNullOrEmpty(res["BaseName"]?.ToString())
-                )
-                    res["BaseName"] = Path.GetFileNameWithoutExtension(rPath);
-                if (
-                    !res.ContainsKey("Extension")
-                    || string.IsNullOrEmpty(res["Extension"]?.ToString())
-                )
-                    res["Extension"] = Path.GetExtension(rPath).TrimStart('.').ToLowerInvariant();
-                if (
-                    !res.ContainsKey("DirectoryPath")
-                    || string.IsNullOrEmpty(res["DirectoryPath"]?.ToString())
-                )
-                    res["DirectoryPath"] =
-                        Path.GetDirectoryName(res["FullPath"]?.ToString() ?? rPath)
-                            ?.Replace('\\', '/')
-                        ?? string.Empty;
-
+                if (!string.IsNullOrEmpty(rPath))
+                {
+                    var fName = Path.GetFileName(rPath);
+                    res["FileName"] = fName;
+                    res["BaseName"] = Path.GetFileNameWithoutExtension(fName);
+                    res["Extension"] = Path.GetExtension(fName);
+                    res["DirectoryPath"] = Path.GetDirectoryName(rPath)?.Replace('\\', '/') ?? string.Empty;
+                }
                 return res;
             }
         }
 
+        // 1. Resolve Target Resource ID (hỗ trợ cả ResourceVersionId lẫn ResourceId gốc)
         var (type, targetId, isValid) = EntityRefHelper.Parse(targetInput);
         if (!isValid || targetId == Guid.Empty)
         {
-            throw new ArgumentException($"Invalid Target Resource Reference: '{targetInput}'");
-        }
-
-        // Priority 1: Check ExecutionEntityStore (Pure In-Memory lookup in 0ms)
-        if (entityStore?.GetProperties("Resource", targetId) is { } cachedProps)
-        {
-            var inMemoryResult = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (k, v) in cachedProps)
-            {
-                if (v != null) inMemoryResult[k] = v;
-            }
-
-            var hasContentName = inMemoryResult.TryGetValue("ContentName", out var cn) && !string.IsNullOrWhiteSpace(cn?.ToString());
-            var hasContentType = inMemoryResult.TryGetValue("ContentType", out var ctProp) && !string.IsNullOrWhiteSpace(ctProp?.ToString());
-
-            var contentIdStr = inMemoryResult.GetValueOrDefault("ContentId")?.ToString();
-            if (contentApi != null && Guid.TryParse(contentIdStr, out var cId) && cId != Guid.Empty && (!hasContentName || !hasContentType))
-            {
-                var contentResult = await contentApi.GetContentByIdAsync(cId, context.CancellationToken);
-                if (contentResult?.IsSuccess == true && contentResult.Value != null)
-                {
-                    inMemoryResult["ContentName"] = contentResult.Value.Name;
-                    inMemoryResult["ContentType"] = contentResult.Value.ContentTypeName ?? string.Empty;
-                    cachedProps["ContentName"] = contentResult.Value.Name;
-                    cachedProps["ContentType"] = contentResult.Value.ContentTypeName ?? string.Empty;
-                }
-            }
-
-            if (!inMemoryResult.ContainsKey("ContentName") || string.IsNullOrWhiteSpace(inMemoryResult["ContentName"]?.ToString()))
-            {
-                var fallbackBaseName = inMemoryResult.GetValueOrDefault("BaseName")?.ToString() ?? string.Empty;
-                inMemoryResult["ContentName"] = fallbackBaseName;
-            }
-
-            return inMemoryResult;
+            throw new ArgumentException($"Cannot resolve Resource struct from input: {targetInput}");
         }
 
         var ct = context.CancellationToken;
 
-        // 1. Fallback: Resolve resource location from DB if not pre-fetched
-        var singleResult = await workspaceApi.GetResourceLocationAsync(targetId, ct);
-        if (!singleResult.IsSuccess || singleResult.Value == null)
+        // Try getting from execution state store first (O(1) in-memory)
+        var cachedProps = entityStore?.GetProperties("Resource", targetId);
+        if (cachedProps != null)
         {
-            var errMsg = string.Join(", ", singleResult.Errors.Select(e => e.Message));
+            var inMemoryResult = new Dictionary<string, object>(cachedProps.Where(kvp => kvp.Value != null)!);
+            return inMemoryResult;
+        }
+
+        // 2. Query Repository API for physical location and version info
+        var locationResult = await workspaceApi.GetResourceLocationAsync(targetId, ct);
+        if (locationResult.IsFailed || locationResult.Value == null)
+        {
             throw new InvalidOperationException(
-                $"Failed to resolve Resource '{targetId}': {errMsg}"
+                $"Failed to resolve physical location for Resource '{targetId}': " +
+                string.Join(", ", locationResult.Errors.Select(e => e.Message))
             );
         }
 
-        var locationInfo = singleResult.Value;
-
-        var relPath = locationInfo.RelativePath ?? string.Empty;
-        var fullPath = locationInfo.FullLocalPath ?? relPath;
+        var locationInfo = locationResult.Value;
+        var relPath = locationInfo.RelativePath?.Replace('\\', '/') ?? string.Empty;
         var fileName = Path.GetFileName(relPath);
-        var baseName = Path.GetFileNameWithoutExtension(relPath);
-        var extension = Path.GetExtension(relPath).TrimStart('.').ToLowerInvariant();
-        var dirPath = Path.GetDirectoryName(fullPath)?.Replace('\\', '/') ?? string.Empty;
+        var baseName = Path.GetFileNameWithoutExtension(fileName);
+        var extension = Path.GetExtension(fileName);
+        var dirPath = Path.GetDirectoryName(relPath)?.Replace('\\', '/') ?? string.Empty;
 
-        // 2. Resolve Content Info (with smart fallback to BaseName if no Content assigned)
-        var contentId = locationInfo.ContentId;
-        var contentName = baseName; // Smart fallback: e.g. "Eva" from "Eva.duf"
-        var contentType = string.Empty;
-
-        if (contentId.HasValue && contentId.Value != Guid.Empty)
+        // Full path on runner if available
+        var fullPath = string.Empty;
+        if (!string.IsNullOrEmpty(locationInfo.RunnerRootPath) && !string.IsNullOrEmpty(relPath))
         {
-            var contentResult = await contentApi.GetContentByIdAsync(contentId.Value, ct);
-            if (contentResult.IsSuccess && contentResult.Value != null)
-            {
-                contentName = contentResult.Value.Name;
-                contentType = contentResult.Value.ContentTypeName ?? string.Empty;
-            }
+            fullPath = Path.Combine(locationInfo.RunnerRootPath, relPath).Replace('\\', '/');
         }
 
         // 3. Resolve Metadata JSON (graceful fallback if unavailable)
@@ -305,9 +229,6 @@ public class ResourceStructDefinition(
             ["HoldingRunnerId"] = locationInfo.RunnerId?.ToString() ?? string.Empty,
             ["RunnerId"] = locationInfo.RunnerId?.ToString() ?? string.Empty,
             ["FileHash"] = locationInfo.FileHash ?? string.Empty,
-            ["ContentId"] = contentId.HasValue ? contentId.Value.ToString() : string.Empty,
-            ["ContentName"] = contentName,
-            ["ContentType"] = contentType,
             ["Metadata"] = metadataJson,
         };
     }

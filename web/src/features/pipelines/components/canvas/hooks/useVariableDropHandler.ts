@@ -4,6 +4,7 @@ import type { Node } from "@xyflow/react";
 import { toast } from "sonner";
 import type { NodePaletteItemDto, PinDefinition } from "@/gen/model";
 import type { CustomPipelineNodeData } from "../nodes/types";
+import { getStageKindName } from "./canvasUtils";
 
 interface UseVariableDropHandlerArgs {
   nodes: Node[];
@@ -30,6 +31,8 @@ export function useVariableDropHandler({
     screenPos: { x: number; y: number };
     flowPos: { x: number; y: number };
     isInsideStage: boolean;
+    isInsideWorkerStage: boolean;
+    stageKindName: "Worker" | "Server" | "Macro" | null;
   } | null>(null);
 
   // Helper to test if a flow coordinate is inside any Stage container
@@ -59,9 +62,11 @@ export function useVariableDropHandler({
     ) => {
       const isGet = toolKey === "GetVariable";
       const targetStage = findStageAtPosition(position);
+      const stageKind = targetStage ? getStageKindName(targetStage.data?.kind) : null;
+      const isWorkerStage = stageKind === "Worker";
 
-      if (!isGet && targetStage) {
-        toast.error("Set Variable must be placed in Core (Root Canvas), not inside a Stage.");
+      if (!isGet && isWorkerStage) {
+        toast.error("Set Variable must be placed in Core (Root Canvas or Core Container), not inside a Worker Stage.");
         return;
       }
 
@@ -97,11 +102,15 @@ export function useVariableDropHandler({
 
       const label = `Set ${varName}`;
       const paletteItem = paletteItems.find((p) => p.key === toolKey);
+      const nodePos = targetStage
+        ? { x: position.x - targetStage.position.x, y: position.y - targetStage.position.y }
+        : position;
 
       const newNode: Node = {
         id: newNodeId,
         type: "pipelineNode",
-        position,
+        position: nodePos,
+        parentId: targetStage ? targetStage.id : undefined,
         data: {
           refId: toolKey,
           kind: "Tool",
@@ -196,6 +205,8 @@ export function useVariableDropHandler({
 
         const flowPos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
         const targetStage = findStageAtPosition(flowPos);
+        const stageKind = targetStage ? getStageKindName(targetStage.data?.kind) : null;
+        const isWorkerStage = stageKind === "Worker";
         const isInsideStage = !!targetStage;
 
         // If dropped item is an Input parameter, spawn an Input Capsule directly
@@ -237,8 +248,8 @@ export function useVariableDropHandler({
         if (e.ctrlKey) {
           handleSpawnVariableNodeAt("GetVariable", varName, flowPos);
         } else if (e.altKey) {
-          if (isInsideStage) {
-            toast.error("Set Variable must be placed in Core (Root Canvas), not inside a Stage.");
+          if (isWorkerStage) {
+            toast.error("Set Variable must be placed in Core (Root Canvas or Core Container), not inside a Worker Stage.");
             return;
           }
           handleSpawnVariableNodeAt("SetVariable", varName, flowPos);
@@ -248,6 +259,8 @@ export function useVariableDropHandler({
             screenPos: { x: e.clientX, y: e.clientY },
             flowPos,
             isInsideStage,
+            isInsideWorkerStage: isWorkerStage,
+            stageKindName: stageKind,
           });
         }
       } catch {

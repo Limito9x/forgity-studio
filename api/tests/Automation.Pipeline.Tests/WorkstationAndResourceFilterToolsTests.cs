@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Automation.Content.Contracts;
 using Automation.Pipeline.Constants;
 using Automation.Pipeline.Contracts.StructRegistry.Definitions;
 using Automation.Pipeline.Contracts.Tools;
@@ -18,7 +19,8 @@ namespace Automation.Pipeline.Tests;
 public class WorkstationAndResourceFilterToolsTests
 {
     private readonly IRepositoryApi _repositoryApi = Substitute.For<IRepositoryApi>();
-    private readonly ToolExecutionContext _context = new(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+    private readonly IContentApi _contentApi = Substitute.For<IContentApi>();
+    private readonly ToolExecutionContext _context = new(Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None, Guid.NewGuid(), Guid.NewGuid());
 
     [Fact]
     public async Task WorkstationStructDefinition_ShouldDeclareOutputPinsAndResolveCorrectly()
@@ -163,7 +165,7 @@ public class WorkstationAndResourceFilterToolsTests
             .Returns(Result.Ok(new WorkstationDto(wsId, repoId, "Repo", runnerId, "Runner", rootPath, true)));
 
         List<string>? capturedPaths = null;
-        _repositoryApi.SyncLocalChangesAsync(repoId, runnerId, Arg.Do<List<string>>(p => capturedPaths = p), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        _repositoryApi.SyncLocalChangesAsync(repoId, runnerId, Arg.Do<List<string>>(p => capturedPaths = p), Arg.Any<string>(), ct: Arg.Any<CancellationToken>())
             .Returns(Result.Ok(new SyncLocalChangesResultDto(repoId, runnerId, 1, 0, 0, [Guid.NewGuid()], new Dictionary<string, Guid> { ["Exports/character.fbx"] = Guid.NewGuid() })));
 
         var tool = new SyncLocalChangeToRepositoryTool(_repositoryApi);
@@ -179,6 +181,47 @@ public class WorkstationAndResourceFilterToolsTests
         capturedPaths.Should().NotBeNull();
         capturedPaths!.Should().ContainSingle().Which.Should().Be("Exports/character.fbx");
         result["AddedCount"].Should().Be(1);
+    }
+
+    [Fact]
+    public async Task SyncLocalChangeToRepositoryTool_WithContentType_ShouldInvokeSmartLink()
+    {
+        var wsId = Guid.NewGuid();
+        var repoId = Guid.NewGuid();
+        var runnerId = Guid.NewGuid();
+        var rootPath = "D:/Assets/DazWorkstation";
+        var resId = Guid.NewGuid();
+
+        _repositoryApi.GetWorkstationByIdAsync(wsId, Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new WorkstationDto(wsId, repoId, "Repo", runnerId, "Runner", rootPath, true)));
+
+        _repositoryApi.SyncLocalChangesAsync(repoId, runnerId, Arg.Any<List<string>>(), Arg.Any<string>(), ct: Arg.Any<CancellationToken>())
+            .Returns(Result.Ok(new SyncLocalChangesResultDto(repoId, runnerId, 1, 0, 0, [resId], new Dictionary<string, Guid> { ["Exports/Eva.fbx"] = resId })));
+
+        var resourceDto = new ResourceDto(resId, Guid.NewGuid(), "Eva.fbx", ".fbx", "Exports/Eva.fbx", "hash", null, null, repoId, "D:/Mount/Exports/Eva.fbx", "D:/Mount", runnerId);
+        _repositoryApi.GetResourcesByIdsAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok<IReadOnlyList<ResourceDto>>(new List<ResourceDto> { resourceDto }));
+
+        _contentApi.SmartLinkResourcesByConventionAsync(Arg.Any<Guid>(), "Character", Arg.Any<IEnumerable<ResourceSmartLinkInput>>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok<IReadOnlyList<ContentAnchorLinkDto>>(new List<ContentAnchorLinkDto>()));
+
+        var tool = new SyncLocalChangeToRepositoryTool(_repositoryApi, _contentApi);
+        var inputs = new Dictionary<string, object>
+        {
+            ["Workstation"] = wsId.ToString(),
+            ["RelativePaths"] = new[] { "Exports/Eva.fbx" },
+            ["ContentType"] = "Character"
+        };
+
+        var result = await tool.ExecuteAsync(inputs, _context);
+
+        result["AddedCount"].Should().Be(1);
+        await _contentApi.Received(1).SmartLinkResourcesByConventionAsync(
+            _context.ProjectId,
+            "Character",
+            Arg.Is<IEnumerable<ResourceSmartLinkInput>>(l => l.Any(r => r.ResourceId == resId)),
+            Arg.Any<CancellationToken>()
+        );
     }
 
     [Fact]
@@ -226,7 +269,7 @@ public class WorkstationAndResourceFilterToolsTests
     public void ResourceStructDefinition_OutputPins_ShouldNotContainResourceVersionId()
     {
         // BL-016: Loại bỏ pin nội bộ ResourceVersionId khỏi OutputPins
-        var mockContentApi = Substitute.For<Automation.Content.Contracts.IContentApi>();
+        var mockContentApi = Substitute.For<IContentApi>();
         var structDef = new Automation.Pipeline.Contracts.StructRegistry.Definitions.ResourceStructDefinition(
             _repositoryApi,
             mockContentApi
@@ -240,15 +283,15 @@ public class WorkstationAndResourceFilterToolsTests
     }
 
     [Fact]
-    public void SyncLocalChangeToRepositoryTool_Inputs_ShouldOnlyContainWorkstationAndPaths()
+    public void SyncLocalChangeToRepositoryTool_Inputs_ShouldContainWorkstationPathsAndOptionalContentType()
     {
-        // BL-017: Tinh gọn chân pin theo triết lý Workstation-First
+        // BL-017 & BL-031: Workstation-First + Optional ContentType Smart Link pin
         var tool = new SyncLocalChangeToRepositoryTool(_repositoryApi);
 
-        tool.Inputs.Should().HaveCount(2);
-        tool.Inputs.Select(p => p.Id).Should().BeEquivalentTo(["Workstation", "RelativePaths"]);
+        tool.Inputs.Should().HaveCount(3);
+        tool.Inputs.Select(p => p.Id).Should().BeEquivalentTo(["Workstation", "RelativePaths", "ContentType"]);
         tool.Inputs.First(p => p.Id == "Workstation").IsRequired.Should().BeTrue();
         tool.Inputs.First(p => p.Id == "RelativePaths").IsRequired.Should().BeTrue();
+        tool.Inputs.First(p => p.Id == "ContentType").IsRequired.Should().BeFalse();
     }
 }
-

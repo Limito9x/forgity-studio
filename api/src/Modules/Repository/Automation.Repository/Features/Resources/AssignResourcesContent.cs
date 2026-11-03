@@ -1,3 +1,4 @@
+using Automation.Content.Contracts;
 using Automation.Repository.Constants;
 using Automation.Repository.Infrastructure.Persistence;
 using FastEndpoints;
@@ -12,7 +13,9 @@ namespace Automation.Repository.Features.Resources;
 // 1. Command & Validator
 public record AssignResourcesContentCommand(
     List<Guid> ResourceIds,
-    Guid? ContentId
+    Guid? ContentId,
+    string? AnchorPath = null,
+    Guid? ContentItemIdToUnlink = null
 );
 
 public class AssignResourcesContentValidator : AbstractValidator<AssignResourcesContentCommand>
@@ -46,7 +49,7 @@ public class AssignResourcesContentEndpoint(IMessageBus bus)
 
 // 3. Handler
 [Transactional(typeof(RepositoryDbContext))]
-public class AssignResourcesContentHandler(RepositoryDbContext db)
+public class AssignResourcesContentHandler(RepositoryDbContext db, IContentApi contentApi)
 {
     public async Task<Result> HandleAsync(
         AssignResourcesContentCommand command,
@@ -58,8 +61,23 @@ public class AssignResourcesContentHandler(RepositoryDbContext db)
             return Result.Ok();
         }
 
+        // 1. UNLINK MODE: If ContentId is null, unlink the resources from Content.
+        // Unlinking removes records from ContentAnchorLinks and must succeed even if physical ResourceItems were deleted.
+        if (!command.ContentId.HasValue)
+        {
+            var unlinkResult = await contentApi.UnlinkResourcesAsync(command.ResourceIds, command.ContentItemIdToUnlink, ct);
+            if (unlinkResult.IsFailed)
+            {
+                return Result.Fail(unlinkResult.Errors);
+            }
+
+            return Result.Ok();
+        }
+
+        // 2. ASSIGN MODE: Find the resource items (supporting both ResourceItem.Id and VersionId)
         var resources = await db.ResourceItems
-            .Where(r => command.ResourceIds.Contains(r.Id))
+            .Include(r => r.Repository)
+            .Where(r => command.ResourceIds.Contains(r.Id) || r.Versions.Any(v => command.ResourceIds.Contains(v.Id)))
             .ToListAsync(ct);
 
         if (resources.Count == 0)
@@ -67,12 +85,26 @@ public class AssignResourcesContentHandler(RepositoryDbContext db)
             return Result.Fail("No resources found matching the specified IDs.");
         }
 
-        foreach (var resource in resources)
-        {
-            resource.AssignContent(command.ContentId);
-        }
+        var projectId = resources.FirstOrDefault()?.Repository?.ProjectId ?? Guid.Empty;
+        var smartInputs = resources.Select(r => new ResourceSmartLinkInput(
+            r.Id,
+            r.DisplayName,
+            r.RelativePath,
+            command.AnchorPath
+        )).ToList();
 
-        await db.SaveChangesAsync(ct);
+        var assignResult = await contentApi.AssignResourcesToAnchorAsync(
+            projectId,
+            command.ContentId.Value,
+            command.AnchorPath,
+            smartInputs,
+            ct
+        );
+
+        if (assignResult.IsFailed)
+        {
+            return Result.Fail(assignResult.Errors);
+        }
 
         return Result.Ok();
     }
