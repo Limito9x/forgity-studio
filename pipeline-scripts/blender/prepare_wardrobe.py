@@ -3,12 +3,12 @@
 Blender Wardrobe Preparation & Geometry Standardization Tool
 Runs on Agent Worker Daemon (Blender Subprocess Executor)
 
-Performs technical artist cleanup on wearable items before FBX export:
-1. Auto-Join Component Meshes: Merges multi-part items (e.g. Hair + Scalp, Left Shoe + Right Shoe, Dress + Ribbons)
+Performs clean technical artist geometry preparation on wearable items before FBX export:
+1. Geometry Validation & Curve Conversion: Converts hair strands/curves to poly meshes so Unreal Engine FBX importer can ingest them.
+2. Auto-Join Component Meshes: Merges multi-part items (e.g. Hair + Scalp, Left Shoe + Right Shoe, Dress + Ribbons)
    into a single, clean Skeletal Mesh preserving all original Material Slots.
-2. Geometry Validation & Curve Conversion: Converts hair strands/curves to poly meshes to prevent Unreal import errors.
-3. dForce & Non-Conforming Rig Clean-Up: Detects isolated dynamic bones (e.g. Tail1, Tail2, Skirt bones) and transfers
-   their skinning weights to standard Genesis 9 pelvis/thigh bones, eliminating the notorious (0,0,0) sink bug in UE5.
+3. Zero-Touch Rigging Preservation: Preserves 100% of original Daz/Diffeomorphic skinning weights and vertex groups.
+   No artificial bone heuristic modifications.
 """
 
 import os
@@ -22,25 +22,6 @@ try:
 except ImportError:
     bpy = None
     HAS_BPY = False
-
-
-# Standard Genesis 9 / Genesis 8 humanoid bones recognized by Unreal Engine
-STANDARD_G9_BONES = {
-    "root", "pelvis", "hip", "hips",
-    "spine1", "spine2", "spine3", "spine4", "spine", "spine_01", "spine_02", "spine_03", "spine_04",
-    "neck1", "neck2", "neck", "head",
-    "clavicle_l", "upperarm_l", "lowerarm_l", "hand_l",
-    "clavicle_r", "upperarm_r", "lowerarm_r", "hand_r",
-    "thigh_l", "calf_l", "foot_l", "toe_l",
-    "thigh_r", "calf_r", "foot_r", "toe_r",
-    "pectoral_l", "pectoral_r", "breast_l", "breast_r",
-    # Daz Diffeomorphic bone naming variants
-    "l_clavicle", "l_upperarm", "l_forearm", "l_hand",
-    "r_clavicle", "r_upperarm", "r_forearm", "r_hand",
-    "l_thigh", "l_shin", "l_foot", "l_toe",
-    "r_thigh", "r_shin", "r_foot", "r_toe",
-    "abdomenlower", "abdomenupper", "chestlower", "chestupper", "necklower", "neckupper"
-}
 
 
 def find_scene_object(name: str) -> Optional[Any]:
@@ -68,83 +49,10 @@ def find_scene_object(name: str) -> Optional[Any]:
     return None
 
 
-def merge_vertex_group_weights(mesh_obj: Any, source_group_name: str, target_group_name: str):
-    """
-    Transfers skin weights from a non-conforming bone group (e.g. Left-Tail1)
-    to a standard Genesis bone group (e.g. thigh_l or pelvis) and deletes the source group.
-    """
-    if source_group_name not in mesh_obj.vertex_groups:
-        return
-
-    src_vg = mesh_obj.vertex_groups[source_group_name]
-    tgt_vg = mesh_obj.vertex_groups.get(target_group_name)
-    if not tgt_vg:
-        tgt_vg = mesh_obj.vertex_groups.new(name=target_group_name)
-
-    src_idx = src_vg.index
-    tgt_idx = tgt_vg.index
-
-    # Transfer vertex by vertex
-    for vert in mesh_obj.data.vertices:
-        src_weight = 0.0
-        tgt_weight = 0.0
-        has_src = False
-
-        for g in vert.groups:
-            if g.group == src_idx:
-                src_weight = g.weight
-                has_src = True
-            elif g.group == tgt_idx:
-                tgt_weight = g.weight
-
-        if has_src and src_weight > 0.001:
-            new_weight = min(1.0, tgt_weight + src_weight)
-            tgt_vg.add([vert.index], new_weight, 'REPLACE')
-
-    # Remove the non-standard group
-    mesh_obj.vertex_groups.remove(src_vg)
-    print(f"   [prepare_wardrobe] Transferred weights from '{source_group_name}' -> '{target_group_name}'", flush=True)
-
-
-def clean_dforce_and_extra_bones(mesh_obj: Any):
-    """
-    Detects dForce tail/skirt/spring bones and reparents their weights to Pelvis/Thighs
-    so the garment will properly follow LeaderPoseComponent in Unreal Engine.
-    """
-    if not hasattr(mesh_obj, "vertex_groups") or not mesh_obj.vertex_groups:
-        return
-
-    groups_to_check = [vg.name for vg in mesh_obj.vertex_groups]
-    for g_name in groups_to_check:
-        clean_g = g_name.lower().replace("-", "_").replace(".", "_")
-
-        is_dforce_bone = any(k in clean_g for k in ["tail", "skirt", "dforce", "spring", "dress_lower", "flap"])
-        is_standard = clean_g in STANDARD_G9_BONES or any(s in clean_g for s in ["spine", "thigh", "pelvis", "clavicle", "arm", "hand", "calf", "foot"])
-
-        if is_dforce_bone or not is_standard:
-            # Determine appropriate recipient bone
-            if any(k in clean_g for k in ["left", "l_", "_l"]):
-                target_bone = "thigh_l"
-            elif any(k in clean_g for k in ["right", "r_", "_r"]):
-                target_bone = "thigh_r"
-            else:
-                target_bone = "pelvis"
-
-            # Check if target bone exists in Armature/vertex groups
-            if target_bone not in mesh_obj.vertex_groups:
-                for cand in [target_bone, "Pelvis", "hip", "Hips", "thigh_l", "thigh_r", "l_thigh", "r_thigh"]:
-                    if cand in mesh_obj.vertex_groups:
-                        target_bone = cand
-                        break
-
-            merge_vertex_group_weights(mesh_obj, g_name, target_bone)
-
-
 def main(
     wardrobe_items: Optional[Union[List[Dict[str, Any]], str]] = None,
     character_body: str = "",
     auto_join_submeshes: bool = True,
-    auto_clean_dforce: bool = True,
     convert_hair_curves: bool = True,
     **kwargs
 ) -> Dict[str, Any]:
@@ -155,7 +63,6 @@ def main(
         wardrobe_items: Output from classify_mesh_types (list of dicts with 'name' and 'meshes').
         character_body: Optional name of the main character body mesh (e.g. 'Genesis 9').
         auto_join_submeshes: Merge sub-meshes of a single item into 1 mesh (default True).
-        auto_clean_dforce: Merge non-standard dForce tail/skirt weights to Genesis 9 bones (default True).
         convert_hair_curves: Ensure hair curves/strands have polygon faces (default True).
 
     Returns:
@@ -251,16 +158,12 @@ def main(
             if item_name and primary_obj.name != item_name:
                 primary_obj.name = item_name
 
-        # Step C: Clean dForce / non-conforming tail bones
-        if auto_clean_dforce and primary_obj.type == 'MESH':
-            clean_dforce_and_extra_bones(primary_obj)
-
         if primary_obj.name not in prepared_meshes:
             prepared_meshes.append(primary_obj.name)
 
     summary = (
         f"Wardrobe Preparation Completed: {len(prepared_meshes)} clean clothing item(s) ready "
-        f"({merged_items_count} merged multi-mesh groups). dForce bones sanitized to Genesis 9 standard."
+        f"({merged_items_count} merged multi-mesh groups). Original Daz skinning weights preserved 100%."
     )
     print(f"\n[prepare_wardrobe] {summary}", flush=True)
 
