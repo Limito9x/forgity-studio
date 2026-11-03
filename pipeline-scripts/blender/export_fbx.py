@@ -637,9 +637,12 @@ ExportModeType = Literal["Auto", "Single", "Batch"]
 
 def main(
     output_path: str = "",
+    preset_path: str = "",
     export_mode: ExportModeType = "Auto",
     target_objects: Optional[List[str]] = None,
     prefix: str = "",
+    render_thumbnail: bool = True,
+    thumbnail_resolution: int = 512,
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -648,13 +651,16 @@ def main(
 
     Args:
         output_path: Destination .fbx file path (Single mode) or destination directory (Batch mode).
+        preset_path: Optional path to FBX operator preset script (e.g. DazBodyUE5.py / BlenderUE5_8.py).
         export_mode: 'Single' (pack all into 1 file), 'Batch' (split by map), or 'Auto'.
         target_objects: Dictionary mapping object names to slot/role (e.g. cloth_map from classify_mesh_types).
         prefix: Optional prefix prepended to filenames and asset names (e.g. 'Eva').
+        render_thumbnail: Whether to render companion transparent 3D thumbnail for each item.
+        thumbnail_resolution: Square resolution of thumbnail (default 512).
     """
-    preset_path = str(kwargs.get("preset_path", "") or "")
-    render_thumbnail = bool(kwargs.get("render_thumbnail", True))
-    thumbnail_resolution = int(kwargs.get("thumbnail_resolution", 512) or 512)
+    preset_path = str(preset_path or kwargs.get("preset_path", "") or "")
+    render_thumbnail = bool(render_thumbnail if render_thumbnail is not None else kwargs.get("render_thumbnail", True))
+    thumbnail_resolution = int(thumbnail_resolution or kwargs.get("thumbnail_resolution", 512) or 512)
 
     # 1. Resolve raw target source from target_objects or supported kwargs aliases
     raw_source: Any = target_objects if target_objects is not None else (
@@ -685,14 +691,37 @@ def main(
         else:
             mode = "Single"
 
-    # 3. Load Preset Options if provided
-    preset_options: Dict[str, Any] = {}
+    # 3. Load Preset Options if provided, else use Unreal Engine 5 safe standard defaults
+    preset_options: Dict[str, Any] = {
+        "global_scale": 1.0,
+        "apply_unit_scale": True,
+        "apply_scale_options": "FBX_SCALE_NONE",
+        "use_space_transform": True,
+        "bake_space_transform": False,
+        "object_types": {"ARMATURE", "MESH"},
+        "use_mesh_modifiers": True,
+        "use_mesh_modifiers_render": True,
+        "mesh_smooth_type": "FACE",
+        "colors_type": "SRGB",
+        "add_leaf_bones": False,
+        "primary_bone_axis": "X",
+        "secondary_bone_axis": "Y",
+        "use_armature_deform_only": True,
+        "armature_nodetype": "NULL",
+        "bake_anim": False,
+        "axis_forward": "X",
+        "axis_up": "Z",
+    }
+
     if preset_path and os.path.exists(preset_path):
         mock = MockOp()
         with open(preset_path, 'r', encoding='utf-8') as f:
             clean_code = "".join([l for l in f if "active_operator" not in l])
             exec(clean_code, {'bpy': bpy, 'op': mock})
-        preset_options = mock.options
+        preset_options.update(mock.options)
+        print(f"[export_fbx] Loaded {len(mock.options)} options from preset: '{preset_path}'", flush=True)
+    else:
+        print("[export_fbx] Using Unreal Engine safe standard FBX export defaults (Forward='X', Up='Z', BoneAxis='X'/'Y').", flush=True)
 
     preset_options['use_selection'] = True
     preset_options.pop('filepath', None)
