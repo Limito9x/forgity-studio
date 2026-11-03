@@ -24,32 +24,20 @@ import { Badge } from "@/components/ui/badge";
 
 import { DraggableResourceRowHandle } from "../components/DraggableResourceRowHandle";
 
+import { LinkedContentsCell } from "../components/LinkedContentsCell";
+
 import { useAssignResourcesContent, useDeleteResource } from "./useRepositories";
 
 import type { WorkspaceResourceDto } from "@/gen/model";
 
 import {
-
   FileCode,
-
-  Tag,
-
   Folder,
-
-  Sparkles,
-
-  Unlink,
-
   GitBranch,
-
   Eye,
-
   Calendar,
-
   Lock,
-
   Trash2,
-
   Cpu,
 
 } from "lucide-react";
@@ -62,38 +50,32 @@ import { useProjectNav } from "@/lib/navigation/useProjectNav";
 
 import { useDialogStore } from "@/stores/dialogStore";
 
-import { FileTypeIcon } from "@/components/custom-ui/FileTypeIcon";
+import { ResourceThumbnail } from "@/components/custom-ui/ResourceThumbnail";
 
 
 
 export interface UseRepositoryResourceTableOptions {
-
   data: WorkspaceResourceDto[];
-
   totalCount: number;
-
   projectId: string;
-
   repositoryId: string;
-
   onOpenAssignPanel: (resourceId?: string) => void;
-
+  page?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
 }
 
-
-
 export function useRepositoryResourceTable({
-
   data,
-
   totalCount,
-
   projectId,
-
   repositoryId,
-
   onOpenAssignPanel,
-
+  page,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
 }: UseRepositoryResourceTableOptions) {
 
   const { studioSlug } = useCurrentStudio();
@@ -162,40 +144,28 @@ export function useRepositoryResourceTable({
 
 
 
-  const handleUnlink = (resourceId: string, displayName: string) => {
-
+  const handleUnlink = (
+    resourceId: string,
+    displayName: string,
+    contentItemId?: string
+  ) => {
     assignMutation.mutate(
-
       {
-
         data: {
-
           resourceIds: [resourceId],
-
           contentId: null,
-
-        },
-
+          contentItemIdToUnlink: contentItemId || undefined,
+        } as any,
       },
-
       {
-
         onSuccess: () => {
-
           toast.success(`Unlinked "${displayName || "resource"}" successfully.`);
-
         },
-
         onError: (err: any) => {
-
           toast.error(err?.message || "Failed to unlink resource.");
-
         },
-
       }
-
     );
-
   };
 
 
@@ -350,14 +320,11 @@ export function useRepositoryResourceTable({
 
             <div className="flex items-center gap-2.5 py-1 min-w-[200px]">
 
-              <FileTypeIcon
-
-                fileName={item.displayName}
-
-                relativePath={item.relativePath ?? undefined}
-
+              <ResourceThumbnail
+                displayName={item.displayName}
+                relativePath={item.relativePath}
+                thumbnailUrl={item.thumbnailUrl}
                 size="md"
-
               />
 
               <div className="min-w-0">
@@ -395,139 +362,23 @@ export function useRepositoryResourceTable({
       },
 
       {
-
-        accessorKey: "contentTypeName",
-
-        header: "Content Type",
-
-        meta: { label: "Type", icon: Tag },
-
+        id: "linkedContents",
+        header: "Linked Contents",
+        meta: { label: "Linked Contents", icon: Folder },
         cell: ({ row }) => {
-
-          const item = row.original;
-
-          if (!item.contentTypeName) {
-
-            return <span className="text-xs text-muted-foreground italic">Unassigned</span>;
-
-          }
-
           return (
-
-            <span
-
-              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border"
-
-              style={{
-
-                backgroundColor: item.contentTypeColor ? `${item.contentTypeColor}15` : undefined,
-
-                color: item.contentTypeColor || undefined,
-
-                borderColor: item.contentTypeColor ? `${item.contentTypeColor}40` : undefined,
-
+            <LinkedContentsCell
+              resource={row.original as any}
+              onAssign={(id) => {
+                setRowSelection({ [id]: true });
+                onOpenAssignPanel(id);
               }}
-
-            >
-
-              <span
-
-                className="size-1.5 rounded-full"
-
-                style={{ backgroundColor: item.contentTypeColor || "#64748b" }}
-
-              />
-
-              {item.contentTypeName}
-
-            </span>
-
+              onUnlink={(id, contentItemId) =>
+                handleUnlink(id, row.original.displayName || "", contentItemId)
+              }
+            />
           );
-
         },
-
-      },
-
-      {
-
-        accessorKey: "contentName",
-
-        header: "Linked Content",
-
-        meta: { label: "Content", icon: Folder },
-
-        cell: ({ row }) => {
-
-          const item = row.original;
-
-          if (!item.contentName) {
-
-            return (
-
-              <Button
-
-                size="sm"
-
-                variant="ghost"
-
-                onClick={() => {
-
-                  setRowSelection({ [item.id]: true });
-
-                  onOpenAssignPanel(item.id);
-
-                }}
-
-                className="h-6 px-2 text-xs text-muted-foreground hover:text-primary gap-1 cursor-pointer"
-
-              >
-
-                <Sparkles className="size-3" />
-
-                Assign
-
-              </Button>
-
-            );
-
-          }
-
-          return (
-
-            <div className="flex items-center justify-between gap-2 max-w-[200px]">
-
-              <div className="flex items-center gap-1.5 font-medium text-xs text-foreground truncate">
-
-                <Folder className="size-3.5 text-muted-foreground shrink-0" />
-
-                <span className="truncate">{item.contentName}</span>
-
-              </div>
-
-              <Button
-
-                size="sm"
-
-                variant="ghost"
-
-                onPress={() => handleUnlink(item.id, item.displayName || "")}
-
-                className="size-6 p-0 text-muted-foreground hover:text-destructive shrink-0 cursor-pointer"
-
-                aria-label="Unlink content"
-
-              >
-
-                <Unlink className="size-3" />
-
-              </Button>
-
-            </div>
-
-          );
-
-        },
-
       },
 
       {
@@ -774,32 +625,40 @@ export function useRepositoryResourceTable({
 
 
 
+  const pageIndex = (page ?? 1) - 1;
+  const currentPageSize = pageSize ?? 25;
+
   const table = useReactTable({
-
     data,
-
     columns,
-
     getCoreRowModel: getCoreRowModel(),
-
     getSortedRowModel: getSortedRowModel(),
-
+    manualPagination: true,
+    pageCount: currentPageSize > 0 ? Math.ceil(totalCount / currentPageSize) : -1,
     rowCount: totalCount,
-
     getRowId: (row) => row.id,
-
     state: {
-
       rowSelection,
-
       sorting,
-
+      pagination: {
+        pageIndex,
+        pageSize: currentPageSize,
+      },
     },
-
     onRowSelectionChange: setRowSelection,
-
     onSortingChange: setSorting,
-
+    onPaginationChange: (updater) => {
+      const next =
+        typeof updater === "function"
+          ? updater({ pageIndex, pageSize: currentPageSize })
+          : updater;
+      if (next.pageIndex !== pageIndex) {
+        onPageChange?.(next.pageIndex + 1);
+      }
+      if (next.pageSize !== currentPageSize) {
+        onPageSizeChange?.(next.pageSize);
+      }
+    },
   });
 
 

@@ -8,14 +8,18 @@ namespace Automation.Repository.Features.Repositories;
 public record UpdateRepositoryRequest(
     string Name,
     string? Description = null,
-    List<string>? SupportedExtensions = null
+    List<string>? SupportedExtensions = null,
+    List<string>? IncludedSubPaths = null,
+    int? MaxScanFiles = null
 );
 
 public record UpdateRepositoryCommand(
     Guid Id,
     string Name,
     string? Description = null,
-    List<string>? SupportedExtensions = null
+    List<string>? SupportedExtensions = null,
+    List<string>? IncludedSubPaths = null,
+    int? MaxScanFiles = null
 );
 
 public class UpdateRepositoryValidator : AbstractValidator<UpdateRepositoryCommand>
@@ -42,7 +46,7 @@ public class UpdateRepositoryEndpoint(IMessageBus bus)
     public override async Task HandleAsync(UpdateRepositoryRequest req, CancellationToken ct)
     {
         var id = Route<Guid>("id");
-        var command = new UpdateRepositoryCommand(id, req.Name, req.Description, req.SupportedExtensions);
+        var command = new UpdateRepositoryCommand(id, req.Name, req.Description, req.SupportedExtensions, req.IncludedSubPaths, req.MaxScanFiles);
         var result = await bus.InvokeAsync<Result<RepositoryDto>>(command, ct);
         await this.SendResultAsync(result, ct);
     }
@@ -61,7 +65,7 @@ public class UpdateRepositoryHandler(RepositoryDbContext db)
         if (repo is null)
             return Result.Fail($"Repository with ID '{command.Id}' was not found.");
 
-        repo.Update(command.Name, command.Description, command.SupportedExtensions);
+        repo.Update(command.Name, command.Description, command.SupportedExtensions, command.IncludedSubPaths, command.MaxScanFiles);
         await db.SaveChangesAsync(ct);
 
         var dto = new RepositoryDto(
@@ -72,7 +76,9 @@ public class UpdateRepositoryHandler(RepositoryDbContext db)
             repo.RepositoryRunners.Count,
             repo.Resources.Count,
             repo.CreatedAt,
-            repo.SupportedExtensions
+            repo.SupportedExtensions,
+            repo.IncludedSubPaths,
+            repo.MaxScanFiles
         );
 
         return Result.Ok(dto);

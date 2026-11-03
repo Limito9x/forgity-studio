@@ -59,17 +59,22 @@ public class CompareRepositoryResourcesHandler(
             return Result.Fail("RepositoryRunner not found");
         }
 
-        // Lấy danh sách extension cho phép từ Repository (nếu rỗng thì quét tất cả)
+        // Lấy danh sách extension và sub_paths cho phép từ Repository
         var allowedExtensions = repositoryRunner.Repository?.SupportedExtensions ?? [];
         var extensionsToScan = allowedExtensions.Count > 0
             ? allowedExtensions.Select(e => e.TrimStart('.').ToLowerInvariant())
             : [];
 
-        // Tìm các file có trong thư mục của runner tại repo này
+        var includedSubPaths = repositoryRunner.Repository?.IncludedSubPaths ?? [];
+        var maxFiles = repositoryRunner.Repository?.MaxScanFiles ?? 2000;
+
+        // Tìm các file có trong thư mục của runner tại repo này (kèm sub_paths & max_files)
         var scanResult = await runnerApi.SendScanCommandAsync(
             command.RunnerId,
             repositoryRunner.RootPath,
             extensionsToScan,
+            includedSubPaths,
+            maxFiles,
             ct
         );
 
@@ -77,11 +82,27 @@ public class CompareRepositoryResourcesHandler(
         var fileDictionary = files.ToDictionary(x => x.RelativePath, y => y);
 
         // Lấy các tài nguyên đã có trong repository runner (dữ liệu DB)
-        var resourceDictionary = await dbContext
+        var dbResources = await dbContext
             .ResourceItems.Include(r => r.Versions)
                 .ThenInclude(v => v.Locations)
             .Where(r => r.RepositoryId == command.RepositoryId)
-            .ToDictionaryAsync(r => r.RelativePath, y => y, ct);
+            .ToListAsync(ct);
+
+        if (includedSubPaths.Count > 0)
+        {
+            dbResources = dbResources.Where(r =>
+            {
+                var normPath = r.RelativePath.Replace('\\', '/').TrimStart('/');
+                return includedSubPaths.Any(sp =>
+                {
+                    var normSp = sp.Replace('\\', '/').Trim('/');
+                    return normPath.Equals(normSp, StringComparison.OrdinalIgnoreCase)
+                        || normPath.StartsWith(normSp + "/", StringComparison.OrdinalIgnoreCase);
+                });
+            }).ToList();
+        }
+
+        var resourceDictionary = dbResources.ToDictionary(r => r.RelativePath, y => y);
 
         var allRelativePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         allRelativePaths.UnionWith(fileDictionary.Keys);

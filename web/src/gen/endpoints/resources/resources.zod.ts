@@ -13,7 +13,9 @@ import * as zod from 'zod/mini';
 
 export const AssignResourcesContentBody = /*#__PURE__*/ zod.object({
   "resourceIds": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.uuid()).check(/*#__PURE__*/ zod.minLength(1)),
-  "contentId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid())
+  "contentId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "anchorPath": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "contentItemIdToUnlink": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid())
 })
 
 export const AssignResourcesContentResponse = /*#__PURE__*/ zod.void()
@@ -86,7 +88,8 @@ export const GetResourcesByContentResponseItem = /*#__PURE__*/ zod.object({
   "latestVersionNo": /*#__PURE__*/ zod.int(),
   "latestSizeBytes": /*#__PURE__*/ zod.int(),
   "versionCount": /*#__PURE__*/ zod.int(),
-  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "anchorPath": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 export const GetResourcesByContentResponse = /*#__PURE__*/ zod.array(GetResourcesByContentResponseItem)
 
@@ -151,7 +154,8 @@ export const GetResourceByIdResponse = /*#__PURE__*/ zod.object({
   "lockedByRunnerId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
   "lockedByRunnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "lockedAt": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
-  "workspaceId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid())
+  "workspaceId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid()),
+  "thumbnailUrl": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 export const UnlockResourceParams = /*#__PURE__*/ zod.object({

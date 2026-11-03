@@ -17,4 +17,8 @@ export interface RepositoryDetailDto {
   createdAt: string;
   runners: IReadOnlyListOfRepositoryRunnerDto;
   supportedExtensions: IReadOnlyListOfString;
+  /** @nullable */
+  includedSubPaths?: unknown[] | null;
+  maxScanFiles?: number;
+  resourceCount?: number;
 }

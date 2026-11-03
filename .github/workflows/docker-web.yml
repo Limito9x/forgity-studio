@@ -2,7 +2,7 @@ name: Build and Push Web Image
 
 on:
   push:
-    branches: ["main", "develop"]
+    branches: ["main"]
     tags: ["v*.*.*"]
     paths:
       - "web/**"
@@ -60,7 +60,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,format=short

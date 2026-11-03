@@ -53,13 +53,17 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto, structCat
 
       if (isContainer) {
         const meta = n.metadata || {};
+        const w = n.size?.width ?? 520;
+        const h = n.size?.height ?? 380;
         stageNodes.push({
           id: n.id,
           type: "scopeContainer",
           position: { x: n.position?.x ?? 0, y: n.position?.y ?? 0 },
+          width: w,
+          height: h,
           style: {
-            width: n.size?.width ?? 520,
-            height: n.size?.height ?? 380,
+            width: w,
+            height: h,
           },
           data: {
             stageId: n.id,
@@ -456,12 +460,37 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto, structCat
   const handleNodesChange: OnNodesChange<Node> = useCallback(
     (changes) => {
       onNodesChange(changes);
+
+      // Keep node.style.width/height in sync with NodeResizer dimensions
+      const dimensionChanges = changes.filter(
+        (c) => c.type === "dimensions" && (c as any).dimensions
+      );
+      if (dimensionChanges.length > 0) {
+        setNodes((nds) =>
+          nds.map((n) => {
+            const dc = dimensionChanges.find((c) => (c as any).id === n.id);
+            if (!dc || !(dc as any).dimensions) return n;
+            const dims = (dc as any).dimensions;
+            return {
+              ...n,
+              width: dims.width,
+              height: dims.height,
+              style: {
+                ...n.style,
+                width: dims.width,
+                height: dims.height,
+              },
+            };
+          })
+        );
+      }
+
       const hasMeaningfulChange = changes.some((c) => c.type !== "select");
       if (hasMeaningfulChange) {
         setIsDirty(true);
       }
     },
-    [onNodesChange],
+    [onNodesChange, setNodes],
   );
 
   const handleEdgesChange: OnEdgesChange<Edge> = useCallback(
@@ -499,6 +528,22 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto, structCat
         for (const n of nodes) {
           if (n.type === "scopeContainer") {
             const stageData = n.data as ScopeContainerNodeData;
+            const nodeW =
+              typeof n.width === "number"
+                ? n.width
+                : typeof n.measured?.width === "number"
+                  ? n.measured.width
+                  : typeof n.style?.width === "number"
+                    ? n.style.width
+                    : 520;
+            const nodeH =
+              typeof n.height === "number"
+                ? n.height
+                : typeof n.measured?.height === "number"
+                  ? n.measured.height
+                  : typeof n.style?.height === "number"
+                    ? n.style.height
+                    : 380;
             saveNodes.push({
               id: n.id,
               refId: "ScopeContainer",
@@ -506,9 +551,8 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto, structCat
               parentId: null,
               positionX: n.position.x,
               positionY: n.position.y,
-              width: typeof n.style?.width === "number" ? n.style.width : 520,
-              height:
-                typeof n.style?.height === "number" ? n.style.height : 380,
+              width: Math.round(nodeW),
+              height: Math.round(nodeH),
               configValues: {},
               metadata: {
                 name: stageData.name,
@@ -667,14 +711,23 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto, structCat
   // Window event listeners for node/stage updates
   useEffect(() => {
     const handleStageUpdate = (e: Event) => {
-      const { stageId, name, executorKey, targetRunnerId } = (e as CustomEvent)
+      const { stageId, name, executorKey, targetRunnerId, width, height } = (e as CustomEvent)
         .detail;
       setNodes((nds) =>
         nds.map((n) => {
           if (n.id !== stageId) return n;
           const prev = n.data as ScopeContainerNodeData;
+          const nextW = typeof width === "number" ? width : n.width;
+          const nextH = typeof height === "number" ? height : n.height;
           return {
             ...n,
+            ...(nextW !== undefined ? { width: nextW } : {}),
+            ...(nextH !== undefined ? { height: nextH } : {}),
+            style: {
+              ...n.style,
+              ...(nextW !== undefined ? { width: nextW } : {}),
+              ...(nextH !== undefined ? { height: nextH } : {}),
+            },
             data: {
               ...prev,
               ...(name !== undefined ? { name } : {}),

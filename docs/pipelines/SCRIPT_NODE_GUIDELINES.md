@@ -217,3 +217,38 @@ def main(
         "status": "completed"
     }
 ```
+
+---
+
+## 7. Triết Lý Thiết Kế Node: Palette Contract vs Dumb Executor
+
+> [!CAUTION]
+> **CẢNH BÁO CHỐNG PHÌNH CODE & CHỮA CHÁY CHẮP VÁ (ANTI-HEURISTIC COMPOUNDING):**
+> Tuyệt đối không để một Script Node biến thành một "quái vật all-in-one" 800-1000 dòng đầy những chuỗi phỏng đoán regex, quét cây thư mục mò mẫm, và các tầng try-catch chồng chất chỉ để "chữa cháy" cho việc thiếu dữ liệu từ đầu vào.
+
+### 1. Mental Model: Palette SSOT
+- **Palette** (nguồn chân lý duy nhất): Là các hợp đồng được kiểm tra, trích xuất từ trước (`contracts`: Master Materials với compression/sRGB/VT của từng texture slot, Blueprint DataAsset Schemas với package path và field types, Skeletons, GameplayTags).
+- **Node là Dumb Executor**: Node chỉ nhận vào dữ liệu đã được giải quyết (Manifest & Contracts) và thực thi máy móc theo đúng quy chuẩn tuần tự (ví dụ: Import Mesh ➔ Ingest Textures ➔ Tạo MI ➔ Gán Slot ➔ Tạo DA).
+- **Không có "ý kiến riêng" (No Opinionated Heuristics)**: Node không tự ý đoán regex đổi camelCase sang snake_case, không tự đi dò thư mục tìm `.uproject`, không tự fallback mò mẫm qua 4-5 thư mục candidate.
+
+### 2. Nguyên Tắc Fail-Fast & Fix Upstream
+Nếu một Node hạ nguồn phát hiện thiếu thông tin (ví dụ không tìm thấy Skeleton, không có Schema, không biết texture format):
+1. **DỪNG LẠI (Fail-Fast)** và đưa ra lỗi rõ ràng mô tả thiếu dữ liệu gì.
+2. **SỬA Ở THƯỢNG NGUỒN (Fix Upstream)**:
+   - Nếu Engine thiếu contract ➔ Cập nhật công cụ Inspect (`inspect_game_contracts.py`).
+   - Nếu AI gán nhầm hoặc gán thiếu ➔ Cập nhật Prompt / Model Classification (`classify_character_manifest.py`).
+   - Tuyệt đối **KHÔNG ĐƯỢC** viết thêm code chữa cháy ở bên trong hàm hạ nguồn. Giữ cho Script Node luôn phẳng, tinh gọn, minh bạch và ổn định lâu dài.
+
+### 3. Quy Chuẩn Thiết Kế Pin & Bắt Buộc Giải Trình Tính Tất Yếu (Pin Justification & Hygiene)
+- **Tối giản hóa chân pin:** Một node lý tưởng chỉ có 1–3 input pins chính và 1–2 output pins.
+- **Cấm Rác Pin Pass-Through:** Tuyệt đối không nhận dữ liệu ở input rồi lại trả về chính nó ở output dict chỉ để truyền tiếp cho node sau (Canvas đã hỗ trợ chia nhánh dây từ node gốc).
+- **Cấm Primitive Spam:** Không tạo các pin lẻ tẻ như `character_name`, `character_tag`, `destination_folder` khi các thông tin này có thể được suy ra từ quy ước đặt tên (Convention).
+- **Docstring minh bạch:** Mọi pin đều phải được mô tả rõ kiểu dữ liệu, mục đích và lý do cần thiết trong khối chú thích đầu hàm.
+
+### 4. Kiểm Duyệt Tự Động Bằng Script Harness
+Trước khi thêm mới hoặc sửa đổi bất kỳ script nào, bắt buộc phải vượt qua bộ kiểm thử tự động:
+```bash
+python pipeline-scripts/tests/script_harness.py check <path_to_script>
+```
+Harness sẽ tự động kiểm tra cú pháp AST, phát hiện pass-through pin, quét các mẫu code vi phạm lằn ranh đỏ (như leo cây thư mục mò mẫm), và chạy thử `dry_run` giả lập.
+

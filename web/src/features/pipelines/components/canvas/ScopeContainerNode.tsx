@@ -156,6 +156,12 @@ export const ScopeContainerNode = memo(({ id, data, selected }: NodeProps) => {
         minHeight={220}
         lineClassName="border-primary/60"
         handleClassName="h-2.5 w-2.5 bg-primary/90 border border-background rounded-full transition-transform hover:scale-150"
+        onResizeEnd={(_, params) => {
+          dispatchUpdate({
+            width: Math.round(params.width),
+            height: Math.round(params.height),
+          } as any);
+        }}
       />
 
       {/* Runner Data Pin Input Handle (Plug to bind Runner) */}

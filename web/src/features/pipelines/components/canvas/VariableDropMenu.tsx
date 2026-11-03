@@ -4,7 +4,8 @@ import { Pill, Zap, Variable, Ban } from "lucide-react";
 interface VariableDropMenuProps {
   varName: string;
   position: { x: number; y: number } | null;
-  isInsideStage?: boolean;
+  isInsideWorkerStage?: boolean;
+  stageKindName?: "Worker" | "Server" | "Macro" | null;
   onSelect: (action: "Get" | "Set") => void;
   onClose: () => void;
 }
@@ -12,7 +13,8 @@ interface VariableDropMenuProps {
 export function VariableDropMenu({
   varName,
   position,
-  isInsideStage = false,
+  isInsideWorkerStage = false,
+  stageKindName = null,
   onSelect,
   onClose,
 }: VariableDropMenuProps) {
@@ -53,9 +55,19 @@ export function VariableDropMenu({
           <Variable className="h-3 w-3 text-cyan-500 shrink-0" />
           <span className="truncate font-mono">{varName}</span>
         </div>
-        {isInsideStage && (
+        {stageKindName === "Worker" && (
           <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/10 text-amber-400 font-normal border border-amber-500/20">
-            In Stage
+            Worker Stage
+          </span>
+        )}
+        {stageKindName === "Server" && (
+          <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-500/10 text-emerald-400 font-normal border border-emerald-500/20">
+            Core Service
+          </span>
+        )}
+        {stageKindName === "Macro" && (
+          <span className="text-[9px] px-1 py-0.2 rounded bg-purple-500/10 text-purple-400 font-normal border border-purple-500/20">
+            Sub-Pipeline
           </span>
         )}
       </div>
@@ -72,9 +84,9 @@ export function VariableDropMenu({
         </div>
       </button>
 
-      {isInsideStage ? (
+      {isInsideWorkerStage ? (
         <div
-          title="Set Variable must be placed in Core (Root Canvas), not inside a Stage."
+          title="Set Variable must be placed in Core (Root Canvas or Core Container), not inside a Worker Stage."
           className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground/40 cursor-not-allowed select-none bg-muted/20"
         >
           <Ban className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />

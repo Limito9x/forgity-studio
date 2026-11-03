@@ -16,6 +16,7 @@ export interface SyncLocalChangesResultDto {
   locationRemoved: number;
   resourceVersionIds: ListOfGuid;
   syncedResources: DictionaryOfStringAndGuid;
+  smartLinkedCount?: number;
   workspaceId?: string;
   agentId?: string;
 }

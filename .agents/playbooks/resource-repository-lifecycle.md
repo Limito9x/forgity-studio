@@ -179,3 +179,93 @@ Hệ thống cung cấp cơ chế sao lưu, di chuyển và tích hợp Gameplay
    - Hỗ trợ chiến lược xung đột (`ConflictStrategy`):
      - `Skip`: Bỏ qua nếu tag đã tồn tại (giữ nguyên màu sắc và mô tả cũ).
      - `Update`: Cập nhật màu sắc (`Color`) và mô tả (`Description`) của tag cũ theo file mới.
+
+
+---
+
+## 7. Repository Sync, Per-Resource Queue Dispatch & Smart Content Link (`BL-032`)
+
+Khi người dùng quét thay đổi (`CompareRepositoryResources`) và đồng bộ tệp (`SyncLocalChanges`) tại `RepositorySyncTab.tsx`:
+
+1. **Smart Content Link (Content Anchor Tree Ingestion)**:
+   - Nếu bật switch "Smart Content Link" và chọn `ContentType` (ví dụ `Character` hay `WardrobeItem`), lệnh sync gửi kèm `contentTypeId`.
+   - `SyncLocalChangesHandler` kích hoạt `IContentApi.SmartLinkResourcesByConventionAsync`:
+     - Tự động bóc tách quy ước đặt tên dấu gạch dưới `_` (VD: `Eva_Outfit1_Bra.fbx` $\rightarrow$ Content `Eva`, Anchor `outfit1/bra`).
+     - Tự động tạo `ContentItem` mới nếu chưa có và tạo `ContentLink` gắn trực tiếp vào cây điểm neo.
+   - Kết quả trả về `smartLinkedCount` được báo ngay trên toast thông báo.
+
+2. **Per-Resource Queue Dispatch (1 File = 1 Job Wolverine/RabbitMQ)**:
+   - Sự kiện `ResourceCreatedMessage` được gửi sang `ResourcesCreatedPipelineBridgeHandler` kèm danh sách `approvedPipelineIds`.
+   - Đối với mỗi Pipeline khớp điều kiện (`OnResourceCreated` / `OnResourceVersionUpdated`, khớp repo qua `allowAllRepositories` hoặc `repositoryIds`, và khớp đuôi file `extensions`):
+     - Chế độ **`Always`**: Tự động bắn lệnh thực thi `RunPipelineCommand` độc lập cho **từng file `ResourceVersion`**.
+     - Chế độ **`AskBefore`**: Chỉ kích hoạt nếu Pipeline nằm trong danh sách `approvedPipelineIds` được người dùng xác nhận trên giao diện.
+   - Mỗi job được truyền vào Start Node với 3 đầu ra:
+     - `Resource` (Single Struct/EntityRef) - Đầu ra chính cho tư duy 1-File-1-Job.
+     - `Resources` (Array 1 phần tử) - Bảo toàn tương thích ngược 100% với các pipeline cũ.
+     - `Workstation` (Single Struct) - Chứa RunnerId, RepositoryId, RootPath.
+
+
+---
+
+## 8. Multi-Content Resource Linking, Table Unification & Query Filtering (`BL-035`)
+
+Với kiến trúc **Content Anchor Links (`BL-031`)**, đồ thị quan hệ giữa Content và Resource là mô hình **$N - N$ (Nhiều - Nhiều)**:
+Một tệp tài nguyên vật lý (ví dụ: `Boots_Combat_01.fbx`) có thể được tái sử dụng và gắn vào nhiều `ContentItem` khác nhau (ví dụ: Slot giày của nhân vật `Eva`, `Mia` và NPC `Guard`) tại các đường dẫn neo `AnchorPath` riêng biệt (`outfits.combat.boots`).
+
+### 8.1. API Query Filtering (`GetRepositoryResources`)
+- **Query Parameters**:
+  - `contentId: Guid?`: Lọc danh sách Resource thuộc về một Content Item cụ thể thông qua bảng `ContentAnchorLinks`.
+  - `isLinked: bool?`:
+    - `true`: Chỉ lấy các Resource đã được gắn vào ít nhất 1 Content Item.
+    - `false`: Lấy các Resource mồ côi (Unassigned), hỗ trợ dọn dẹp và phân loại tài nguyên chưa được gán.
+- **DTO Representation (`WorkspaceResourceDto`)**:
+  - `LinkedAnchors`: Mảng `ResourceLinkedAnchorDto[]` chứa toàn bộ danh sách liên kết neo của resource (`ContentItemId`, `ContentItemName`, `ContentTypeName`, `ContentTypeColor`, `ContentTypeIcon`, `AnchorPath`).
+  - Duy trì các trường đơn lẻ tương thích ngược (`ContentId`, `ContentName`, `ContentTypeName`, ...) trỏ về liên kết đầu tiên (`links.FirstOrDefault()`).
+
+### 8.2. Unlink Độc Lập Theo Từng Content Item
+- Command `AssignResourcesContentCommand` hỗ trợ tham số `ContentItemIdToUnlink: Guid?`.
+- Khi unassign một Content cụ thể từ Popover trên UI, API chỉ xóa đúng record neo của Content đó (`IContentApi.UnlinkResourcesAsync`), bảo toàn nguyên vẹn các liên kết của Resource với các Content Items khác.
+
+### 8.3. Giao Diện Table Hợp Nhất & Popover Tương Tác
+- **Cột Hợp Nhất `Linked Contents`**: Thay thế 2 cột riêng biệt `Content Type` và `Content Name` bằng component `<LinkedContentsCell />`:
+  - **Chưa gán (0 link)**: Nút `+ Assign` mở nhanh ngăn gán Content.
+  - **1 liên kết**: Badge định danh Content Type (màu sắc, icon) + Tên Content + Tag Anchor path, nút gỡ liên kết nhanh khi hover.
+  - **$\ge 2$ liên kết**: Huy hiệu chính + Nút `+X more ▾` mở Popover hiển thị toàn bộ danh sách Content Items đang dùng chung Resource này, kèm nút unlink riêng biệt cho từng Content.
+- **Assignment Status Filter Bar**: Thanh segmented control trên toolbar (`All` | `Assigned` | `Unassigned`) cho phép chuyển đổi nhanh bộ lọc query server-side mượt mà.
+
+
+---
+
+## 9. Headless 3D Thumbnail Rendering & Wardrobe DataAsset Ingestion (`BL-036`)
+
+Nhằm cung cấp hình ảnh xem trước (Preview Thumbnail) trực quan cho cả hệ thống Web DAM và menu Wardrobe trong Unreal Engine 5 mà không tốn công sức chụp ảnh thủ công, hệ thống chuẩn hóa quy trình **Headless 3D Thumbnail Renderer** tích hợp vào bước Export FBX.
+
+### 9.1. Thuật Toán Chụp Ảnh Headless Trong Blender (`export_fbx.py`)
+- **Render Engine**: Sử dụng `BLENDER_WORKBENCH` siêu tốc ($<0.15\text{s}$/mesh), shading Studio `MATCAP` (`check_normal+y.exr`) kết hợp `Cavity` (World + Screen space, Ridge $1.5$, Valley $1.5$).
+- **Visibility Isolation**: Khi file `.blend` chứa toàn bộ nhân vật (body + nhiều bộ trang phục), script tự động ẩn (`hide_render = True`) tất cả các mesh khác và các collection không liên quan, chỉ bật duy nhất mesh món đồ đang chụp để tránh dính nhân vật vào hình thumbnail.
+- **Bounding Sphere & Camera Frustum Fitting**:
+  - Tính toán Bounding Box trên không gian thế giới (`matrix_world`) của tập hợp target meshes.
+  - Tìm tâm hình học $\mathbf{Center}$ và bán kính cầu ngoại tiếp $R$.
+  - Tạo camera phối cảnh (FOV $39.6^\circ$, tiêu cự 50mm) đặt tại góc nhìn $3/4$ Isometric góc cao ($\text{Yaw} = 40^\circ, \text{Pitch} = 18^\circ$).
+  - Lùi camera một khoảng cách tối ưu $D = \frac{R}{\sin(\text{FOV}/2)} \times 1.15$ (hệ số đệm $15\%$).
+- **Đầu ra**: File ảnh `.png` RGBA nền trong suốt $512 \times 512$ đặt cùng thư mục và cùng tên với file `.fbx` (ví dụ `Warrior_Top.png`).
+
+### 9.2. Triết Lý Double-Duty & Tách Biệt `MetadataMap` vs `ThumbnailMap`
+Script `export_fbx.py` được chuẩn hóa gọn gàng thành **4 Inputs** (`output_path`, `export_mode`, `target_objects`, `prefix`) và **4 Outputs** (`exported_files`, `manifest`, `metadata_map`, `thumbnail_map`). File ảnh PNG sinh ra giải quyết trọn vẹn 2 mục tiêu độc lập:
+1. **Unreal Engine 5 Texture UI (`register_wardrobe_data_assets.py`)**:
+   - Được nạp vào dự án UE5 thành `UTexture2D` với nhóm `TEXTUREGROUP_UI` và bật `sRGB = True`.
+   - Tự động gán vào trường `Thumbnail` (hoặc `Icon`) của `PDA_WardrobeItem`.
+2. **Web DAM & Module `Files` (`IAssetApi` AssetSlot `Thumbnail`)**:
+   - `MetadataMap` và `ThumbnailMap` được tách biệt hoàn toàn trên Tool `Update Resources` (`UpdateResourceMetadataTool`):
+     - `MetadataMap` cập nhật JSON thuần túy vào cột `Metadata` của `ResourceVersion`.
+     - `ThumbnailMap` gọi `IRepositoryApi.UpdateThumbnailAsync`: tự động băm SHA-256, đẩy ảnh `.png` từ Runner lên CAS Storage qua Presigned URL và gắn `AssetLink` vào Slot `"Thumbnail"` của `ResourceVersion` (`ResourceAssetSlots.Thumbnail`) mà không cần tạo thêm cột trong DB.
+   - Khi truy vấn `GetRepositoryResources`, hệ thống batch-query `IAssetApi.GetFilesAsync` theo Slot `"Thumbnail"` để trả về `ThumbnailUrl` hiển thị trên mọi trình duyệt.
+
+### 9.3. 6 Trường Cốt Lõi Của `PDA_WardrobeItem` & Convention-Driven Tags
+Unreal Script gán tự động 6 trường cốt lõi theo quy ước chuẩn:
+- `CharacterTag`: Nhận diện nhân vật tương thích, format `Character.{Name}` (ví dụ `Character.Eva`).
+- `SlotTag`: Định danh slot trang phục từ danh sách slots chuẩn hóa (`Top`, `Inner_Top`, `Bottom`, `Inner_Bottom`, `Shoes`, `Hair`, `Outerwear`, `Underwear`, `Accessory`), format `System.Wardrobe.Slots.{Slot}`.
+- `ItemTag`: Định danh món đồ duy nhất, format `Character.{Name}.Outfits.{ItemName}`.
+- `DisplayName`: Tên hiển thị trên UI menu (tự động tách khoảng trắng CamelCase và lược bỏ tiền tố nhân vật/outfit, ví dụ `Eva_Outfit1_BrzUsBra` $\rightarrow$ `"Brz Us Bra"`).
+- `ItemMesh`: Trỏ đến `USkeletalMesh` vừa import từ file FBX.
+- `ItemThumbnail`: Trỏ đến `UTexture2D` (`TEXTUREGROUP_UI`) vừa import từ file PNG.

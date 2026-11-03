@@ -12,7 +12,7 @@ import {
 import { BaseTable } from "@/components/table/BaseTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, Layers, Unlink, FileCode, Trash2, Cpu } from "lucide-react";
+import { Search, Layers, Link2, Unlink, FileCode, Trash2, Cpu } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AssignContentSidePanel } from "./drawers/AssignContentSidePanel";
@@ -26,6 +26,16 @@ interface RepositoryResourceTableProps {
   projectId: string;
   repositoryId: string;
   runners?: RepositoryRunnerDto[];
+  assignmentFilter?: "all" | "assigned" | "unassigned";
+  onAssignmentFilterChange?: (filter: "all" | "assigned" | "unassigned") => void;
+  page?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
+  search?: string;
+  onSearchChange?: (search: string) => void;
+  selectedRunnerFilter?: string;
+  onRunnerFilterChange?: (runnerId: string) => void;
 }
 
 export function RepositoryResourceTable({
@@ -35,17 +45,52 @@ export function RepositoryResourceTable({
   projectId,
   repositoryId,
   runners = [],
+  assignmentFilter = "all",
+  onAssignmentFilterChange,
+  page,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+  search: controlledSearch,
+  onSearchChange,
+  selectedRunnerFilter: controlledRunnerFilter,
+  onRunnerFilterChange,
 }: RepositoryResourceTableProps) {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [selectedRunnerFilter, setSelectedRunnerFilter] = useState<string>("ALL");
+  const [localSearch, setLocalSearch] = useState("");
+  const [localRunnerFilter, setLocalRunnerFilter] = useState<string>("ALL");
+
+  const search = controlledSearch !== undefined ? controlledSearch : localSearch;
+  const handleSearchChange = (val: string) => {
+    if (onSearchChange) {
+      onSearchChange(val);
+    } else {
+      setLocalSearch(val);
+    }
+  };
+
+  const selectedRunnerFilter =
+    controlledRunnerFilter !== undefined ? controlledRunnerFilter : localRunnerFilter;
+  const handleRunnerFilterChange = (val: string) => {
+    if (onRunnerFilterChange) {
+      onRunnerFilterChange(val);
+    } else {
+      setLocalRunnerFilter(val);
+    }
+  };
+
   const [activeDragItem, setActiveDragItem] = useState<{
     id: string;
     resourceIds: string[];
     displayName?: string;
   } | null>(null);
 
-  const filteredData = useMemo(() => {
+  // If server controls search/filter, use data directly; otherwise fallback to client-side filtering
+  const isServerFiltered = onSearchChange !== undefined || onRunnerFilterChange !== undefined;
+
+  const displayData = useMemo(() => {
+    if (isServerFiltered) return data;
+
     let result = data;
     if (selectedRunnerFilter !== "ALL") {
       result = result.filter((r) => r.holdingRunnerId === selectedRunnerFilter);
@@ -57,9 +102,17 @@ export function RepositoryResourceTable({
         (r.displayName && r.displayName.toLowerCase().includes(q)) ||
         (r.relativePath && r.relativePath.toLowerCase().includes(q)) ||
         (r.contentName && r.contentName.toLowerCase().includes(q)) ||
-        (r.contentTypeName && r.contentTypeName.toLowerCase().includes(q))
+        (r.contentTypeName && r.contentTypeName.toLowerCase().includes(q)) ||
+        (r.anchorPath && r.anchorPath.toLowerCase().includes(q)) ||
+        ((r as any).linkedAnchors &&
+          ((r as any).linkedAnchors as any[]).some(
+            (a) =>
+              (a.contentItemName && a.contentItemName.toLowerCase().includes(q)) ||
+              (a.contentTypeName && a.contentTypeName.toLowerCase().includes(q)) ||
+              (a.anchorPath && a.anchorPath.toLowerCase().includes(q))
+          ))
     );
-  }, [data, search, selectedRunnerFilter]);
+  }, [isServerFiltered, data, search, selectedRunnerFilter]);
 
   const handleOpenAssignPanel = useCallback((_resourceId?: string) => {
     setIsPanelOpen(true);
@@ -75,11 +128,15 @@ export function RepositoryResourceTable({
     assignMutation,
     deleteMutation,
   } = useRepositoryResourceTable({
-    data: filteredData,
-    totalCount: filteredData.length,
+    data: displayData,
+    totalCount: isServerFiltered ? totalCount : displayData.length,
     projectId,
     repositoryId,
     onOpenAssignPanel: handleOpenAssignPanel,
+    page,
+    pageSize,
+    onPageChange,
+    onPageSizeChange,
   });
 
   const sensors = useSensors(
@@ -170,17 +227,61 @@ export function RepositoryResourceTable({
                 <Input
                   placeholder="Search name, path, content..."
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                   className="pl-9 text-xs"
                 />
               </div>
+
+              {/* Assignment Filter Pills */}
+              {onAssignmentFilterChange && (
+                <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border/50 text-xs shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => onAssignmentFilterChange("all")}
+                    className={cn(
+                      "px-2.5 py-1 rounded-md font-medium transition-all text-xs cursor-pointer",
+                      assignmentFilter === "all"
+                        ? "bg-background text-foreground shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onAssignmentFilterChange("assigned")}
+                    className={cn(
+                      "inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-medium transition-all text-xs cursor-pointer",
+                      assignmentFilter === "assigned"
+                        ? "bg-background text-foreground shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Link2 className="size-3 text-primary" />
+                    <span>Assigned</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onAssignmentFilterChange("unassigned")}
+                    className={cn(
+                      "inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-medium transition-all text-xs cursor-pointer",
+                      assignmentFilter === "unassigned"
+                        ? "bg-background text-foreground shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Unlink className="size-3 text-amber-500" />
+                    <span>Unassigned</span>
+                  </button>
+                </div>
+              )}
 
               {/* Workstation Machine Filter Pills */}
               {runners && runners.length > 1 && (
                 <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border/50 text-xs shrink-0">
                   <button
                     type="button"
-                    onClick={() => setSelectedRunnerFilter("ALL")}
+                    onClick={() => handleRunnerFilterChange("ALL")}
                     className={cn(
                       "px-2.5 py-1 rounded-md font-medium transition-all text-xs cursor-pointer",
                       selectedRunnerFilter === "ALL"
@@ -196,7 +297,7 @@ export function RepositoryResourceTable({
                       <button
                         key={r.runnerId}
                         type="button"
-                        onClick={() => setSelectedRunnerFilter(r.runnerId)}
+                        onClick={() => handleRunnerFilterChange(r.runnerId)}
                         className={cn(
                           "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-medium transition-all text-xs cursor-pointer",
                           isSelected
@@ -265,7 +366,7 @@ export function RepositoryResourceTable({
 
               {/* Total Count */}
               <div className="text-xs text-muted-foreground font-medium pl-1">
-                <span className="text-foreground font-semibold">{filteredData.length}</span> /{" "}
+                <span className="text-foreground font-semibold">{displayData.length}</span> /{" "}
                 <span className="text-foreground font-semibold">{totalCount}</span>
               </div>
             </div>

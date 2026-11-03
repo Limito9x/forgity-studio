@@ -21,6 +21,12 @@ public class RepositoryConfiguration : IEntityTypeConfiguration<Domain.Entities.
         builder.Property(x => x.SupportedExtensions)
             .HasColumnType("jsonb");
 
+        builder.Property(x => x.IncludedSubPaths)
+            .HasColumnType("jsonb");
+
+        builder.Property(x => x.MaxScanFiles)
+            .HasDefaultValue(2000);
+
         builder.HasMany(x => x.Resources)
             .WithOne(x => x.Repository)
             .HasForeignKey(x => x.RepositoryId)

@@ -112,6 +112,8 @@ export const compareRepositoryResourcesResponseDeletedItemIsLockedByOtherDefault
 export const compareRepositoryResourcesResponseMissingItemRemoteVersionOneStatusDefault = 0;
 export const compareRepositoryResourcesResponseMissingItemRemoteVersionOneIsCloudSyncedDefault = false;
 export const compareRepositoryResourcesResponseMissingItemIsLockedByOtherDefault = false;
+export const compareRepositoryResourcesResponseHasReachedLimitDefault = false;
+export const compareRepositoryResourcesResponseTotalScannedDefault = 0;
 
 export const CompareRepositoryResourcesResponse = /*#__PURE__*/ zod.object({
   "repositoryRunnerId": /*#__PURE__*/ zod.uuid(),
@@ -295,6 +297,8 @@ export const CompareRepositoryResourcesResponse = /*#__PURE__*/ zod.object({
   "lockedByRunnerName": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
   "lockedAt": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.iso.datetime({"offset":true}))
 })),
+  "hasReachedLimit": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), compareRepositoryResourcesResponseHasReachedLimitDefault),
+  "totalScanned": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.int(), compareRepositoryResourcesResponseTotalScannedDefault),
   "workspaceAgentId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid())
 })
 
@@ -307,8 +311,12 @@ export const SyncLocalChangesBody = /*#__PURE__*/ zod.object({
   "runnerId": /*#__PURE__*/ zod.uuid().check(/*#__PURE__*/ zod.minLength(1)),
   "notes": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "targetPaths": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()),
-  "removedPaths": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()))
+  "removedPaths": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())),
+  "approvedPipelineIds": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.uuid())),
+  "contentTypeId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid())
 })
+
+export const syncLocalChangesResponseSmartLinkedCountDefault = 0;
 
 export const SyncLocalChangesResponse = /*#__PURE__*/ zod.object({
   "repositoryId": /*#__PURE__*/ zod.uuid(),
@@ -318,6 +326,7 @@ export const SyncLocalChangesResponse = /*#__PURE__*/ zod.object({
   "locationRemoved": /*#__PURE__*/ zod.int(),
   "resourceVersionIds": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.uuid()),
   "syncedResources": /*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.uuid()),
+  "smartLinkedCount": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.int(), syncLocalChangesResponseSmartLinkedCountDefault),
   "workspaceId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid()),
   "agentId": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.uuid())
 })

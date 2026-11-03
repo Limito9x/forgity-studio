@@ -1,3 +1,4 @@
+using Automation.Content.Contracts;
 using Automation.Repository.Contracts;
 using Automation.Repository.Domain.Entities;
 using Automation.Repository.Domain.Enums;
@@ -14,7 +15,9 @@ public record SyncLocalChangesCommand(
     Guid RunnerId,
     string? Notes,
     List<string> TargetPaths,
-    List<string>? RemovedPaths = null
+    List<string>? RemovedPaths = null,
+    List<Guid>? ApprovedPipelineIds = null,
+    Guid? ContentTypeId = null
 );
 
 public class SyncLocalChangesValidator : AbstractValidator<SyncLocalChangesCommand>
@@ -46,7 +49,11 @@ public class SyncLocalChangesEndpoint(IMessageBus bus)
 }
 
 [Transactional(typeof(RepositoryDbContext))]
-public class SyncLocalChangesHandler(RepositoryDbContext dbContext, IMessageBus bus)
+public class SyncLocalChangesHandler(
+    RepositoryDbContext dbContext,
+    IMessageBus bus,
+    IContentApi? contentApi = null
+)
 {
     public async Task<Result<SyncLocalChangesResultDto>> HandleAsync(
         SyncLocalChangesCommand cmd,
@@ -149,7 +156,7 @@ public class SyncLocalChangesHandler(RepositoryDbContext dbContext, IMessageBus 
                 toAdd.Select(x => new ResourceVersionCreatedInfo(
                     x.LatestVersion!.Id,
                     x.Extension,
-                    x.ContentId,
+                    null,
                     x.RelativePath
                 ))
             );
@@ -198,7 +205,7 @@ public class SyncLocalChangesHandler(RepositoryDbContext dbContext, IMessageBus 
                     createdVersions.Add(new ResourceVersionCreatedInfo(
                         latestVersion.Id,
                         item.Extension,
-                        item.ContentId,
+                        null,
                         item.RelativePath
                     ));
                 }
@@ -217,7 +224,7 @@ public class SyncLocalChangesHandler(RepositoryDbContext dbContext, IMessageBus 
                     createdVersions.Add(new ResourceVersionCreatedInfo(
                         newVersion.Id,
                         item.Extension,
-                        item.ContentId,
+                        null,
                         item.RelativePath
                     ));
                 }
@@ -240,6 +247,7 @@ public class SyncLocalChangesHandler(RepositoryDbContext dbContext, IMessageBus 
 
         await dbContext.SaveChangesAsync(ct);
 
+        var smartLinkedCount = 0;
         if (createdVersions.Count > 0)
         {
             var projectId = await dbContext.Repositories
@@ -248,13 +256,43 @@ public class SyncLocalChangesHandler(RepositoryDbContext dbContext, IMessageBus 
                 .Select(w => w.ProjectId)
                 .FirstOrDefaultAsync(ct);
 
+            if (cmd.ContentTypeId.HasValue && contentApi != null && projectId != Guid.Empty)
+            {
+                var createdVersionIds = createdVersions.Select(c => c.ResourceVersionId).ToList();
+                var itemsForSmartLink = await dbContext.ResourceItems
+                    .AsNoTracking()
+                    .Where(r => r.Versions.Any(v => createdVersionIds.Contains(v.Id)))
+                    .Select(r => new ResourceSmartLinkInput(
+                        r.Id,
+                        r.DisplayName,
+                        r.RelativePath
+                    ))
+                    .ToListAsync(ct);
+
+                if (itemsForSmartLink.Count > 0)
+                {
+                    var smartResult = await contentApi.SmartLinkResourcesByConventionAsync(
+                        projectId,
+                        cmd.ContentTypeId.Value.ToString(),
+                        itemsForSmartLink,
+                        ct
+                    );
+                    if (smartResult.IsSuccess)
+                    {
+                        smartLinkedCount = smartResult.Value.Count;
+                    }
+                }
+            }
+
             await bus.PublishAsync(
                 new ResourcesCreatedEvent(
                     projectId,
                     cmd.RepositoryId,
                     cmd.RunnerId,
                     createdVersions,
-                    repositoryRunnerId
+                    repositoryRunnerId,
+                    cmd.ApprovedPipelineIds,
+                    Guid.CreateVersion7()
                 )
             );
         }
@@ -352,7 +390,8 @@ public class SyncLocalChangesHandler(RepositoryDbContext dbContext, IMessageBus 
                 modCount,
                 locationRemove,
                 versionIds,
-                syncedResources
+                syncedResources,
+                smartLinkedCount
             )
         );
     }

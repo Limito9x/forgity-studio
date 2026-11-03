@@ -336,7 +336,8 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
                 <VariableDropMenu
                   varName={currentVarDrop.varName}
                   position={currentVarDrop.screenPos}
-                  isInsideStage={currentVarDrop.isInsideStage}
+                  isInsideWorkerStage={currentVarDrop.isInsideWorkerStage}
+                  stageKindName={currentVarDrop.stageKindName}
                   onSelect={(action) => {
                     const toolKey = action === "Get" ? "GetVariable" : "SetVariable";
                     dnd.handleSpawnVariableNodeAt(toolKey, currentVarDrop.varName, currentVarDrop.flowPos);

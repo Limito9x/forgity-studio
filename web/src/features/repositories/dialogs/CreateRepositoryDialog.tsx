@@ -39,6 +39,8 @@ export function CreateRepositoryDialog({
                 name: values.name,
                 description: values.description || undefined,
                 supportedExtensions: values.supportedExtensions,
+                includedSubPaths: values.includedSubPaths,
+                maxScanFiles: values.maxScanFiles,
               } as any,
             },
             {

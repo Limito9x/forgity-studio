@@ -17,4 +17,7 @@ export interface RepositoryDto {
   createdAt: string;
   /** @nullable */
   supportedExtensions?: unknown[] | null;
+  /** @nullable */
+  includedSubPaths?: unknown[] | null;
+  maxScanFiles?: number;
 }

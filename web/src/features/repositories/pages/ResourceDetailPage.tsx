@@ -78,7 +78,7 @@ import { PublishVersionDialog } from "../dialogs/PublishVersionDialog";
 
 import { TagTool } from "@/features/tags/components/TagTool";
 
-import { FileTypeIcon } from "@/components/custom-ui/FileTypeIcon";
+import { ResourceThumbnail } from "@/components/custom-ui/ResourceThumbnail";
 
 import { cn } from "@/lib/utils";
 
@@ -352,11 +352,13 @@ export function ResourceDetailPage({
 
               <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2.5 truncate">
 
-                <FileTypeIcon
+                <ResourceThumbnail
 
                   fileName={resource?.name}
 
                   filePath={resource?.filePath ?? undefined}
+
+                  thumbnailUrl={resource?.thumbnailUrl}
 
                   size="lg"
 
@@ -910,11 +912,13 @@ export function ResourceDetailPage({
 
                             <div className="flex items-center gap-2.5 flex-wrap">
 
-                              <FileTypeIcon
+                              <ResourceThumbnail
 
                                 fileName={resource.name}
 
                                 filePath={resource.filePath ?? undefined}
+
+                                thumbnailUrl={resource.thumbnailUrl}
 
                                 size="sm"
 
