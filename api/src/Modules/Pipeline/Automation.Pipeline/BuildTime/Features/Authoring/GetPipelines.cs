@@ -54,19 +54,31 @@ public class GetPipelinesHandler(PipelineDbContext db)
 
         var list = await q
             .OrderByDescending(x => query.IsArchived ? x.DeletedAt : x.CreatedAt)
-            .Select(x => new PipelineSummaryDto(
+            .Select(x => new
+            {
                 x.Id,
                 x.ProjectId,
                 x.Name,
                 x.TriggerType,
-                x.Nodes.Count,
-                x.Edges.Count,
+                x.GraphData,
                 x.CreatedAt,
                 x.TriggerConfig,
                 x.DeletedAt
-            ))
+            })
             .ToListAsync(ct);
 
-        return Result.Ok(list);
+        var dtos = list.Select(x => new PipelineSummaryDto(
+            x.Id,
+            x.ProjectId,
+            x.Name,
+            x.TriggerType,
+            x.GraphData.Nodes.Count,
+            x.GraphData.Edges.Count,
+            x.CreatedAt,
+            x.TriggerConfig,
+            x.DeletedAt
+        )).ToList();
+
+        return Result.Ok(dtos);
     }
 }

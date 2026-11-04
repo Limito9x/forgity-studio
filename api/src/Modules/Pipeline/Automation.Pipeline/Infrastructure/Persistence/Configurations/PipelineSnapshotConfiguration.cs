@@ -34,6 +34,7 @@ public class PipelineSnapshotConfiguration : IEntityTypeConfiguration<PipelineSn
 
         var jsonOptions = new JsonSerializerOptions
         {
+            PropertyNameCaseInsensitive = true,
             Converters = { new JsonStringEnumConverter() }
         };
 
