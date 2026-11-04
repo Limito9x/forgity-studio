@@ -31,7 +31,8 @@ def main(
 ) -> dict:
     """
     Import DAZ 3D character (.duf, .dbz) into the current Blender scene using Diffeomorphic.
-    Renames the imported Armature object to 'root'.
+    Automatically standardizes Scene scale (0.01 metric) and Diffeomorphic scale (1.0)
+    for seamless 1-to-1 Unreal Engine 5 compatibility. Renames the imported Armature to 'root'.
 
     Args:
         input_path: Absolute path to the character file (.duf, .dbz, .hd).
@@ -48,14 +49,22 @@ def main(
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"Input file not found: {input_path}")
 
-    # 1. Clear any existing default scene objects
+    # 1. Clear any existing default scene objects and enforce Unreal 1:1 Metric Centimeter Scene Scale
     bpy.ops.object.select_all(action='SELECT')
     bpy.ops.object.delete()
 
-    # 2. Set silent mode in Diffeomorphic to avoid modal popup dialogs
+    # Enforce Scene Scale 0.01 (1 Blender Unit = 1 cm) matching Unreal Engine standard
+    if hasattr(bpy, "context") and hasattr(bpy.context, "scene") and hasattr(bpy.context.scene, "unit_settings"):
+        bpy.context.scene.unit_settings.system = 'METRIC'
+        bpy.context.scene.unit_settings.scale_length = 0.01
+        print("[diffeomorphic_import] Set Scene unit scale: Metric 0.01 (Centimeters) for 1:1 Unreal compatibility", flush=True)
+
+    # 2. Configure Diffeomorphic in-memory settings (Silent Mode & Native Scale 1.0)
     for prefix in ["bl_ext.user_default.", ""]:
         try:
             exec(f"from {prefix}import_daz.api import set_silent_mode; set_silent_mode(True)")
+            exec(f"from {prefix}import_daz.settings import GS; GS.scale = 1.0")
+            print(f"[diffeomorphic_import] Configured Diffeomorphic in-memory GS.scale = 1.0 via '{prefix}import_daz'", flush=True)
             break
         except Exception:
             pass
@@ -105,11 +114,15 @@ def main(
         else:
             print(f"[diffeomorphic_import] WARNING: Preset '{preset_str}' not found in candidate paths. Proceeding with default settings.", flush=True)
 
-    # 4. Execute Easy Import DAZ
+    # 4. Enforce native 1:1 scale options in preset
+    preset_options.setdefault("unit_scale", 1.0)
+    preset_options.setdefault("useUnits", False)
+
+    # 5. Execute Easy Import DAZ
     folder = os.path.dirname(input_path)
     filename = os.path.basename(input_path)
 
-    print(f"[diffeomorphic_import] Importing '{filename}' from '{folder}'...", flush=True)
+    print(f"[diffeomorphic_import] Importing '{filename}' from '{folder}' (unit_scale={preset_options.get('unit_scale')}, useUnits={preset_options.get('useUnits')})...", flush=True)
 
     window = bpy.context.window_manager.windows[0]
     override = {'window': window, 'screen': window.screen}
@@ -128,7 +141,7 @@ def main(
     if len(bpy.data.objects) == 0:
         raise RuntimeError("Diffeomorphic reported FINISHED but scene is empty")
 
-    # 5. Đổi tên Armature object thành 'root'
+    # 6. Đổi tên Armature object thành 'root'
     armature = None
     for obj in bpy.data.objects:
         if obj.type == 'ARMATURE':
@@ -149,4 +162,3 @@ def main(
         "objects_count": len(bpy.data.objects),
         "armature_name": armature.name if armature else None
     }
-
