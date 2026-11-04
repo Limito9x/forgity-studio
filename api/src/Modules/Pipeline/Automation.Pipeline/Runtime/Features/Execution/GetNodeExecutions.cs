@@ -133,10 +133,10 @@ public class GetNodeExecutionsHandler(PipelineDbContext db, IExecutionStateStore
         // 3. Fallback: if snapshot has no nodeExecutions recorded yet (e.g. legacy/testing), attempt fallback to Redis
         if (dtos.Count == 0)
         {
-            var nodes = await db.PipelineNodes
+            var pipeline = await db.Pipelines
                 .AsNoTracking()
-                .Where(n => n.PipelineId == execution.PipelineId)
-                .ToListAsync(ct);
+                .FirstOrDefaultAsync(p => p.Id == execution.PipelineId, ct);
+            var nodes = pipeline?.GraphData.Nodes ?? [];
 
             foreach (var node in nodes)
             {
