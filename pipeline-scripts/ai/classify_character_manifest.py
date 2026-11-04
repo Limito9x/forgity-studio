@@ -737,7 +737,10 @@ def main(
                             elif cand_param == "NormalMap" and "NORMAL" in cp_sem:
                                 target_param = cp_name
                                 break
-                            elif cand_param == "OpacityMap" and any(x in cp_sem for x in ["OPACITY", "ALPHA", "GRAYSCALE"]):
+                            elif cand_param == "OpacityMap" and (
+                                any(x in cp_sem for x in ["OPACITY", "ALPHA", "GRAYSCALE", "MASKS"])
+                                or any(k in cp_name.lower() for k in ["opacity", "alpha", "mask", "trans", "cutout"])
+                            ):
                                 target_param = cp_name
                                 break
                             elif cand_param == "ORMMap" and any(x in cp_sem for x in ["MASKS", "ORM", "ROUGHNESS"]):

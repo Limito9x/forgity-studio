@@ -33,15 +33,22 @@ import struct
 from typing import Dict, Any, List, Optional, Union, Tuple
 
 
-def resolve_sampler_preset(sampler_str: str) -> Dict[str, Any]:
+def resolve_sampler_preset(sampler_str: str, param_name: str = "") -> Dict[str, Any]:
     """
     Translates Unreal Engine SAMPLERTYPE_* to texture compression preset,
     sRGB color space, Virtual Texture flag, and semantic mapping category.
+    Includes smart parameter name heuristic fallback if sampler is ambiguous.
     """
     sampler_upper = (sampler_str or "").strip().upper()
     is_virtual = "VIRTUAL" in sampler_upper
+    p_lower = (param_name or "").strip().lower()
 
-    if "NORMAL" in sampler_upper:
+    # Prioritize parameter name keywords if technical artist left SamplerType as default Color
+    is_opacity_param = any(k in p_lower for k in ["opacity", "alpha", "mask", "trans", "cutout"])
+    is_mask_orm_param = any(k in p_lower for k in ["orm", "rough", "metal", "spec", "ao", "cavity"])
+    is_normal_param = any(k in p_lower for k in ["norm", "nm", "tangent"])
+
+    if "NORMAL" in sampler_upper or is_normal_param:
         return {
             "sampler_type": sampler_str,
             "compression": "TC_NORMALMAP",
@@ -49,7 +56,7 @@ def resolve_sampler_preset(sampler_str: str) -> Dict[str, Any]:
             "vt": is_virtual,
             "semantic": "NORMAL"
         }
-    elif "MASK" in sampler_upper or "LINEARCOLOR" in sampler_upper:
+    elif "MASK" in sampler_upper or "LINEARCOLOR" in sampler_upper or is_opacity_param or is_mask_orm_param:
         return {
             "sampler_type": sampler_str,
             "compression": "TC_MASKS",
@@ -189,7 +196,7 @@ def parse_uasset_material(filepath: str, data: bytes, pkg_name: str, names: List
 
         if is_tex:
             seen_names.add(param_name)
-            preset = resolve_sampler_preset(sampler_val)
+            preset = resolve_sampler_preset(sampler_val, param_name=param_name)
             texture_slots[param_name] = {
                 "parameter_name": param_name,
                 "sampler_type": sampler_val,

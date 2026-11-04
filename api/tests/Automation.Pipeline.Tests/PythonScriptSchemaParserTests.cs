@@ -103,22 +103,22 @@ public class PythonScriptSchemaParserTests
     }
 
     [Fact]
-    public void Parse_ClassifyMaterialManifest_ShouldExtractCleanPinsAndPythonExecutor()
+    public void Parse_ClassifyCharacterManifest_ShouldExtractCleanPinsAndPythonExecutor()
     {
-        var filePath = @"d:\FullStack\Automation\pipeline-scripts\ai\classify_material_manifest.py";
+        var filePath = @"d:\FullStack\Automation\pipeline-scripts\ai\classify_character_manifest.py";
         if (File.Exists(filePath))
         {
             var content = File.ReadAllText(filePath);
-            var result = PythonScriptSchemaParser.Parse(content, "classify_material_manifest.py");
+            var result = PythonScriptSchemaParser.Parse(content, "classify_character_manifest.py");
 
             result.Executor.Should().Be("python");
-            result.SuggestedLabel.Should().Be("Classify Material Manifest");
-            result.Inputs.Should().Contain(p => p.Id == "raw_manifest");
-            result.Inputs.Should().NotContain(p => p.Id == "cloth_map");
+            result.SuggestedLabel.Should().Be("Classify Character Manifest");
+            result.Inputs.Should().Contain(p => p.Id == "fbx_files");
+            result.Inputs.Should().Contain(p => p.Id == "contracts");
             result.Inputs.Should().Contain(p => p.Id == "endpoint");
             result.Inputs.Should().Contain(p => p.Id == "model");
-            result.Inputs.Should().NotContain(p => p.Id == "folder_path");
-            result.Inputs.Should().NotContain(p => p.Id == "api_key");
+
+
 
             result.Outputs.Should().Contain(p => p.Id == "manifest");
             result.Outputs.Should().Contain(p => p.Id == "summary");

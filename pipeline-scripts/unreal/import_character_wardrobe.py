@@ -305,6 +305,113 @@ def import_fbx_mesh(
     return unreal.EditorAssetLibrary.load_asset(target_path) if unreal.EditorAssetLibrary.does_asset_exist(target_path) else None
 
 
+# ==============================================================================
+# Texture Compression & sRGB Presets
+# ==============================================================================
+
+TEXTURE_PRESET_PACKAGES: Dict[str, Dict[str, Any]] = {
+    "NORMAL": {
+        "compression": "TC_NORMALMAP",
+        "srgb": False,
+        "vt": True,
+        "flip_green_channel": True,
+    },
+    "BASE_COLOR": {
+        "compression": "TC_DEFAULT",
+        "srgb": True,
+        "vt": True,
+    },
+    "MASKS": {  # ORM, Roughness, Metallic, Specular, AO, Mask
+        "compression": "TC_MASKS",
+        "srgb": False,
+        "vt": True,
+    },
+    "OPACITY": {  # Hair Opacity, Alpha, Cutout, Transparency (AAA Hair Card Standard)
+        "compression": "TC_MASKS",
+        "srgb": False,
+        "vt": True,
+    },
+    "GRAYSCALE": {  # Height, Displacement
+        "compression": "TC_GRAYSCALE",
+        "srgb": False,
+        "vt": True,
+    },
+}
+
+
+def resolve_texture_preset(
+    param_name: str,
+    file_path: str,
+    contract_slots: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Robust 3-tier resolver for texture compression, sRGB, and virtual texture flags:
+      Tier 1: Explicit Match in Contract Slots (exact or case-insensitive/alias).
+              Auto-corrects if contract misclassified masks/opacity as sRGB Color.
+      Tier 2: Parameter Name Semantics (Opacity/Alpha/Mask -> TC_MASKS, sRGB=False).
+      Tier 3: File Name Heuristic (e.g. *_Opacity.png -> TC_MASKS, sRGB=False).
+    """
+    p_clean = param_name.strip()
+    p_lower = p_clean.lower()
+    file_base = os.path.splitext(os.path.basename(file_path))[0].lower() if file_path else ""
+
+    # Check if param or filename indicates an Opacity / Alpha / Cutout texture (Hair, Eyelashes, etc.)
+    is_opacity = any(k in p_lower for k in ["opacity", "alpha", "mask", "trans", "cutout"]) or \
+                 any(k in file_base for k in ["_opacity", "_alpha", "_mask", "_trans", "_cutout", "_hair_alpha", "_opac", "opacity", "alpha"])
+
+    is_mask_or_orm = any(k in p_lower for k in ["orm", "rough", "metal", "spec", "ao", "cavity"]) or \
+                     any(k in file_base for k in ["_orm", "_rma", "_rough", "_metal", "_spec", "_ao"])
+
+    is_normal = any(k in p_lower for k in ["norm", "nm", "tangent"]) or \
+                any(k in file_base for k in ["_norm", "_nrm", "_normal", "_n"])
+
+    # 1. Tier 1: Try contract lookup
+    slot_spec = None
+    if contract_slots:
+        if param_name in contract_slots:
+            slot_spec = contract_slots[param_name]
+        else:
+            # Case-insensitive & alias lookup
+            for k, v in contract_slots.items():
+                k_low = k.lower()
+                if k_low == p_lower or k_low == p_lower.replace("map", "") or p_lower == k_low.replace("map", ""):
+                    slot_spec = v
+                    break
+
+    if isinstance(slot_spec, dict) and slot_spec:
+        comp = slot_spec.get("compression", "TC_DEFAULT")
+        srgb = slot_spec.get("srgb", True)
+        vt = slot_spec.get("vt", True)
+
+        # Fail-safe auto-correction: If contract declared sRGB=True or TC_DEFAULT for an obvious Opacity/Mask/Normal texture
+        if is_opacity:
+            comp = "TC_MASKS"
+            srgb = False
+        elif is_mask_or_orm:
+            comp = "TC_MASKS"
+            srgb = False
+        elif is_normal:
+            comp = "TC_NORMALMAP"
+            srgb = False
+
+        return {
+            "compression": comp,
+            "srgb": srgb,
+            "vt": vt
+        }
+
+    # 2. Tier 2 & 3: Semantic & File Name Heuristic Fallbacks
+    if is_opacity:
+        return TEXTURE_PRESET_PACKAGES["OPACITY"]
+    if is_normal:
+        return TEXTURE_PRESET_PACKAGES["NORMAL"]
+    if is_mask_or_orm:
+        return TEXTURE_PRESET_PACKAGES["MASKS"]
+
+    # Default to Color/Albedo
+    return TEXTURE_PRESET_PACKAGES["BASE_COLOR"]
+
+
 def import_texture_file(
     file_path: str,
     dest_folder: str,
@@ -333,19 +440,37 @@ def import_texture_file(
         if compression and hasattr(unreal, "TextureCompressionSettings"):
             comp_enum = getattr(unreal.TextureCompressionSettings, compression, None)
             if comp_enum is not None:
-                tex.set_editor_property("compression_settings", comp_enum)
-                changed = True
+                current_comp = tex.get_editor_property("compression_settings")
+                if current_comp != comp_enum:
+                    tex.set_editor_property("compression_settings", comp_enum)
+                    changed = True
+
         if srgb is not None:
-            tex.set_editor_property("srgb", bool(srgb))
-            changed = True
+            current_srgb = tex.get_editor_property("srgb")
+            if bool(current_srgb) != bool(srgb):
+                tex.set_editor_property("srgb", bool(srgb))
+                changed = True
+
         if hasattr(tex, "virtual_texture_streaming"):
             try:
-                tex.set_editor_property("virtual_texture_streaming", bool(is_virtual))
-                changed = True
+                current_vt = tex.get_editor_property("virtual_texture_streaming")
+                if bool(current_vt) != bool(is_virtual):
+                    tex.set_editor_property("virtual_texture_streaming", bool(is_virtual))
+                    changed = True
             except Exception:
                 pass
+
         if changed:
+            try:
+                tex.post_edit_change()
+            except Exception:
+                pass
+            try:
+                tex.update_resource()
+            except Exception:
+                pass
             unreal.EditorAssetLibrary.save_loaded_asset(tex)
+            print(f"   [FORGITY :: TEXTURE] Updated '{texture_name}': compression={compression}, srgb={srgb}", flush=True)
 
     return tex
 
@@ -377,6 +502,50 @@ def create_material_instance(
 
     unreal.MaterialEditingLibrary.set_material_instance_parent(mi_asset, master_mat)
 
+    # Discover actual Texture Parameter names on Master Material
+    real_texture_param_names: List[str] = []
+    try:
+        raw_names = unreal.MaterialEditingLibrary.get_texture_parameter_names(master_mat)
+        real_texture_param_names = [str(n) for n in raw_names]
+    except Exception:
+        pass
+
+    def _resolve_real_param_name(target_param: str) -> str:
+        if not real_texture_param_names:
+            return target_param
+        # 1. Exact match
+        if target_param in real_texture_param_names:
+            return target_param
+        # 2. Case-insensitive match
+        t_low = target_param.lower()
+        for r in real_texture_param_names:
+            if r.lower() == t_low:
+                return r
+        # 3. Match without 'Map' / 'Texture' suffixes
+        t_stripped = t_low.replace("map", "").replace("texture", "").replace("tex", "").strip("_")
+        for r in real_texture_param_names:
+            r_stripped = r.lower().replace("map", "").replace("texture", "").replace("tex", "").strip("_")
+            if r_stripped == t_stripped:
+                return r
+        # 4. Semantic keywords matching
+        if any(k in t_low for k in ["opacity", "alpha", "trans", "cutout"]):
+            for r in real_texture_param_names:
+                if any(k in r.lower() for k in ["opacity", "alpha", "trans", "cutout"]):
+                    return r
+        if any(k in t_low for k in ["norm", "nm"]):
+            for r in real_texture_param_names:
+                if any(k in r.lower() for k in ["norm", "nm"]):
+                    return r
+        if any(k in t_low for k in ["color", "base", "albedo", "diff"]):
+            for r in real_texture_param_names:
+                if any(k in r.lower() for k in ["color", "base", "albedo", "diff"]):
+                    return r
+        if any(k in t_low for k in ["art", "orm", "mask", "rough", "spec", "ao"]):
+            for r in real_texture_param_names:
+                if any(k in r.lower() for k in ["art", "orm", "mask", "rough", "spec", "ao"]):
+                    return r
+        return target_param
+
     for param_name, raw_tex_path in textures.items():
         if not raw_tex_path:
             continue
@@ -385,7 +554,9 @@ def create_material_instance(
             print(f"   [FORGITY :: WARN] Texture file missing: '{norm_path}'", flush=True)
             continue
 
-        slot_spec = contract_slots.get(param_name, {})
+        resolved_param = _resolve_real_param_name(param_name)
+        preset = resolve_texture_preset(resolved_param, norm_path, contract_slots)
+
         raw_base = sanitize_asset_name(os.path.splitext(os.path.basename(norm_path))[0])
         tex_base = f"T_{raw_base}" if not raw_base.startswith("T_") else raw_base
 
@@ -393,15 +564,15 @@ def create_material_instance(
             norm_path,
             textures_folder,
             tex_base,
-            compression=slot_spec.get("compression", "TC_DEFAULT"),
-            srgb=slot_spec.get("srgb", True),
-            is_virtual=slot_spec.get("vt", True)
+            compression=preset.get("compression", "TC_DEFAULT"),
+            srgb=preset.get("srgb", True),
+            is_virtual=preset.get("vt", True)
         )
         if tex_obj:
             unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(
-                mi_asset, param_name, tex_obj
+                mi_asset, resolved_param, tex_obj
             )
-            print(f"   [FORGITY] Param '{param_name}' -> '{tex_base}' on '{mi_name}'", flush=True)
+            print(f"   [FORGITY] Param '{resolved_param}' (from '{param_name}') -> '{tex_base}' on '{mi_name}' [Comp: {preset.get('compression')}, sRGB: {preset.get('srgb')}]", flush=True)
 
     try:
         unreal.MaterialEditingLibrary.update_material_instance(mi_asset)
@@ -618,6 +789,10 @@ def main(
         ensure_gameplay_tags(all_tags)
 
     contracts_materials = contracts.get("materials", {})
+    if isinstance(contracts_materials, list):
+        contracts_materials = {
+            m.get("material_tag", m.get("tag", f"mat_{i}")): m for i, m in enumerate(contracts_materials)
+        }
 
     imported_meshes = []
     created_data_assets = []
@@ -673,7 +848,7 @@ def main(
                         mat_contract = c_mat
                         break
 
-            contract_slots = mat_contract.get("texture_slots", {}) if mat_contract else {}
+            contract_slots = (mat_contract.get("texture_slots") or mat_contract.get("texture_map") or {}) if mat_contract else {}
             mi_obj = create_material_instance(
                 master_path, materials_folder, textures_folder, mi_name, textures, contract_slots
             )
