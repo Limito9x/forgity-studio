@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.ValueObjects;
 
@@ -7,10 +8,16 @@ namespace Automation.Pipeline.Domain.Entities;
 public class PipelineNode : AuditableEntity
 {
     public Guid PipelineId { get; set; }
+
+    [JsonIgnore]
     public Pipeline Pipeline { get; set; } = null!;
 
     public Guid? ParentId { get; set; }
+
+    [JsonIgnore]
     public PipelineNode? Parent { get; set; }
+
+    [JsonIgnore]
     public ICollection<PipelineNode> Children { get; set; } = new List<PipelineNode>();
 
     // Trong thiết kế chỉ để refId
@@ -100,4 +107,3 @@ public class PipelineNode : AuditableEntity
 
 public record NodePosition(float X, float Y);
 public record NodeSize(float Width, float Height);
-
