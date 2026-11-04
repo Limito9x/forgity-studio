@@ -224,22 +224,41 @@ public class ExportPipelinesHandler(
 
         var nodeDefLookupById = new Dictionary<string, Domain.Entities.NodeDefinition>();
         var nodeDefLookupByKey = new Dictionary<string, Domain.Entities.NodeDefinition>(StringComparer.OrdinalIgnoreCase);
+        var pipelineProjectIds = pipelineEntityMap.Values.Select(p => p.ProjectId).Distinct().ToHashSet();
 
         if (customNodeDefIds.Count > 0 || customNodeDefKeys.Count > 0)
         {
-            var nodeDefinitions = await db.NodeDefinitions
+            var rawNodeDefinitions = await db.NodeDefinitions
                 .AsNoTracking()
                 .Where(nd => customNodeDefIds.Contains(nd.Id) || customNodeDefKeys.Contains(nd.Key))
                 .ToListAsync(ct);
 
-            foreach (var nd in nodeDefinitions)
+            foreach (var nd in rawNodeDefinitions)
             {
                 nodeDefLookupById[nd.Id.ToString()] = nd;
+            }
+
+            // Group by Key: prioritize current pipeline's project, then definitions with richer outputs/inputs, then newest
+            var prioritizedDefs = rawNodeDefinitions
+                .GroupBy(d => d.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.OrderByDescending(d => pipelineProjectIds.Contains(d.ProjectId))
+                              .ThenByDescending(d => (d.Outputs?.Count ?? 0) + (d.Inputs?.Count ?? 0))
+                              .ThenByDescending(d => d.UpdatedAt ?? d.CreatedAt)
+                              .First())
+                .ToList();
+
+            foreach (var nd in prioritizedDefs)
+            {
                 nodeDefLookupByKey[nd.Key] = nd;
             }
 
+            var defsToFetch = prioritizedDefs
+                .Concat(rawNodeDefinitions.Where(d => customNodeDefIds.Contains(d.Id)))
+                .DistinctBy(d => d.Id)
+                .ToList();
+
             var scriptFilesResult = await assetApi.GetFilesAsync(
-                nodeDefinitions.Select(x => x.Id.ToString()),
+                defsToFetch.Select(x => x.Id.ToString()),
                 "NodeDefinition",
                 PipelineAssetSlots.CustomScript,
                 ct
@@ -249,7 +268,7 @@ public class ExportPipelinesHandler(
                 ? scriptFilesResult.Value
                 : [];
 
-            foreach (var def in nodeDefinitions)
+            foreach (var def in prioritizedDefs)
             {
                 var files = scriptFiles.GetValueOrDefault(def.Id.ToString()) ?? [];
                 var file = files.FirstOrDefault();
