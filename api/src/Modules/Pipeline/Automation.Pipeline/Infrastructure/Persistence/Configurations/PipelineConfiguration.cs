@@ -42,6 +42,7 @@ public class PipelineConfiguration : IEntityTypeConfiguration<Domain.Entities.Pi
 
         var jsonOptions = new JsonSerializerOptions
         {
+            PropertyNameCaseInsensitive = true,
             Converters = { new JsonStringEnumConverter() }
         };
 
