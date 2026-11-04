@@ -18,6 +18,7 @@ import {
   Pencil,
   Download,
   LocateFixed,
+  GitCommit,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useReactFlow } from "@xyflow/react";
@@ -35,6 +36,7 @@ interface CanvasToolbarProps {
   isSaving: boolean;
   onOpenRunModal: () => void;
   onOpenHistory?: () => void;
+  onOpenSnapshots?: () => void;
   onValidate: () => void;
   isValidating?: boolean;
   validationStatus?: ValidationStatus;
@@ -56,6 +58,7 @@ export function CanvasToolbar({
   isSaving,
   onOpenRunModal,
   onOpenHistory,
+  onOpenSnapshots,
   onValidate,
   isValidating,
   errorCount = 0,
@@ -283,6 +286,19 @@ export function CanvasToolbar({
           >
             <History className="h-3.5 w-3.5 text-primary" />
             <span className="hidden sm:inline">Executions</span>
+          </Button>
+        )}
+
+        {/* Snapshots / Version History Trigger */}
+        {onOpenSnapshots && (
+          <Button
+            variant="outline"
+            size="sm"
+            onPress={onOpenSnapshots}
+            className="h-8 text-xs gap-1.5"
+          >
+            <GitCommit className="h-3.5 w-3.5 text-primary" />
+            <span className="hidden sm:inline">Versions</span>
           </Button>
         )}
 
