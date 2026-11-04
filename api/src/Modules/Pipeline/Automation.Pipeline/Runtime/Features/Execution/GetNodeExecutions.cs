@@ -50,10 +50,20 @@ public class GetNodeExecutionsHandler(PipelineDbContext db, IExecutionStateStore
         // 1. If currently executing (Running or WaitingForRunner), read directly from Redis live hot-state
         if (execution.Status is ExecutionStatus.Running or ExecutionStatus.WaitingForRunner or ExecutionStatus.WaitingForSubPipeline)
         {
-            var nodes = await db.PipelineNodes
-                .AsNoTracking()
-                .Where(n => n.PipelineId == execution.PipelineId)
-                .ToListAsync(ct);
+            IReadOnlyList<Domain.Entities.PipelineNode> nodes = [];
+            if (execution.SnapshotId.HasValue)
+            {
+                var snapshot = await db.PipelineSnapshots.AsNoTracking().FirstOrDefaultAsync(s => s.Id == execution.SnapshotId.Value, ct);
+                if (snapshot != null)
+                {
+                    nodes = snapshot.GraphData.Nodes;
+                }
+            }
+            if (nodes.Count == 0)
+            {
+                var pipeline = await db.Pipelines.AsNoTracking().FirstOrDefaultAsync(p => p.Id == execution.PipelineId, ct);
+                nodes = pipeline?.GraphData.Nodes ?? [];
+            }
 
             foreach (var node in nodes)
             {

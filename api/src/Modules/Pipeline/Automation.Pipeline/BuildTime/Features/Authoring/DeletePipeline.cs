@@ -53,10 +53,12 @@ public class DeletePipelineHandler(PipelineDbContext db)
 
         // Chặn Archive nếu đang được gọi làm SubPipeline trong pipeline active khác
         var pipelineIdStr = command.Id.ToString();
-        var isUsedAsSubPipeline = await db.Pipelines
-            .AnyAsync(p => p.Id != command.Id 
-                        && p.DeletedAt == null 
-                        && p.Nodes.Any(n => n.Kind == Constants.PipelineNodeKind.SubPipeline && n.RefId == pipelineIdStr), ct);
+        var allOtherGraphs = await db.Pipelines
+            .Where(p => p.Id != command.Id && p.DeletedAt == null)
+            .Select(p => p.GraphData)
+            .ToListAsync(ct);
+        var isUsedAsSubPipeline = allOtherGraphs
+            .Any(g => g.Nodes.Any(n => n.Kind == Constants.PipelineNodeKind.SubPipeline && n.RefId == pipelineIdStr));
 
         if (isUsedAsSubPipeline)
         {

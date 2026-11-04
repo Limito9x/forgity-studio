@@ -12,7 +12,9 @@ public record ValidatePipelineQuery(
     Dictionary<string, object?>? RuntimeInputs = null,
     List<SavePipelineNodeItem>? Nodes = null,
     List<SavePipelineEdgeItem>? Edges = null,
-    List<PipelineParameter>? Parameters = null
+    List<PipelineParameter>? Parameters = null,
+    bool CreateSnapshot = false,
+    string? SnapshotSummary = null
 );
 
 public record ValidatePipelineResponse(
@@ -189,5 +191,7 @@ public record SavePipelineGraphCommand(
     Guid PipelineId,
     List<SavePipelineNodeItem> Nodes,
     List<SavePipelineEdgeItem> Edges,
-    List<PipelineParameter>? Parameters = null
+    List<PipelineParameter>? Parameters = null,
+    bool CreateSnapshot = false,
+    string? SnapshotSummary = null
 );

@@ -98,8 +98,6 @@ public class ExportPipelinesHandler(
 
             var pipeline = await db.Pipelines
                 .AsNoTracking()
-                .Include(x => x.Nodes)
-                .Include(x => x.Edges)
                 .FirstOrDefaultAsync(x => x.Id == currentId, ct);
 
             if (pipeline == null)
