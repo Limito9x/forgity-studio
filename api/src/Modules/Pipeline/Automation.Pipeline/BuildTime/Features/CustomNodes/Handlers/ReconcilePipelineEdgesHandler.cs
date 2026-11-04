@@ -17,9 +17,10 @@ public class ReconcilePipelineEdgesHandler(
             @event.NodeKey, @event.NodeDefinitionId, @event.Strategy);
 
         // Nạp tất cả các Pipelines có chứa node tham chiếu đến NodeKey này
-        var affectedPipelines = await db.Pipelines
-            .Where(p => p.GraphData.Nodes.Any(n => n.RefId == @event.NodeKey))
-            .ToListAsync(ct);
+        var allPipelines = await db.Pipelines.ToListAsync(ct);
+        var affectedPipelines = allPipelines
+            .Where(p => p.GraphData.Nodes.Any(n => string.Equals(n.RefId, @event.NodeKey, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
 
         var pipelineCount = affectedPipelines.Count;
         var nodeCount = affectedPipelines.Sum(p => p.GraphData.Nodes.Count(n => n.RefId == @event.NodeKey));
