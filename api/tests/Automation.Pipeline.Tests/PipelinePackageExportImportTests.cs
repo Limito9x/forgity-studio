@@ -82,8 +82,7 @@ public sealed class PipelinePackageExportImportTests : IDisposable
             positionY: 100
         );
 
-        _db.PipelineNodes.AddRange(nodeWithUnboundFile, customNodeMissingScript);
-        _pipeline.GraphData = new PipelineGraphDocument
+                _pipeline.GraphData = new PipelineGraphDocument
         {
             Nodes = [nodeWithUnboundFile, customNodeMissingScript]
         };

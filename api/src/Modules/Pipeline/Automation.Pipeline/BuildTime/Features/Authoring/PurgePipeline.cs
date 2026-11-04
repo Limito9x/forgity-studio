@@ -87,12 +87,7 @@ public class PurgePipelineHandler(PipelineDbContext db, IAssetApi assetApi)
             await assetApi.RemoveLinksByIdsAsync(linksToRemove, ct);
         }
 
-        // 2. Dọn dẹp legacy relational nodes & edges (nếu còn tồn tại trong DB cũ)
-        var legacyNodes = await db.PipelineNodes.Where(x => x.PipelineId == command.Id).ToListAsync(ct);
-        if (legacyNodes.Count > 0) db.PipelineNodes.RemoveRange(legacyNodes);
-
-        var legacyEdges = await db.PipelineEdges.Where(x => x.PipelineId == command.Id).ToListAsync(ct);
-        if (legacyEdges.Count > 0) db.PipelineEdges.RemoveRange(legacyEdges);
+        // 2. Dọn dẹp các Executions thuộc pipeline này (nếu có) để thỏa mãn Restrict foreign key
 
         // 3. Dọn dẹp các Executions thuộc pipeline này (nếu có) để thỏa mãn Restrict foreign key
         var executions = await db.PipelineExecutions
