@@ -168,9 +168,14 @@ public class AnalyzeCustomNodesBatchHandler(PipelineDbContext db, IScriptSchemaA
                 }
 
                 // Impact Analysis: query pipelines containing nodes using this key
-                var affectedPipelines = await db.Pipelines
-                    .Where(p => p.ProjectId == command.ProjectId && p.GraphData.Nodes.Any(n => n.RefId == existingNode.Key))
+                var projectPipelines = await db.Pipelines
+                    .AsNoTracking()
+                    .Where(p => p.ProjectId == command.ProjectId)
                     .ToListAsync(ct);
+
+                var affectedPipelines = projectPipelines
+                    .Where(p => p.GraphData.Nodes.Any(n => string.Equals(n.RefId, existingNode.Key, StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
 
                 if (affectedPipelines.Count > 0)
                 {
