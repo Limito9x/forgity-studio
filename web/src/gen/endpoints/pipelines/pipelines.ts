@@ -23,6 +23,7 @@ import type {
 
 import type {
   CreatePipelineCommand,
+  CreatePipelineSnapshotRequest,
   ExportPipelineBatchRequest,
   GetPipelinesParams,
   GetStructCatalogueParams,
@@ -32,10 +33,12 @@ import type {
   ImportPipelinePackageResponseDto,
   ListOfNodeExecutionDto,
   ListOfPipelineExecutionDto,
+  ListOfPipelineSnapshotSummaryDto,
   ListOfPipelineSummaryDto,
   PipelineExecutionDto,
   PipelineGraphDto,
   PipelinePackageDto,
+  PipelineSnapshotSummaryDto,
   PipelineSummaryDto,
   ResolveToolPinsCommand,
   ResolvedToolPinsDto,
@@ -1883,6 +1886,312 @@ export const useRestorePipeline = <TError = void, TContext = unknown>(
   TContext
 > => {
   return useMutation(getRestorePipelineMutationOptions(options), queryClient);
+};
+export const createPipelineSnapshot = (
+  id: string,
+  createPipelineSnapshotRequest: CreatePipelineSnapshotRequest,
+  signal?: AbortSignal,
+) => {
+  return customInstance<PipelineSnapshotSummaryDto>({
+    url: `/api/pipelines/${id}/snapshots`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: createPipelineSnapshotRequest,
+    signal,
+  });
+};
+
+export const getCreatePipelineSnapshotMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createPipelineSnapshot>>,
+    TError,
+    { id: string; data: CreatePipelineSnapshotRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createPipelineSnapshot>>,
+  TError,
+  { id: string; data: CreatePipelineSnapshotRequest },
+  TContext
+> => {
+  const mutationKey = ["createPipelineSnapshot"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createPipelineSnapshot>>,
+    { id: string; data: CreatePipelineSnapshotRequest }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createPipelineSnapshot(id, data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreatePipelineSnapshotMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createPipelineSnapshot>>
+>;
+export type CreatePipelineSnapshotMutationBody = CreatePipelineSnapshotRequest;
+export type CreatePipelineSnapshotMutationError = void;
+
+export const useCreatePipelineSnapshot = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof createPipelineSnapshot>>,
+      TError,
+      { id: string; data: CreatePipelineSnapshotRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof createPipelineSnapshot>>,
+  TError,
+  { id: string; data: CreatePipelineSnapshotRequest },
+  TContext
+> => {
+  return useMutation(
+    getCreatePipelineSnapshotMutationOptions(options),
+    queryClient,
+  );
+};
+export const getPipelineSnapshots = (id: string, signal?: AbortSignal) => {
+  return customInstance<ListOfPipelineSnapshotSummaryDto>({
+    url: `/api/pipelines/${id}/snapshots`,
+    method: "GET",
+    signal,
+  });
+};
+
+export const getGetPipelineSnapshotsQueryKey = (id: string) => {
+  return [`/api/pipelines/${id}/snapshots`] as const;
+};
+
+export const getGetPipelineSnapshotsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPipelineSnapshots>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPipelineSnapshots>>,
+        TError,
+        TData
+      >
+    >;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPipelineSnapshotsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPipelineSnapshots>>
+  > = ({ signal }) => getPipelineSnapshots(id, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: id !== null && id !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPipelineSnapshots>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetPipelineSnapshotsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPipelineSnapshots>>
+>;
+export type GetPipelineSnapshotsQueryError = void;
+
+export function useGetPipelineSnapshots<
+  TData = Awaited<ReturnType<typeof getPipelineSnapshots>>,
+  TError = void,
+>(
+  id: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPipelineSnapshots>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPipelineSnapshots>>,
+          TError,
+          Awaited<ReturnType<typeof getPipelineSnapshots>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetPipelineSnapshots<
+  TData = Awaited<ReturnType<typeof getPipelineSnapshots>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPipelineSnapshots>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPipelineSnapshots>>,
+          TError,
+          Awaited<ReturnType<typeof getPipelineSnapshots>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetPipelineSnapshots<
+  TData = Awaited<ReturnType<typeof getPipelineSnapshots>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPipelineSnapshots>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useGetPipelineSnapshots<
+  TData = Awaited<ReturnType<typeof getPipelineSnapshots>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getPipelineSnapshots>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetPipelineSnapshotsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const rollbackPipelineSnapshot = (
+  id: string,
+  snapshotId: string,
+  signal?: AbortSignal,
+) => {
+  return customInstance<PipelineGraphDto>({
+    url: `/api/pipelines/${id}/snapshots/${snapshotId}/rollback`,
+    method: "POST",
+    signal,
+  });
+};
+
+export const getRollbackPipelineSnapshotMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rollbackPipelineSnapshot>>,
+    TError,
+    { id: string; snapshotId: string },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof rollbackPipelineSnapshot>>,
+  TError,
+  { id: string; snapshotId: string },
+  TContext
+> => {
+  const mutationKey = ["rollbackPipelineSnapshot"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof rollbackPipelineSnapshot>>,
+    { id: string; snapshotId: string }
+  > = (props) => {
+    const { id, snapshotId } = props ?? {};
+
+    return rollbackPipelineSnapshot(id, snapshotId);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RollbackPipelineSnapshotMutationResult = NonNullable<
+  Awaited<ReturnType<typeof rollbackPipelineSnapshot>>
+>;
+
+export type RollbackPipelineSnapshotMutationError = void;
+
+export const useRollbackPipelineSnapshot = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof rollbackPipelineSnapshot>>,
+      TError,
+      { id: string; snapshotId: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof rollbackPipelineSnapshot>>,
+  TError,
+  { id: string; snapshotId: string },
+  TContext
+> => {
+  return useMutation(
+    getRollbackPipelineSnapshotMutationOptions(options),
+    queryClient,
+  );
 };
 export const updatePipelineTrigger = (
   id: string,

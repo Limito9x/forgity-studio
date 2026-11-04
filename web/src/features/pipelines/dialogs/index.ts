@@ -66,3 +66,6 @@ registerDialog({
   id: "import-pipeline",
   component: PipelineImportDialogWrapper,
 });
+
+export { PipelineSnapshotHistoryDialog } from "./PipelineSnapshotHistoryDialog";
+

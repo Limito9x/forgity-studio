@@ -18,6 +18,7 @@ import { CapsuleNode } from "./CapsuleNode";
 import { ContextMenuPalette } from "./ContextMenuPalette";
 import { NodeConfigInspector } from "./NodeConfigInspector";
 import { CanvasToolbar } from "./CanvasToolbar";
+import { PipelineSnapshotHistoryDialog } from "../../dialogs/PipelineSnapshotHistoryDialog";
 import { CanvasDiagnosticsPanel } from "./CanvasDiagnosticsPanel";
 import { PipelineParametersPanel, type ParameterTab } from "./PipelineParametersPanel";
 import { VariableDropMenu } from "./VariableDropMenu";
@@ -62,7 +63,7 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
     if (definitions.isError) return <div role="alert">Failed to load node definitions. <button onClick={() => void definitions.refetch()}>Retry</button></div>;
     return <div role="status">Loading node definitions...</div>;
   }
-  return <NodeDefinitionsProvider items={definitions.data}><PipelineCanvasContent key={`${props.projectId}:${props.graph.id}`} {...props} /></NodeDefinitionsProvider>;
+  return <NodeDefinitionsProvider items={definitions.data}><PipelineCanvasContent key={`${props.projectId}:${props.graph.id}:${(props.graph as any).activeSnapshotId || (props.graph as any).graphHash || ""}`} {...props} /></NodeDefinitionsProvider>;
 }
 
 function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
@@ -156,6 +157,7 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
 
   // Run modal state & Validation
   const [isRunModalOpen, setIsRunModalOpen] = useState(false);
+  const [isSnapshotsOpen, setIsSnapshotsOpen] = useState(false);
 
 
 
@@ -225,6 +227,7 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
             live.setDrawerDefaultTab("history");
             live.setIsDrawerOpen(true);
           }}
+          onOpenSnapshots={() => setIsSnapshotsOpen(true)}
           onValidate={diagnosticsScope.validateDraft}
           isValidating={diagnosticsScope.isValidating}
           validationStatus={diagnosticsScope.validationStatus}
@@ -437,6 +440,14 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
           childCount={draft.pendingStageDelete?.childCount || 0}
           onConfirm={draft.confirmStageDelete}
           onCancel={draft.cancelStageDelete}
+        />
+
+        {/* Snapshot / Version History Dialog */}
+        <PipelineSnapshotHistoryDialog
+          open={isSnapshotsOpen}
+          onOpenChange={setIsSnapshotsOpen}
+          pipelineId={graph.id}
+          pipelineName={graph.name}
         />
       </div>
     </PipelineFormScopeProvider>
