@@ -109,8 +109,6 @@ public class DebugExecutionTests(ITestOutputHelper output)
 
         // Frozen graph
         var pipe = await db.Pipelines
-            .Include(p => p.Nodes)
-            .Include(p => p.Edges)
             .FirstAsync(p => p.Id == pipelineId);
 
         var frozen = FrozenExecutionGraph.Create(pipe, toolRegistry);
@@ -155,8 +153,6 @@ public class DebugExecutionTests(ITestOutputHelper output)
 
         var pipelineId = Guid.Parse("01a0fc7d-a26c-7255-bb83-10cc4d10adc3");
         var pipe = await db.Pipelines
-            .Include(p => p.Nodes)
-            .Include(p => p.Edges)
             .FirstAsync(p => p.Id == pipelineId);
 
         var plan = planner.BuildExecPlan(pipe, Array.Empty<Automation.Pipeline.Domain.Entities.NodeDefinition>(), toolRegistry);

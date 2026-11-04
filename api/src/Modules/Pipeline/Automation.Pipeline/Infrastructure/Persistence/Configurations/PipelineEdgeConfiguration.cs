@@ -10,7 +10,7 @@ public class PipelineEdgeConfiguration : IEntityTypeConfiguration<Domain.Entitie
         builder.HasKey(x => x.Id);
         
         builder.HasOne(x => x.Pipeline)
-            .WithMany(x => x.Edges)
+            .WithMany()
             .HasForeignKey(x => x.PipelineId)
             .OnDelete(DeleteBehavior.Cascade);
 

@@ -71,8 +71,6 @@ public class RunPipelineHandler(
     {
         var pipeline = await db
             .Pipelines
-            .Include(p => p.Nodes)
-            .Include(p => p.Edges)
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == command.PipelineId, ct);
 
@@ -146,8 +144,32 @@ public class RunPipelineHandler(
             );
         }
 
+        // 2.5 Ensure Active Snapshot is frozen for this execution
+        Guid snapshotId;
+        if (pipeline.ActiveSnapshotId.HasValue)
+        {
+            snapshotId = pipeline.ActiveSnapshotId.Value;
+        }
+        else
+        {
+            var maxVersion = await db.PipelineSnapshots
+                .Where(s => s.PipelineId == pipeline.Id)
+                .MaxAsync(s => (int?)s.VersionNumber, ct) ?? 0;
+
+            var snapshot = new PipelineSnapshot(
+                pipeline.Id,
+                maxVersion + 1,
+                pipeline.GraphData,
+                pipeline.GraphHash ?? string.Empty,
+                PipelineSnapshotSource.RunFreeze,
+                "Run freeze execution"
+            );
+            db.PipelineSnapshots.Add(snapshot);
+            snapshotId = snapshot.Id;
+        }
+
         // 3. Create Execution record and pre-save initial RuntimeInputs in ExecutionState
-        var execution = new PipelineExecution(pipeline.Id);
+        var execution = new PipelineExecution(pipeline.Id, snapshotId: snapshotId);
 
         var initialState = new Automation.Pipeline.Runtime.Planner.Models.PipelineExecutionState();
         if (command.RuntimeInputs != null)

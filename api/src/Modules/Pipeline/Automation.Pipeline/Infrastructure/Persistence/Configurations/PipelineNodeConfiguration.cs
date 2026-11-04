@@ -11,7 +11,7 @@ public class PipelineNodeConfiguration : IEntityTypeConfiguration<Domain.Entitie
 
         builder
             .HasOne(x => x.Pipeline)
-            .WithMany(x => x.Nodes)
+            .WithMany()
             .HasForeignKey(x => x.PipelineId)
             .OnDelete(DeleteBehavior.Cascade);
 

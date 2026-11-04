@@ -117,10 +117,19 @@ public class SubPipelineDispatcher(
             return Result.Fail<SubPipelineDispatchResult>(err);
         }
 
+        Guid? targetSnapshotId = null;
+        if (step.Config != null &&
+            step.Config.RootElement.TryGetProperty("snapshotId", out var sProp) &&
+            sProp.TryGetGuid(out var sGid) && sGid != Guid.Empty)
+        {
+            targetSnapshotId = sGid;
+        }
+
         var childExecution = new PipelineExecution(
             childPipeline.Id,
             parentExecutionId: execution.Id,
-            triggeredByNodeId: step.NodeId
+            triggeredByNodeId: step.NodeId,
+            snapshotId: targetSnapshotId ?? childPipeline.ActiveSnapshotId
         );
         db.PipelineExecutions.Add(childExecution);
         await db.SaveChangesAsync(ct);
@@ -248,12 +257,8 @@ public class SubPipelineDispatcher(
         // 2. Fallback nếu snapshot chưa có outputs: tìm node Return của child pipeline
         if (subOutputs.Count == 0)
         {
-            var childReturnNode = await db
-                .PipelineNodes.AsNoTracking()
-                .FirstOrDefaultAsync(
-                    n => n.PipelineId == childExecution.PipelineId && n.Kind == PipelineNodeKind.Return,
-                    ct
-                );
+            var childPipeline = await db.Pipelines.AsNoTracking().FirstOrDefaultAsync(p => p.Id == childExecution.PipelineId, ct);
+            var childReturnNode = childPipeline?.GraphData.Nodes.FirstOrDefault(n => n.Kind == PipelineNodeKind.Return);
 
             if (childReturnNode != null)
             {

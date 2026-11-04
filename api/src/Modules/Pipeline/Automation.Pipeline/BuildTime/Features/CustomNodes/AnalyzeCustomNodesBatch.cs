@@ -167,20 +167,18 @@ public class AnalyzeCustomNodesBatchHandler(PipelineDbContext db, IScriptSchemaA
                     }
                 }
 
-                // Impact Analysis: query pipeline nodes using this key
-                var pipelineNodes = await db.PipelineNodes
-                    .Where(n => n.RefId == existingNode.Key)
+                // Impact Analysis: query pipelines containing nodes using this key
+                var affectedPipelines = await db.Pipelines
+                    .Where(p => p.ProjectId == command.ProjectId && p.GraphData.Nodes.Any(n => n.RefId == existingNode.Key))
                     .ToListAsync(ct);
 
-                if (pipelineNodes.Count > 0)
+                if (affectedPipelines.Count > 0)
                 {
-                    var pipelineNodeIds = pipelineNodes.Select(n => n.Id).ToHashSet();
-                    var pipelineIds = pipelineNodes.Select(n => n.PipelineId).Distinct().ToList();
-
-                    var pipelineNames = await db.Pipelines
-                        .Where(p => pipelineIds.Contains(p.Id))
-                        .Select(p => p.Name)
-                        .ToListAsync(ct);
+                    var allNodes = affectedPipelines
+                        .SelectMany(p => p.GraphData.Nodes.Where(n => n.RefId == existingNode.Key))
+                        .ToList();
+                    var pipelineNodeIds = allNodes.Select(n => n.Id).ToHashSet();
+                    var pipelineNames = affectedPipelines.Select(p => p.Name).ToList();
 
                     // Find edges attached to removed or type-changed pins
                     var brokenInputPinIds = inputPinDiffs
@@ -193,16 +191,16 @@ public class AnalyzeCustomNodesBatchHandler(PipelineDbContext db, IScriptSchemaA
                         .Select(d => d.PinId)
                         .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-                    var affectedEdgeCount = await db.PipelineEdges
-                        .CountAsync(e =>
+                    var affectedEdgeCount = affectedPipelines
+                        .SelectMany(p => p.GraphData.Edges)
+                        .Count(e =>
                             (pipelineNodeIds.Contains(e.TargetPipelineNodeId) && brokenInputPinIds.Contains(e.TargetPin)) ||
-                            (pipelineNodeIds.Contains(e.SourcePipelineNodeId) && brokenOutputPinIds.Contains(e.SourcePin)),
-                            ct
+                            (pipelineNodeIds.Contains(e.SourcePipelineNodeId) && brokenOutputPinIds.Contains(e.SourcePin))
                         );
 
                     impactReport = new ScriptImpactReportDto(
-                        pipelineIds.Count,
-                        pipelineNodes.Count,
+                        affectedPipelines.Count,
+                        allNodes.Count,
                         affectedEdgeCount,
                         pipelineNames
                     );
