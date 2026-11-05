@@ -36,7 +36,7 @@ def main(
 
     Args:
         input_path: Absolute path to the character file (.duf, .dbz, .hd).
-        preset_path: Optional path to a Diffeomorphic preset script.
+        preset_path: [file:.py] Optional path to a Diffeomorphic preset script.
         armature_name: Name for the Armature object (defaults to 'root').
 
     Returns:
@@ -114,15 +114,12 @@ def main(
         else:
             print(f"[diffeomorphic_import] WARNING: Preset '{preset_str}' not found in candidate paths. Proceeding with default settings.", flush=True)
 
-    # 4. Enforce native 1:1 scale options in preset
-    preset_options.setdefault("unit_scale", 1.0)
-    preset_options.setdefault("useUnits", False)
-
-    # 5. Execute Easy Import DAZ
+    # 4. Execute Easy Import DAZ. Scale is configured through GS.scale above;
+    # useUnits is a Face Units morph option and remains controlled by the preset.
     folder = os.path.dirname(input_path)
     filename = os.path.basename(input_path)
 
-    print(f"[diffeomorphic_import] Importing '{filename}' from '{folder}' (unit_scale={preset_options.get('unit_scale')}, useUnits={preset_options.get('useUnits')})...", flush=True)
+    print(f"[diffeomorphic_import] Importing '{filename}' from '{folder}'...", flush=True)
 
     window = bpy.context.window_manager.windows[0]
     override = {'window': window, 'screen': window.screen}
@@ -141,7 +138,7 @@ def main(
     if len(bpy.data.objects) == 0:
         raise RuntimeError("Diffeomorphic reported FINISHED but scene is empty")
 
-    # 6. Đổi tên Armature object thành 'root'
+    # 5. Đổi tên Armature object thành 'root'
     armature = None
     for obj in bpy.data.objects:
         if obj.type == 'ARMATURE':

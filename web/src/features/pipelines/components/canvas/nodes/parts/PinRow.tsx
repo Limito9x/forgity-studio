@@ -34,8 +34,8 @@ export function PinInputRow({
   const hasPinWarning = !hasPinError && pinDiagnostics.some((d) => d.severity === "Warning");
   const pinTooltip = pinDiagnostics.map((d) => d.message).join("\n");
 
-  const visual = getPinVisual(pin.primitiveType);
-  const typeBadge = formatPinTypeLabel(pin.primitiveType, pin.cardinality);
+  const visual = getPinVisual(pin.primitiveType, pin);
+  const typeBadge = formatPinTypeLabel(pin.primitiveType, pin.cardinality, pin);
 
   return (
     <div className="relative flex items-center gap-2 group/pin py-0.5">
@@ -119,8 +119,8 @@ export function PinOutputRow({ nodeId: explicitNodeId, pin, pinId }: PinOutputRo
   const hasPinWarning = !hasPinError && pinDiagnostics.some((d) => d.severity === "Warning");
   const pinTooltip = pinDiagnostics.map((d) => d.message).join("\n");
 
-  const visual = getPinVisual(pin.primitiveType);
-  const typeBadge = formatPinTypeLabel(pin.primitiveType, pin.cardinality);
+  const visual = getPinVisual(pin.primitiveType, pin);
+  const typeBadge = formatPinTypeLabel(pin.primitiveType, pin.cardinality, pin);
 
   return (
     <div className="relative flex items-center justify-end gap-2 group/pin py-0.5">

@@ -651,7 +651,7 @@ def main(
 
     Args:
         output_path: Destination .fbx file path (Single mode) or destination directory (Batch mode).
-        preset_path: Optional path to FBX operator preset script (e.g. DazBodyUE5.py / BlenderUE5_8.py).
+        preset_path: [file:.py] Optional path to FBX operator preset script (e.g. DazBodyUE5.py / BlenderUE5_8.py).
         export_mode: 'Single' (pack all into 1 file), 'Batch' (split by map), or 'Auto'.
         target_objects: Dictionary mapping object names to slot/role (e.g. cloth_map from classify_mesh_types).
         prefix: Optional prefix prepended to filenames and asset names (e.g. 'Eva').

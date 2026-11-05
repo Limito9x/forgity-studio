@@ -24,8 +24,17 @@ public static class PipelineFileValue
     {
         var json = AsJson(value);
         id = Guid.Empty;
-        return json.ValueKind == JsonValueKind.Object && json.TryGetProperty("assetLinkId", out var property) &&
-            property.ValueKind == JsonValueKind.String && Guid.TryParse(property.GetString(), out id) && id != Guid.Empty;
+        if (json.ValueKind != JsonValueKind.Object) return false;
+
+        if (json.TryGetProperty("assetLinkId", out var property) ||
+            json.TryGetProperty("AssetLinkId", out property))
+        {
+            return property.ValueKind == JsonValueKind.String &&
+                   Guid.TryParse(property.GetString(), out id) &&
+                   id != Guid.Empty;
+        }
+
+        return false;
     }
 
     public static bool TryGetDraft(object? value, out Guid assetId, out string? originalName)
@@ -33,18 +42,22 @@ public static class PipelineFileValue
         assetId = Guid.Empty;
         originalName = null;
         var json = AsJson(value);
-        if (json.ValueKind == JsonValueKind.Object &&
-            !json.TryGetProperty("assetLinkId", out _) &&
-            json.TryGetProperty("assetId", out var assetProp) &&
-            assetProp.ValueKind == JsonValueKind.String &&
-            Guid.TryParse(assetProp.GetString(), out assetId) &&
-            assetId != Guid.Empty &&
-            json.TryGetProperty("originalName", out var nameProp) &&
-            nameProp.ValueKind == JsonValueKind.String)
+        if (json.ValueKind != JsonValueKind.Object) return false;
+
+        var hasAssetLinkId = json.TryGetProperty("assetLinkId", out _) || json.TryGetProperty("AssetLinkId", out _);
+        if (hasAssetLinkId) return false;
+
+        var hasAssetId = json.TryGetProperty("assetId", out var assetProp) || json.TryGetProperty("AssetId", out assetProp);
+        var hasName = json.TryGetProperty("originalName", out var nameProp) || json.TryGetProperty("OriginalName", out nameProp);
+
+        if (hasAssetId && assetProp.ValueKind == JsonValueKind.String &&
+            Guid.TryParse(assetProp.GetString(), out assetId) && assetId != Guid.Empty &&
+            hasName && nameProp.ValueKind == JsonValueKind.String)
         {
             originalName = nameProp.GetString();
             return true;
         }
+
         return false;
     }
 
@@ -53,14 +66,14 @@ public static class PipelineFileValue
         info = null;
         var json = AsJson(value);
         if (json.ValueKind == JsonValueKind.Object &&
-            json.TryGetProperty("status", out var statusProp) &&
+            (json.TryGetProperty("status", out var statusProp) || json.TryGetProperty("Status", out statusProp)) &&
             statusProp.ValueKind == JsonValueKind.String &&
             string.Equals(statusProp.GetString(), "unbound", StringComparison.OrdinalIgnoreCase))
         {
-            string? name = json.TryGetProperty("originalFileName", out var np) && np.ValueKind == JsonValueKind.String ? np.GetString() : null;
-            string? hash = json.TryGetProperty("hashSha256", out var hp) && hp.ValueKind == JsonValueKind.String ? hp.GetString() : null;
-            string? ctype = json.TryGetProperty("contentType", out var cp) && cp.ValueKind == JsonValueKind.String ? cp.GetString() : null;
-            long? size = json.TryGetProperty("sizeBytes", out var sp) && sp.ValueKind == JsonValueKind.Number && sp.TryGetInt64(out var s) ? s : null;
+            string? name = (json.TryGetProperty("originalFileName", out var np) || json.TryGetProperty("OriginalFileName", out np)) && np.ValueKind == JsonValueKind.String ? np.GetString() : null;
+            string? hash = (json.TryGetProperty("hashSha256", out var hp) || json.TryGetProperty("HashSha256", out hp)) && hp.ValueKind == JsonValueKind.String ? hp.GetString() : null;
+            string? ctype = (json.TryGetProperty("contentType", out var cp) || json.TryGetProperty("ContentType", out cp)) && cp.ValueKind == JsonValueKind.String ? cp.GetString() : null;
+            long? size = (json.TryGetProperty("sizeBytes", out var sp) || json.TryGetProperty("SizeBytes", out sp)) && sp.ValueKind == JsonValueKind.Number && sp.TryGetInt64(out var s) ? s : null;
             info = new PipelineUnboundFileInfo(name, hash, size, ctype);
             return true;
         }
@@ -73,10 +86,15 @@ public static class PipelineFileValue
     public static IReadOnlyList<AssetLinkReference> References(Guid nodeId, JsonDocument? config)
     {
         if (config?.RootElement.ValueKind != JsonValueKind.Object) return [];
-        return config.RootElement.EnumerateObject()
-            .Where(x => TryGetLinkId(x.Value, out _) && !string.IsNullOrWhiteSpace(x.Name) &&
+        var list = new List<AssetLinkReference>();
+        foreach (var x in config.RootElement.EnumerateObject())
+        {
+            if (TryGetLinkId(x.Value, out var linkId) && !string.IsNullOrWhiteSpace(x.Name) &&
                 !x.Name.Contains('/') && $"{Constants.PipelineAssetSlots.NodeConfig}/{x.Name}".Length <= 100)
-            .Select(x => new AssetLinkReference(AsJson(x.Value).GetProperty("assetLinkId").GetGuid(), Owner(nodeId, x.Name)))
-            .ToList();
+            {
+                list.Add(new AssetLinkReference(linkId, Owner(nodeId, x.Name)));
+            }
+        }
+        return list;
     }
 }

@@ -1,5 +1,7 @@
 # Forgity Studio - Master Agent Instructions
 
+> Game contracts inspection (05/11/2026): xem mục 1.2 trong `playbooks/character-bake-and-unreal-shading.md`. Inspector dùng `.uproject` tường minh cùng hai nhóm folder/pattern material và PDA tương đối với Content; cần cấu hình lại input node sau khi cập nhật script asset.
+
 > Pipeline Canvas definitions (22/10/2026): xem cập nhật đầu `playbooks/pipeline-canvas-sync.md`. Palette là nguồn định nghĩa chung; graph giữ config/resolved pins, không chứa capabilities. Phase B qua kiểm tra tự động, chờ UI; Phase C chưa triển khai.
 
 > Node lifecycle (22/10/2026): [plan khởi tạo, resolve và validation](plans/archive/2026-10/2026-10-22-node-resolution-and-validation-lifecycle.md) ghi nhận hướng tiếp nối Phase B. Xem mental model đầu [Canvas playbook](playbooks/pipeline-canvas-sync.md); phân biệt resolve schema với validation graph. R1–R4 là lộ trình chưa triển khai.
