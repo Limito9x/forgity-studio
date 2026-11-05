@@ -86,6 +86,14 @@ public sealed class PipelineFileParameterTests : IDisposable
             _links.Remove(call.Arg<AssetLinkReference>().AssetLinkId);
             return Task.FromResult(Result.Ok());
         });
+        _assets.RemoveLinksByIdsAsync(Arg.Any<IEnumerable<AssetLinkReference>>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            foreach (var r in call.Arg<IEnumerable<AssetLinkReference>>())
+            {
+                _links.Remove(r.AssetLinkId);
+            }
+            return Task.FromResult(Result.Ok());
+        });
         _assets.FindLinksByIdsAsync(Arg.Any<IEnumerable<AssetLinkReference>>(), Arg.Any<CancellationToken>()).Returns(call =>
             Task.FromResult(Result.Ok<IReadOnlyList<AssetLinkDto>>(call.Arg<IEnumerable<AssetLinkReference>>()
                 .Where(x => _links.TryGetValue(x.AssetLinkId, out var link) && link.Owner == x.Owner)
@@ -138,7 +146,7 @@ public sealed class PipelineFileParameterTests : IDisposable
         Assert.Equal("Available", file.Status);
         Assert.Equal(entityId.ToString(), ((JsonElement)saved.Nodes.Single().ConfigValues!["EntityId"]!).GetString());
         _db.ChangeTracker.Clear();
-        var reloaded = await _db.Pipelines.Include(x => x.Nodes).Include(x => x.Edges).SingleAsync();
+        var reloaded = await _db.Pipelines.SingleAsync();
         var queried = await _builder.BuildDtoAsync(reloaded);
         Assert.Equal(file, queried.Nodes.Single().FileAssets!["File"]);
         var node = reloaded.Nodes.Single();
@@ -177,8 +185,7 @@ public sealed class PipelineFileParameterTests : IDisposable
         Assert.Empty(_links);
         await Save(Item(nodeId, new { File = new { assetId = Guid.NewGuid(), originalName = "three.txt" } }));
         await Save();
-        Assert.Single(_links); // Files consumes the shared deletion event, not pin cleanup.
-        Assert.Contains(new EntityDeletedMessage("PipelineNode", nodeId.ToString()), _deleted);
+        Assert.Empty(_links);
     }
 
     [Fact]
@@ -193,7 +200,8 @@ public sealed class PipelineFileParameterTests : IDisposable
         })], []), CancellationToken.None);
         Assert.True(result.IsFailed);
         Assert.Equal(oldId, Assert.Single(_links.Keys));
-        var stored = await _db.PipelineNodes.AsNoTracking().SingleAsync();
+        var p = await _db.Pipelines.AsNoTracking().SingleAsync();
+        var stored = p.GraphData.Nodes.Single();
         Assert.Equal(oldId, stored.Config!.RootElement.GetProperty("File").GetProperty("assetLinkId").GetGuid());
         Assert.Empty(_db.ChangeTracker.Entries());
     }
@@ -201,14 +209,16 @@ public sealed class PipelineFileParameterTests : IDisposable
     [Fact]
     public async Task LinkFromAnotherNode_IsClonedForNewNode()
     {
-        var first = await Save(Item(Guid.NewGuid(), new { File = new { assetId = Guid.NewGuid(), originalName = "one.txt" } }));
+        var firstNodeId = Guid.NewGuid();
+        var first = await Save(Item(firstNodeId, new { File = new { assetId = Guid.NewGuid(), originalName = "one.txt" } }));
         var linkId = first.Nodes.Single().FileAssets!["File"].AssetLinkId;
         var newNodeId = Guid.NewGuid();
         var result = await Saver().HandleAsync(new(_pipeline.Id,
-            [Item(newNodeId, new { File = new { assetLinkId = linkId } })], []), CancellationToken.None);
+            [Item(firstNodeId, new { File = new { assetLinkId = linkId } }), Item(newNodeId, new { File = new { assetLinkId = linkId } })], []), CancellationToken.None);
         Assert.True(result.IsSuccess, string.Join("; ", result.Errors.Select(x => x.Message)));
         Assert.Equal(2, _links.Count);
-        var stored = await _db.PipelineNodes.AsNoTracking().FirstOrDefaultAsync(x => x.Id == newNodeId);
+        var p = await _db.Pipelines.AsNoTracking().SingleAsync();
+        var stored = p.GraphData.Nodes.FirstOrDefault(x => x.Id == newNodeId);
         Assert.NotNull(stored);
         var newLinkId = stored.Config!.RootElement.GetProperty("File").GetProperty("assetLinkId").GetGuid();
         Assert.NotEqual(linkId, newLinkId);
@@ -221,9 +231,8 @@ public sealed class PipelineFileParameterTests : IDisposable
         var nodeId = Guid.NewGuid();
         await Save(Item(nodeId, new { File = new { assetId = Guid.NewGuid(), originalName = "one.txt" } }));
         Assert.True((await new DeletePipelineHandler(_db).HandleAsync(new(_pipeline.Id), CancellationToken.None)).IsSuccess);
-        Assert.True((await new PurgePipelineHandler(_db).HandleAsync(new(_pipeline.Id), CancellationToken.None)).IsSuccess);
-        Assert.Single(_links);
-        Assert.Contains(new EntityDeletedMessage("PipelineNode", nodeId.ToString()), _deleted);
+        Assert.True((await new PurgePipelineHandler(_db, _assets).HandleAsync(new(_pipeline.Id), CancellationToken.None)).IsSuccess);
+        Assert.Empty(_links);
         Assert.Contains(new EntityDeletedMessage("Pipeline", _pipeline.Id.ToString()), _deleted);
     }
 
@@ -241,28 +250,27 @@ public sealed class PipelineFileParameterTests : IDisposable
     }
 
     [Fact]
-    public async Task DraftNodeDeletion_UsesSharedEntityDeletionEvent()
+    public async Task DraftNodeDeletion_RevokesLinksDirectlyViaBatchApi()
     {
         var id = Guid.NewGuid();
         await Save(Item(id, new { File = new { assetId = Guid.NewGuid(), originalName = "deleted.txt" } }));
+        Assert.Single(_links);
         var result = await Saver().HandleAsync(new(_pipeline.Id, [], []), CancellationToken.None);
         Assert.True(result.IsSuccess);
-        Assert.Contains(new EntityDeletedMessage("PipelineNode", id.ToString()), _deleted);
-        Assert.Single(_links);
+        Assert.Empty(_links);
     }
 
     [Fact]
-    public async Task DeletionPublicationFailure_DoesNotCrashSavingAndStillSaves()
+    public async Task CanvasNodeRemoval_RevokesLinksDirectlyAndSavesEmptyGraph()
     {
         var id = Guid.NewGuid();
         await Save(Item(id, new { File = new { assetId = Guid.NewGuid(), originalName = "keep.txt" } }));
-        _bus.PublishAsync(Arg.Any<EntityDeletedMessage>(), Arg.Any<DeliveryOptions>())
-            .Returns(_ => throw new InvalidOperationException("Outbox unavailable."));
+        Assert.Single(_links);
         var result = await Saver().HandleAsync(new(_pipeline.Id, [], []), CancellationToken.None);
         Assert.True(result.IsSuccess);
-        _db.ChangeTracker.Clear();
-        Assert.Empty(await _db.PipelineNodes.ToListAsync());
-        Assert.Single(_links);
+        var p = await _db.Pipelines.AsNoTracking().SingleAsync(x => x.Id == _pipeline.Id);
+        Assert.Empty(p.GraphData.Nodes);
+        Assert.Empty(_links);
     }
 
     [Fact]

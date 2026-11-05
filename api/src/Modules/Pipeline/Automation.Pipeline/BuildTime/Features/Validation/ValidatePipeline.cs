@@ -39,8 +39,6 @@ public class ValidatePipelineHandler(
     )
     {
         var pipeline = await db.Pipelines
-            .Include(p => p.Nodes)
-            .Include(p => p.Edges)
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == query.PipelineId, ct);
 

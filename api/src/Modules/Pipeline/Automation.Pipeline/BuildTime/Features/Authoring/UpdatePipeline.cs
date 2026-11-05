@@ -48,8 +48,6 @@ public class UpdatePipelineHandler(PipelineDbContext db)
     {
         var trimmedName = command.Name.Trim();
         var pipeline = await db.Pipelines
-            .Include(x => x.Nodes)
-            .Include(x => x.Edges)
             .FirstOrDefaultAsync(x => x.Id == command.Id, ct);
 
         if (pipeline == null)

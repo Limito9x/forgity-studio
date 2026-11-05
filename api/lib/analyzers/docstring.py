@@ -87,3 +87,41 @@ def extract_options_from_docstring(param_desc: str) -> Optional[List[str]]:
             return filtered
 
     return None
+
+
+def extract_file_hint(param_name: str, param_desc: str) -> Optional[Tuple[bool, Optional[str]]]:
+    """
+    Extracts file/asset hint and optional file extension filter from parameter description or name.
+    Matches:
+      - [file:.py] or [file:.py,.json] -> (True, ".py" or ".py,.json")
+      - [file] or [asset] -> (True, None)
+      - @file or @asset -> (True, None)
+      - type: file or type: asset -> (True, None)
+      - Fallback heuristic on name:
+        if name ends with _file, _asset, _preset or contains preset -> (True, ".py" if "preset" in name else None)
+    """
+    if param_desc:
+        # 1. Bracket tag: [file:.py] or [file] or [asset:.fbx]
+        m = re.search(r"\[(?:file|asset)(?::([a-zA-Z0-9_,\.\-\*]+))?\]", param_desc, re.IGNORECASE)
+        if m:
+            accept = m.group(1).strip() if m.group(1) else None
+            return True, accept
+
+        # 2. At tag: @file or @asset
+        m2 = re.search(r"@(?:file|asset)(?::([a-zA-Z0-9_,\.\-\*]+))?", param_desc, re.IGNORECASE)
+        if m2:
+            accept = m2.group(1).strip() if m2.group(1) else None
+            return True, accept
+
+        # 3. Explicit type: file in docstring
+        if re.search(r"(?:type|format)\s*:\s*(?:file|asset)", param_desc, re.IGNORECASE):
+            return True, None
+
+    # 4. Safe heuristic fallback by parameter name
+    name_lower = param_name.lower()
+    if name_lower.endswith(("_preset", "_file", "_asset")) or "preset" in name_lower:
+        default_accept = ".py" if "preset" in name_lower else None
+        return True, default_accept
+
+    return None
+

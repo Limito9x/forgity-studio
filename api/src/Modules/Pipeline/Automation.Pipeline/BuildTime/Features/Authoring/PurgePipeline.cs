@@ -2,6 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
 using Automation.Pipeline.Infrastructure.Persistence;
 using Automation.SharedKernel.Errors;
+using Automation.Files.Contracts;
+using Automation.Pipeline.Domain.ValueObjects;
+
 namespace Automation.Pipeline.BuildTime.Features.Authoring;
 
 public record PurgePipelineCommand(Guid Id);
@@ -29,7 +32,7 @@ public class PurgePipelineEndpoint(IMessageBus bus) : EndpointWithoutRequest
 }
 
 [Transactional(typeof(PipelineDbContext))]
-public class PurgePipelineHandler(PipelineDbContext db)
+public class PurgePipelineHandler(PipelineDbContext db, IAssetApi assetApi)
 {
     public async Task<Result> HandleAsync(
         PurgePipelineCommand command,
@@ -58,35 +61,33 @@ public class PurgePipelineHandler(PipelineDbContext db)
 
         // Chặn Purge nếu đang được gọi làm SubPipeline trong pipeline active khác
         var pipelineIdStr = command.Id.ToString();
-        var isUsedAsSubPipeline = await db.Pipelines
-            .AnyAsync(p => p.Id != command.Id 
-                        && p.DeletedAt == null 
-                        && p.Nodes.Any(n => n.Kind == Constants.PipelineNodeKind.SubPipeline && n.RefId == pipelineIdStr), ct);
+        var allOtherGraphs = await db.Pipelines
+            .Where(p => p.Id != command.Id && p.DeletedAt == null)
+            .Select(p => p.GraphData)
+            .ToListAsync(ct);
+        var isUsedAsSubPipeline = allOtherGraphs
+            .Any(g => g.Nodes.Any(n => n.Kind == Constants.PipelineNodeKind.SubPipeline && n.RefId == pipelineIdStr));
 
         if (isUsedAsSubPipeline)
         {
             return Result.Fail(new ConflictError($"Cannot permanently delete pipeline '{pipeline.Name}' because it is currently referenced as a SubPipeline in active pipeline(s)."));
         }
 
-        // 1. Xóa các Node trước (để kích hoạt EntityDeletedInterceptor dọn dẹp Asset Links)
-        var nodes = await db.PipelineNodes
-            .Where(x => x.PipelineId == command.Id)
-            .ToListAsync(ct);
-
-        if (nodes.Count > 0)
+        // 1. Quét toàn bộ File Links trong GraphData.Nodes để thu hồi hàng loạt bằng Batch API
+        var linksToRemove = new List<AssetLinkReference>();
+        foreach (var node in pipeline.GraphData.Nodes)
         {
-            db.PipelineNodes.RemoveRange(nodes);
+            if (node.Config != null)
+            {
+                linksToRemove.AddRange(PipelineFileValue.References(node.Id, node.Config));
+            }
+        }
+        if (linksToRemove.Count > 0)
+        {
+            await assetApi.RemoveLinksByIdsAsync(linksToRemove, ct);
         }
 
-        // 2. Xóa các Edges
-        var edges = await db.PipelineEdges
-            .Where(x => x.PipelineId == command.Id)
-            .ToListAsync(ct);
-
-        if (edges.Count > 0)
-        {
-            db.PipelineEdges.RemoveRange(edges);
-        }
+        // 2. Dọn dẹp các Executions thuộc pipeline này (nếu có) để thỏa mãn Restrict foreign key
 
         // 3. Dọn dẹp các Executions thuộc pipeline này (nếu có) để thỏa mãn Restrict foreign key
         var executions = await db.PipelineExecutions
@@ -98,7 +99,7 @@ public class PurgePipelineHandler(PipelineDbContext db)
             db.PipelineExecutions.RemoveRange(executions);
         }
 
-        // 4. Xóa vĩnh viễn bản ghi Pipeline
+        // 4. Xóa vĩnh viễn bản ghi Pipeline (Snapshots sẽ được Postgres Cascade Delete)
         db.Pipelines.Remove(pipeline);
         await db.SaveChangesAsync(ct);
 

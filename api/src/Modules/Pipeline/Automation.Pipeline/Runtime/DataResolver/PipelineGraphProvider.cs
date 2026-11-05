@@ -4,6 +4,7 @@ using Automation.Pipeline.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.ValueObjects;
+
 namespace Automation.Pipeline.Runtime.DataResolver;
 
 public class PipelineGraphProvider(PipelineDbContext db) : IPipelineGraphProvider
@@ -72,7 +73,34 @@ public class PipelineGraphProvider(PipelineDbContext db) : IPipelineGraphProvide
         var execution = await GetExecutionByIdAsync(executionId, ct);
         if (execution == null) return null;
 
-        return await GetPipelineByIdAsync(execution.PipelineId, ct);
+        var pipeline = await GetPipelineByIdAsync(execution.PipelineId, ct);
+        if (pipeline == null) return null;
+
+        // Nếu execution có SnapshotId, nạp GraphData từ Snapshot bất biến
+        if (execution.SnapshotId.HasValue)
+        {
+            var snapshot = await db.PipelineSnapshots
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == execution.SnapshotId.Value, ct);
+            if (snapshot != null)
+            {
+                var frozenPipeline = new Domain.Entities.Pipeline(
+                    pipeline.ProjectId,
+                    pipeline.Name,
+                    pipeline.TriggerType,
+                    pipeline.TriggerConfig
+                )
+                {
+                    Id = pipeline.Id,
+                    GraphData = snapshot.GraphData,
+                    GraphHash = snapshot.GraphHash,
+                    ActiveSnapshotId = snapshot.Id
+                };
+                return frozenPipeline;
+            }
+        }
+
+        return pipeline;
     }
 
     public async Task<Domain.Entities.Pipeline?> GetPipelineByIdAsync(Guid pipelineId, CancellationToken ct = default)
@@ -83,8 +111,6 @@ public class PipelineGraphProvider(PipelineDbContext db) : IPipelineGraphProvide
         }
 
         var pipeline = await db.Pipelines
-            .Include(p => p.Nodes)
-            .Include(p => p.Edges)
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == pipelineId, ct);
 

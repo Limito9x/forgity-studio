@@ -97,6 +97,32 @@ public class TransientPipelineGraphFactory(
             }
         }
 
+        // Tra cứu thêm định nghĩa từ các project khác trong hệ thống để tự động bù chân pin nếu package JSON cũ bị thiếu
+        var packageScriptKeys = package.Dependencies?.CustomScripts?
+            .Select(s => s.Key)
+            .Where(k => !string.IsNullOrWhiteSpace(k))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList() ?? [];
+
+        Dictionary<string, NodeDefinition> systemFallbackMap = [];
+        if (packageScriptKeys.Count > 0)
+        {
+            var systemDefs = await db.NodeDefinitions
+                .AsNoTracking()
+                .Where(nd => packageScriptKeys.Contains(nd.Key))
+                .ToListAsync(ct);
+
+            systemFallbackMap = systemDefs
+                .GroupBy(d => d.Key, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderByDescending(d => (d.Outputs?.Count ?? 0) + (d.Inputs?.Count ?? 0))
+                          .ThenByDescending(d => d.UpdatedAt ?? d.CreatedAt)
+                          .First(),
+                    StringComparer.OrdinalIgnoreCase
+                );
+        }
+
         // Hợp nhất thêm các Custom Scripts có sẵn source code trong gói JSON
         if (package.Dependencies?.CustomScripts != null)
         {
@@ -105,6 +131,30 @@ public class TransientPipelineGraphFactory(
                 if (string.IsNullOrWhiteSpace(script.Key) || string.IsNullOrWhiteSpace(script.ScriptContent))
                 {
                     continue;
+                }
+
+                var mergedInputs = script.Inputs?.ToList() ?? [];
+                var mergedOutputs = script.Outputs?.ToList() ?? [];
+
+                // Fallback bù chân pin nếu package JSON cũ thiếu pin mà system DB có
+                if (systemFallbackMap.TryGetValue(script.Key, out var sysDef))
+                {
+                    if (sysDef.Inputs != null)
+                    {
+                        var inIds = mergedInputs.Select(p => p.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                        foreach (var p in sysDef.Inputs)
+                        {
+                            if (!inIds.Contains(p.Id)) mergedInputs.Add(p);
+                        }
+                    }
+                    if (sysDef.Outputs != null)
+                    {
+                        var outIds = mergedOutputs.Select(p => p.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                        foreach (var p in sysDef.Outputs)
+                        {
+                            if (!outIds.Contains(p.Id)) mergedOutputs.Add(p);
+                        }
+                    }
                 }
 
                 // Nếu chưa có trong DB đích, tạo NodeDefinition ảo in-memory
@@ -119,13 +169,34 @@ public class TransientPipelineGraphFactory(
                         Label = string.IsNullOrWhiteSpace(script.Label) ? script.Key : script.Label.Trim(),
                         Executor = string.IsNullOrWhiteSpace(script.Executor) ? "blender" : script.Executor.Trim().ToLowerInvariant(),
                         ContentHash = script.ContentHash ?? string.Empty,
-                        Inputs = script.Inputs?.ToList() ?? [],
-                        Outputs = script.Outputs?.ToList() ?? [],
+                        Inputs = mergedInputs,
+                        Outputs = mergedOutputs,
                         Status = NodeLifecycleStatus.Published
                     };
 
                     customByKey[script.Key] = virtualDef;
                     customById[virtualDef.Id] = virtualDef;
+                }
+                else
+                {
+                    // Nếu đã có trong DB nhưng thiếu chân pin so với package hoặc system, bổ sung in-memory
+                    var existingDef = customByKey[script.Key];
+                    if (existingDef.Inputs != null)
+                    {
+                        var existInIds = existingDef.Inputs.Select(p => p.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                        foreach (var p in mergedInputs)
+                        {
+                            if (!existInIds.Contains(p.Id)) existingDef.Inputs.Add(p);
+                        }
+                    }
+                    if (existingDef.Outputs != null)
+                    {
+                        var existOutIds = existingDef.Outputs.Select(p => p.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                        foreach (var p in mergedOutputs)
+                        {
+                            if (!existOutIds.Contains(p.Id)) existingDef.Outputs.Add(p);
+                        }
+                    }
                 }
             }
         }

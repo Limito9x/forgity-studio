@@ -82,7 +82,10 @@ public sealed class PipelinePackageExportImportTests : IDisposable
             positionY: 100
         );
 
-        _db.PipelineNodes.AddRange(nodeWithUnboundFile, customNodeMissingScript);
+                _pipeline.GraphData = new PipelineGraphDocument
+        {
+            Nodes = [nodeWithUnboundFile, customNodeMissingScript]
+        };
         _db.SaveChanges();
 
         _toolRegistry = new EmptyTools();
@@ -247,8 +250,6 @@ public sealed class PipelinePackageExportImportTests : IDisposable
         var importedPipeId = importRes.Value.Pipelines[0].PipelineId;
 
         var importedPipeline = await _db.Pipelines
-            .Include(p => p.Nodes)
-            .Include(p => p.Edges)
             .FirstAsync(p => p.Id == importedPipeId);
 
         // Check Custom Node flagged

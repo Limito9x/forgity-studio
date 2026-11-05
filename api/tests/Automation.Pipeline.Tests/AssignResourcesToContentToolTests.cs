@@ -26,8 +26,8 @@ public class AssignResourcesToContentToolTests
 
         var (inputs, _) = tool.ResolvePins(config);
 
-        inputs.Should().HaveCount(2);
-        inputs.Select(p => p.Id).Should().BeEquivalentTo(["ContentItem", "Resources"]);
+        inputs.Should().HaveCount(3);
+        inputs.Select(p => p.Id).Should().BeEquivalentTo(["ContentItem", "Resources", "AnchorPath"]);
 
         var contentItemPin = inputs.First(p => p.Id == "ContentItem");
         contentItemPin.PrimitiveType.Should().Be(PinPrimitiveType.EntityRef);
@@ -43,8 +43,8 @@ public class AssignResourcesToContentToolTests
 
         var (inputs, _) = tool.ResolvePins(config);
 
-        inputs.Should().HaveCount(4);
-        inputs.Select(p => p.Id).Should().BeEquivalentTo(["ContentType", "ContentName", "CreateIfNotExists", "Resources"]);
+        inputs.Should().HaveCount(5);
+        inputs.Select(p => p.Id).Should().BeEquivalentTo(["ContentType", "ContentName", "CreateIfNotExists", "Resources", "AnchorPath"]);
 
         var contentTypePin = inputs.First(p => p.Id == "ContentType");
         contentTypePin.PrimitiveType.Should().Be(PinPrimitiveType.String);
@@ -75,6 +75,8 @@ public class AssignResourcesToContentToolTests
 
         _workspaceApi.AssignResourceToContentAsync(contentId, Arg.Any<List<Guid>>(), Arg.Any<CancellationToken>())
             .Returns(Result.Ok());
+        _contentApi.AssignResourcesToAnchorAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string?>(), Arg.Any<List<ResourceSmartLinkInput>>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok<IReadOnlyList<ContentAnchorLinkDto>>([]));
 
         var inputs = new Dictionary<string, object>
         {
@@ -104,6 +106,8 @@ public class AssignResourcesToContentToolTests
 
         _workspaceApi.AssignResourceToContentAsync(contentId, Arg.Any<List<Guid>>(), Arg.Any<CancellationToken>())
             .Returns(Result.Ok());
+        _contentApi.AssignResourcesToAnchorAsync(Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<string?>(), Arg.Any<List<ResourceSmartLinkInput>>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Ok<IReadOnlyList<ContentAnchorLinkDto>>([]));
 
         var inputs = new Dictionary<string, object>
         {

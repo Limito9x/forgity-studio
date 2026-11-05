@@ -64,8 +64,8 @@ public class RestorePipelineHandler(PipelineDbContext db)
         await db.SaveChangesAsync(ct);
 
         // Load số lượng nodes & edges để trả về DTO
-        var nodeCount = await db.PipelineNodes.CountAsync(x => x.PipelineId == pipeline.Id, ct);
-        var edgeCount = await db.PipelineEdges.CountAsync(x => x.PipelineId == pipeline.Id, ct);
+        var nodeCount = pipeline.GraphData.Nodes.Count;
+        var edgeCount = pipeline.GraphData.Edges.Count;
 
         var dto = new PipelineSummaryDto(
             pipeline.Id,

@@ -43,6 +43,30 @@
 
 ---
 
+### 1.1. Diffeomorphic Import Scale
+
+- `pipeline-scripts/blender/diffeomorphic_import.py` configures Scene Metric with `scale_length = 0.01` and Diffeomorphic `GS.scale = 1.0` for the FBX to UE5 workflow.
+- Do not pass `unit_scale` to `bpy.ops.daz.easy_import_daz`: DAZ Importer 5.2.0 does not expose this operator property.
+- `useUnits` imports Face Units morphs, not measurement units. Preserve its preset value or the addon default.
+
+### 1.2. Scoped Game Contracts Inspection (2026-11-05)
+
+`pipeline-scripts/unreal/inspect_game_contracts.py` runs in Python before classification/import. Configure these inputs once in **Fbx To Unreal**:
+
+- `project_path`: absolute `.uproject` file on the executing Runner. Unreal executor configuration is not automatically injected into Python script inputs.
+- `material_folders`: Content-relative folder list, e.g. `["Characters/Genesis9/Base/Materials"]`.
+- `material_pattern`: filename glob, default `M_*.uasset`.
+- `pda_folders`: Content-relative folder list, e.g. `["Systems/Characters", "Systems/Wardrobe"]`.
+- `pda_pattern`: filename glob, default `PDA_*.uasset`.
+
+Both groups may share folders. Each selected folder is scanned recursively; overlapping selections are deduplicated within each group. Absolute folder paths, parent traversal, paths escaping Content, and directory patterns are rejected. Every configured folder must exist and match at least one `.uasset`. Filename patterns select candidates; name-table type markers are also checked. Unreadable contracts, wrong type markers, or duplicate contract identities fail inspection instead of being silently skipped or overwritten.
+
+GameplayTags are read only from `<project>/Config/DefaultGameplayTags.ini`; a missing/unreadable file fails inspection. No upward project search or fallback folders. Binary property parsers are unchanged; type-marker checks are not a complete UE class/inheritance validator.
+
+Migration: replace old `uasset_files`, `folder_path`, `config_folder`, `file_pattern`, `allowed_prefixes` inputs and their wires with the five inputs above after republishing the custom script. The exported package JSON remains a historical snapshot and has not been modified. Output keys remain unchanged; `contracts.skeletons` is empty and `skeletons_count` is zero. Configure `skeleton_path` explicitly on **Import Character Wardrobe**.
+
+Verification: focused discovery tests plus script harness. A read-only run on `TemplateProject` found 8 materials, 2 schemas, 35 tags and 14 slots; this does not certify all parsed property values or end-to-end Unreal import.
+
 ## 2. Bản Chất Kiến Trúc Shader DAZ / Diffeomorphic Trong Blender
 
 ### 2.1. Cấu trúc tổ chức vật liệu

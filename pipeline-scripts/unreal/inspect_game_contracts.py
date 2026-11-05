@@ -4,10 +4,10 @@ Pure-Python Game Contracts Inspector (Materials, DataAsset Schemas, and Gameplay
 Runs on Generic Python Executor or Local Host (< 10ms per file, no Unreal Engine process required).
 
 Consumes:
-  1. uasset_files (optional): Direct list of physical .uasset file paths (Materials or Schemas).
-  2. folder_path (optional): Root or subfolder containing .uasset files to inspect recursively.
-  3. config_folder (optional): Path to Project Config/ folder to read DefaultGameplayTags.ini.
-  4. file_pattern (optional): Pattern filter, default "*.uasset".
+  1. project_path: Explicit .uproject file on the executing Runner.
+  2. material_folders / material_pattern: Content-relative roots and filename filter for materials.
+  3. pda_folders / pda_pattern: Content-relative roots and filename filter for PDA schemas.
+  Config/DefaultGameplayTags.ini is resolved directly beside the selected .uproject.
 
 Performs:
   - Fast binary parsing of UE5 FPackageFileSummary, FName Table, and FPropertyTags.
@@ -26,22 +26,28 @@ Outputs:
 """
 
 import os
-import sys
 import json
-import glob
 import struct
-from typing import Dict, Any, List, Optional, Union, Tuple
+from pathlib import Path, PureWindowsPath
+from typing import Dict, Any, List, Optional, Tuple
 
 
-def resolve_sampler_preset(sampler_str: str) -> Dict[str, Any]:
+def resolve_sampler_preset(sampler_str: str, param_name: str = "") -> Dict[str, Any]:
     """
     Translates Unreal Engine SAMPLERTYPE_* to texture compression preset,
     sRGB color space, Virtual Texture flag, and semantic mapping category.
+    Includes smart parameter name heuristic fallback if sampler is ambiguous.
     """
     sampler_upper = (sampler_str or "").strip().upper()
     is_virtual = "VIRTUAL" in sampler_upper
+    p_lower = (param_name or "").strip().lower()
 
-    if "NORMAL" in sampler_upper:
+    # Prioritize parameter name keywords if technical artist left SamplerType as default Color
+    is_opacity_param = any(k in p_lower for k in ["opacity", "alpha", "mask", "trans", "cutout"])
+    is_mask_orm_param = any(k in p_lower for k in ["orm", "rough", "metal", "spec", "ao", "cavity"])
+    is_normal_param = any(k in p_lower for k in ["norm", "nm", "tangent"])
+
+    if "NORMAL" in sampler_upper or is_normal_param:
         return {
             "sampler_type": sampler_str,
             "compression": "TC_NORMALMAP",
@@ -49,7 +55,7 @@ def resolve_sampler_preset(sampler_str: str) -> Dict[str, Any]:
             "vt": is_virtual,
             "semantic": "NORMAL"
         }
-    elif "MASK" in sampler_upper or "LINEARCOLOR" in sampler_upper:
+    elif "MASK" in sampler_upper or "LINEARCOLOR" in sampler_upper or is_opacity_param or is_mask_orm_param:
         return {
             "sampler_type": sampler_str,
             "compression": "TC_MASKS",
@@ -189,7 +195,7 @@ def parse_uasset_material(filepath: str, data: bytes, pkg_name: str, names: List
 
         if is_tex:
             seen_names.add(param_name)
-            preset = resolve_sampler_preset(sampler_val)
+            preset = resolve_sampler_preset(sampler_val, param_name=param_name)
             texture_slots[param_name] = {
                 "parameter_name": param_name,
                 "sampler_type": sampler_val,
@@ -322,34 +328,35 @@ def parse_uasset_schema(filepath: str, data: bytes, pkg_name: str, names: List[s
     }
 
 
-def find_project_root_and_config(start_path: str) -> Optional[str]:
-    """
-    Walks up directory tree until .uproject file is found,
-    then returns the project's Config/ folder path.
-    """
-    if not start_path:
-        return None
-
-    curr = os.path.abspath(start_path)
-    if os.path.isfile(curr):
-        curr = os.path.dirname(curr)
-
-    # Walk up to root
-    for _ in range(12):
-        # Check if .uproject exists in curr
-        for item in os.listdir(curr):
-            if item.endswith(".uproject"):
-                config_candidate = os.path.join(curr, "Config")
-                if os.path.isdir(config_candidate):
-                    return config_candidate
-                return None
-
-        parent = os.path.dirname(curr)
-        if parent == curr:
-            break
-        curr = parent
-
-    return None
+def collect_contract_files(content_root: Path, folders: List[str], pattern: str, group: str) -> List[str]:
+    """Collect only explicit Content-relative roots, rejecting paths outside their scope."""
+    if not isinstance(folders, list) or not folders:
+        raise ValueError(f"{group}_folders must be a non-empty list of Content-relative folders")
+    if not pattern or any(char in pattern for char in ("/", "\\", ":")) or pattern in (".", ".."):
+        raise ValueError(f"{group}_pattern must be a filename pattern, without directories")
+    found = set()
+    for folder in folders:
+        if not isinstance(folder, str) or not folder.strip():
+            raise ValueError(f"{group}_folders contains an empty or invalid folder")
+        relative = folder.strip().replace("\\", "/")
+        if PureWindowsPath(relative).drive or relative.startswith("/") or ".." in relative.split("/"):
+            raise ValueError(f"{group} folder must be relative to Content: {folder}")
+        root = (content_root / relative).resolve()
+        if not root.is_relative_to(content_root):
+            raise ValueError(f"{group} folder is outside Content: {folder}")
+        if not root.is_dir():
+            raise FileNotFoundError(f"{group} folder does not exist: {root}")
+        matches = []
+        for candidate in root.rglob(pattern):
+            resolved = candidate.resolve()
+            if not resolved.is_relative_to(root):
+                raise ValueError(f"{group} asset is outside selected folder: {candidate}")
+            if resolved.is_file() and resolved.suffix.lower() == ".uasset":
+                matches.append(str(resolved))
+        if not matches:
+            raise ValueError(f"No {group} .uasset files match '{pattern}' in {root}")
+        found.update(matches)
+    return sorted(found)
 
 
 def parse_default_gameplay_tags_ini(config_path: str) -> Tuple[List[str], List[str]]:
@@ -384,98 +391,77 @@ def parse_default_gameplay_tags_ini(config_path: str) -> Tuple[List[str], List[s
                                 tags.append(tag_str)
                                 if "System.Wardrobe.Slots." in tag_str or ".Slots." in tag_str:
                                     slots.append(tag_str)
-    except Exception as ex:
-        print(f"[inspect_contracts] Warning: Failed to parse tags ini: {ex}", flush=True)
+    except OSError as ex:
+        raise OSError(f"Failed to read GameplayTags file: {target_file}") from ex
 
     return sorted(tags), sorted(slots)
 
 
 def main(
-    uasset_files: Optional[List[str]] = None,
-    folder_path: str = "",
-    config_folder: str = "",
-    file_pattern: str = "*.uasset",
-    allowed_prefixes: Optional[List[str]] = None,
-    **kwargs
+    project_path: str,
+    material_folders: List[str],
+    pda_folders: List[str],
+    material_pattern: str = "M_*.uasset",
+    pda_pattern: str = "PDA_*.uasset",
 ) -> Dict[str, Any]:
     """
-    Main entry point for Pure-Python Game Contracts Inspection.
+    Inspect material and PDA contracts only inside explicitly selected project folders.
+
+    Args:
+        project_path: Absolute .uproject path on the Runner; required to resolve Content and Config without searching.
+        material_folders: List of Content-relative material folders; required to bound recursive inspection.
+        pda_folders: List of Content-relative PDA schema folders; required to bound recursive inspection. May overlap material folders.
+        material_pattern: Filename glob for material candidates, default M_*.uasset; needed to exclude unrelated assets within selected folders.
+        pda_pattern: Filename glob for schema candidates, default PDA_*.uasset; needed to exclude unrelated assets within selected folders.
+
+    Returns:
+        contracts: Material/schema definitions and registered tags consumed by classification and import; skeletons remains empty, select skeleton_path at import.
+        materials_count: Number of inspected material contracts for verification.
+        schemas_count: Number of inspected PDA schemas for verification.
+        skeletons_count: Always zero; retained for existing output consumers.
+        slots_count: Number of discovered wardrobe slots for verification.
+        tags_count: Number of registered tags for verification.
+        summary: Inspection counts for execution logs.
     """
-    files_to_inspect: List[str] = []
-
-    if uasset_files:
-        files_to_inspect.extend([f for f in uasset_files if f and f.endswith(".uasset")])
-
-    if folder_path and os.path.isdir(folder_path):
-        pat = os.path.join(folder_path, "**", file_pattern)
-        found = glob.glob(pat, recursive=True)
-        files_to_inspect.extend(found)
-
-    # Normalize allowed prefixes
-    clean_prefixes = []
-    if allowed_prefixes:
-        for p in allowed_prefixes:
-            if p:
-                clean_prefixes.append(p.strip().replace("\\", "/").strip("/").lower())
-
-    # De-duplicate preserving order with path filter
-    unique_files: List[str] = []
-    seen = set()
-    for fp in files_to_inspect:
-        norm = os.path.abspath(fp)
-        if norm in seen or not os.path.isfile(norm):
-            continue
-
-        if clean_prefixes:
-            norm_fwd = norm.replace("\\", "/").lower()
-            # Must match at least one allowed prefix
-            matched = False
-            for pfx in clean_prefixes:
-                if f"/{pfx}/" in norm_fwd or norm_fwd.endswith(f"/{pfx}") or f"/{pfx}" in norm_fwd:
-                    matched = True
-                    break
-            if not matched:
-                continue
-
-        seen.add(norm)
-        unique_files.append(norm)
+    project = Path(project_path).expanduser()
+    if not project.is_absolute() or project.suffix.lower() != ".uproject" or not project.is_file():
+        raise ValueError(f"project_path must be an existing absolute .uproject file: {project_path}")
+    project = project.resolve()
+    content_root = (project.parent / "Content").resolve()
+    material_files = collect_contract_files(content_root, material_folders, material_pattern, "material")
+    pda_files = collect_contract_files(content_root, pda_folders, pda_pattern, "pda")
+    config_file = project.parent / "Config" / "DefaultGameplayTags.ini"
+    if not config_file.is_file():
+        raise FileNotFoundError(f"GameplayTags file does not exist: {config_file}")
 
     materials: Dict[str, Any] = {}
     schemas: Dict[str, Any] = {}
     skeletons: Dict[str, Any] = {}
 
-    for fp in unique_files:
-        parsed_tuple = read_uasset_names_and_package(fp)
-        if not parsed_tuple:
-            continue
-        data, pkg_name, names = parsed_tuple
-        base_name = os.path.basename(fp)
+    for group, files, target, parser, key in (
+        ("material", material_files, materials, parse_uasset_material, "material_tag"),
+        ("pda", pda_files, schemas, parse_uasset_schema, "schema_name"),
+    ):
+        for fp in files:
+            parsed_tuple = read_uasset_names_and_package(fp)
+            if not parsed_tuple:
+                raise ValueError(f"Cannot read {group} .uasset contract: {fp}")
+            data, pkg_name, names = parsed_tuple
+            if group == "material":
+                valid_type = "Material" in names and "MaterialInstanceConstant" not in names
+            else:
+                valid_type = "BlueprintGeneratedClass" in names and any(name in names for name in ("PrimaryDataAsset", "DataAsset"))
+            if not valid_type:
+                raise ValueError(f"Asset lacks expected {group} type markers: {fp}")
+            contract = parser(fp, data, pkg_name, names)
+            if not contract:
+                raise ValueError(f"Cannot extract {group} contract: {fp}")
+            identity = contract[key]
+            if identity in target:
+                raise ValueError(f"Duplicate {group} contract '{identity}': {target[identity]['source_file']} and {fp}")
+            target[identity] = contract
 
-        # Distinguish between Master Material, DataAsset Schema, and Skeleton
-        if "Skeleton" in base_name or ("Skeleton" in names and ("BoneTree" in names or "BoneNode" in names)):
-            skel_name = base_name.replace(".uasset", "")
-            skeletons[skel_name] = {
-                "skeleton_name": skel_name,
-                "package_path": pkg_name,
-                "source_file": fp
-            }
-        elif base_name.startswith("M_") or "Material" in base_name:
-            mat = parse_uasset_material(fp, data, pkg_name, names)
-            if mat:
-                materials[mat["material_tag"]] = mat
-        elif base_name.startswith("PDA_") or "Schema" in base_name or "DataAsset" in base_name:
-            schema = parse_uasset_schema(fp, data, pkg_name, names)
-            if schema:
-                schemas[schema["schema_name"]] = schema
-
-    # Auto-detect config_folder by walking up to .uproject
-    if not config_folder and (unique_files or folder_path):
-        search_start = unique_files[0] if unique_files else folder_path
-        detected_cfg = find_project_root_and_config(search_start)
-        if detected_cfg:
-            config_folder = detected_cfg
-
-    gameplay_tags, wardrobe_slots = parse_default_gameplay_tags_ini(config_folder)
+    gameplay_tags, wardrobe_slots = parse_default_gameplay_tags_ini(str(config_file))
 
     contracts: Dict[str, Any] = {
         "materials": materials,
@@ -486,7 +472,7 @@ def main(
     }
 
     summary = (
-        f"Inspected {len(unique_files)} .uasset files. "
+        f"Inspected {len(set(material_files + pda_files))} .uasset files. "
         f"Discovered {len(materials)} Master Materials, "
         f"{len(schemas)} Schemas ({', '.join(schemas.keys()) or 'None'}), "
         f"{len(skeletons)} Skeletons ({', '.join(skeletons.keys()) or 'None'}), "
@@ -508,11 +494,12 @@ def main(
 
 
 if __name__ == "__main__":
-    test_folder = r"D:\Games\UnrealEngine\Projects\TemplateProject\Content"
-    test_config = r"D:\Games\UnrealEngine\Projects\TemplateProject\Config"
-    res = main(folder_path=test_folder, config_folder=test_config)
-    print("\n--- TEST INSPECT RESULT ---")
-    print("Materials:", list(res["contracts"]["materials"].keys()))
-    print("Schemas:", list(res["contracts"]["schemas"].keys()))
-    print("Sample Tags:", res["contracts"]["gameplay_tags"][:5])
+    import argparse
+    cli = argparse.ArgumentParser(description="Inspect scoped Unreal game contracts")
+    cli.add_argument("project_path")
+    cli.add_argument("--material-folders", nargs="+", required=True)
+    cli.add_argument("--pda-folders", nargs="+", required=True)
+    cli.add_argument("--material-pattern", default="M_*.uasset")
+    cli.add_argument("--pda-pattern", default="PDA_*.uasset")
+    print(json.dumps(main(**vars(cli.parse_args())), indent=2))
 

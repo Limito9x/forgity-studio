@@ -36,11 +36,14 @@ public static class PipelineCycleValidator
                 continue;
             }
 
-            // Load subpipeline nodes of currentPipelineId
-            var subNodes = await db.PipelineNodes
+            // Load subpipeline nodes of currentPipelineId from GraphData
+            var currentPipeline = await db.Pipelines
                 .AsNoTracking()
-                .Where(x => x.PipelineId == currentPipelineId && x.Kind == PipelineNodeKind.SubPipeline)
-                .ToListAsync(ct);
+                .FirstOrDefaultAsync(x => x.Id == currentPipelineId, ct);
+
+            var subNodes = currentPipeline?.GraphData.Nodes
+                .Where(x => x.Kind == PipelineNodeKind.SubPipeline)
+                .ToList() ?? [];
 
             foreach (var node in subNodes)
             {

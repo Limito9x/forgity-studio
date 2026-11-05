@@ -40,9 +40,6 @@ public class GetPipelineGraphHandler(
     {
         var pipeline = await db.Pipelines
             .AsNoTracking()
-            .AsSplitQuery()
-            .Include(x => x.Nodes)
-            .Include(x => x.Edges)
             .FirstOrDefaultAsync(x => x.Id == query.PipelineId, ct);
 
         if (pipeline == null)

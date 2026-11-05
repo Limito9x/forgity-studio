@@ -1074,7 +1074,9 @@ export const SavePipelineGraphBody = /*#__PURE__*/ zod.object({
   "contextData": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.looseObject({
 
 }))
-})))
+}))),
+  "createSnapshot": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean()),
+  "snapshotSummary": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 export const savePipelineGraphResponseEdgesItemKindDefault = `Data`;
@@ -1210,6 +1212,159 @@ export const RestorePipelineResponse = /*#__PURE__*/ zod.object({
   "deletedAt": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.iso.datetime({"offset":true}))
 })
 
+export const CreatePipelineSnapshotParams = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid()
+})
+
+export const CreatePipelineSnapshotBody = /*#__PURE__*/ zod.object({
+  "summary": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+})
+
+export const CreatePipelineSnapshotResponse = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "pipelineId": /*#__PURE__*/ zod.uuid(),
+  "versionNumber": /*#__PURE__*/ zod.int(),
+  "graphHash": /*#__PURE__*/ zod.string(),
+  "source": /*#__PURE__*/ zod.string(),
+  "summary": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isActive": /*#__PURE__*/ zod.boolean(),
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "createdBy": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+})
+
+export const GetPipelineSnapshotsParams = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid()
+})
+
+export const GetPipelineSnapshotsResponseItem = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "pipelineId": /*#__PURE__*/ zod.uuid(),
+  "versionNumber": /*#__PURE__*/ zod.int(),
+  "graphHash": /*#__PURE__*/ zod.string(),
+  "source": /*#__PURE__*/ zod.string(),
+  "summary": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isActive": /*#__PURE__*/ zod.boolean(),
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "createdBy": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+})
+export const GetPipelineSnapshotsResponse = /*#__PURE__*/ zod.array(GetPipelineSnapshotsResponseItem)
+
+export const RollbackPipelineSnapshotParams = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "snapshotId": /*#__PURE__*/ zod.uuid()
+})
+
+export const rollbackPipelineSnapshotResponseEdgesItemKindDefault = `Data`;
+
+export const RollbackPipelineSnapshotResponse = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "projectId": /*#__PURE__*/ zod.uuid(),
+  "name": /*#__PURE__*/ zod.string(),
+  "triggerType": /*#__PURE__*/ zod.enum(['Manual', 'OnResourceCreated', 'OnResourceVersionUpdated']),
+  "nodes": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "refId": /*#__PURE__*/ zod.string(),
+  "kind": /*#__PURE__*/ zod.enum(['Start', 'Return', 'Tool', 'Custom', 'FlowControl', 'Variable', 'SubPipeline', 'Container', 'Capsule']),
+  "label": /*#__PURE__*/ zod.string(),
+  "category": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "executor": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "position": /*#__PURE__*/ zod.object({
+  "x": /*#__PURE__*/ zod.number(),
+  "y": /*#__PURE__*/ zod.number()
+}),
+  "inputs": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "label": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "kind": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.enum(['Data', 'Exec'])),
+  "primitiveType": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.enum(['String', 'Number', 'Boolean', 'EntityRef', 'Asset'])),
+  "cardinality": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.enum(['Single', 'Array', 'Map'])),
+  "isRequired": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean()),
+  "defaultValue": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "structType": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "allowedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "description": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "sampleJson": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
+})),
+  "outputs": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "label": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "kind": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.enum(['Data', 'Exec'])),
+  "primitiveType": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.enum(['String', 'Number', 'Boolean', 'EntityRef', 'Asset'])),
+  "cardinality": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.enum(['Single', 'Array', 'Map'])),
+  "isRequired": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean()),
+  "defaultValue": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "structType": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "allowedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "description": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "sampleJson": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
+})),
+  "configValues": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.looseObject({
+
+})),
+  "parentId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "size": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.object({
+  "width": /*#__PURE__*/ zod.number(),
+  "height": /*#__PURE__*/ zod.number()
+})),
+  "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.looseObject({
+
+})),
+  "fileAssets": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.object({
+  "assetLinkId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "assetId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "originalName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "contentType": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "sizeBytes": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
+  "status": /*#__PURE__*/ zod.string(),
+  "hashSha256": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+})))
+})),
+  "edges": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "sourceNodeId": /*#__PURE__*/ zod.uuid(),
+  "sourcePin": /*#__PURE__*/ zod.string(),
+  "targetNodeId": /*#__PURE__*/ zod.uuid(),
+  "targetPin": /*#__PURE__*/ zod.string(),
+  "kind": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.enum(['Exec', 'Data']), rollbackPipelineSnapshotResponseEdgesItemKindDefault)
+})),
+  "parameters": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "key": /*#__PURE__*/ zod.string(),
+  "label": /*#__PURE__*/ zod.string(),
+  "kind": /*#__PURE__*/ zod.enum(['Input', 'Output', 'Variable', 'Context']),
+  "type": /*#__PURE__*/ zod.enum(['String', 'Number', 'Boolean', 'EntityRef', 'Asset']),
+  "cardinality": /*#__PURE__*/ zod.enum(['Single', 'Array', 'Map']),
+  "structType": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "isRequired": /*#__PURE__*/ zod.boolean(),
+  "defaultValue": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "order": /*#__PURE__*/ zod.int(),
+  "contextData": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.looseObject({
+
+}))
+})),
+  "triggerConfig": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "fileResults": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "nodeId": /*#__PURE__*/ zod.uuid(),
+  "pinId": /*#__PURE__*/ zod.string(),
+  "assetLinkId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "errorCode": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "errorMessage": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "isSuccess": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean())
+}))),
+  "diagnostics": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "code": /*#__PURE__*/ zod.enum(['DagCycleDetected', 'MissingNodeDefinition', 'UnselectedStructSchema', 'UnresolvedRequiredPin', 'DanglingEdgePin', 'IncompatiblePinType', 'OrphanNode', 'UnconnectedReturnOutput', 'InvalidStagePlacement']),
+  "severity": /*#__PURE__*/ zod.enum(['Error', 'Warning']),
+  "message": /*#__PURE__*/ zod.string(),
+  "nodeId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "nodeLabel": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "pinId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "edgeId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid())
+})))
+})
+
 export const UpdatePipelineTriggerParams = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid()
 })
@@ -1274,6 +1429,8 @@ export const ValidatePipelineParams = /*#__PURE__*/ zod.object({
   "pipelineId": /*#__PURE__*/ zod.uuid()
 })
 
+export const validatePipelineBodyCreateSnapshotDefault = false;
+
 export const ValidatePipelineBody = /*#__PURE__*/ zod.object({
   "runtimeInputs": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.looseObject({
 
@@ -1320,7 +1477,9 @@ export const ValidatePipelineBody = /*#__PURE__*/ zod.object({
   "contextData": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.looseObject({
 
 }))
-})))
+}))),
+  "createSnapshot": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.boolean(), validatePipelineBodyCreateSnapshotDefault),
+  "snapshotSummary": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 export const ValidatePipelineResponse = /*#__PURE__*/ zod.object({

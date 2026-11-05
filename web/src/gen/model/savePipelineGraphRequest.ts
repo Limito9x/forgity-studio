@@ -13,4 +13,7 @@ export interface SavePipelineGraphRequest {
   edges?: ListOfSavePipelineEdgeItem;
   /** @nullable */
   parameters?: unknown[] | null;
+  createSnapshot?: boolean;
+  /** @nullable */
+  snapshotSummary?: string | null;
 }

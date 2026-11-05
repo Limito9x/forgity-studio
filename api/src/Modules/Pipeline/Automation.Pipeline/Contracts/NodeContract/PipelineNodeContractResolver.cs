@@ -457,7 +457,34 @@ public class PipelineNodeContractResolver(
         if (def != null)
         {
             var defLabel = !string.IsNullOrWhiteSpace(def.Label) ? def.Label : def.Name;
-            var (pInputs, pOutputs) = FlowPinHelper.WithExecPins(def);
+            var (rawInputs, pOutputs) = FlowPinHelper.WithExecPins(def);
+
+            var pInputs = rawInputs.Select(p =>
+            {
+                if (p.Kind == PinKind.Data && PipelineFileValue.IsFilePin(p) && p.PrimitiveType != PinPrimitiveType.Asset)
+                {
+                    var accept = p.Id.Contains("preset", StringComparison.OrdinalIgnoreCase) ? ".py" : null;
+                    var meta = !string.IsNullOrWhiteSpace(p.Metadata)
+                        ? p.Metadata
+                        : (accept != null ? JsonSerializer.Serialize(new { type = "file", accept }) : JsonSerializer.Serialize(new { type = "file" }));
+
+                    return new PinDefinition
+                    {
+                        Id = p.Id,
+                        Label = p.Label,
+                        Kind = p.Kind,
+                        PrimitiveType = PinPrimitiveType.Asset,
+                        Cardinality = p.Cardinality,
+                        StructType = p.StructType,
+                        IsRequired = p.IsRequired,
+                        DefaultValue = p.DefaultValue,
+                        Metadata = meta,
+                        Description = p.Description,
+                        AllowedExtensions = p.AllowedExtensions ?? accept
+                    };
+                }
+                return p;
+            }).ToList();
 
             return new ResolvedNodeContract(
                 NodeId: node.Id,

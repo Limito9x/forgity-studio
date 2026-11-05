@@ -26,6 +26,9 @@ import type {
   UpdatePipelineTriggerRequest,
   EdgeKind,
   ExecutionStatus,
+  PipelineSnapshotSummaryDto,
+  CreatePipelineSnapshotRequest,
+  ListOfPipelineSnapshotSummaryDto,
 } from "@/gen/model";
 import { PipelineNodeKind } from "@/gen/model";
 
@@ -64,6 +67,9 @@ export type {
   CreatePipelineCommand,
   EdgeKind,
   ExecutionStatus,
+  PipelineSnapshotSummaryDto,
+  CreatePipelineSnapshotRequest,
+  ListOfPipelineSnapshotSummaryDto,
 };
 
 // -----------------------------------------------------------------------------
@@ -192,6 +198,54 @@ export const useCancelPipelineExecution = (pipelineId?: string) => {
   ];
   return createMutationHook(PipelinesApi.useCancelPipelineExecution, queryKeys)();
 };
+
+// -----------------------------------------------------------------------------
+// Pipeline Snapshots (Version History & Checkpoints)
+// -----------------------------------------------------------------------------
+
+export const usePipelineSnapshots = (pipelineId?: string) => {
+  return PipelinesApi.useGetPipelineSnapshots(pipelineId || "", {
+    query: {
+      enabled: !!pipelineId,
+      placeholderData: keepPreviousData,
+    },
+  });
+};
+
+export const useCreatePipelineSnapshot = (pipelineId?: string) => {
+  const queryKeys = pipelineId
+    ? [
+        PipelinesApi.getGetPipelineSnapshotsQueryKey(pipelineId),
+        PipelinesApi.getGetPipelineGraphQueryKey(pipelineId),
+      ]
+    : [["pipelines"]];
+  const mutation = createMutationHook(PipelinesApi.useCreatePipelineSnapshot, queryKeys)();
+  return {
+    ...mutation,
+    mutate: (data: CreatePipelineSnapshotRequest, options?: any) =>
+      mutation.mutate({ id: pipelineId!, data }, options),
+    mutateAsync: (data: CreatePipelineSnapshotRequest, options?: any) =>
+      mutation.mutateAsync({ id: pipelineId!, data }, options),
+  };
+};
+
+export const useRollbackPipelineSnapshot = (pipelineId?: string) => {
+  const queryKeys = pipelineId
+    ? [
+        PipelinesApi.getGetPipelineSnapshotsQueryKey(pipelineId),
+        PipelinesApi.getGetPipelineGraphQueryKey(pipelineId),
+      ]
+    : [["pipelines"]];
+  const mutation = createMutationHook(PipelinesApi.useRollbackPipelineSnapshot, queryKeys)();
+  return {
+    ...mutation,
+    mutate: (snapshotId: string, options?: any) =>
+      mutation.mutate({ id: pipelineId!, snapshotId }, options),
+    mutateAsync: (snapshotId: string, options?: any) =>
+      mutation.mutateAsync({ id: pipelineId!, snapshotId }, options),
+  };
+};
+
 
 
 

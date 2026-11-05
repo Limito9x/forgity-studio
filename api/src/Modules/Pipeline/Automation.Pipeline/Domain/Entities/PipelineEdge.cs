@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Automation.Pipeline.Domain.Enums;
 
 namespace Automation.Pipeline.Domain.Entities;
@@ -5,12 +6,21 @@ namespace Automation.Pipeline.Domain.Entities;
 public class PipelineEdge : AuditableEntity
 {
     public Guid PipelineId { get; set; }
+
+    [JsonIgnore]
     public Pipeline Pipeline { get; set; } = null!;
+
     public Guid SourcePipelineNodeId { get; set; }
+
+    [JsonIgnore]
     public PipelineNode SourcePipelineNode { get; set; } = null!;
+
     public string SourcePin { get; set; } = string.Empty;
     public Guid TargetPipelineNodeId { get; set; }
+
+    [JsonIgnore]
     public PipelineNode TargetPipelineNode { get; set; } = null!;
+
     public string TargetPin { get; set; } = string.Empty;
     public EdgeKind Kind { get; set; }
 
