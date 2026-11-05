@@ -37,6 +37,7 @@ import type {
   IReadOnlyListOfRunnerDto,
   IReadOnlyListOfRunnerExecutorConfigDto,
   IReadOnlyListOfRunnerStudioDto,
+  ListOfRunnerDccSessionDto,
   RegisterRunnerCommand,
   RegisterRunnerResultDto,
   RegisterRunnerWithTokenCommand,
@@ -48,6 +49,8 @@ import type {
   RunnerUpdateResultDto,
   ScanExecutorsRequest,
   SetupTokenDto,
+  StopRunnerDccSessionRequest,
+  StopRunnerDccSessionResponseDto,
   UpdateRunnerEnvRequest,
   UpdateRunnerHardwareProfileRequest,
   UpgradeRunnerRequest,
@@ -1405,6 +1408,239 @@ export const useRevokeRunner = <TError = void, TContext = unknown>(
   TContext
 > => {
   return useMutation(getRevokeRunnerMutationOptions(options), queryClient);
+};
+export const getRunnerDccSessions = (
+  runnerId: string,
+  signal?: AbortSignal,
+) => {
+  return customInstance<ListOfRunnerDccSessionDto>({
+    url: `/api/runners/${runnerId}/dcc-sessions`,
+    method: "GET",
+    signal,
+  });
+};
+
+export const getGetRunnerDccSessionsQueryKey = (runnerId: string) => {
+  return [`/api/runners/${runnerId}/dcc-sessions`] as const;
+};
+
+export const getGetRunnerDccSessionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getRunnerDccSessions>>,
+  TError = void,
+>(
+  runnerId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRunnerDccSessions>>,
+        TError,
+        TData
+      >
+    >;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetRunnerDccSessionsQueryKey(runnerId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getRunnerDccSessions>>
+  > = ({ signal }) => getRunnerDccSessions(runnerId, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: runnerId !== null && runnerId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getRunnerDccSessions>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetRunnerDccSessionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getRunnerDccSessions>>
+>;
+export type GetRunnerDccSessionsQueryError = void;
+
+export function useGetRunnerDccSessions<
+  TData = Awaited<ReturnType<typeof getRunnerDccSessions>>,
+  TError = void,
+>(
+  runnerId: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRunnerDccSessions>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRunnerDccSessions>>,
+          TError,
+          Awaited<ReturnType<typeof getRunnerDccSessions>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetRunnerDccSessions<
+  TData = Awaited<ReturnType<typeof getRunnerDccSessions>>,
+  TError = void,
+>(
+  runnerId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRunnerDccSessions>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getRunnerDccSessions>>,
+          TError,
+          Awaited<ReturnType<typeof getRunnerDccSessions>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetRunnerDccSessions<
+  TData = Awaited<ReturnType<typeof getRunnerDccSessions>>,
+  TError = void,
+>(
+  runnerId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRunnerDccSessions>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useGetRunnerDccSessions<
+  TData = Awaited<ReturnType<typeof getRunnerDccSessions>>,
+  TError = void,
+>(
+  runnerId: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getRunnerDccSessions>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetRunnerDccSessionsQueryOptions(runnerId, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const stopRunnerDccSession = (
+  runnerId: string,
+  stopRunnerDccSessionRequest: StopRunnerDccSessionRequest,
+  signal?: AbortSignal,
+) => {
+  return customInstance<StopRunnerDccSessionResponseDto>({
+    url: `/api/runners/${runnerId}/dcc-sessions/stop`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: stopRunnerDccSessionRequest,
+    signal,
+  });
+};
+
+export const getStopRunnerDccSessionMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof stopRunnerDccSession>>,
+    TError,
+    { runnerId: string; data: StopRunnerDccSessionRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof stopRunnerDccSession>>,
+  TError,
+  { runnerId: string; data: StopRunnerDccSessionRequest },
+  TContext
+> => {
+  const mutationKey = ["stopRunnerDccSession"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof stopRunnerDccSession>>,
+    { runnerId: string; data: StopRunnerDccSessionRequest }
+  > = (props) => {
+    const { runnerId, data } = props ?? {};
+
+    return stopRunnerDccSession(runnerId, data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type StopRunnerDccSessionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof stopRunnerDccSession>>
+>;
+export type StopRunnerDccSessionMutationBody = StopRunnerDccSessionRequest;
+export type StopRunnerDccSessionMutationError = void;
+
+export const useStopRunnerDccSession = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof stopRunnerDccSession>>,
+      TError,
+      { runnerId: string; data: StopRunnerDccSessionRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof stopRunnerDccSession>>,
+  TError,
+  { runnerId: string; data: StopRunnerDccSessionRequest },
+  TContext
+> => {
+  return useMutation(
+    getStopRunnerDccSessionMutationOptions(options),
+    queryClient,
+  );
 };
 export const getRunnerEnv = (runnerId: string, signal?: AbortSignal) => {
   return customInstance<DictionaryOfStringAndString>({

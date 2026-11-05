@@ -309,6 +309,35 @@ export const RevokeRunnerParams = /*#__PURE__*/ zod.object({
 
 export const RevokeRunnerResponse = /*#__PURE__*/ zod.void()
 
+export const GetRunnerDccSessionsParams = /*#__PURE__*/ zod.object({
+  "runnerId": /*#__PURE__*/ zod.uuid()
+})
+
+export const GetRunnerDccSessionsResponseItem = /*#__PURE__*/ zod.object({
+  "key": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "executor": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "projectPath": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "pid": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "state": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "startedAtSecs": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "remainingSeconds": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "keepAliveMinutes": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int())
+})
+export const GetRunnerDccSessionsResponse = /*#__PURE__*/ zod.array(GetRunnerDccSessionsResponseItem)
+
+export const StopRunnerDccSessionParams = /*#__PURE__*/ zod.object({
+  "runnerId": /*#__PURE__*/ zod.uuid()
+})
+
+export const StopRunnerDccSessionBody = /*#__PURE__*/ zod.object({
+  "key": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "all": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean())
+})
+
+export const StopRunnerDccSessionResponse = /*#__PURE__*/ zod.object({
+  "stopped": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int())
+})
+
 export const GetRunnerEnvParams = /*#__PURE__*/ zod.object({
   "runnerId": /*#__PURE__*/ zod.uuid()
 })

@@ -70,6 +70,87 @@ public class UnrealEnvironmentEnricher(ILogger<UnrealEnvironmentEnricher> logger
             }
         }
 
+        // Resolve keep-alive duration (minutes) for persistent warm Unreal process pool
+        var keepAliveMinutes = 0;
+        var projIdString = projectId.ToString();
+
+        if (envConfig.TryGetValue("projectKeepAliveMinutes", out var projKaObj) && projKaObj != null)
+        {
+            keepAliveMinutes = TryExtractMinutes(projKaObj, projIdString);
+            if (keepAliveMinutes <= 0)
+            {
+                // Fallback: single mapped project keep-alive
+                keepAliveMinutes = TryExtractSingleMinutes(projKaObj);
+            }
+        }
+
+        if (keepAliveMinutes <= 0 && envConfig.TryGetValue("keepAliveMinutes", out var globalKaObj) && globalKaObj != null)
+        {
+            keepAliveMinutes = ParseMinutes(globalKaObj);
+        }
+
+        keepAliveMinutes = Math.Clamp(keepAliveMinutes, 0, 240);
+        envConfig["keepAliveMinutes"] = keepAliveMinutes;
+
+        if (keepAliveMinutes > 0)
+        {
+            logger.LogInformation(
+                "Unreal Engine keep-alive active for Project {ProjectId} on Runner {RunnerId}: {KeepAliveMinutes} minutes",
+                projectId,
+                runnerId,
+                keepAliveMinutes
+            );
+        }
+
         return Task.CompletedTask;
+    }
+
+    private static int TryExtractMinutes(object obj, string key)
+    {
+        if (obj is JsonElement jsonElem && jsonElem.ValueKind == JsonValueKind.Object)
+        {
+            if (jsonElem.TryGetProperty(key, out var prop))
+            {
+                return ParseMinutes(prop);
+            }
+        }
+        else if (obj is IDictionary<string, object?> dict && dict.TryGetValue(key, out var val) && val != null)
+        {
+            return ParseMinutes(val);
+        }
+        return 0;
+    }
+
+    private static int TryExtractSingleMinutes(object obj)
+    {
+        if (obj is JsonElement je && je.ValueKind == JsonValueKind.Object && je.EnumerateObject().Count() == 1)
+        {
+            return ParseMinutes(je.EnumerateObject().First().Value);
+        }
+        else if (obj is IDictionary<string, object?> d && d.Count == 1)
+        {
+            var firstVal = d.Values.FirstOrDefault();
+            return firstVal != null ? ParseMinutes(firstVal) : 0;
+        }
+        return 0;
+    }
+
+    private static int ParseMinutes(object val)
+    {
+        if (val is JsonElement je)
+        {
+            if (je.ValueKind == JsonValueKind.Number && je.TryGetInt32(out var num))
+                return num;
+            if (je.ValueKind == JsonValueKind.String && int.TryParse(je.GetString(), out var sNum))
+                return sNum;
+        }
+        else if (val is int i)
+            return i;
+        else if (val is long l)
+            return (int)l;
+        else if (val is string s && int.TryParse(s, out var strNum))
+            return strNum;
+
+        return 0;
     }
 }

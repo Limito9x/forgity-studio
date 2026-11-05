@@ -101,3 +101,28 @@ Các script nghiệp vụ DCC được lưu trữ phẳng theo từng Executor t
 - `pipeline-scripts/ai/`: Script phân tích vai trò `classify_mesh_types.py`, `classify_material_manifest.py`.
 - `pipeline-scripts/presets/`: Preset chuyển giao DCC.
 
+---
+
+## 6. Persistent Warm DCC Process Pool & Keep-Alive Daemon (BL-040)
+
+Để loại bỏ hoàn toàn độ trễ khởi động lại Engine 15–45s giữa các Stage, Runner hỗ trợ cơ chế giữ ấm tiến trình DCC (Unreal Engine):
+
+1. **Vòng Đời Resident Host**:
+   - Khi `keepAliveMinutes > 0`, Runner khởi động `UnrealEditor-Cmd.exe` với script bọc [`runner/scripts/dcc_resident_host.py`](file:///d:/FullStack/Automation/runner/scripts/dcc_resident_host.py).
+   - Tiến trình kết nối tới Named Pipe điều khiển nội bộ `\\.\pipe\forgity_dcc_{key}` (với `key = sha256(exe|uproject)[..12]`).
+   - Mỗi khi nhận `RunStage`:
+     - Thiết lập lại `FORGITY_IPC_PIPE` và `FORGITY_TASK_JSON` cho Stage mới.
+     - Dọn sạch `step_module_*` trong `sys.modules` để nạp ngay script mới sửa trên đĩa.
+     - Đồng bộ lại Unreal Asset Registry cho `/Game`.
+     - Thực thi `stage_runner_guest.main()` an toàn (bắt `SystemExit`) và phản hồi `StageFinished`.
+
+2. **Reaper Tự Động & Hạn Tắt (TTL)**:
+   - Sau khi Stage kết thúc, tiến trình chuyển sang trạng thái `Idle` và bộ đếm ngược `keep_alive` bắt đầu chạy (mặc định 30 phút).
+   - Background Reaper của Runner quét mỗi 30s. Nếu session hết hạn mà không có Stage mới, Runner sẽ gửi tín hiệu `Shutdown` và đóng Job Object để trả lại RAM/VRAM.
+
+3. **Convention Quản Lý In-Memory (`forgity dcc ...`)**:
+   - Hệ thống không làm rác gói `agent.proto`. Thay vào đó, Backend gửi lệnh `ExecuteCommand` với `program = "forgity"` và `args = ["dcc", "list"|"stop", ...]`.
+   - Daemon Runner chặn xử lý in-memory trực tiếp qua `Arc<DccPool>`, trả JSON trạng thái qua stdout.
+   - Người dùng có thể xem trạng thái tiến trình ấm (`Warm • PID • time left`) và bấm **Stop** trực tiếp trên thẻ Unreal Project trong Studio Dashboard.
+
+

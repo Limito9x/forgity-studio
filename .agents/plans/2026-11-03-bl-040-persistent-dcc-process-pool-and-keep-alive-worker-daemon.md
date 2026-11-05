@@ -202,15 +202,17 @@ Từ terminal, `forgity dcc list` đọc `dcc-sessions.json` (chỉ đọc). `fo
 - [x] CLI `forgity-runner dcc list/stop` và bắt convention `forgity dcc ...` in-memory trong `grpc/client.rs`.
 - [x] Build binary `forgity-runner.exe` thành công và toàn bộ 14 unit tests pass.
 
-### Phase 2 — Cấu hình từ UI
-- [ ] `UnrealEnvironmentEnricher` chuyển `keepAliveMinutes`.
-- [ ] `UnrealExecutorExtension` thêm ô chọn keep-alive.
+### Phase 2 — Backend: Enricher & DCC Sessions Endpoints (Hoàn thành)
+- [x] `UnrealEnvironmentEnricher.cs`: trích xuất `projectKeepAliveMinutes` và gán `keepAliveMinutes` vào `envConfig`.
+- [x] DTOs `RunnerDccDtos.cs` trong `Automation.Runner.Contracts`.
+- [x] Slices `GetRunnerDccSessions.cs` & `StopRunnerDccSession.cs` trong `Automation.Runner`.
+- [x] Biên dịch toàn bộ .NET solution với 0 Errors.
 
-### Phase 3 — Quản lý session
-- [ ] Runner: chặn `forgity dcc ...` trong handler `ExecuteCommand`; CLI `dcc list` đọc snapshot.
-- [ ] Backend: `GetRunnerDccSessions`, `StopRunnerDccSessions`; chạy Orval.
-- [ ] Frontend: panel Warm DCC Sessions.
-- [ ] Cập nhật [playbooks/runner-runtime.md](file:///d:/FullStack/Automation/.agents/playbooks/runner-runtime.md) và `rules/runner.md` (convention `forgity dcc`).
+### Phase 3 — Frontend: Config UI & Warm Session Status (Hoàn thành)
+- [x] Sinh code Orval client (`useGetRunnerDccSessions`, `useStopRunnerDccSession`).
+- [x] Hook `useRunnerDccSessions.ts` với polling 15s và mutation dừng session.
+- [x] `UnrealExecutorExtension.tsx`: bổ sung selector **Stay Alive** (`Off / 15m / 30m / 60m / 120m`), badge trạng thái tiến trình ấm (`Warm • PID • time left` / `Busy`) và nút **Stop** trực tiếp trên từng project.
+- [x] Kiểm tra TypeScript pass 100% không lỗi.
 
 ---
 
