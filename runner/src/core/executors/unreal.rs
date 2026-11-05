@@ -87,4 +87,45 @@ impl DccExecutor for UnrealExecutor {
 
         Ok(args)
     }
+
+    fn supports_keep_alive(&self) -> bool {
+        true
+    }
+
+    fn build_resident_args(
+        &self,
+        task: &StageTaskMessage,
+        _ctx: &ExecutionContext,
+        resident_script_path: &std::path::Path,
+    ) -> Result<Vec<String>> {
+        let mut args = Vec::new();
+
+        // 1. Target .uproject path MUST be the very first argument if specified
+        if let Some(raw_path) = self.resolve_project_path(task) {
+            let trimmed = raw_path.trim().trim_matches('"');
+            if !trimmed.is_empty() {
+                info!("[UnrealExecutor] Target Unreal Project (Resident): {}", trimmed);
+                args.push(trimmed.to_string());
+            }
+        }
+
+        // 2. Commandlet execution arguments launching dcc_resident_host.py
+        args.push("-run=pythonscript".to_string());
+
+        let clean_script = resident_script_path
+            .to_string_lossy()
+            .replace(r"\\?\", "")
+            .replace('\\', "/");
+        args.push(format!("-script={}", clean_script));
+
+        args.push("-stdout".to_string());
+        args.push("-FullStdOutLogOutput".to_string());
+        args.push("-UTF8Output".to_string());
+        args.push("-nullrhi".to_string());
+        args.push("-unattended".to_string());
+        args.push("-nosplash".to_string());
+        args.push("-NoWebServer".to_string());
+
+        Ok(args)
+    }
 }

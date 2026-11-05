@@ -38,6 +38,21 @@ pub trait DccExecutor: Send + Sync {
         Ok(HashMap::new())
     }
 
+    /// Whether this executor supports persistent resident / keep-alive execution.
+    fn supports_keep_alive(&self) -> bool {
+        false
+    }
+
+    /// Builds command-line arguments to launch the DCC host process in resident keep-alive mode.
+    fn build_resident_args(
+        &self,
+        _task: &StageTaskMessage,
+        _ctx: &ExecutionContext,
+        _resident_script_path: &std::path::Path,
+    ) -> Result<Vec<String>> {
+        anyhow::bail!("Resident keep-alive mode is not supported for this executor")
+    }
+
     /// Cleans up any executor-specific temporary files or allocations after execution.
     fn cleanup(&self, _task: &StageTaskMessage) -> Result<()> {
         Ok(())

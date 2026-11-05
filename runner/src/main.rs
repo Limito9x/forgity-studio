@@ -38,6 +38,9 @@ async fn main() -> anyhow::Result<()> {
         Commands::Daemon { action } => {
             cli::daemon::run_daemon(action, config_override).await?;
         }
+        Commands::Dcc { action } => {
+            cli::dcc::run_dcc(action)?;
+        }
         Commands::Clean { all, days } => {
             cli::clean::run_clean(all, days).await?;
         }

@@ -90,14 +90,17 @@ pub async fn run_start(config_override: Option<&std::path::Path>, force_local: b
     println!();
 
     let active_stages = Arc::new(crate::process::active_stage::ActiveStageManager::new());
+    let data_dir = crate::cli::daemon::get_daemon_data_dir();
+    let dcc_pool = Arc::new(crate::process::dcc_pool::DccPool::new(data_dir));
 
     // 2. Connect gRPC stream in background to report Online status to Backend
     if let Some(grpc_url) = config.grpc_url.clone() {
         if !grpc_url.is_empty() {
             let runner_id_clone = runner_id.clone();
             let stages_clone = active_stages.clone();
+            let dcc_pool_clone = dcc_pool.clone();
             tokio::spawn(async move {
-                crate::grpc::client::GrpcRunnerClient::run_loop(grpc_url, runner_id_clone, stages_clone).await;
+                crate::grpc::client::GrpcRunnerClient::run_loop(grpc_url, runner_id_clone, stages_clone, dcc_pool_clone).await;
             });
         }
     }
@@ -143,6 +146,7 @@ pub async fn run_start(config_override: Option<&std::path::Path>, force_local: b
         let dispatcher = StageDispatcher::new(
             rabbitmq.clone(),
             active_stages.clone(),
+            dcc_pool.clone(),
             config.env.clone(),
         );
 

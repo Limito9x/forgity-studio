@@ -9,8 +9,9 @@ use tracing::{debug, error, info, warn};
 use super::contracts::{StageResultMessage, StageTaskMessage, StepProgressMessage, StepResult};
 use super::executors::{ExecutionContext, ExecutorRegistry};
 use crate::ipc::pipe_server::PipeServer;
-use crate::ipc::protocol::{GuestToHostMessage, HostToGuestMessage};
+use crate::ipc::protocol::{GuestToHostMessage, HostToGuestMessage, HostToResidentMessage, ResidentToHostMessage};
 use crate::process::active_stage::ActiveStageManager;
+use crate::process::dcc_pool::DccPool;
 use crate::process::job_object::JobObject;
 use crate::process::subprocess::SubprocessRunner;
 use crate::queue::rabbitmq::RabbitMqClient;
@@ -20,6 +21,7 @@ use crate::storage::lock::StorageLockGuard;
 use crate::system::dcc::resolve_executor_executable;
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 const EMBEDDED_GUEST_SCRIPT: &str = include_str!("../../scripts/stage_runner_guest.py");
 
@@ -66,6 +68,7 @@ pub struct StageDispatcher {
     storage: StorageManager,
     downloader: StreamDownloader,
     active_stages: Arc<ActiveStageManager>,
+    dcc_pool: Arc<DccPool>,
     executor_registry: Arc<ExecutorRegistry>,
     custom_env: Option<HashMap<String, String>>,
 }
@@ -74,6 +77,7 @@ impl StageDispatcher {
     pub fn new(
         rabbitmq: RabbitMqClient,
         active_stages: Arc<ActiveStageManager>,
+        dcc_pool: Arc<DccPool>,
         custom_env: Option<HashMap<String, String>>,
     ) -> Self {
         let storage = StorageManager::new(None);
@@ -84,6 +88,7 @@ impl StageDispatcher {
             storage,
             downloader,
             active_stages,
+            dcc_pool,
             executor_registry,
             custom_env,
         }
@@ -255,19 +260,25 @@ impl StageDispatcher {
         file.write_all(&task_bytes).await?;
         file.flush().await?;
 
-        // 6. Create Windows Job Object for lifecycle containment
-        let job_object = Arc::new(JobObject::create()
-            .context("Failed to initialize Windows Job Object")?);
+        // 6. Check keep-alive configuration for persistent DCC pool
+        let keep_alive_minutes = task
+            .environment_config
+            .get("keepAliveMinutes")
+            .or_else(|| task.environment_config.get("keep_alive_minutes"))
+            .and_then(|v| {
+                if let Some(n) = v.as_u64() {
+                    Some(n as u32)
+                } else if let Some(s) = v.as_str() {
+                    s.parse::<u32>().ok()
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(0);
 
-        let (cancel_tx, mut cancel_rx) = tokio::sync::broadcast::channel::<()>(1);
-        self.active_stages.register(
-            stage_id.clone(),
-            task.pipeline_execution_id.clone(),
-            cancel_tx,
-            Arc::clone(&job_object),
-        ).await;
+        let is_warm_eligible = keep_alive_minutes > 0 && executor.supports_keep_alive();
 
-        // 7. Create Named Pipe IPC Server
+        // 7. Create Named Pipe IPC Server for Stage communication
         let pipe_server = Arc::new(PipeServer::new(&stage_id));
         let pipe_path = pipe_server.pipe_path().to_string();
 
@@ -309,7 +320,7 @@ impl StageDispatcher {
             env_vars.push((k.as_str(), v.as_str()));
         }
 
-        // 8. Spawn IPC listener in background
+        // Spawn IPC listener in background
         let pipe_server_clone = Arc::clone(&pipe_server);
         let pipe_handle = tokio::spawn(async move {
             if let Err(e) = pipe_server_clone.listen_and_serve(event_tx).await {
@@ -317,178 +328,381 @@ impl StageDispatcher {
             }
         });
 
-        // 9. Spawn DCC Subprocess
-        let proc_handle = SubprocessRunner::spawn_with_job_object(
-            &exe_path,
-            &args,
-            &env_vars,
-            Some(self.storage.base_dir()),
-            &stage_id,
-            &job_object,
-        );
-
-        // 10. Event loop processing IPC messages while waiting for process completion
+        let (cancel_tx, mut cancel_rx) = tokio::sync::broadcast::channel::<()>(1);
         let mut step_results: Vec<StepResult> = Vec::new();
         let mut stage_succeeded = false;
         let mut stage_error: Option<String> = None;
         let mut guest_handshake_received = false;
 
-        tokio::pin!(proc_handle);
+        if is_warm_eligible {
+            info!(
+                "[Dispatcher] Executing Stage {} in WARM Resident DCC mode (keep_alive: {} min)...",
+                stage_id, keep_alive_minutes
+            );
+            let resident_script = crate::process::dcc_pool::ensure_resident_script()
+                .context("Failed to locate or extract dcc_resident_host.py")?;
+            let resident_args = executor.build_resident_args(&task, &exec_ctx, &resident_script)?;
+            let project_path = match task.executor.to_lowercase().as_str() {
+                "unreal" => crate::core::executors::unreal::UnrealExecutor.resolve_project_path(&task),
+                _ => None,
+            };
+            let keep_alive_dur = Duration::from_secs((keep_alive_minutes as u64) * 60);
 
-        loop {
-            tokio::select! {
-                // Cancellation signal received from gRPC remote command
-                _ = cancel_rx.recv() => {
-                    warn!("[Dispatcher] Cancellation signal received for Stage {}. Terminating active DCC subprocess...", stage_id);
-                    let _ = job_object.terminate(1);
-                    stage_error = Some("Execution was cancelled by user.".to_string());
-                    stage_succeeded = false;
-                    break;
-                }
+            let (session_key, control_pipe, resident_rx_arc, session_job) = self
+                .dcc_pool
+                .acquire(
+                    executor.name(),
+                    &exe_path,
+                    project_path,
+                    &resident_args,
+                    keep_alive_dur,
+                    Some(self.storage.base_dir()),
+                )
+                .await?;
 
-                // IPC event received from guest subprocess
-                Some(event) = event_rx.recv() => {
-                    match event {
-                        GuestToHostMessage::Handshake { dcc_name, dcc_version, pid } => {
-                            info!("[IPC] Guest Handshake from {} ({:?}), PID: {}", dcc_name, dcc_version, pid);
-                            guest_handshake_received = true;
-                        }
-                        GuestToHostMessage::StepStarted { step_execution_id, step_index } => {
-                            info!("[IPC] Step Started: {} (index {})", step_execution_id, step_index);
-                        }
-                        GuestToHostMessage::StepProgress { step_execution_id, status, progress, message: _, outputs } => {
-                            info!("[IPC] Step Progress: {} -> {} ({:.0}%)", step_execution_id, status, progress * 100.0);
-                            let progress_msg = StepProgressMessage {
-                                pipeline_execution_id: task.pipeline_execution_id.clone(),
-                                pipeline_id: task.pipeline_id.clone(),
-                                stage_execution_id: stage_id.clone(),
-                                step_execution_id,
-                                status,
-                                outputs,
-                                error_message: None,
-                            };
-                            if let Err(e) = self.rabbitmq.send_progress(&progress_msg).await {
-                                warn!("[Dispatcher] Failed to publish StepProgressMessage: {}", e);
+            self.active_stages
+                .register(
+                    stage_id.clone(),
+                    task.pipeline_execution_id.clone(),
+                    cancel_tx,
+                    Arc::clone(&session_job),
+                )
+                .await;
+
+            // Dispatch RunStage command to resident host
+            control_pipe
+                .send(&HostToResidentMessage::RunStage {
+                    stage_execution_id: stage_id.clone(),
+                    task_json_path: abs_task_json.to_string_lossy().to_string(),
+                    stage_pipe: pipe_path.clone(),
+                })
+                .await?;
+
+            let target_stage_id = stage_id.clone();
+            let resident_done_fut = async {
+                let mut rx = resident_rx_arc.lock().await;
+                while let Some(msg) = rx.recv().await {
+                    match msg {
+                        ResidentToHostMessage::StageFinished {
+                            stage_execution_id,
+                            exit_code,
+                            success,
+                            error_message,
+                        } => {
+                            if stage_execution_id == target_stage_id {
+                                return Ok((exit_code, success, error_message));
                             }
                         }
-                        GuestToHostMessage::StepCompleted { step_execution_id, succeeded, outputs, error_message, log } => {
-                            info!("[IPC] Step Completed: {} (succeeded={})", step_execution_id, succeeded);
-                            step_results.push(StepResult {
-                                step_execution_id: step_execution_id.clone(),
-                                succeeded,
-                                log,
-                                error_message: error_message.clone(),
-                                outputs: outputs.clone(),
-                            });
+                        _ => {}
+                    }
+                }
+                anyhow::bail!("Resident DCC control pipe closed before StageFinished signal");
+            };
 
-                            let status = if succeeded { "Succeeded" } else { "Failed" };
-                            let progress_msg = StepProgressMessage {
-                                pipeline_execution_id: task.pipeline_execution_id.clone(),
-                                pipeline_id: task.pipeline_id.clone(),
-                                stage_execution_id: stage_id.clone(),
-                                step_execution_id,
-                                status: status.to_string(),
-                                outputs: Some(outputs),
-                                error_message: if succeeded { None } else { error_message },
-                            };
-                            let _ = self.rabbitmq.send_progress(&progress_msg).await;
-                        }
-                        GuestToHostMessage::StageCompleted { succeeded, error_message } => {
-                            info!("[IPC] Stage Completed signal: succeeded={}", succeeded);
-                            stage_succeeded = succeeded;
-                            stage_error = error_message;
-                        }
-                        GuestToHostMessage::FetchAssetRequest { request_id, asset_id, pin_key: _ } => {
-                            info!("[IPC] On-Demand Asset Fetch requested: id={} (req={})", asset_id, request_id);
+            tokio::pin!(resident_done_fut);
 
-                            // Check local cache first
-                            match self.storage.find_cached_asset(&asset_id).await {
-                                Ok(Some(cached_path)) => {
-                                    info!("[IPC] Asset found in cache: {:?}", cached_path);
-                                    let _ = pipe_server.send_to_guest(HostToGuestMessage::FetchAssetResponse {
-                                        request_id,
-                                        success: true,
-                                        local_path: Some(cached_path.to_string_lossy().to_string()),
-                                        error: None,
-                                    }).await;
+            loop {
+                tokio::select! {
+                    _ = cancel_rx.recv() => {
+                        warn!("[Dispatcher] Cancellation signal received for warm Stage {}. Terminating session...", stage_id);
+                        let _ = session_job.terminate(1);
+                        stage_error = Some("Execution was cancelled by user.".to_string());
+                        stage_succeeded = false;
+                        self.dcc_pool.release(&session_key, false).await;
+                        break;
+                    }
+
+                    Some(event) = event_rx.recv() => {
+                        match event {
+                            GuestToHostMessage::Handshake { dcc_name, dcc_version, pid } => {
+                                info!("[IPC] Guest Handshake from {} ({:?}), PID: {}", dcc_name, dcc_version, pid);
+                                guest_handshake_received = true;
+                            }
+                            GuestToHostMessage::StepStarted { step_execution_id, step_index } => {
+                                info!("[IPC] Step Started: {} (index {})", step_execution_id, step_index);
+                            }
+                            GuestToHostMessage::StepProgress { step_execution_id, status, progress, message: _, outputs } => {
+                                info!("[IPC] Step Progress: {} -> {} ({:.0}%)", step_execution_id, status, progress * 100.0);
+                                let progress_msg = StepProgressMessage {
+                                    pipeline_execution_id: task.pipeline_execution_id.clone(),
+                                    pipeline_id: task.pipeline_id.clone(),
+                                    stage_execution_id: stage_id.clone(),
+                                    step_execution_id,
+                                    status,
+                                    outputs,
+                                    error_message: None,
+                                };
+                                if let Err(e) = self.rabbitmq.send_progress(&progress_msg).await {
+                                    warn!("[Dispatcher] Failed to publish StepProgressMessage: {}", e);
                                 }
-                                _ => {
-                                    // Check if resolved_data contains a download URL for this asset
-                                    let maybe_url = task.resolved_data.get(&asset_id)
-                                        .and_then(|v| v.as_str());
+                            }
+                            GuestToHostMessage::StepCompleted { step_execution_id, succeeded, outputs, error_message, log } => {
+                                info!("[IPC] Step Completed: {} (succeeded={})", step_execution_id, succeeded);
+                                step_results.push(StepResult {
+                                    step_execution_id: step_execution_id.clone(),
+                                    succeeded,
+                                    log,
+                                    error_message: error_message.clone(),
+                                    outputs: outputs.clone(),
+                                });
 
-                                    if let Some(url) = maybe_url {
-                                        info!("[IPC] Downloading on-demand asset from resolved URL: {}", url);
-                                        match self.downloader.download_asset(url, Some(&asset_id), None).await {
-                                            Ok((path, _)) => {
-                                                let _ = pipe_server.send_to_guest(HostToGuestMessage::FetchAssetResponse {
-                                                    request_id,
-                                                    success: true,
-                                                    local_path: Some(path.to_string_lossy().to_string()),
-                                                    error: None,
-                                                }).await;
-                                            }
-                                            Err(e) => {
-                                                error!("[IPC] Failed to download on-demand asset: {}", e);
-                                                let _ = pipe_server.send_to_guest(HostToGuestMessage::FetchAssetResponse {
-                                                    request_id,
-                                                    success: false,
-                                                    local_path: None,
-                                                    error: Some(e.to_string()),
-                                                }).await;
-                                            }
-                                        }
-                                    } else {
-                                        warn!("[IPC] Asset {} not cached and no download URL found in task metadata", asset_id);
+                                let status = if succeeded { "Succeeded" } else { "Failed" };
+                                let progress_msg = StepProgressMessage {
+                                    pipeline_execution_id: task.pipeline_execution_id.clone(),
+                                    pipeline_id: task.pipeline_id.clone(),
+                                    stage_execution_id: stage_id.clone(),
+                                    step_execution_id,
+                                    status: status.to_string(),
+                                    outputs: Some(outputs),
+                                    error_message: if succeeded { None } else { error_message },
+                                };
+                                let _ = self.rabbitmq.send_progress(&progress_msg).await;
+                            }
+                            GuestToHostMessage::StageCompleted { succeeded, error_message } => {
+                                info!("[IPC] Stage Completed signal: succeeded={}", succeeded);
+                                stage_succeeded = succeeded;
+                                stage_error = error_message;
+                            }
+                            GuestToHostMessage::FetchAssetRequest { request_id, asset_id, pin_key: _ } => {
+                                info!("[IPC] On-Demand Asset Fetch requested: id={} (req={})", asset_id, request_id);
+                                match self.storage.find_cached_asset(&asset_id).await {
+                                    Ok(Some(cached_path)) => {
                                         let _ = pipe_server.send_to_guest(HostToGuestMessage::FetchAssetResponse {
                                             request_id,
-                                            success: false,
-                                            local_path: None,
-                                            error: Some(format!("Asset '{}' not found in cache or task metadata", asset_id)),
+                                            success: true,
+                                            local_path: Some(cached_path.to_string_lossy().to_string()),
+                                            error: None,
                                         }).await;
+                                    }
+                                    _ => {
+                                        let maybe_url = task.resolved_data.get(&asset_id).and_then(|v| v.as_str());
+                                        if let Some(url) = maybe_url {
+                                            match self.downloader.download_asset(url, Some(&asset_id), None).await {
+                                                Ok((path, _)) => {
+                                                    let _ = pipe_server.send_to_guest(HostToGuestMessage::FetchAssetResponse {
+                                                        request_id,
+                                                        success: true,
+                                                        local_path: Some(path.to_string_lossy().to_string()),
+                                                        error: None,
+                                                    }).await;
+                                                }
+                                                Err(e) => {
+                                                    let _ = pipe_server.send_to_guest(HostToGuestMessage::FetchAssetResponse {
+                                                        request_id,
+                                                        success: false,
+                                                        local_path: None,
+                                                        error: Some(e.to_string()),
+                                                    }).await;
+                                                }
+                                            }
+                                        } else {
+                                            let _ = pipe_server.send_to_guest(HostToGuestMessage::FetchAssetResponse {
+                                                request_id,
+                                                success: false,
+                                                local_path: None,
+                                                error: Some(format!("Asset '{}' not found in cache or metadata", asset_id)),
+                                            }).await;
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
 
-                // Subprocess terminated
-                proc_result = &mut proc_handle => {
-                    match proc_result {
-                        Ok(res) => {
-                            info!("[Dispatcher] Subprocess exited: exit_code={:?}, success={}", res.exit_code, res.success);
-                            if !guest_handshake_received {
-                                stage_succeeded = false;
-                                stage_error = Some(format!(
-                                    "Guest DCC script failed to launch or connect to IPC (exit code {:?}). Check logs at logs/stage_{}.log",
-                                    res.exit_code, stage_id
-                                ));
-                            } else if stage_succeeded {
-                                // Guest script explicitly reported success via Named Pipe IPC.
-                                // Do not let benign DCC shutdown noise (e.g. Unreal HttpListener port conflict, addon crash on exit) override a successful pipeline stage.
-                                if !res.success {
-                                    warn!(
-                                        "[Dispatcher] Stage {} completed successfully according to Guest IPC, but DCC host process exited with code {:?} (harmless engine shutdown warning/error). Preserving stage success.",
-                                        stage_id, res.exit_code
-                                    );
-                                }
-                            } else if !res.success && stage_error.is_none() {
-                                stage_succeeded = false;
-                                stage_error = Some(format!("Subprocess exited with non-zero code {:?}", res.exit_code));
-                            } else if res.success && stage_error.is_none() {
-                                if !stage_succeeded {
+                    res_finished = &mut resident_done_fut => {
+                        match res_finished {
+                            Ok((code, success, err_opt)) => {
+                                info!("[Dispatcher] Resident DCC finished stage: code={}, success={}", code, success);
+                                if !guest_handshake_received {
+                                    stage_succeeded = false;
+                                    stage_error = Some(format!("Resident DCC failed handshake (exit code {})", code));
+                                } else if stage_succeeded || success {
                                     stage_succeeded = true;
+                                } else {
+                                    stage_succeeded = false;
+                                    if stage_error.is_none() {
+                                        stage_error = err_opt.or_else(|| Some(format!("Resident DCC exited with code {}", code)));
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!("[Dispatcher] Resident DCC pipe error: {}", e);
+                                stage_succeeded = false;
+                                stage_error = Some(e.to_string());
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+
+            self.dcc_pool.release(&session_key, stage_succeeded).await;
+
+        } else {
+            // Standard Cold Spawning Mode
+            let job_object = Arc::new(JobObject::create().context("Failed to initialize Windows Job Object")?);
+
+            self.active_stages
+                .register(
+                    stage_id.clone(),
+                    task.pipeline_execution_id.clone(),
+                    cancel_tx,
+                    Arc::clone(&job_object),
+                )
+                .await;
+
+            let proc_handle = SubprocessRunner::spawn_with_job_object(
+                &exe_path,
+                &args,
+                &env_vars,
+                Some(self.storage.base_dir()),
+                &stage_id,
+                &job_object,
+            );
+
+            tokio::pin!(proc_handle);
+
+            loop {
+                tokio::select! {
+                    _ = cancel_rx.recv() => {
+                        warn!("[Dispatcher] Cancellation signal received for Stage {}. Terminating active DCC subprocess...", stage_id);
+                        let _ = job_object.terminate(1);
+                        stage_error = Some("Execution was cancelled by user.".to_string());
+                        stage_succeeded = false;
+                        break;
+                    }
+
+                    Some(event) = event_rx.recv() => {
+                        match event {
+                            GuestToHostMessage::Handshake { dcc_name, dcc_version, pid } => {
+                                info!("[IPC] Guest Handshake from {} ({:?}), PID: {}", dcc_name, dcc_version, pid);
+                                guest_handshake_received = true;
+                            }
+                            GuestToHostMessage::StepStarted { step_execution_id, step_index } => {
+                                info!("[IPC] Step Started: {} (index {})", step_execution_id, step_index);
+                            }
+                            GuestToHostMessage::StepProgress { step_execution_id, status, progress, message: _, outputs } => {
+                                info!("[IPC] Step Progress: {} -> {} ({:.0}%)", step_execution_id, status, progress * 100.0);
+                                let progress_msg = StepProgressMessage {
+                                    pipeline_execution_id: task.pipeline_execution_id.clone(),
+                                    pipeline_id: task.pipeline_id.clone(),
+                                    stage_execution_id: stage_id.clone(),
+                                    step_execution_id,
+                                    status,
+                                    outputs,
+                                    error_message: None,
+                                };
+                                if let Err(e) = self.rabbitmq.send_progress(&progress_msg).await {
+                                    warn!("[Dispatcher] Failed to publish StepProgressMessage: {}", e);
+                                }
+                            }
+                            GuestToHostMessage::StepCompleted { step_execution_id, succeeded, outputs, error_message, log } => {
+                                info!("[IPC] Step Completed: {} (succeeded={})", step_execution_id, succeeded);
+                                step_results.push(StepResult {
+                                    step_execution_id: step_execution_id.clone(),
+                                    succeeded,
+                                    log,
+                                    error_message: error_message.clone(),
+                                    outputs: outputs.clone(),
+                                });
+
+                                let status = if succeeded { "Succeeded" } else { "Failed" };
+                                let progress_msg = StepProgressMessage {
+                                    pipeline_execution_id: task.pipeline_execution_id.clone(),
+                                    pipeline_id: task.pipeline_id.clone(),
+                                    stage_execution_id: stage_id.clone(),
+                                    step_execution_id,
+                                    status: status.to_string(),
+                                    outputs: Some(outputs),
+                                    error_message: if succeeded { None } else { error_message },
+                                };
+                                let _ = self.rabbitmq.send_progress(&progress_msg).await;
+                            }
+                            GuestToHostMessage::StageCompleted { succeeded, error_message } => {
+                                info!("[IPC] Stage Completed signal: succeeded={}", succeeded);
+                                stage_succeeded = succeeded;
+                                stage_error = error_message;
+                            }
+                            GuestToHostMessage::FetchAssetRequest { request_id, asset_id, pin_key: _ } => {
+                                info!("[IPC] On-Demand Asset Fetch requested: id={} (req={})", asset_id, request_id);
+                                match self.storage.find_cached_asset(&asset_id).await {
+                                    Ok(Some(cached_path)) => {
+                                        let _ = pipe_server.send_to_guest(HostToGuestMessage::FetchAssetResponse {
+                                            request_id,
+                                            success: true,
+                                            local_path: Some(cached_path.to_string_lossy().to_string()),
+                                            error: None,
+                                        }).await;
+                                    }
+                                    _ => {
+                                        let maybe_url = task.resolved_data.get(&asset_id).and_then(|v| v.as_str());
+                                        if let Some(url) = maybe_url {
+                                            match self.downloader.download_asset(url, Some(&asset_id), None).await {
+                                                Ok((path, _)) => {
+                                                    let _ = pipe_server.send_to_guest(HostToGuestMessage::FetchAssetResponse {
+                                                        request_id,
+                                                        success: true,
+                                                        local_path: Some(path.to_string_lossy().to_string()),
+                                                        error: None,
+                                                    }).await;
+                                                }
+                                                Err(e) => {
+                                                    let _ = pipe_server.send_to_guest(HostToGuestMessage::FetchAssetResponse {
+                                                        request_id,
+                                                        success: false,
+                                                        local_path: None,
+                                                        error: Some(e.to_string()),
+                                                    }).await;
+                                                }
+                                            }
+                                        } else {
+                                            let _ = pipe_server.send_to_guest(HostToGuestMessage::FetchAssetResponse {
+                                                request_id,
+                                                success: false,
+                                                local_path: None,
+                                                error: Some(format!("Asset '{}' not found in cache or metadata", asset_id)),
+                                            }).await;
+                                        }
+                                    }
                                 }
                             }
                         }
-                        Err(e) => {
-                            error!("[Dispatcher] Subprocess execution error: {}", e);
-                            stage_succeeded = false;
-                            stage_error = Some(e.to_string());
-                        }
                     }
-                    break;
+
+                    proc_result = &mut proc_handle => {
+                        match proc_result {
+                            Ok(res) => {
+                                info!("[Dispatcher] Subprocess exited: exit_code={:?}, success={}", res.exit_code, res.success);
+                                if !guest_handshake_received {
+                                    stage_succeeded = false;
+                                    stage_error = Some(format!(
+                                        "Guest DCC script failed to launch or connect to IPC (exit code {:?}). Check logs at logs/stage_{}.log",
+                                        res.exit_code, stage_id
+                                    ));
+                                } else if stage_succeeded {
+                                    if !res.success {
+                                        warn!(
+                                            "[Dispatcher] Stage {} completed successfully according to Guest IPC, but DCC host process exited with code {:?}. Preserving stage success.",
+                                            stage_id, res.exit_code
+                                        );
+                                    }
+                                } else if !res.success && stage_error.is_none() {
+                                    stage_succeeded = false;
+                                    stage_error = Some(format!("Subprocess exited with non-zero code {:?}", res.exit_code));
+                                } else if res.success && stage_error.is_none() {
+                                    if !stage_succeeded {
+                                        stage_succeeded = true;
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!("[Dispatcher] Subprocess execution error: {}", e);
+                                stage_succeeded = false;
+                                stage_error = Some(e.to_string());
+                            }
+                        }
+                        break;
+                    }
                 }
             }
         }

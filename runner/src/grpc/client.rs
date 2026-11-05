@@ -15,6 +15,7 @@ use super::agent::{
     CancelExecutionCommandResult, ExecuteCommandResult,
 };
 use crate::process::active_stage::ActiveStageManager;
+use crate::process::dcc_pool::DccPool;
 
 pub struct GrpcRunnerClient;
 
@@ -26,13 +27,14 @@ impl GrpcRunnerClient {
         grpc_url: String,
         runner_id: String,
         active_stages: Arc<ActiveStageManager>,
+        dcc_pool: Arc<DccPool>,
     ) {
         let app_version = env!("FORGITY_RUNNER_VERSION").to_string();
 
         loop {
             info!("Attempting gRPC connection to Backend at {}...", grpc_url);
 
-            match Self::connect_and_stream(&grpc_url, &runner_id, &app_version, active_stages.clone()).await {
+            match Self::connect_and_stream(&grpc_url, &runner_id, &app_version, active_stages.clone(), dcc_pool.clone()).await {
                 Ok(_) => {
                     warn!("gRPC stream closed by server. Reconnecting in 5s...");
                 }
@@ -50,6 +52,7 @@ impl GrpcRunnerClient {
         runner_id: &str,
         app_version: &str,
         active_stages: Arc<ActiveStageManager>,
+        dcc_pool: Arc<DccPool>,
     ) -> Result<()> {
         let endpoint = Channel::from_shared(grpc_url.to_string())
             .with_context(|| format!("Invalid gRPC URL: {}", grpc_url))?
@@ -394,10 +397,80 @@ impl GrpcRunnerClient {
                         cmd.command_id, cmd.program, cmd.args
                     );
 
-                    let program_exe = if cmd.program.is_empty()
+                    let is_forgity_prog = cmd.program.is_empty()
                         || cmd.program == "forgity"
-                        || cmd.program == "forgity-runner"
-                    {
+                        || cmd.program == "forgity-runner";
+
+                    // In-memory persistent DCC process pool management (zero proto bloat convention)
+                    if is_forgity_prog && cmd.args.first().map(|s| s.as_str()) == Some("dcc") {
+                        info!("[gRPC] Intercepting in-memory DCC pool command: {:?}", cmd.args);
+                        let action = cmd.args.get(1).map(|s| s.as_str()).unwrap_or("");
+                        let (exit_code, stdout, stderr, success, err_msg) = match action {
+                            "list" => {
+                                let sessions = dcc_pool.list().await;
+                                match serde_json::to_string_pretty(&sessions) {
+                                    Ok(json_str) => (0, json_str, String::new(), true, String::new()),
+                                    Err(e) => (1, String::new(), e.to_string(), false, e.to_string()),
+                                }
+                            }
+                            "stop" => {
+                                let has_all = cmd.args.iter().any(|a| a == "--all");
+                                if has_all {
+                                    let count = dcc_pool.stop_all().await;
+                                    let res_json = serde_json::json!({ "stopped": count }).to_string();
+                                    (0, res_json, String::new(), true, String::new())
+                                } else if let Some(key) = cmd.args.get(2) {
+                                    let stopped = dcc_pool.stop(key).await;
+                                    let res_json = serde_json::json!({ "stopped": if stopped { 1 } else { 0 } }).to_string();
+                                    (0, res_json, String::new(), true, String::new())
+                                } else {
+                                    (
+                                        1,
+                                        String::new(),
+                                        "Missing target session key or --all".to_string(),
+                                        false,
+                                        "Missing session key or --all".to_string(),
+                                    )
+                                }
+                            }
+                            _ => (
+                                1,
+                                String::new(),
+                                format!("Unknown dcc command action: {}", action),
+                                false,
+                                format!("Unknown dcc command action: {}", action),
+                            ),
+                        };
+
+                        let resp = CommandResponse {
+                            command_id: cmd.command_id,
+                            success,
+                            error_message: err_msg,
+                            result: Some(command_response::Result::ExecuteCommandResult(
+                                ExecuteCommandResult {
+                                    exit_code,
+                                    stdout,
+                                    stderr,
+                                    timed_out: false,
+                                },
+                            )),
+                        };
+
+                        let reply = AgentMessage {
+                            agent_id: runner_id.to_string(),
+                            app_version: app_version.to_string(),
+                            payload: Some(agent_message::Payload::CommandResponse(resp)),
+                        };
+
+                        if let Err(e) = tx.send(reply).await {
+                            error!("[gRPC] Failed to send DCC ExecuteCommand response: {}", e);
+                        } else {
+                            info!("[gRPC] DCC ExecuteCommand response sent successfully!");
+                        }
+                        continue;
+                    }
+
+                    let program_exe = if is_forgity_prog {
                         std::env::current_exe()
                             .unwrap_or_else(|_| std::path::PathBuf::from("forgity"))
                     } else {

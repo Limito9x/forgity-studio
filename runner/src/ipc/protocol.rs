@@ -74,3 +74,38 @@ pub enum HostToGuestMessage {
         reason: String,
     },
 }
+
+/// Messages emitted from Host Runner to Resident DCC Process over the Control Pipe.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum HostToResidentMessage {
+    /// Dispatches a new Stage execution to the resident DCC process.
+    RunStage {
+        stage_execution_id: String,
+        task_json_path: String,
+        stage_pipe: String,
+    },
+    /// Requests the resident DCC process to terminate gracefully.
+    Shutdown,
+}
+
+/// Messages emitted from Resident DCC Process to Host Runner over the Control Pipe.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ResidentToHostMessage {
+    /// Resident DCC process has fully loaded its engine and connected to the Control Pipe.
+    Ready {
+        pid: u32,
+        dcc_name: String,
+        #[serde(default)]
+        dcc_version: Option<String>,
+    },
+    /// Resident DCC process has finished executing a Stage.
+    StageFinished {
+        stage_execution_id: String,
+        exit_code: i32,
+        success: bool,
+        #[serde(default)]
+        error_message: Option<String>,
+    },
+}

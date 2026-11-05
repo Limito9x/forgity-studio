@@ -1,5 +1,6 @@
 pub mod clean;
 pub mod daemon;
+pub mod dcc;
 pub mod doctor;
 pub mod env;
 pub mod register;
@@ -61,6 +62,12 @@ pub enum Commands {
     Daemon {
         #[command(subcommand)]
         action: daemon::DaemonAction,
+    },
+
+    /// Manage persistent warm DCC sessions (Unreal/Blender)
+    Dcc {
+        #[command(subcommand)]
+        action: dcc::DccAction,
     },
 
     /// Clean local asset cache and temporary pipeline artifacts
