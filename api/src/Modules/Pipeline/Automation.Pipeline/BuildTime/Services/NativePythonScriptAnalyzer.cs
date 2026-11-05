@@ -188,6 +188,15 @@ public class NativePythonScriptAnalyzer : IScriptSchemaAnalyzer
             _ => PinPrimitiveType.String
         };
 
+        // Fallback Heuristic in C# in case analyzer output was scalar string
+        if (isInput && primitiveType == PinPrimitiveType.String &&
+            (pin.Name.Contains("preset", StringComparison.OrdinalIgnoreCase) ||
+             pin.Name.EndsWith("_file", StringComparison.OrdinalIgnoreCase) ||
+             pin.Name.EndsWith("_asset", StringComparison.OrdinalIgnoreCase)))
+        {
+            primitiveType = PinPrimitiveType.Asset;
+        }
+
         var cardinality = (pin.Cardinality ?? string.Empty).ToLowerInvariant() switch
         {
             "array" or "list" => PinCardinality.Array,
@@ -196,9 +205,19 @@ public class NativePythonScriptAnalyzer : IScriptSchemaAnalyzer
         };
 
         string? metadata = pin.Metadata;
-        if (string.IsNullOrWhiteSpace(metadata) && pin.Options is { Count: > 0 })
+        if (string.IsNullOrWhiteSpace(metadata))
         {
-            metadata = JsonSerializer.Serialize(new { type = "select", options = pin.Options });
+            if (pin.Options is { Count: > 0 })
+            {
+                metadata = JsonSerializer.Serialize(new { type = "select", options = pin.Options });
+            }
+            else if (primitiveType == PinPrimitiveType.Asset)
+            {
+                var accept = pin.Name.Contains("preset", StringComparison.OrdinalIgnoreCase) ? ".py" : null;
+                metadata = accept != null
+                    ? JsonSerializer.Serialize(new { type = "file", accept })
+                    : JsonSerializer.Serialize(new { type = "file" });
+            }
         }
 
         object? defaultValue = pin.DefaultValue;

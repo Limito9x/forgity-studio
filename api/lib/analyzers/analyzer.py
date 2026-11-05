@@ -5,7 +5,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 from .context import ASTAnalysisContext
-from .docstring import clean_docstring, extract_options_from_docstring
+from .docstring import clean_docstring, extract_options_from_docstring, extract_file_hint
 from .resolvers import DynamicDependencyResolver
 from .strategies import (
     DEFAULT_EXECUTOR_STRATEGIES,
@@ -140,17 +140,27 @@ class PythonScriptAnalyzer:
 
             desc = param_descs.get(name, "")
 
-            # Heuristic fallback: if options is None, inspect docstring
-            if options is None and desc:
-                doc_options = extract_options_from_docstring(desc)
-                if doc_options:
-                    options = doc_options
-
-            # Format metadata hint payload for FormRenderer
+            # 1. Check for explicit or heuristic file/asset hint
+            file_hint = extract_file_hint(name, desc)
             metadata_hint: Optional[str] = None
-            if options:
-                control_type = "tagsInput" if cardinality == "Array" else "select"
-                metadata_hint = json.dumps({"type": control_type, "options": options})
+
+            if file_hint and file_hint[0]:
+                prim_type = "Asset"
+                hint_dict: Dict[str, Any] = {"type": "file"}
+                if file_hint[1]:
+                    hint_dict["accept"] = file_hint[1]
+                metadata_hint = json.dumps(hint_dict)
+            else:
+                # Heuristic fallback: if options is None, inspect docstring
+                if options is None and desc:
+                    doc_options = extract_options_from_docstring(desc)
+                    if doc_options:
+                        options = doc_options
+
+                # Format metadata hint payload for FormRenderer
+                if options:
+                    control_type = "tagsInput" if cardinality == "Array" else "select"
+                    metadata_hint = json.dumps({"type": control_type, "options": options})
 
             inputs.append({
                 "name": name,

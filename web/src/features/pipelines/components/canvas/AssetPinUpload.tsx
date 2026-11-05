@@ -44,11 +44,16 @@ export function AssetPinUpload({
     : isUnbound
     ? unboundName
     : fileAsset?.originalName || (value === upload.data?.assetId ? upload.data?.originalName : undefined);
+  const currentAssetLinkId =
+    value && typeof value === "object"
+      ? ((value as any).assetLinkId || (value as any).AssetLinkId)
+      : undefined;
+
   const isAvailable =
     !!value &&
     typeof value === "object" &&
-    "assetLinkId" in value &&
-    fileAsset?.assetLinkId === value.assetLinkId &&
+    !!currentAssetLinkId &&
+    fileAsset?.assetLinkId === currentAssetLinkId &&
     fileAsset.status === "Available";
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

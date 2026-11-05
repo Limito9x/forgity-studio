@@ -37,8 +37,30 @@ const PIN_BG_CLASSES: Record<NormalizedPinType, { bgClass: string; textClass: st
   Asset: { bgClass: "bg-pink-500", textClass: "text-pink-600 dark:text-pink-400" },
 };
 
-export function getPinVisual(type?: PinPrimitiveType | number | string): PinTypeVisual {
-  const norm = normalizePinType(type);
+export function getPinVisual(type?: PinPrimitiveType | number | string, pin?: PinDefinition): PinTypeVisual {
+  let norm = normalizePinType(type);
+
+  if (norm === "String" && pin) {
+    let hintType: string | undefined;
+    if (pin.metadata) {
+      try {
+        const metaObj = typeof pin.metadata === "string" ? JSON.parse(pin.metadata) : pin.metadata;
+        hintType = metaObj?.type?.toLowerCase();
+      } catch { }
+    }
+
+    const idLower = (pin.id || "").toLowerCase();
+    if (
+      hintType === "file" ||
+      hintType === "asset" ||
+      idLower.includes("preset") ||
+      idLower.endsWith("_file") ||
+      idLower.endsWith("_asset")
+    ) {
+      norm = "Asset";
+    }
+  }
+
   const visual = getCatalogueVisual(norm);
   const style = PIN_BG_CLASSES[norm] || PIN_BG_CLASSES.String;
 
@@ -87,8 +109,8 @@ export function isExecPin(p: PinDefinition): boolean {
   );
 }
 
-export function formatPinTypeLabel(type?: PinPrimitiveType | number | string, cardinality?: any): string {
-  const visual = getPinVisual(type);
+export function formatPinTypeLabel(type?: PinPrimitiveType | number | string, cardinality?: any, pin?: PinDefinition): string {
+  const visual = getPinVisual(type, pin);
   const isArray = cardinality === 1 || cardinality === "1" || cardinality === "Array" || cardinality === "array";
   const isMap = cardinality === 2 || cardinality === "2" || cardinality === "Map" || cardinality === "map";
 
