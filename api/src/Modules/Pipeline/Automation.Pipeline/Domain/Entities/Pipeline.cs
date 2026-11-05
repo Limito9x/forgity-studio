@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
@@ -11,13 +12,26 @@ public class Pipeline : BaseEntity
     public PipelineTriggerType TriggerType { get; set; } = PipelineTriggerType.Manual;
     public JsonDocument? TriggerConfig { get; set; }
 
-    // Unified Parameter Collection (JSONB)
-    public List<PipelineParameter> Parameters { get; set; } = new();
+    public Guid? ActiveSnapshotId { get; set; }
+    public PipelineSnapshot? ActiveSnapshot { get; set; }
+    public string? GraphHash { get; set; }
 
-    private readonly List<PipelineNode> _nodes = new();
-    public IReadOnlyList<PipelineNode> Nodes => _nodes;
-    private readonly List<PipelineEdge> _edges = new();
-    public IReadOnlyList<PipelineEdge> Edges => _edges;
+    // Unified Graph Storage (JSONB single column)
+    public PipelineGraphDocument GraphData { get; set; } = new();
+
+    // Facade Properties: 100% backward-compatible with existing engine code
+    [NotMapped]
+    public List<PipelineParameter> Parameters
+    {
+        get => GraphData.Parameters;
+        set => GraphData.Parameters = value ?? [];
+    }
+
+    [NotMapped]
+    public IReadOnlyList<PipelineNode> Nodes => GraphData.Nodes;
+
+    [NotMapped]
+    public IReadOnlyList<PipelineEdge> Edges => GraphData.Edges;
 
     public Pipeline() { }
 
@@ -66,32 +80,32 @@ public class Pipeline : BaseEntity
 
     public void AddNode(string refId, string kind, float x, float y, JsonDocument? config = null, Guid? parentId = null)
     {
-        _nodes.Add(new PipelineNode(IdGenerator.NewId(), Id, refId, kind, x, y, config, parentId));
+        GraphData.Nodes.Add(new PipelineNode(IdGenerator.NewId(), Id, refId, kind, x, y, config, parentId));
     }
 
     public void AddNode(PipelineNode node)
     {
-        _nodes.Add(node);
+        GraphData.Nodes.Add(node);
     }
 
     public void RemoveNode(Guid nodeId)
     {
-        var node = _nodes.FirstOrDefault(x => x.Id == nodeId);
+        var node = GraphData.Nodes.FirstOrDefault(x => x.Id == nodeId);
         if (node != null)
         {
-            _nodes.Remove(node);
+            GraphData.Nodes.Remove(node);
         }
     }
 
     public void UpdateNode(Guid nodeId, float x, float y, Guid? parentId = null, NodeSize? size = null)
     {
-        var node = _nodes.FirstOrDefault(x => x.Id == nodeId);
+        var node = GraphData.Nodes.FirstOrDefault(x => x.Id == nodeId);
         node?.Update(x, y, parentId, size);
     }
 
     public void UpdateNodeConfig(Guid nodeId, JsonDocument? config)
     {
-        var node = _nodes.FirstOrDefault(x => x.Id == nodeId);
+        var node = GraphData.Nodes.FirstOrDefault(x => x.Id == nodeId);
         node?.UpdateConfig(config);
     }
 
@@ -105,26 +119,26 @@ public class Pipeline : BaseEntity
     )
     {
         var edge = new PipelineEdge(Id, sourcePipelineNodeId, sourcePin, targetPipelineNodeId, targetPin, kind, id);
-        _edges.Add(edge);
+        GraphData.Edges.Add(edge);
         return edge;
     }
 
     public void AddEdge(PipelineEdge edge)
     {
-        _edges.Add(edge);
+        GraphData.Edges.Add(edge);
     }
 
     public void RemoveEdge(Guid edgeId)
     {
-        var edge = _edges.FirstOrDefault(x => x.Id == edgeId);
+        var edge = GraphData.Edges.FirstOrDefault(x => x.Id == edgeId);
         if (edge != null)
         {
-            _edges.Remove(edge);
+            GraphData.Edges.Remove(edge);
         }
     }
 
     public void ClearEdges()
     {
-        _edges.Clear();
+        GraphData.Edges.Clear();
     }
 }

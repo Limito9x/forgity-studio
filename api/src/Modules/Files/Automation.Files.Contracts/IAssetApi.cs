@@ -54,6 +54,12 @@ public interface IAssetApi
         CancellationToken ct = default
     );
 
+    // Batch removal of multiple links by references. Idempotent and validates ownership for each.
+    Task<Result> RemoveLinksByIdsAsync(
+        IEnumerable<AssetLinkReference> references,
+        CancellationToken ct = default
+    );
+
     // Request Upload Multiple
     Task<Result<IReadOnlyList<AssetUploadDto>>> RequestUploadAsync(
         IEnumerable<UploadRequestItemDto> requests,

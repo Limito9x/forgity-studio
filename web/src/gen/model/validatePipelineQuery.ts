@@ -16,4 +16,7 @@ export interface ValidatePipelineQuery {
   edges?: unknown[] | null;
   /** @nullable */
   parameters?: unknown[] | null;
+  createSnapshot?: boolean;
+  /** @nullable */
+  snapshotSummary?: string | null;
 }

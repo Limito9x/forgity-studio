@@ -240,6 +240,35 @@ public partial class AssetApiService
         return Result.Ok();
     }
 
+    public async Task<Result> RemoveLinksByIdsAsync(
+        IEnumerable<AssetLinkReference> references,
+        CancellationToken ct = default
+    )
+    {
+        var list = references.Where(r => r.AssetLinkId != Guid.Empty && IsValidOwner(r.Owner)).ToList();
+        if (list.Count == 0) return Result.Ok();
+
+        var linkIds = list.Select(r => r.AssetLinkId).Distinct().ToList();
+        var links = await dbContext.AssetLinks
+            .Where(x => linkIds.Contains(x.Id))
+            .ToListAsync(ct);
+
+        if (links.Count == 0) return Result.Ok();
+
+        var refMap = list.ToDictionary(r => r.AssetLinkId, r => r.Owner);
+        var validToRemove = links
+            .Where(l => refMap.TryGetValue(l.Id, out var expectedOwner) && MatchesOwner(l, expectedOwner))
+            .ToList();
+
+        if (validToRemove.Count > 0)
+        {
+            dbContext.AssetLinks.RemoveRange(validToRemove);
+            await dbContext.SaveChangesAsync(ct);
+        }
+
+        return Result.Ok();
+    }
+
     public async Task<Result> VerifyAndLinkAsync(
         IEnumerable<AssetLinkRequestItem> items,
         string ownerEntityType,

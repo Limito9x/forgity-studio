@@ -348,7 +348,7 @@ public class AssignResourcesToContentTool(
         // 3. Assign via ContentApi into ContentAnchorTree
         var anchorPath = inputs.GetValueOrDefault("AnchorPath")?.ToString()?.Trim();
         var resListResult = await workspaceApi.GetResourcesByIdsAsync(resourceGuids, ct);
-        var smartInputs = resListResult.IsSuccess && resListResult.Value.Count > 0
+        var smartInputs = resListResult is { IsSuccess: true, Value.Count: > 0 }
             ? resListResult.Value.Select(r => new ResourceSmartLinkInput(
                 r.ResourceId,
                 r.DisplayName,

@@ -16,6 +16,13 @@ public class PipelineExecutionConfiguration
             .HasForeignKey(x => x.PipelineId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder
+            .HasOne(x => x.Snapshot)
+            .WithMany()
+            .HasForeignKey(x => x.SnapshotId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(50);
 
         builder.Property(x => x.ExecutionState).HasColumnType("jsonb");

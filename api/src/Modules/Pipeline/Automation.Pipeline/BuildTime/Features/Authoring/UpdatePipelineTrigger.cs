@@ -29,8 +29,8 @@ public class UpdatePipelineTriggerHandler(PipelineDbContext db)
         pipeline.UpdateTrigger(command.TriggerType, command.TriggerConfig);
         await db.SaveChangesAsync(ct);
 
-        var nodeCount = await db.PipelineNodes.CountAsync(x => x.PipelineId == pipeline.Id, ct);
-        var edgeCount = await db.PipelineEdges.CountAsync(x => x.PipelineId == pipeline.Id, ct);
+        var nodeCount = pipeline.GraphData.Nodes.Count;
+        var edgeCount = pipeline.GraphData.Edges.Count;
 
         var dto = new PipelineSummaryDto(
             pipeline.Id,

@@ -17,9 +17,19 @@ def normalize_type_and_cardinality(annotation_node: Optional[ast.AST]) -> Tuple[
     if options is not None:
         return "Text", "Single", options
 
-    # 2. Check for Optional[...] -> strip Optional wrapper
+    # 2. Check for Optional[...] / Annotated[...] -> strip wrappers or extract metadata
     if isinstance(annotation_node, ast.Subscript):
         base_id = _get_identifier(annotation_node.value)
+        if base_id in ("Annotated", "typing.Annotated"):
+            slice_node = annotation_node.slice
+            elts = slice_node.elts if isinstance(slice_node, ast.Tuple) else [slice_node]
+            first_type, first_card, first_opts = normalize_type_and_cardinality(elts[0]) if elts else ("Text", "Single", None)
+            for meta_elt in elts[1:]:
+                meta_str = str(_extract_constant_val(meta_elt) or "").lower()
+                if "file" in meta_str or "asset" in meta_str:
+                    return "Asset", first_card, first_opts
+            return first_type, first_card, first_opts
+
         if base_id in ("Optional", "Union"):
             slice_node = annotation_node.slice
             if isinstance(slice_node, ast.Tuple):
@@ -62,7 +72,9 @@ def normalize_type_and_cardinality(annotation_node: Optional[ast.AST]) -> Tuple[
 
     # 5. Base identifier matching
     id_name = _get_identifier(annotation_node).lower()
-    if id_name in ("str", "string", "path", "filepath"):
+    if id_name in ("file", "asset", "uploadfile"):
+        return "Asset", "Single", None
+    elif id_name in ("str", "string", "path", "filepath"):
         return "Text", "Single", None
     elif id_name in ("int", "float", "number"):
         return "Number", "Single", None

@@ -66,7 +66,6 @@ public class CreatePipelineHandler(PipelineDbContext db)
             command.TriggerType,
             command.TriggerConfig
         );
-        db.Pipelines.Add(pipeline);
 
         var startNode = new PipelineNode(
             Guid.NewGuid(),
@@ -77,7 +76,6 @@ public class CreatePipelineHandler(PipelineDbContext db)
             150,
             null
         );
-        db.PipelineNodes.Add(startNode);
 
         var returnNode = new PipelineNode(
             Guid.NewGuid(),
@@ -88,7 +86,15 @@ public class CreatePipelineHandler(PipelineDbContext db)
             150,
             null
         );
-        db.PipelineNodes.Add(returnNode);
+
+        pipeline.GraphData.Nodes.Add(startNode);
+        pipeline.GraphData.Nodes.Add(returnNode);
+
+        var graphJson = System.Text.Json.JsonSerializer.Serialize(pipeline.GraphData);
+        var hashBytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(graphJson));
+        pipeline.GraphHash = Convert.ToHexString(hashBytes).ToLowerInvariant();
+
+        db.Pipelines.Add(pipeline);
 
         try
         {

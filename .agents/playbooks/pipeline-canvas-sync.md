@@ -101,24 +101,26 @@ sequenceDiagram
 
 ---
 
-## 2. Cấu Trúc Đồ Thị Pipeline Canvas (Graph Mental Model)
+## 2. Cấu Trúc Đồ Thị Pipeline Canvas (Graph Mental Model - Unified JSONB)
 
-Một Pipeline thuộc về một `ProjectId` cụ thể, chứa cấu hình Parameters toàn cục và toàn bộ mạng lưới đồ thị trực quan (Graph).
+Một Pipeline thuộc về một `ProjectId` cụ thể, chứa cấu hình Parameters toàn cục và toàn bộ mạng lưới đồ thị trực quan được lưu trữ tập trung trong **cột `GraphData (jsonb)` duy nhất**:
 
 ```
-Pipeline (Id, ProjectId, Name, Parameters, TriggerConfig)
-├── Parameters (JSONB): [ { Key, Kind: Input | Variable | Output, Type, DefaultValue } ]
-├── PipelineNodes (Bản ghi DB)
-│   ├── Id (GUID)
-│   ├── RefId: Tool Key ("make-map") HOẶC Custom Node Key ("bake-mesh")
-│   ├── Kind: Standard | Container | SubPipeline
-│   ├── ParentId: Trỏ đến Container Node (nếu nằm trong Container)
-│   ├── Position: { X, Y } (tọa độ trên React Flow Canvas)
-│   ├── Config: { pinKey: literalValue | { assetLinkId: GUID } }
-│   └── Metadata: { size, label, executor, color... }
-└── PipelineEdges (Bản ghi DB)
-    ├── SourcePipelineNodeId + SourcePin
-    └── TargetPipelineNodeId + TargetPin
+Pipeline (Id, ProjectId, Name, TriggerType, TriggerConfig, ActiveSnapshotId, GraphHash)
+└── GraphData (JSONB Single Column): PipelineGraphDocument
+    ├── Parameters: [ { Key, Kind: Input | Variable | Output, Type, DefaultValue, Order } ]
+    ├── Nodes: [ { Id, RefId, Kind, Position, ConfigValues, Metadata, ParentId, Width, Height } ]
+    └── Edges: [ { Id, SourcePipelineNodeId, SourcePin, TargetPipelineNodeId, TargetPin, Kind } ]
+
+PipelineSnapshots (Bản ghi DB bất biến - Version History & Run DAG Freeze)
+├── Id (GUID, PK)
+├── PipelineId (GUID, FK)
+├── VersionNumber (int, tăng dần v1, v2...)
+├── GraphHash (SHA-256 của GraphData)
+├── Source (Manual | Run | Import | SystemMigration)
+├── Summary (Ghi chú checkpoint / tên phiên bản)
+├── GraphData (JSONB snapshot nguyên khối tại thời điểm chốt)
+└── CreatedAt, CreatedBy
 ```
 
 ### 2.1. Phân loại Nodes (`PipelineNodeKind`)
@@ -166,12 +168,13 @@ graph TD
 ### 3.2. Endpoint Duy Nhất: `SavePipelineGraph`
 - **Route:** `POST /api/pipelines/{pipelineId:guid}/graph`
 - **Payload:** Chứa toàn bộ danh sách `Nodes`, `Edges`, và `Parameters` hiện tại của đồ thị.
-- **Backend xử lý:**
-  1. Kiểm tra validation chu trình (Cycle Detection).
-  2. Tìm các Nodes và Edges đã bị người dùng xóa khỏi Canvas để xóa khỏi Database.
-  3. Upsert các Nodes và Edges mới hoặc có thay đổi tọa độ, config, metadata.
-  4. Chuẩn hóa và liên kết File Pins (xem mục 3.3).
-  5. Commit toàn bộ vào DB trong một Transaction duy nhất.
+- **Backend xử lý (Unified JSONB Document):**
+  1. Kiểm tra validation chu trình (Cycle Detection qua `PipelineCycleValidator`).
+  2. Gán trực tiếp `pipeline.GraphData = new PipelineGraphDocument { ... }` vào cột `GraphData (jsonb)` duy nhất, loại bỏ hoàn toàn 150+ dòng code diffing DB.
+  3. Chuẩn hóa và liên kết File Pins (xem mục 3.3) và thu hồi pin mồ côi qua Batch API `IAssetApi.RemoveLinksByIdsAsync`.
+  4. Tính toán `GraphHash` (SHA-256) phục vụ Optimistic Concurrency Control (OCC).
+  5. Nếu `CreateSnapshot == true`, tự động sinh một `PipelineSnapshot` bất biến mới và kích hoạt Rolling Retention Pruning (giới hạn 50 snapshot an toàn).
+  6. Commit toàn bộ vào DB trong một Transaction duy nhất.
 
 ### 3.3. Quy ước Dữ liệu File Parameter Pin (File Pins Lifecycle)
 
@@ -223,3 +226,9 @@ File được truyền vào Input Pin của Node (ví dụ file FBX, preset, scr
      - `allowAllRepositories: bool` (mặc định false) và `repositoryIds: Guid[]` (chọn nhiều repository) bảo vệ an toàn, tránh kích hoạt nhầm toàn project.
      - `triggerMode`: `Always` (tự động chạy) vs `AskBefore` (yêu cầu user duyệt qua checkbox tại `RepositorySyncTab`).
      - Start Node tự động cung cấp chân `Resource` (Single Struct/EntityRef) cho mô hình 1-File-1-Job, song song với `Resources` (Array 1 phần tử) và `Workstation`.
+
+7. **Pipeline Snapshot & JSONB Architecture (BL-039):**
+   - Bảng `Pipelines` lưu trữ toàn bộ cấu trúc đồ thị (`Parameters`, `Nodes`, `Edges`) trong 1 cột `GraphData (jsonb)` duy nhất.
+   - Bảng `PipelineSnapshots` lưu trữ các bản snapshot bất biến phục vụ Run DAG freeze, rollback và version history.
+   - Thao tác Rollback khôi phục trạng thái đồ thị tức thì và sinh một Snapshot checkpoint mới.
+   - Các thuộc tính `pipeline.Nodes`, `pipeline.Edges`, `pipeline.Parameters` trên C# entity đóng vai trò Domain Navigation Properties hướng vào `GraphData`, đảm bảo tính đóng gói chuẩn DDD mà không phơi bày cấu trúc nội bộ.

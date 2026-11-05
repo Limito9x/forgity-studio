@@ -308,15 +308,13 @@ public class ImportPipelinePackageHandler(
                 }
             }
 
+            // 7. Tính GraphHash và tạo Snapshot v1 bất biến cho Pipeline vừa Import
+            var graphJson = JsonSerializer.Serialize(item.Pipeline.GraphData);
+            var hashBytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(graphJson));
+            var newHash = Convert.ToHexString(hashBytes).ToLowerInvariant();
+            item.Pipeline.GraphHash = newHash;
+
             db.Pipelines.Add(item.Pipeline);
-            foreach (var node in item.Pipeline.Nodes)
-            {
-                db.PipelineNodes.Add(node);
-            }
-            foreach (var edge in item.Pipeline.Edges)
-            {
-                db.PipelineEdges.Add(edge);
-            }
 
             var postImportVal = await contractValidator.ValidateGraphAsync(item.Pipeline, item.Context, ct: ct);
 
@@ -330,7 +328,24 @@ public class ImportPipelinePackageHandler(
             ));
         }
 
-        // Commit all changes in a single atomic database transaction
+        // Commit pipelines first to resolve foreign key constraints
+        await db.SaveChangesAsync(ct);
+
+        // Create initial snapshots for imported pipelines
+        foreach (var item in buildResult.Items)
+        {
+            var initialSnapshot = new PipelineSnapshot(
+                item.Pipeline.Id,
+                1,
+                item.Pipeline.GraphData,
+                item.Pipeline.GraphHash,
+                PipelineSnapshotSource.Import,
+                $"Imported from bundle '{item.SourceDto.BundleId}' ({item.ResolvedName})"
+            );
+            db.PipelineSnapshots.Add(initialSnapshot);
+            item.Pipeline.ActiveSnapshotId = initialSnapshot.Id;
+        }
+
         await db.SaveChangesAsync(ct);
 
         logger.LogInformation(

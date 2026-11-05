@@ -77,11 +77,7 @@ public class PipelineOrchestrator(
     )
     {
         var execution = await db.PipelineExecutions
-            .AsSplitQuery()
             .Include(x => x.Pipeline)
-                .ThenInclude(p => p.Nodes)
-            .Include(x => x.Pipeline)
-                .ThenInclude(p => p.Edges)
             .FirstOrDefaultAsync(x => x.Id == executionId, ct);
 
         if (execution == null)

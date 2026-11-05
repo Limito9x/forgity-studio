@@ -1,5 +1,7 @@
 # Forgity Studio - Master Agent Instructions
 
+> Game contracts inspection (05/11/2026): xem mục 1.2 trong `playbooks/character-bake-and-unreal-shading.md`. Inspector dùng `.uproject` tường minh cùng hai nhóm folder/pattern material và PDA tương đối với Content; cần cấu hình lại input node sau khi cập nhật script asset.
+
 > Pipeline Canvas definitions (22/10/2026): xem cập nhật đầu `playbooks/pipeline-canvas-sync.md`. Palette là nguồn định nghĩa chung; graph giữ config/resolved pins, không chứa capabilities. Phase B qua kiểm tra tự động, chờ UI; Phase C chưa triển khai.
 
 > Node lifecycle (22/10/2026): [plan khởi tạo, resolve và validation](plans/archive/2026-10/2026-10-22-node-resolution-and-validation-lifecycle.md) ghi nhận hướng tiếp nối Phase B. Xem mental model đầu [Canvas playbook](playbooks/pipeline-canvas-sync.md); phân biệt resolve schema với validation graph. R1–R4 là lộ trình chưa triển khai.
@@ -141,9 +143,9 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 
 ### Kế hoạch đang thực hiện (Active):
 - [**bl-040-persistent-dcc-process-pool-and-keep-alive-worker-daemon (03/11/2026)**](file:///D:/FullStack/Automation/.agents/plans/2026-11-03-bl-040-persistent-dcc-process-pool-and-keep-alive-worker-daemon.md): Persistent DCC Process Pool and Keep-Alive Worker Daemon.
-- [**bl-039-pipeline-snapshot-and-jsonb-graph-unification (03/11/2026)**](file:///d:/FullStack/Automation/.agents/plans/2026-11-03-bl-039-pipeline-snapshot-and-jsonb-graph-unification.md): Pipeline Snapshot & JSONB Graph Unification (Hợp nhất `Parameters`, `Nodes`, `Edges` vào `GraphData jsonb`, bảng `PipelineSnapshots` bất biến & SQL Migration Zero-Data-Loss).
 
 ### Kế hoạch vừa hoàn thành gần nhất (Đã Archive):
+- [**bl-039-pipeline-snapshot-and-jsonb-graph-unification (03/11/2026)**](file:///D:/FullStack/Automation/.agents/plans/archive/2026-11/2026-11-03-bl-039-pipeline-snapshot-and-jsonb-graph-unification.md): Pipeline Snapshot & JSONB Graph Unification (Hợp nhất `Parameters`, `Nodes`, `Edges` vào `GraphData jsonb`, bảng `PipelineSnapshots` bất biến & SQL Migration Zero-Data-Loss).
 - [**modular-outfit-pipeline-and-data-asset-registration (30/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/archive/2026-10/2026-10-30-modular-outfit-pipeline-and-data-asset-registration.md): Chuẩn Hóa Luồng Xuất Modular Outfit (Blender), Nâng Cấp AI Classify (Local LLM / Notes Prompt Injection / Tags Whitelist) & Tự Động Đăng Ký Unreal Data Assets (`PDA_WardrobeItem`, `PDA_CharacterProfile`, GameplayTags).
 - [**bl-035-multi-content-resource-linking-and-table-unification (01/11/2026)**](file:///D:/FullStack/Automation/.agents/plans/archive/2026-11/2026-11-01-bl-035-multi-content-resource-linking-and-table-unification.md): Multi-Content Resource Linking, Table Unification & Query Filtering (Mô hình N - N cho Content Anchors, DTO LinkedAnchors, lọc Unassigned & gộp cột Linked Contents Popover).
 - [**bl-032-per-resource-queue-and-multi-repo-trigger-ux (31/10/2026)**](file:///D:/FullStack/Automation/.agents/plans/archive/2026-10/2026-10-31-bl-032-per-resource-queue-and-multi-repo-trigger-ux.md): Per-Resource Queue Event Emission (1 File = 1 Queue Execution), Multi-Repository Trigger Scoping (`repositoryIds: Guid[]`, `allowAllRepositories`) & Pre-Sync Trigger Approval UX (`Always` vs `AskBefore`).
