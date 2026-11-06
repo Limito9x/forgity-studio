@@ -49,23 +49,16 @@
 - Do not pass `unit_scale` to `bpy.ops.daz.easy_import_daz`: DAZ Importer 5.2.0 does not expose this operator property.
 - `useUnits` imports Face Units morphs, not measurement units. Preserve its preset value or the addon default.
 
-### 1.2. Scoped Game Contracts Inspection (2026-11-05)
+### 1.2. Native Unreal Game Contracts Inspection (2026-11-06)
 
-`pipeline-scripts/unreal/inspect_game_contracts.py` runs in Python before classification/import. Configure these inputs once in **Fbx To Unreal**:
+`pipeline-scripts/unreal/inspect_game_contracts.py` thực thi trực tiếp bằng **Unreal Engine Python API** (`unreal.MaterialEditingLibrary`, `unreal.EditorAssetLibrary`) bên trong môi trường Unreal (không cần fallback binary scraping hay giả lập dry-run).
 
-- `project_path`: absolute `.uproject` file on the executing Runner. Unreal executor configuration is not automatically injected into Python script inputs.
-- `material_folders`: Content-relative folder list, e.g. `["Characters/Genesis9/Base/Materials"]`.
-- `material_pattern`: filename glob, default `M_*.uasset`.
-- `pda_folders`: Content-relative folder list, e.g. `["Systems/Characters", "Systems/Wardrobe"]`.
-- `pda_pattern`: filename glob, default `PDA_*.uasset`.
-
-Both groups may share folders. Each selected folder is scanned recursively; overlapping selections are deduplicated within each group. Absolute folder paths, parent traversal, paths escaping Content, and directory patterns are rejected. Every configured folder must exist and match at least one `.uasset`. Filename patterns select candidates; name-table type markers are also checked. Unreadable contracts, wrong type markers, or duplicate contract identities fail inspection instead of being silently skipped or overwritten.
-
-GameplayTags are read only from `<project>/Config/DefaultGameplayTags.ini`; a missing/unreadable file fails inspection. No upward project search or fallback folders. Binary property parsers are unchanged; type-marker checks are not a complete UE class/inheritance validator.
-
-Migration: replace old `uasset_files`, `folder_path`, `config_folder`, `file_pattern`, `allowed_prefixes` inputs and their wires with the five inputs above after republishing the custom script. The exported package JSON remains a historical snapshot and has not been modified. Output keys remain unchanged; `contracts.skeletons` is empty and `skeletons_count` is zero. Configure `skeleton_path` explicitly on **Import Character Wardrobe**.
-
-Verification: focused discovery tests plus script harness. A read-only run on `TemplateProject` found 8 materials, 2 schemas, 35 tags and 14 slots; this does not certify all parsed property values or end-to-end Unreal import.
+- **Đầu vào (Inputs)**:
+  - `material_paths`: Danh sách đường dẫn thư mục hoặc file material dạng `/Game/...` (ví dụ `["/Game/Characters/Genesis9/Base/Materials"]`). Script sẽ tự động liệt kê đệ quy và trích xuất tất cả các Master Material `M_*` (bỏ qua Material Instances).
+  - `pda_paths`: Danh sách đường dẫn thư mục hoặc file PrimaryDataAsset Blueprint dạng `/Game/...` (ví dụ `["/Game/Systems/Wardrobe/Schemas"]`). Script sử dụng reflection trực tiếp từ `UBlueprint` (`list_member_variable_names`, `get_member_variable_type`) để trích xuất đầy đủ kiểu dữ liệu các trường (`GameplayTag`, `SkeletalMesh`, `Texture2D`, `str`, v.v.).
+- **DCC Stage Container Support**: Các custom Python scripts giờ đây được hỗ trợ thả/chạy trực tiếp bên trong các Stage DCC (Unreal Stage, Blender Stage) nhờ cập nhật bộ lọc `filterPalette` và cơ chế reparenting thông minh trên Pipeline Canvas (`onNodeDragStop`).
+- **GameplayTags & Wardrobe Slots**: Được đọc trực tiếp từ `<ProjectConfigDir>/DefaultGameplayTags.ini` thông qua `unreal.Paths.project_config_dir()`.
+- **Đầu ra (Outputs)**: Giữ nguyên cấu trúc hợp đồng chuẩn (`materials`, `schemas`, `skeletons: {}`, `gameplay_tags`, `wardrobe_slots`, `materials_count`, `schemas_count`, `slots_count`, `tags_count`, `summary`).
 
 ## 2. Bản Chất Kiến Trúc Shader DAZ / Diffeomorphic Trong Blender
 

@@ -1,6 +1,6 @@
 # Forgity Studio - Master Agent Instructions
 
-> Game contracts inspection (05/11/2026): xem mục 1.2 trong `playbooks/character-bake-and-unreal-shading.md`. Inspector dùng `.uproject` tường minh cùng hai nhóm folder/pattern material và PDA tương đối với Content; cần cấu hình lại input node sau khi cập nhật script asset.
+> Game contracts inspection (06/11/2026): xem mục 1.2 trong `playbooks/character-bake-and-unreal-shading.md`. Chuyển sang Native Unreal Python API (`unreal.MaterialEditingLibrary`, `UBlueprint` reflection); hỗ trợ thả Python scripts trực tiếp vào DCC stage container.
 
 > Pipeline Canvas definitions (22/10/2026): xem cập nhật đầu `playbooks/pipeline-canvas-sync.md`. Palette là nguồn định nghĩa chung; graph giữ config/resolved pins, không chứa capabilities. Phase B qua kiểm tra tự động, chờ UI; Phase C chưa triển khai.
 
