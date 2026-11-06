@@ -1,5 +1,7 @@
 # Forgity Studio - Master Agent Instructions
 
+> Runner isolated Python dependencies (06/11/2026): xem mục 4 `playbooks/runner-runtime.md`. Publish giữ dependencies; cache theo embedded runtime + requirements, pip `--python`/`--target`, marker sau thành công và restart warm session khi đổi cache.
+
 > Game contracts inspection (06/11/2026): xem mục 1.2 trong `playbooks/character-bake-and-unreal-shading.md`. Chuyển sang Native Unreal Python API (`unreal.MaterialEditingLibrary`, `UBlueprint` reflection); hỗ trợ thả Python scripts trực tiếp vào DCC stage container.
 
 > Pipeline Canvas definitions (22/10/2026): xem cập nhật đầu `playbooks/pipeline-canvas-sync.md`. Palette là nguồn định nghĩa chung; graph giữ config/resolved pins, không chứa capabilities. Phase B qua kiểm tra tự động, chờ UI; Phase C chưa triển khai.

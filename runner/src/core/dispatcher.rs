@@ -202,46 +202,6 @@ impl StageDispatcher {
             }
         }
 
-        if !all_deps.is_empty() {
-            let deps_hash = crate::storage::cache::compute_dependencies_hash(&all_deps);
-            let pkg_dir = self.storage.get_python_package_dir(&deps_hash);
-
-            if pkg_dir.exists() {
-                info!("[Dependencies] Reusing cached isolated python-packages at {:?} (hash: {})", pkg_dir, deps_hash);
-            } else {
-                info!("[Dependencies] Installing {} isolated package(s) into {:?} (hash: {})...", all_deps.len(), pkg_dir, deps_hash);
-                tokio::fs::create_dir_all(&pkg_dir).await.ok();
-
-                if let Ok(py_exe) = resolve_executor_executable("python") {
-                    let mut cmd = tokio::process::Command::new(&py_exe);
-                    cmd.arg("-m").arg("pip").arg("install").arg("--target").arg(&pkg_dir).args(&all_deps);
-
-                    match cmd.output().await {
-                        Ok(output) => {
-                            if output.status.success() {
-                                info!("[Dependencies] Successfully installed packages to {:?}", pkg_dir);
-                            } else {
-                                let stderr = String::from_utf8_lossy(&output.stderr);
-                                warn!("[Dependencies] pip install completed with non-zero exit code: {}", stderr);
-                            }
-                        }
-                        Err(e) => {
-                            warn!("[Dependencies] Failed to execute pip install: {}", e);
-                        }
-                    }
-                } else {
-                    warn!("[Dependencies] Python executable not found for pip install");
-                }
-            }
-
-            if pkg_dir.exists() {
-                let abs_pkg_dir = crate::storage::cache::normalize_absolute_path(
-                    std::fs::canonicalize(&pkg_dir).unwrap_or(pkg_dir),
-                );
-                task.site_packages_path = Some(abs_pkg_dir.to_string_lossy().to_string());
-            }
-        }
-
         // 3. Resolve Executor Strategy & Validate fail-fast
         let executor = self.executor_registry.get(&task.executor)?;
         executor.validate(&task)?;
@@ -250,6 +210,10 @@ impl StageDispatcher {
         let exe_path = resolve_executor_executable(&task.executor)
             .with_context(|| format!("Could not resolve executable for executor '{}'", task.executor))?;
         info!("[Dispatcher] Resolved executor binary: {:?}", exe_path);
+
+        task.site_packages_path = super::python_packages::prepare(
+            &self.storage, &task.executor, &exe_path, &all_deps,
+        ).await?.map(|path| path.to_string_lossy().to_string());
 
         // 5. Prepare temp working directory and task.json
         let temp_dir = PathBuf::from("temp").join(&stage_id);
@@ -357,6 +321,7 @@ impl StageDispatcher {
                     &resident_args,
                     keep_alive_dur,
                     Some(self.storage.base_dir()),
+                    task.site_packages_path.as_deref(),
                 )
                 .await?;
 

@@ -95,6 +95,7 @@ pub struct DccSession {
     pub key: String,
     pub executor: String,
     pub project_path: Option<String>,
+    pub site_packages_path: Option<String>,
     pub pid: u32,
     pub job_object: Arc<JobObject>,
     pub control_pipe: Arc<DccControlPipe>,
@@ -219,11 +220,23 @@ impl DccPool {
         resident_args: &[String],
         keep_alive: Duration,
         working_dir: Option<&Path>,
+        site_packages_path: Option<&str>,
     ) -> Result<(String, Arc<DccControlPipe>, Arc<Mutex<mpsc::Receiver<ResidentToHostMessage>>>, Arc<JobObject>)> {
         let key = compute_dcc_session_key(exe_path, project_path);
 
         // 1. Evict any existing session with the same executor but different project (enforce single warm session per executor)
         self.stop_other_executor_sessions(executor_name, &key).await;
+
+        // Native extension modules cannot safely be unloaded in place. Restart when the
+        // package environment changes, including transitions to/from no dependencies.
+        let packages_changed = {
+            let guard = self.sessions.lock().await;
+            guard.get(&key).is_some_and(|session| session.site_packages_path.as_deref() != site_packages_path)
+        };
+        if packages_changed {
+            info!("[DccPool] Python package environment changed; restarting session {}", key);
+            self.stop(&key).await;
+        }
 
         // 2. Check if a warm session for this key is already ready & alive
         {
@@ -237,13 +250,15 @@ impl DccPool {
                     session.state = SessionState::Busy;
                     session.keep_alive = keep_alive;
                     session.last_used_at = Instant::now();
-                    Self::write_snapshot_file(&self.sessions, &self.data_dir).await;
-                    return Ok((
+                    let lease = (
                         key.clone(),
                         Arc::clone(&session.control_pipe),
                         Arc::clone(&session.resident_rx),
                         Arc::clone(&session.job_object),
-                    ));
+                    );
+                    drop(guard);
+                    Self::write_snapshot_file(&self.sessions, &self.data_dir).await;
+                    return Ok(lease);
                 } else if !session.is_alive() {
                     warn!("[DccPool] Session {} was marked idle but process is dead. Evicting.", key);
                     guard.remove(&key);
@@ -283,7 +298,10 @@ impl DccPool {
         cmd.args(resident_args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .kill_on_drop(true)
+            // Do NOT use kill_on_drop(true) here! The spawned resident DCC child process
+            // is kept alive across multiple stage executions. Dropping `child` at the end
+            // of `acquire()` would immediately terminate the resident DCC.
+            // Process containment and cleanup are handled by `JobObject`.
             .env("FORGITY_DCC_CONTROL_PIPE", &pipe_path)
             .env("PYTHONUNBUFFERED", "1");
 
@@ -375,6 +393,7 @@ impl DccPool {
             key: key.clone(),
             executor: executor_name.to_string(),
             project_path: project_path.map(|s| s.to_string()),
+            site_packages_path: site_packages_path.map(str::to_string),
             pid,
             job_object: Arc::clone(&job_object),
             control_pipe: Arc::clone(&control_pipe),

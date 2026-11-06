@@ -44,6 +44,7 @@ export function useScriptBatchPublish(projectId: string) {
           label: node.suggestedLabel || node.suggestedName || null,
           executor: node.executor, contentHash: source.contentHash,
           originalFileName: source.fileName, assetId,
+          dependencies: node.dependencies,
           inputs: node.inputs, outputs: node.outputs, strategy: (strategies[node.key] === 1 || strategies[node.key] === EdgeReconciliationStrategy.UnpinAll ? EdgeReconciliationStrategy.UnpinAll : EdgeReconciliationStrategy.KeepCompatiblePins),
         } as BatchUpsertItem;
       }));

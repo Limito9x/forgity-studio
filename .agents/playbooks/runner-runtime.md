@@ -64,7 +64,7 @@ runner/ (hoặc %LOCALAPPDATA%/Forgity/runner/)
 ├── cache/
 │   ├── assets/                    # File nhị phân tải từ S3 (CAS theo SHA-256)
 │   ├── scripts/                   # Script Python tải từ Studio (theo SHA-256)
-│   └── python-packages/           # (Phase 5) Virtual isolated packages theo hash
+│   └── python-packages/           # Isolated packages theo Python runtime + requirements
 ├── temp/
 │   └── {stage_execution_id}/      # Thư mục tạm cô lập cho từng phiên stage (task.json)
 └── logs/
@@ -74,6 +74,21 @@ runner/ (hoặc %LOCALAPPDATA%/Forgity/runner/)
 ---
 
 ## 4. Quản Trị Bộ Nhớ Đệm & Quét Dọn (`forgity-runner clean`)
+
+### Python dependencies riêng (06/11/2026)
+
+- Analyzer trả `dependencies`; `useScriptBatchPublish` phải giữ trường này khi gọi batch upsert. Backend lưu trên `NodeDefinition` và `RunnerSegmentDispatcher` gửi `steps[].dependencies`.
+- Rust `core/python_packages.rs` resolve interpreter của executor: Python dùng executable đã chọn; Unreal dùng `Engine/Binaries/ThirdParty/Python3/Win64/python.exe` cùng Engine; Blender hỏi `sys.prefix` qua chính Blender rồi dùng `bin/python.exe`.
+- Probe identity bằng implementation, full version, SOABI, platform và machine. Cache key chứa identity và requirements đã sort/deduplicate, bảo toàn case của URL/markers.
+- Python hệ thống chạy `pip --python <embedded-python> install --ignore-installed --target <staging> ...`. Pip chọn wheels theo embedded interpreter; không chạy ensurepip và không ghi packages vào DCC gốc. Máy host cần có Python + pip hỗ trợ `--python`.
+- Pip cài vào `<key>.installing-<uuid>`; chỉ khi exit thành công mới ghi `.forgity-complete` và rename sang `<key>`. Lỗi/timeout dừng stage trước khi launch DCC, dọn staging của lần thử đó; thư mục chưa có marker hợp lệ không được reuse. Staging còn lại do runner bị kill được dọn bằng `clean --all`.
+- Dispatcher truyền `site_packages_path` tuyệt đối trong task.json. Guest dùng stdlib `site.addsitedir`, ưu tiên cache ở đầu `sys.path`; thiếu thư mục/lỗi injection trả stage failed rõ ràng. Không thay đổi site-packages/config gốc của DCC.
+- Warm DCC chỉ reuse khi `site_packages_path` khớp, kể cả null. Đổi bộ requirements sẽ restart session để tránh giữ native modules của cache trước. Khi reuse, nhả mutex trước khi ghi snapshot để tránh tự deadlock.
+- Dependencies của custom node đã publish trước bản sửa có thể đang rỗng; Analyze/Publish lại script để cập nhật. Cache không tự suy đoán imports từ business script tại runtime.
+
+Kiểm tra: `cargo test --locked`, `python -B -m unittest discover -s scripts/tests -v` trong runner. Test tải packages thực: đặt `FORGITY_TEST_UNREAL_EXE`, chạy `cargo test --locked unreal_pydantic_openai_smoke -- --ignored --nocapture`. Test này chỉ import thư viện bằng bundled Python và giữ cache cho runner; không chạy pipeline/game project.
+
+Đã kiểm chứng 06/11/2026: Python Unreal 3.11.8 nạp được pydantic 2.14.3/openai 3.46.0 từ cache riêng; commandlet chạy `scripts/tests/unreal_package_smoke.py` với env `FORGITY_TEST_PACKAGE_CACHE` báo `FORGITY_PACKAGE_SMOKE_OK`. Bundled Python không inject vẫn không thấy hai packages. Test commandlet chỉ import và validate model đơn giản, không chạy AI classification hay sửa game assets.
 
 Runner cung cấp công cụ dọn rác chuyên nghiệp:
 

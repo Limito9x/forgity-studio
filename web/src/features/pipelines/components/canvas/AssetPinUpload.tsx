@@ -54,7 +54,7 @@ export function AssetPinUpload({
     typeof value === "object" &&
     !!currentAssetLinkId &&
     fileAsset?.assetLinkId === currentAssetLinkId &&
-    fileAsset.status === "Available";
+    fileAsset?.status === "Available";
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

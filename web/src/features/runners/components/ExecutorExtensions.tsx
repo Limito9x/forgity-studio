@@ -240,7 +240,7 @@ export function UnrealExecutorExtension({
                           />
                           {warmSession.state === "busy"
                             ? `Warm • Busy • PID ${warmSession.pid}`
-                            : `Warm • PID ${warmSession.pid} • ${Math.max(0, Math.floor(warmSession.remainingSeconds / 60))}m left`}
+                            : `Warm • PID ${warmSession.pid} • ${Math.max(0, Math.floor((warmSession.remainingSeconds ?? 0) / 60))}m left`}
                         </span>
 
                         <Button

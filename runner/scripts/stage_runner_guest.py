@@ -269,6 +269,20 @@ def purge_blender_orphans():
         pass
 
 
+def inject_site_packages(site_packages):
+    if not site_packages:
+        return
+    if not os.path.isdir(site_packages):
+        raise FileNotFoundError(f"Isolated package cache does not exist: {site_packages}")
+    import site
+    site.addsitedir(site_packages)
+    # addsitedir handles .pth files, but appends the directory by default.
+    sys.path[:] = [path for path in sys.path if path != site_packages]
+    sys.path.insert(0, site_packages)
+    importlib.invalidate_caches()
+    print(f"[GuestRunner] Injected isolated site-packages from: {site_packages}", flush=True)
+
+
 def main():
     pipe_path = os.environ.get("FORGITY_IPC_PIPE")
     task_json_path = os.environ.get("FORGITY_TASK_JSON")
@@ -316,15 +330,14 @@ def main():
     steps = task_data.get("steps", [])
     resolved_data = task_data.get("resolved_data", {})
 
-    # Inject isolated python dependencies if provided
-    site_packages = task_data.get("site_packages_path")
-    if site_packages and os.path.isdir(site_packages):
-        try:
-            import site
-            site.addsitedir(site_packages)
-            print(f"[GuestRunner] Injected isolated site-packages from: {site_packages}", flush=True)
-        except Exception as se:
-            sys.stderr.write(f"WARNING: Could not inject site-packages: {se}\n")
+    # Cache packages take precedence over packages bundled with the DCC.
+    try:
+        inject_site_packages(task_data.get("site_packages_path"))
+    except Exception as error:
+        client.send({"type": "stage_completed", "succeeded": False,
+                     "error_message": f"Could not inject isolated Python packages: {error}"})
+        client.close()
+        return
     all_step_outputs = {}
     overall_success = True
     error_msg = None

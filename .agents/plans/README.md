@@ -21,6 +21,8 @@ Thư mục này lưu trữ các kế hoạch kỹ thuật, lộ trình triển k
 
 ## 2. Kế Hoạch Lịch Sử Đã Hoàn Thành (Archived Plans)
 
+- [**runner-isolated-python-packages (06/11/2026)**](archive/2026-11/2026-11-06-runner-isolated-python-packages.md): sửa dependencies bị mất khi Publish, cache riêng theo Python runtime, pip cài cho embedded interpreter và kiểm chứng import bên trong Unreal.
+
 Toàn bộ các kế hoạch hoàn thành được lưu trữ tại thư mục con [archive/2026-10/](file:///d:/FullStack/Automation/.agents/plans/archive/2026-10):
 
 - [**uasset-binary-inspection-and-material-contract-pipeline (29/10/2026)**](file:///d:/FullStack/Automation/.agents/plans/archive/2026-10/2026-10-29-uasset-binary-inspection-and-material-contract-pipeline.md): Pure-Python UAsset Material Inspection & Zero-Config Material Ingestion Pipeline (<5ms không cần Unreal Engine).

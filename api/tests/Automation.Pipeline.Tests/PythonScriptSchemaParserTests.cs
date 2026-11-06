@@ -113,7 +113,7 @@ public class PythonScriptSchemaParserTests
 
             result.Executor.Should().Be("python");
             result.SuggestedLabel.Should().Be("Classify Character Manifest");
-            result.Inputs.Should().Contain(p => p.Id == "fbx_files");
+            result.Inputs.Should().Contain(p => p.Id == "export_manifest");
             result.Inputs.Should().Contain(p => p.Id == "contracts");
             result.Inputs.Should().Contain(p => p.Id == "endpoint");
             result.Inputs.Should().Contain(p => p.Id == "model");
