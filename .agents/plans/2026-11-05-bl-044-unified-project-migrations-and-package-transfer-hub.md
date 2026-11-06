@@ -252,3 +252,4 @@ public interface IProjectMigrationProvider
    - *Nguyên tắc*: Gói `.forgity.pkg` **chỉ chứa cấu trúc metadata logic (JSON)**, tuyệt đối không nhúng file nhị phân nặng hàng GB (`.uasset`, `.fbx`). File vật lý vẫn do Storage / CAS (`ADR-003`) và Runner phụ trách. Nhờ đó gói migration cực kỳ nhẹ (chỉ vài trăm KB), xuất nhập trong 1 giây.
 3. **Phân quyền thực hiện Migration**:
    - Chỉ Project Owner, Studio Admin hoặc người có quyền `P.Project.Manage` mới được phép thực hiện Import/Export để bảo vệ an toàn dữ liệu.
+

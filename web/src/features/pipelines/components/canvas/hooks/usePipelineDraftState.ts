@@ -22,7 +22,6 @@ import {
   isExecEdge,
   expandStageBoundsIfNeeded,
   expandStageLiveWhileDragging,
-  findStageAtFlowPosition,
 } from "./canvasUtils";
 import { getStartNodeEventTriggerPins } from "../constants/structPins";
 import { applyNodeConfigUpdate } from "../../../nodeDefinitions";
@@ -681,102 +680,24 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto, structCat
     [setNodes],
   );
 
-  // Node Drag Stop: Auto-expand parent stage bounding box or reparent node when dragged into/out of a stage
+  // Node Drag Stop: Auto-expand parent stage bounding box in 4 directions if child node dragged near boundary
   const onNodeDragStop = useCallback(
     (_event: any, draggedNode: Node) => {
-      // If node is a stage itself, do not reparent
-      if (draggedNode.type === "scopeContainer") return;
+      if (!draggedNode.parentId) return;
 
       setNodes((nds) => {
-        const currentParent = draggedNode.parentId
-          ? nds.find((n) => n.id === draggedNode.parentId)
-          : undefined;
-
-        // Calculate absolute position on canvas
-        const absX = currentParent
-          ? currentParent.position.x + draggedNode.position.x
-          : draggedNode.position.x;
-        const absY = currentParent
-          ? currentParent.position.y + draggedNode.position.y
-          : draggedNode.position.y;
-
-        const targetStage = findStageAtFlowPosition(nds, { x: absX, y: absY });
-
-        // Case 1: Node had no parent, but dropped into a stage
-        if (!currentParent && targetStage) {
-          const relPos = {
-            x: Math.max(30, absX - targetStage.position.x),
-            y: Math.max(60, absY - targetStage.position.y),
-          };
-          const reparentedNode: Node = {
-            ...draggedNode,
-            parentId: targetStage.id,
-            position: relPos,
-          };
-          const updatedNodes = nds.map((n) =>
-            n.id === draggedNode.id ? reparentedNode : n
-          );
-          const { updatedNodes: expandedNodes } = expandStageBoundsIfNeeded(
-            updatedNodes,
-            targetStage.id,
-            reparentedNode
-          );
+        const { updatedNodes, didExpand } = expandStageBoundsIfNeeded(
+          nds,
+          draggedNode.parentId!,
+          draggedNode,
+        );
+        if (didExpand) {
           setIsDirty(true);
-          return expandedNodes;
         }
-
-        // Case 2: Node was in a stage, and dropped outside or into another stage
-        if (currentParent && (!targetStage || targetStage.id !== currentParent.id)) {
-          if (!targetStage) {
-            // Dropped onto root canvas
-            const detachedNode: Node = {
-              ...draggedNode,
-              parentId: undefined,
-              position: { x: absX, y: absY },
-            };
-            setIsDirty(true);
-            return nds.map((n) => (n.id === draggedNode.id ? detachedNode : n));
-          } else {
-            // Moved directly into another stage
-            const relPos = {
-              x: Math.max(30, absX - targetStage.position.x),
-              y: Math.max(60, absY - targetStage.position.y),
-            };
-            const reparentedNode: Node = {
-              ...draggedNode,
-              parentId: targetStage.id,
-              position: relPos,
-            };
-            const updatedNodes = nds.map((n) =>
-              n.id === draggedNode.id ? reparentedNode : n
-            );
-            const { updatedNodes: expandedNodes } = expandStageBoundsIfNeeded(
-              updatedNodes,
-              targetStage.id,
-              reparentedNode
-            );
-            setIsDirty(true);
-            return expandedNodes;
-          }
-        }
-
-        // Case 3: Node remains inside its existing parent stage
-        if (currentParent) {
-          const { updatedNodes, didExpand } = expandStageBoundsIfNeeded(
-            nds,
-            currentParent.id,
-            draggedNode
-          );
-          if (didExpand) {
-            setIsDirty(true);
-          }
-          return updatedNodes;
-        }
-
-        return nds;
+        return updatedNodes;
       });
     },
-    [setNodes]
+    [setNodes],
   );
 
   // Pending Stage Delete Confirmation State

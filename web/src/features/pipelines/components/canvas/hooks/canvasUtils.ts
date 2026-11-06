@@ -64,26 +64,6 @@ export function getStageKindName(kind: any): "Worker" | "Server" | "Macro" {
 }
 
 /**
- * Helper to test if a flow coordinate is inside any Stage container
- */
-export function findStageAtFlowPosition(
-  nodes: Node[],
-  pos: { x: number; y: number }
-): Node | undefined {
-  return nodes.find((n) => {
-    if (n.type !== "scopeContainer") return false;
-    const w = (n.style?.width as number) || (n.measured?.width as number) || 520;
-    const h = (n.style?.height as number) || (n.measured?.height as number) || 380;
-    return (
-      pos.x >= n.position.x &&
-      pos.x <= n.position.x + w &&
-      pos.y >= n.position.y &&
-      pos.y <= n.position.y + h
-    );
-  });
-}
-
-/**
  * Real-time fast expansion while actively dragging a node.
  * Expands stage width and height without changing stage position, ensuring zero cursor jitter.
  */
