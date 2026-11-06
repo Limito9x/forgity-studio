@@ -22,6 +22,8 @@ import {
   isExecEdge,
   expandStageBoundsIfNeeded,
   expandStageLiveWhileDragging,
+  STAGE_PADDING_LEFT,
+  STAGE_PADDING_TOP,
 } from "./canvasUtils";
 import { getStartNodeEventTriggerPins } from "../constants/structPins";
 import { applyNodeConfigUpdate } from "../../../nodeDefinitions";
@@ -459,10 +461,26 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto, structCat
   // Mark dirty on meaningful node/edge changes
   const handleNodesChange: OnNodesChange<Node> = useCallback(
     (changes) => {
-      onNodesChange(changes);
+      const clampedChanges = changes.map((c) => {
+        if (c.type === "position" && c.position) {
+          const targetNode = nodes.find((n) => n.id === c.id);
+          if (targetNode?.parentId) {
+            return {
+              ...c,
+              position: {
+                x: Math.max(STAGE_PADDING_LEFT, c.position.x),
+                y: Math.max(STAGE_PADDING_TOP, c.position.y),
+              },
+            };
+          }
+        }
+        return c;
+      });
+
+      onNodesChange(clampedChanges);
 
       // Keep node.style.width/height in sync with NodeResizer dimensions
-      const dimensionChanges = changes.filter(
+      const dimensionChanges = clampedChanges.filter(
         (c) => c.type === "dimensions" && (c as any).dimensions
       );
       if (dimensionChanges.length > 0) {
@@ -485,12 +503,12 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto, structCat
         );
       }
 
-      const hasMeaningfulChange = changes.some((c) => c.type !== "select");
+      const hasMeaningfulChange = clampedChanges.some((c) => c.type !== "select");
       if (hasMeaningfulChange) {
         setIsDirty(true);
       }
     },
-    [onNodesChange, setNodes],
+    [nodes, onNodesChange, setNodes],
   );
 
   const handleEdgesChange: OnEdgesChange<Edge> = useCallback(
