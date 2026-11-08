@@ -10,6 +10,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { toast } from "sonner";
+import { ExecutionStatus } from "@/gen/model/executionStatus";
 
 import { PipelineNodeRouter } from "./nodes/PipelineNodeRouter";
 import { NodeDefinitionsProvider } from "./NodeDefinitions";
@@ -185,8 +186,8 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
     [graph.id, projectId, draft.parameters, draft.edges, draft.nodes, diagnosticsScope]
   );
 
-  // Canvas Lock status: Locked when executing or inspecting an execution
-  const isLocked = Boolean(live.isExecutionRunning || live.activeExecutionId);
+  // A completed execution remains visible, but must not keep the draft locked.
+  const isLocked = live.isExecutionRunning;
 
   // Camera Auto-Follow: Smoothly center on the active running node during execution
   useEffect(() => {
@@ -249,8 +250,8 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
               <ExecutionStatusBanner
                 executionId={live.activeExecutionId}
                 isRunning={live.isExecutionRunning}
-                isFailed={Number(live.currentExecution?.status) === 5}
-                isSucceeded={Number(live.currentExecution?.status) === 4}
+                isFailed={live.currentExecution?.status === ExecutionStatus.Failed}
+                isSucceeded={live.currentExecution?.status === ExecutionStatus.Succeeded}
                 errorMessage={live.currentExecution?.errorMessage}
                 onOpenLogs={() => {
                   live.setDrawerDefaultTab("logs");

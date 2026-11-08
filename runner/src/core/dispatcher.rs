@@ -335,13 +335,19 @@ impl StageDispatcher {
                 .await;
 
             // Dispatch RunStage command to resident host
-            control_pipe
+            if let Err(error) = control_pipe
                 .send(&HostToResidentMessage::RunStage {
                     stage_execution_id: stage_id.clone(),
                     task_json_path: abs_task_json.to_string_lossy().to_string(),
                     stage_pipe: pipe_path.clone(),
                 })
-                .await?;
+                .await
+            {
+                self.active_stages.unregister(&stage_id).await;
+                self.dcc_pool.release(&session_key, false).await;
+                pipe_handle.abort();
+                return Err(error).context("Failed to send RunStage to resident DCC");
+            }
 
             let target_stage_id = stage_id.clone();
             let resident_done_fut = async {
@@ -366,18 +372,33 @@ impl StageDispatcher {
 
             tokio::pin!(resident_done_fut);
 
+            let mut guest_completed = false;
+            let mut resident_finished = false;
+            let mut resident_success = false;
+
             loop {
                 tokio::select! {
+                    _ = tokio::time::sleep(Duration::from_secs(5)), if resident_finished != guest_completed => {
+                        stage_succeeded = false;
+                        if stage_error.is_none() {
+                            stage_error = Some("Timed out waiting for matching guest/resident stage completion".to_string());
+                        }
+                        break;
+                    }
                     _ = cancel_rx.recv() => {
                         warn!("[Dispatcher] Cancellation signal received for warm Stage {}. Terminating session...", stage_id);
                         let _ = session_job.terminate(1);
                         stage_error = Some("Execution was cancelled by user.".to_string());
                         stage_succeeded = false;
-                        self.dcc_pool.release(&session_key, false).await;
                         break;
                     }
 
-                    Some(event) = event_rx.recv() => {
+                    event = event_rx.recv(), if !guest_completed => {
+                        let Some(event) = event else {
+                            stage_succeeded = false;
+                            stage_error = Some("Guest IPC closed before StageCompleted signal".to_string());
+                            break;
+                        };
                         match event {
                             GuestToHostMessage::Handshake { dcc_name, dcc_version, pid } => {
                                 info!("[IPC] Guest Handshake from {} ({:?}), PID: {}", dcc_name, dcc_version, pid);
@@ -424,9 +445,12 @@ impl StageDispatcher {
                                 let _ = self.rabbitmq.send_progress(&progress_msg).await;
                             }
                             GuestToHostMessage::StageCompleted { succeeded, error_message } => {
+                                guest_completed = true;
                                 info!("[IPC] Stage Completed signal: succeeded={}", succeeded);
                                 stage_succeeded = succeeded;
-                                stage_error = error_message;
+                                if error_message.is_some() {
+                                    stage_error = error_message;
+                                }
                             }
                             GuestToHostMessage::FetchAssetRequest { request_id, asset_id, pin_key: _ } => {
                                 info!("[IPC] On-Demand Asset Fetch requested: id={} (req={})", asset_id, request_id);
@@ -474,30 +498,31 @@ impl StageDispatcher {
                         }
                     }
 
-                    res_finished = &mut resident_done_fut => {
+                    res_finished = &mut resident_done_fut, if !resident_finished => {
                         match res_finished {
                             Ok((code, success, err_opt)) => {
                                 info!("[Dispatcher] Resident DCC finished stage: code={}, success={}", code, success);
-                                if !guest_handshake_received {
-                                    stage_succeeded = false;
-                                    stage_error = Some(format!("Resident DCC failed handshake (exit code {})", code));
-                                } else if stage_succeeded || success {
-                                    stage_succeeded = true;
-                                } else {
-                                    stage_succeeded = false;
-                                    if stage_error.is_none() {
-                                        stage_error = err_opt.or_else(|| Some(format!("Resident DCC exited with code {}", code)));
-                                    }
+                                resident_finished = true;
+                                resident_success = success && code == 0;
+                                if !resident_success && stage_error.is_none() {
+                                    stage_error = err_opt.or_else(|| Some(format!("Resident DCC exited with code {}", code)));
                                 }
                             }
                             Err(e) => {
                                 error!("[Dispatcher] Resident DCC pipe error: {}", e);
                                 stage_succeeded = false;
                                 stage_error = Some(e.to_string());
+                                break;
                             }
                         }
-                        break;
                     }
+                }
+                // The control pipe may finish before the stage IPC queue is drained.
+                // Both messages are required; process health cannot override a failed step.
+                if guest_completed && resident_finished {
+                    stage_succeeded = stage_succeeded && resident_success && guest_handshake_received
+                        && step_results.iter().all(|step| step.succeeded);
+                    break;
                 }
             }
 

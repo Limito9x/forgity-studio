@@ -51,6 +51,47 @@
 
 ### 1.2. Native Unreal Game Contracts Inspection (2026-11-06)
 
+Provider authentication: character classifier checks `<PROVIDER>_API_KEY` before generic `AI_API_KEY`/`LLM_API_KEY` in each configured source. Warm DCC may read the installed default `%LOCALAPPDATA%/Forgity/runner.toml`, distinct from workspace `runner/runner.toml`; use `FORGITY_CONFIG` for an explicit path. Diagnosing OpenRouter 401 found different provider keys in those two files. Installed config now has a dedicated OpenRouter entry; actual Unreal Python + cached SDK verified Bearer header and `/key` HTTP 200. The configured free-model chat probe returned 429, so full inference is not verified. No secrets should be printed in diagnostics.
+
+Compact AI output: asset/slot/texture references are request-local integer IDs. AI slot decisions use `{slot, material, bindings: {parameter_name: texture_id}}`; the request includes texture filenames and shader binding semantics without full file paths or empty metadata strings. For Groq Qwen models (`qwen/*`), `reasoning_effort="none"` disables `<think>` chain-of-thought overhead. Python restores exact names/paths from the original payload before existing manifest validation and missing-slot completion. The Unreal importer manifest and node input pins are unchanged. IDs are bounds-checked, including supplemental requests whose indices restart locally. No low max_tokens cap is imposed; republish `classify_character_manifest.py`.
+
+AI slot omission: classifier makes at most one supplemental request containing only omitted material slots for otherwise correctly covered assets. It appends slot decisions without replacing existing asset/schema/property choices, then validates the complete manifest normally. Extra/duplicate slots are not repaired, and an incomplete or invalid supplement still fails. Truncated model output (`finish_reason=length`) is reported explicitly. Republish the classifier to enable this behavior.
+
+Payload cleanup: FBX slots now expose only `texture_bindings`, not a duplicate `textures` list. Inspector materials expose `package_path` + `parameters` once; parameter names are dictionary keys. Schema fields no longer carry verbose `native_type` diagnostics. Classifier projects material semantics/sampler types for AI, keeps compression/sRGB/VT in the local contract for import, and serializes requests as compact JSON. Virtual sampler enum names with underscores retain correct NORMAL/MASKS/GRAYSCALE semantics. Republish inspector, exporter and classifier together; existing bound-texture metadata remains readable.
+
+**Luồng hiện tại (06/11/2026, cập nhật scene/convention):**
+
+```text
+Diffeomorphic → merge materials / save local textures → inspect_scene → classify_mesh_types
+  ├─ Body: body_meshes + bake_materials → bake_mesh → export_fbx (Single)
+  └─ Wardrobe: wardrobe_items → prepare_wardrobe → export_map → export_fbx (Batch)
+Export manifest + inspect_game_contracts.contracts → classify_character_manifest → Unreal importer
+```
+
+- Inspect và classify là hai step riêng cùng Blender stage; metadata DAZ không còn là input của luồng này. `inspect_scene.scene_metadata` gồm object name chính xác, mesh datablock, parent/armature, polygon/vertex counts và material slots.
+- `classify_mesh_types.raw_metadata` nhận `scene_metadata`; trả `body_meshes`, `wardrobe_items`, `bake_materials` (object name → list `{index, material_name, role}` với role `Head`/`Body`/`Preserve`). Validate tên và coverage theo scene, không fuzzy matching.
+- Body đi thẳng vào bake; **prepare_wardrobe chỉ dành cho quần áo**, không join/rename body, mắt hay miệng. Wardrobe prepare trả tên sau join/rename qua `export_map` và `object_map`.
+- Bake: nối `bake_materials` vào `material_roles`, `body_meshes` vào `target_objects`. Body export vẫn dùng toàn bộ `body_meshes`, kể cả mesh mắt/miệng được Preserve; không dùng `bake.applied_objects` vì output đó chỉ gồm mesh có phần đã bake.
+- Inspector Unreal vẫn dùng native Material API và canonical `EdGraphPinType.export_text()` để giữ type/container chính xác. Scope tài nguyên chỉ từ `material_paths`/`pda_paths` được truyền vào.
+- Input mới `allowed_tag_prefixes = ["Character", "System.Wardrobe.Slots"]`: match đúng nhánh (`Character` và `Character.*`, không khớp `CharacterExtra`). `[]` lấy tất cả tags từ `DefaultGameplayTags.ini`. Bỏ output `wardrobe_slots`/`slots_count`: inspector không tự đoán vai trò tag từ `.Slots.`.
+- Classifier có input `convention_instructions` **dạng văn bản**, default hướng dẫn `Character.{character_name}`, `System.Wardrobe.Slots` và các field CharacterTag/SlotTag/ItemTag/DisplayName khi tồn tại. Chỉ format `{character_name}` rồi chèn vào mục PROJECT CONVENTIONS của system prompt cố định. Placeholder khác bị từ chối trước khi gọi AI.
+- AI trả `character_tag` ở cấp root và điền `properties` theo schema; validator tự nhận diện các trường tag `character`/`item`/`slot` từ schema (tự điền `character_tag` vào trường character nếu AI lược bớt để tiết kiệm token). Character/item tags có thể mới; slot và tag khác phải thuộc inspected gameplay_tags. Validate cú pháp tag, character consistency, item identity uniqueness; không ép prefix Character.* trong validator. Importer đăng ký tag theo **kiểu field trong contract**, không theo hậu tố tên field.
+- Destination cố định `/Game/Characters/Genesis9/<character>`; wardrobe trong `Outfits`, textures dùng chung `Textures`. Giữ `SKM_`/`DA_`. Legacy destination/prefix overrides không còn đổi đích này. Source export path có thể là `Characters/Genesis9/<character>/...` hoặc layout cũ `Characters/<character>/...`; nhận cả chữ thường. `Genesis9` không được coi là character name.
+- Classifier không đoán skeleton; cấu hình `skeleton_path` ở Unreal importer. API key lấy từ process environment Runner inject, không dò runner.toml từ cwd/thư mục cha. JSON schema được sinh từ Pydantic model, dùng một đường JSON request/validation.
+- Material `parameters: {}` vẫn hợp lệ cho shader cố định. AI chọn đúng schema từ contract, không suy role bằng Texture2D. Container fields không phải editable scalar fields.
+
+**Publish/wiring:** Thêm node `inspect_scene`; publish lại mesh classifier, wardrobe prepare, bake, FBX export, game inspector, character classifier và wardrobe importer. Bỏ wire inspect DAZ trong luồng mới, nối lại các input như trên, chọn lại mode nếu graph dùng `head_and_body`. Giữ Unreal stage skeleton input. Không tự sửa pipeline lưu trên server.
+
+Các ghi chú trước thay đổi dưới đây là lịch sử; cấu hình/luồng ở trên là hiện hành.
+
+Schema pipeline correction (06/11/2026): UE 5.8 does not expose `EdGraphPinType.pin_category` and related properties to Python. Inspector now reads the canonical native `export_text()` serialization, preserving exact class/struct type and array/map/set container. The previous output silently contained `Unknown` for every Blueprint field. Classifier now exposes only `export_manifest`, `contracts`, `endpoint`, `model`: AI chooses `target_schema` from all inspected schemas using names, paths and fields; no Texture2D-based role inference or schema override pins. Validation rejects unknown types, non-contract schema/parameter/property choices, missing texture bindings and ambiguous scalar mesh bindings. Container fields stay out of AI scalar properties and automatic mesh/thumbnail binding. Verification: 25 focused tests, all three script harnesses, native commandlet read of both actual Blueprint schemas, real FBX metadata -> mocked AI decision -> importer dry-run. Full live AI/import not executed. Republish both inspector and classifier.
+
+Schema pipeline correction (06/11/2026): UE 5.8 does not expose `EdGraphPinType.pin_category` and related properties to Python. Inspector now reads the canonical native `export_text()` serialization, preserving exact class/struct type and array/map/set container. The previous output silently contained `Unknown` for every Blueprint field. Classifier now exposes only `export_manifest`, `contracts`, `endpoint`, `model`: AI chooses `target_schema` from all inspected schemas using names, paths and fields; no Texture2D-based role inference or schema override pins. Validation rejects unknown types, non-contract schema/parameter/property choices, missing texture bindings and ambiguous scalar mesh bindings. Container fields stay out of AI scalar properties and automatic mesh/thumbnail binding. Verification: 25 focused tests, all three script harnesses, native commandlet read of both actual Blueprint schemas, real FBX metadata -> mocked AI decision -> importer dry-run. Full live AI/import not executed. Republish both inspector and classifier.
+
+Classifier character defaults (06/11/2026): `character_name`, `character_tag`, and `destination_folder` are no longer exposed as input pins. Existing saved graph values remain readable through kwargs; `contracts.project` may also supply explicit metadata. Otherwise character identity comes from the supplied export path convention `.../Characters/<character>/...` across all entries, including outfits. No filesystem discovery or first-item/name-prefix guessing. Missing/mixed identities require correcting the export layout or explicit project metadata. Output defaults to `/Game/Characters/<character>`, and new identities use `Character.<character>`; importer registers character/item tags. Shader/schema/wardrobe-slot validation still applies.
+
+Classifier accepts an explicit empty `materials[tag].parameters` object for materials with no texture overrides (for example, a fixed EyeMoisture shader). Missing/non-object parameter contracts remain invalid. AI must return `textures: []` for such materials; invented parameter names are still rejected. Importer already supports creating an instance with a parent and no texture overrides. This does not repair unfinished shader graphs: a placeholder material keeps its authored appearance. Republish `classify_character_manifest.py` to update the content-addressed script used by existing nodes.
+
 `pipeline-scripts/unreal/inspect_game_contracts.py` thực thi trực tiếp bằng **Unreal Engine Python API** (`unreal.MaterialEditingLibrary`, `unreal.EditorAssetLibrary`) bên trong môi trường Unreal (không cần fallback binary scraping hay giả lập dry-run).
 
 - **Đầu vào (Inputs)**:
@@ -124,15 +165,17 @@
       ```
     - *Ưu điểm tuyệt đối*: Texture nạp vào giữ nguyên bản gốc không bị suy hao chất lượng khi lưu trữ hay tái sử dụng qua Unity/Blender, trong khi Unreal Engine tự động lật kênh Y ở tầng hardware sampler mà không tốn chi phí runtime.
 
-### 3.4. Chế độ Nướng Nhân vật DAZ Chuyên biệt (`bake_mode`)
+### 3.4. Chế độ Nướng Nhân vật (`bake_mode`, hiện hành)
 
-Để giải quyết triệt để bài toán suy giảm độ phân giải mặt (Texel Density) và hư hỏng shader mắt trong suốt:
-- **`"head_and_body"` (Mặc định - Chuẩn Hero Character / AAA)**:
-  - **Nhóm HEAD (`M_<Stem>_Head`)**: Tự động nhận diện `Head`, `Face`, `Ears`, `Lips`, `Neck`. Vì là 1 slot riêng nên Head chiếm trọn 100% diện tích tấm texture 4K $\rightarrow$ Zoom cận cảnh soi từng lỗ chân lông và sợi lông mày cực nét.
-  - **Nhóm BODY (`M_<Stem>_Body`)**: Tự động gom `Body`, `Torso`, `Arms`, `Legs`, `Nails` $\rightarrow$ Tự động dịch chuyển UDIM (1001-1005) về $[0, 1]$ và pack các đảo UV vào 1 tấm texture 4K duy nhất $\rightarrow$ Giảm số Draw Call của toàn thân từ 10 xuống còn 1.
-  - **Nhóm Ngoại Lệ (Miễn Bake - Zero Bake)**: `Eyes`, `Iris`, `Sclera`, `Cornea`, `EyeMoisture`, `Eyelashes`, `Mouth`, `Teeth`, `Tear` được tự động bỏ qua, bảo toàn nguyên vẹn slot và texture gốc để sang Unreal Engine áp dụng shader mắt khúc xạ / màng ướt.
-- **`"all_in_one"` (Dành cho NPC / Game Mobile / Tối ưu Draw Call cực hạn)**:
-  - Gom toàn bộ Head + Body vào chung 1 material slot duy nhất `M_<Stem>`. Ngoại lệ mắt/răng miệng vẫn được giữ nguyên để không làm đục mắt.
+- `body_only` mặc định: giữ material/texture Head gốc, chỉ bake các slot role Body.
+- `all_in_one`: Head + Body vào một atlas trên từng mesh đích. Không tự join các body object riêng.
+- Preserve giữ nguyên material và UV; mesh mắt/miệng riêng không tham gia bake. Nếu cùng mesh có slot Preserve, bản sao tạm chỉ chứa polygon cần bake để tránh ghi các mặt Preserve vào atlas.
+- Bỏ `head_and_body`; giá trị cũ phải được chọn lại, không tự đổi mode.
+- Không phân nhóm bằng keyword tên material trong baker; mapping index/name/role phải khớp scene trước khi sửa UV.
+- UV bake copy từ source, chỉ pack nhóm cần bake; UV0 xuất kết hợp tọa độ bake và tọa độ source ở các mặt giữ nguyên. Các UV maps nguồn có tên được giữ lại cho material còn tham chiếu chúng.
+- Bake chỉ hỗ trợ active output nối tới root Principled (có thể qua reroute). Shader mix/group chưa hỗ trợ phải được chuyển sang FBX-compatible Principled trước; script báo rõ material thay vì âm thầm lấy Principled đầu tiên.
+- FBX exporter luôn inspect lại slot có polygon, truy ngược active Material Output qua node groups/group inputs/reroute. Loại node rời và inactive output, giữ nhiều binding của cùng image. `source_manifest.slots` không được ghi đè scene; chỉ giữ thông tin ngữ nghĩa như cloth_type.
+- Mouth Cavity vẫn có thể dùng `Thelona_HeadD` gốc dù Head đã bake: texture được giữ nếu có đường nối thực tới shader; không xóa theo tên file.
 
 ---
 

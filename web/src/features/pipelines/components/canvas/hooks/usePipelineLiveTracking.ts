@@ -5,7 +5,7 @@ import {
   usePipelineExecution,
   usePipelineExecutions,
 } from "../../../hooks/usePipelineGraph";
-import { usePipelineSignalR } from "../../../hooks/usePipelineSignalR";
+import { mapExecutionStatus, usePipelineSignalR } from "../../../hooks/usePipelineSignalR";
 import { ExecutionStatus } from "@/gen/model/executionStatus";
 import type { CustomPipelineNodeData } from "../nodes/types";
 
@@ -47,14 +47,13 @@ export function usePipelineLiveTracking({
   // Sync isExecutionRunning based on currentExecution status if not already running via SignalR
   useEffect(() => {
     if (currentExecution) {
-      const s = Number(currentExecution.status);
-      if (s === 2 || s === 3) {
-        setIsExecutionRunning(true);
-      } else if (s === 4 || s === 5 || s === 6) {
-        setIsExecutionRunning(false);
-      }
+      const status = mapExecutionStatus(currentExecution.status);
+      setIsExecutionRunning(
+        status === ExecutionStatus.Pending || status === ExecutionStatus.Running ||
+        status === ExecutionStatus.WaitingForRunner || status === ExecutionStatus.WaitingForSubPipeline,
+      );
     }
-  }, [currentExecution?.status]);
+  }, [currentExecution?.id, currentExecution?.status]);
 
   const clearActiveExecution = useCallback(() => {
     setActiveExecutionId(null);
@@ -160,7 +159,7 @@ export function usePipelineLiveTracking({
           setLiveNodeErrors((prev) => {
             const next = { ...prev };
             for (const k of Object.keys(next)) {
-              if (liveNodeStatuses[k] === "failed" && !next[k]) {
+              if ((liveNodeStatuses[k] === "running" || liveNodeStatuses[k] === "failed") && !next[k]) {
                 next[k] = errorMessage;
               }
             }
@@ -213,8 +212,7 @@ export function usePipelineLiveTracking({
     }
 
     const nodeOutputs = stateObj?.NodeOutputs || {};
-    const execStatus = Number(currentExecution?.status);
-    const isFailed = execStatus === 5;
+    const isFailed = currentExecution?.status === ExecutionStatus.Failed;
 
     setNodes((currentNodes) => {
       let hasChanges = false;

@@ -337,7 +337,7 @@ def main():
         client.send({"type": "stage_completed", "succeeded": False,
                      "error_message": f"Could not inject isolated Python packages: {error}"})
         client.close()
-        return
+        raise SystemExit(1)
     all_step_outputs = {}
     overall_success = True
     error_msg = None
@@ -444,6 +444,9 @@ def main():
     })
 
     client.close()
+
+    if not overall_success:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

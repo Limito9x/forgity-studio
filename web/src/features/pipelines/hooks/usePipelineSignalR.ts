@@ -36,7 +36,7 @@ interface PipelineExecutionFinishedPayload {
   executionState?: any;
 }
 
-function mapExecutionStatus(status: number | string): ExecutionStatus {
+export function mapExecutionStatus(status: number | string): ExecutionStatus {
   if (typeof status === "string") {
     const s = status.toLowerCase();
     if (s === "pending") return ExecutionStatus.Pending;
@@ -86,9 +86,14 @@ export function usePipelineSignalR(
 ) {
   const queryClient = useQueryClient();
   const connectionRef = useRef<signalR.HubConnection | null>(null);
+  const callbacksRef = useRef(callbacks);
+  useEffect(() => {
+    callbacksRef.current = callbacks;
+  }, [callbacks]);
 
   useEffect(() => {
     if (!pipelineId) return;
+    const subscribedPipelineId = pipelineId;
 
     const baseUrl = (import.meta.env.VITE_API_URL as string) || "";
     const hubUrl = `${baseUrl.replace(/\/+$/, "")}/hubs/pipeline-executions`;
@@ -169,7 +174,7 @@ export function usePipelineSignalR(
           () => [],
         );
 
-        callbacks?.onExecutionStarted?.(data.executionId);
+        callbacksRef.current?.onExecutionStarted?.(data.executionId);
       },
     );
 
@@ -246,7 +251,7 @@ export function usePipelineSignalR(
           );
         }
 
-        callbacks?.onNodeExecutionUpdated?.(
+        callbacksRef.current?.onNodeExecutionUpdated?.(
           data.executionId,
           data.nodeId,
           data.status,
@@ -317,7 +322,7 @@ export function usePipelineSignalR(
           );
         }
 
-        callbacks?.onExecutionFinished?.(
+        callbacksRef.current?.onExecutionFinished?.(
           data.executionId,
           finalStatus,
           data.errorMessage,
@@ -325,18 +330,47 @@ export function usePipelineSignalR(
       },
     );
 
+    let disposed = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+    async function joinPipeline() {
+      await connection.invoke("JoinPipeline", subscribedPipelineId);
+      // Events missed during a disconnect are recovered from the existing APIs.
+      await queryClient.invalidateQueries({ queryKey: getGetPipelineExecutionsQueryKey(subscribedPipelineId) });
+      const executionPrefix = getGetPipelineExecutionQueryKey("")[0];
+      await queryClient.invalidateQueries({
+        predicate: (query) => typeof query.queryKey[0] === "string" &&
+          query.queryKey[0].startsWith(executionPrefix),
+      });
+    }
+
+    connection.onreconnected(() => {
+      if (!disposed) {
+        joinPipeline().catch((err) => {
+          console.warn("SignalR group rejoin failed:", err);
+          if (!disposed) retryTimer = setTimeout(startConnection, 3000);
+        });
+      }
+    });
+
     async function startConnection() {
       try {
-        await connection.start();
-        await connection.invoke("JoinPipeline", pipelineId);
+        if (disposed) return;
+        if (connection.state === signalR.HubConnectionState.Disconnected) {
+          await connection.start();
+        }
+        if (!disposed) await joinPipeline();
       } catch (err) {
         console.warn("SignalR connection failed:", err);
+        if (!disposed) retryTimer = setTimeout(startConnection, 3000);
       }
     }
 
     startConnection();
 
     return () => {
+      disposed = true;
+      clearTimeout(retryTimer);
       if (connection.state === signalR.HubConnectionState.Connected) {
         connection.invoke("LeavePipeline", pipelineId).catch(() => {});
       }

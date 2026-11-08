@@ -275,6 +275,8 @@ sequenceDiagram
 
 ## 6. Cơ Chế Canvas Live Tracking & Khóa An Toàn (Frontend Safety Lock)
 
+Frontend completion fix (06/11/2026): execution statuses use the generated string enum, with legacy numeric SignalR payloads normalized by `mapExecutionStatus`. Failed/Succeeded/Cancelled stop the running state. Canvas editing is locked only while execution is active; keeping a finished execution selected no longer keeps the draft locked. SignalR callbacks read the latest render, initial connection retries, and reconnect rejoins the pipeline group and invalidates execution caches to recover missed completion events.
+
 Giao diện Web Canvas (`web/src/features/pipelines/components/canvas/`) đồng bộ real-time với Engine qua SignalR:
 
 1. **`ExecutionStatusBanner` (Banner Nổi Giám Sát Tiến Trình):**

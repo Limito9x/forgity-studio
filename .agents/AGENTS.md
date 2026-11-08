@@ -1,5 +1,7 @@
 # Forgity Studio - Master Agent Instructions
 
+> Blender scene workflow (06/11/2026): see `playbooks/character-bake-and-unreal-shading.md` sections 1.2 and 3.4. Body goes directly from scene classification to bake; prepare handles wardrobe only. Two bake modes, fresh FBX bindings, allowed tag prefixes, convention text input and `/Game/Characters/Genesis9/<character>` output.
+
 > Runner isolated Python dependencies (06/11/2026): xem mục 4 `playbooks/runner-runtime.md`. Publish giữ dependencies; cache theo embedded runtime + requirements, pip `--python`/`--target`, marker sau thành công và restart warm session khi đổi cache.
 
 > Game contracts inspection (06/11/2026): xem mục 1.2 trong `playbooks/character-bake-and-unreal-shading.md`. Chuyển sang Native Unreal Python API (`unreal.MaterialEditingLibrary`, `UBlueprint` reflection); hỗ trợ thả Python scripts trực tiếp vào DCC stage container.
@@ -14,7 +16,15 @@ Chào mừng đến với Monorepo **Forgity Studio**. Tài liệu này đóng v
 
 ---
 
+> Runner stage completion / parameterless materials (06/11/2026): see `playbooks/runner-runtime.md` section 6 and `playbooks/character-bake-and-unreal-shading.md` section 1.2. Warm completion requires both guest and resident results; explicit empty texture parameter contracts are valid.
+
 ## 1. Bản Đồ Phân Vùng Monorepo (Subproject Scoping)
+
+> Inspect/Classify schema correction (06/11/2026): see `playbooks/character-bake-and-unreal-shading.md` section 1.2. Native pin serialization supplies field types; AI selects only inspected schemas; classifier business inputs are contracts + FBX manifest.
+
+> Canvas completion state (06/11/2026): see `playbooks/pipeline-engine.md` section 6. String statuses stop Running on completion, unlock the canvas and reconnect recovers execution state.
+
+> Character classifier defaults (06/11/2026): see `playbooks/character-bake-and-unreal-shading.md` section 1.2 for export-path identity, destination defaults and new character tags.
 
 Dự án gồm 3 phần độc lập nhưng liên kết chặt chẽ và chia sẻ hợp đồng gRPC:
 

@@ -432,6 +432,7 @@ impl DccPool {
                 guard.remove(key);
             }
         }
+        drop(guard);
         Self::write_snapshot_file(&self.sessions, &self.data_dir).await;
     }
 
@@ -525,6 +526,21 @@ impl DccPool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn release_does_not_lock_snapshot_out() {
+        let dir = std::env::temp_dir().join(format!("forgity-pool-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        // Avoid starting the background reaper in this focused regression test.
+        let pool = DccPool {
+            sessions: Arc::new(Mutex::new(HashMap::new())),
+            data_dir: dir.clone(),
+        };
+        let result = tokio::time::timeout(Duration::from_secs(2), pool.release("missing", false)).await;
+        assert!(result.is_ok(), "release must drop its lock before writing the snapshot");
+        assert_eq!(std::fs::read_to_string(dir.join("dcc-sessions.json")).unwrap(), "[]");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 
     #[test]
     fn test_compute_dcc_session_key_consistency() {

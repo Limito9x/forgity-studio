@@ -120,6 +120,14 @@ Các script nghiệp vụ DCC được lưu trữ phẳng theo từng Executor t
 
 ## 6. Persistent Warm DCC Process Pool & Keep-Alive Daemon (BL-040)
 
+### Stage completion fixes (2026-11-06)
+
+- `DccPool.release` drops the sessions mutex before writing the snapshot; snapshot writing acquires the same mutex. Holding it caused a deadlock after the Idle log, preventing result publication, unregister and RabbitMQ ACK.
+- Warm dispatch waits for both guest `stage_completed` and resident `stage_finished`, draining guest step results even when the control pipe arrives first. Success requires both results, handshake and successful steps; resident success never overrides guest failure. A missing matching completion is bounded by a five-second inactivity timeout.
+- Guest sends the detailed failed stage result, closes IPC, then exits with code 1. Resident therefore reports failure for script/package errors. Cancellation releases the session once, then follows normal unregister/result publication.
+- These changes remove the deadlock causing unacknowledged tasks to replay after restart. They do not add durable deduplication or an execution-status check before delivery: arbitrary process crashes can still cause RabbitMQ redelivery.
+- Regression checks: `cargo test --locked`; `python -B -m unittest discover -s scripts/tests -v`.
+
 Để loại bỏ hoàn toàn độ trễ khởi động lại Engine 15–45s giữa các Stage, Runner hỗ trợ cơ chế giữ ấm tiến trình DCC (Unreal Engine):
 
 1. **Vòng Đời Resident Host**:
