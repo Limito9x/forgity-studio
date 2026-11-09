@@ -108,3 +108,86 @@ export const UpdateProjectResponse = /*#__PURE__*/ zod.object({
   "storageProfileId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid())
 })
 
+export const ExportProjectPackageParams = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid()
+})
+
+export const ExportProjectPackageBody = /*#__PURE__*/ zod.object({
+  "domains": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()))
+})
+
+export const ExportProjectPackageResponse = /*#__PURE__*/ zod.void()
+
+export const GetProjectMigrationHistoryParams = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid()
+})
+
+export const GetProjectMigrationHistoryQueryParams = /*#__PURE__*/ zod.object({
+  "page": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
+  "pageSize": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
+  "filters": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "field": /*#__PURE__*/ zod.string(),
+  "operator": /*#__PURE__*/ zod.enum(['Equal', 'NotEqual', 'Contains', 'GreaterThan', 'GreaterThanOrEqual', 'LessThan', 'LessThanOrEqual']),
+  "value": /*#__PURE__*/ zod.string()
+}))),
+  "globalKeyword": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+})
+
+export const GetProjectMigrationHistoryResponse = /*#__PURE__*/ zod.object({
+  "items": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid(),
+  "projectId": /*#__PURE__*/ zod.uuid(),
+  "studioId": /*#__PURE__*/ zod.uuid(),
+  "userId": /*#__PURE__*/ zod.uuid(),
+  "userDisplayName": /*#__PURE__*/ zod.string(),
+  "type": /*#__PURE__*/ zod.string(),
+  "status": /*#__PURE__*/ zod.string(),
+  "packageFileName": /*#__PURE__*/ zod.string(),
+  "packageSizeBytes": /*#__PURE__*/ zod.int(),
+  "packageChecksumSha256": /*#__PURE__*/ zod.string(),
+  "selectedDomains": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()),
+  "domainSummaries": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.object({
+  "total": /*#__PURE__*/ zod.int(),
+  "created": /*#__PURE__*/ zod.int(),
+  "updated": /*#__PURE__*/ zod.int(),
+  "skipped": /*#__PURE__*/ zod.int(),
+  "warnings": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())
+}))),
+  "errorMessage": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
+}))),
+  "totalCount": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "page": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "pageSize": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "totalPages": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.int()),
+  "hasPreviousPage": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean()),
+  "hasNextPage": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean())
+})
+
+export const ImportProjectPackageParams = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid()
+})
+
+export const ImportProjectPackageBody = /*#__PURE__*/ zod.object({
+  "file": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.instanceof(File)),
+  "strategy": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1)]))
+})
+
+export const ImportProjectPackageResponse = /*#__PURE__*/ zod.object({
+  "migrationLogId": /*#__PURE__*/ zod.uuid(),
+  "status": /*#__PURE__*/ zod.string(),
+  "totalItems": /*#__PURE__*/ zod.int(),
+  "createdItems": /*#__PURE__*/ zod.int(),
+  "updatedItems": /*#__PURE__*/ zod.int(),
+  "skippedItems": /*#__PURE__*/ zod.int(),
+  "domainSummaries": /*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.object({
+  "total": /*#__PURE__*/ zod.int(),
+  "created": /*#__PURE__*/ zod.int(),
+  "updated": /*#__PURE__*/ zod.int(),
+  "skipped": /*#__PURE__*/ zod.int(),
+  "warnings": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())
+})),
+  "warnings": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()),
+  "errorMessage": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+})
+

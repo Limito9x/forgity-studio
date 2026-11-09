@@ -77,7 +77,8 @@ export function AttachRunnerForm({
             </span>
             {selectedRunnerId && (
               <div className="flex items-center gap-1.5">
-                {isLocal && (
+                {isLocal ? (
+                  /* 1-Click Native Folder Picker: Zero friction on Desktop for local workstation */
                   <Button
                     type="button"
                     variant="outline"
@@ -97,23 +98,24 @@ export function AttachRunnerForm({
                         toast.error(err?.message || "Failed to open folder picker");
                       }
                     }}
-                    className="h-6 px-2 text-[11px] gap-1 text-primary hover:text-primary/80 cursor-pointer"
+                    className="h-6 px-2 text-[11px] gap-1 text-primary hover:text-primary/80 font-medium cursor-pointer"
                   >
                     <FolderOpen className="size-3" />
-                    <span>Browse Local Folder...</span>
+                    <span>Browse Folder...</span>
+                  </Button>
+                ) : (
+                  /* Remote Runner: Toggle Remote Tree Browser */
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowBrowser((prev) => !prev)}
+                    className="h-6 px-2 text-[11px] gap-1 text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    <FolderSearch className="size-3" />
+                    <span>{showBrowser ? "Hide Remote Tree" : "Remote Folder Tree"}</span>
                   </Button>
                 )}
-
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowBrowser((prev) => !prev)}
-                  className="h-6 px-2 text-[11px] gap-1 text-muted-foreground hover:text-foreground cursor-pointer"
-                >
-                  <FolderSearch className="size-3" />
-                  <span>{showBrowser ? "Hide Remote Tree" : "Remote Folder Tree"}</span>
-                </Button>
               </div>
             )}
           </div>
@@ -128,8 +130,8 @@ export function AttachRunnerForm({
         </div>
       </FormGrid>
 
-      {/* Remote Folder Browser Section */}
-      {selectedRunnerId ? (
+      {/* Remote Folder Browser Section (Only needed when browsing a remote runner) */}
+      {selectedRunnerId && !isLocal ? (
         showBrowser ? (
           <div className="space-y-1.5 pt-0.5 w-full">
             <div className="flex items-center justify-between text-[11px] text-muted-foreground px-0.5">

@@ -12,8 +12,24 @@ import {
   SidebarMenuSub,
   SidebarMenuSubItem,
   SidebarMenuSubButton,
+  useSidebar,
 } from "@/components/ui/sidebar";
-import { Settings, Logs, ChevronRight, Workflow, Boxes, FolderGit2, Folder } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+  Settings,
+  Logs,
+  ChevronRight,
+  Folder,
+  ArrowLeftRight,
+  Workflow,
+  FolderGit2,
+} from "lucide-react";
 import { NavUser } from "./NavUser";
 import { useRouterState } from "@tanstack/react-router";
 import { useProject } from "@/features/projects/context/ProjectContext";
@@ -26,6 +42,8 @@ export function ProjectSidebar() {
   const { project, projectId } = useProject();
   const nav = useProjectNav();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
 
   // Query content types for this project (projectId is guaranteed GUID from ProjectContext)
   const { data: contentTypesData } = useContentTypes({ PageSize: 100 } as any, projectId);
@@ -41,7 +59,7 @@ export function ProjectSidebar() {
   const isContentsParentActive = pathname.includes("/contents");
 
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -71,38 +89,60 @@ export function ProjectSidebar() {
           <SidebarGroupLabel>Project Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {/* Pipelines (Collapsible) */}
+              {/* Pipelines */}
               <SidebarMenuItem>
-                <Collapsible
-                  defaultExpanded={pathname.startsWith(pipelinesBaseUrl)}
-                  className="group/collapsible"
-                >
-                  <SidebarMenuButton tooltip="Pipelines" slot="trigger">
-                    <Workflow />
-                    <span>Pipelines</span>
-                    <ChevronRight className="ml-auto transition-transform duration-200 group-data-[expanded]/collapsible:rotate-90" />
-                  </SidebarMenuButton>
-                  <CollapsibleContent>
-                    <SidebarMenuSub>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
-                          isActive={isPipelineActive}
-                          onPress={() => nav.toPipelines()}
-                        >
-                          <span>All Pipelines</span>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
-                          isActive={isNodesActive}
-                          onPress={() => nav.toNodes()}
-                        >
-                          <span>Node Library</span>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    </SidebarMenuSub>
-                  </CollapsibleContent>
-                </Collapsible>
+                {isCollapsed ? (
+                  <DropdownMenuTrigger>
+                    <SidebarMenuButton
+                      tooltip="Pipelines"
+                      isActive={isPipelineActive || isNodesActive}
+                    >
+                      <Workflow />
+                      <span>Pipelines</span>
+                    </SidebarMenuButton>
+                    <DropdownMenu placement="right top" offset={8} className="min-w-44">
+                      <DropdownMenuLabel>Pipelines</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onAction={() => nav.toPipelines()}>
+                        <span>All Pipelines</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onAction={() => nav.toNodes()}>
+                        <span>Node Library</span>
+                      </DropdownMenuItem>
+                    </DropdownMenu>
+                  </DropdownMenuTrigger>
+                ) : (
+                  <Collapsible
+                    defaultExpanded={pathname.startsWith(pipelinesBaseUrl)}
+                    className="group/collapsible"
+                  >
+                    <SidebarMenuButton tooltip="Pipelines" slot="trigger">
+                      <Workflow />
+                      <span>Pipelines</span>
+                      <ChevronRight className="ml-auto transition-transform duration-200 group-data-[expanded]/collapsible:rotate-90" />
+                    </SidebarMenuButton>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            isActive={isPipelineActive}
+                            onPress={() => nav.toPipelines()}
+                          >
+                            <span>All Pipelines</span>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton
+                            isActive={isNodesActive}
+                            onPress={() => nav.toNodes()}
+                          >
+                            <span>Node Library</span>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
               </SidebarMenuItem>
 
               {/* Repositories */}
@@ -117,7 +157,67 @@ export function ProjectSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
 
-              {/* Content Types */}
+              {/* Dynamic Contents & Content Types Group */}
+              {contentTypesData?.items && contentTypesData.items.length > 0 && (
+                <SidebarMenuItem>
+                  {isCollapsed ? (
+                    <DropdownMenuTrigger>
+                      <SidebarMenuButton
+                        tooltip="Contents"
+                        isActive={isContentsParentActive}
+                      >
+                        <Logs />
+                        <span>Contents</span>
+                      </SidebarMenuButton>
+                      <DropdownMenu placement="right top" offset={8} className="min-w-48 max-h-72 overflow-y-auto">
+                        <DropdownMenuLabel>Contents</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {contentTypesData.items.map((ct) => (
+                          <DropdownMenuItem
+                            key={ct.id}
+                            onAction={() => nav.toContents(ct.key)}
+                          >
+                            <DynamicIcon name={ct.icon} className="size-4 shrink-0" />
+                            <span>{ct.displayName || ct.name}</span>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenu>
+                    </DropdownMenuTrigger>
+                  ) : (
+                    <Collapsible
+                      defaultExpanded={isContentsParentActive}
+                      className="group/collapsible"
+                    >
+                      <SidebarMenuButton tooltip="Contents" slot="trigger">
+                        <Logs />
+                        <span>Contents</span>
+                        <ChevronRight className="ml-auto transition-transform duration-200 group-data-[expanded]/collapsible:rotate-90" />
+                      </SidebarMenuButton>
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          {contentTypesData.items.map((ct) => {
+                            const itemUrl = nav.urls.contents(ct.key);
+                            const isItemActive = pathname.startsWith(itemUrl);
+                            return (
+                              <SidebarMenuSubItem key={ct.id}>
+                                <SidebarMenuSubButton
+                                  isActive={isItemActive}
+                                  onPress={() => nav.toContents(ct.key)}
+                                >
+                                  <DynamicIcon name={ct.icon} className="size-4 shrink-0" />
+                                  <span>{ct.displayName || ct.name}</span>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            );
+                          })}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  )}
+                </SidebarMenuItem>
+              )}
+
+              {/* Content Types (Schema Config) - Nằm ngay dưới Contents */}
               <SidebarMenuItem>
                 <SidebarMenuButton
                   isActive={pathname.startsWith(nav.urls.contentTypes())}
@@ -129,52 +229,17 @@ export function ProjectSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
 
-              {/* Structs */}
+              {/* Migrations & Packages */}
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  isActive={pathname.startsWith(nav.urls.structs())}
-                  tooltip="Structs"
-                  onPress={() => nav.toStructs()}
+                  isActive={pathname.startsWith(nav.urls.migrations())}
+                  tooltip="Migrations"
+                  onPress={() => nav.toMigrations()}
                 >
-                  <Boxes />
-                  <span>Structs</span>
+                  <ArrowLeftRight />
+                  <span>Migrations</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-
-              {/* Dynamic Contents (Collapsible) */}
-              {contentTypesData?.items && contentTypesData.items.length > 0 && (
-                <SidebarMenuItem>
-                  <Collapsible
-                    defaultExpanded={isContentsParentActive}
-                    className="group/collapsible"
-                  >
-                    <SidebarMenuButton tooltip="Contents" slot="trigger">
-                      <Logs />
-                      <span>Contents</span>
-                      <ChevronRight className="ml-auto transition-transform duration-200 group-data-[expanded]/collapsible:rotate-90" />
-                    </SidebarMenuButton>
-                    <CollapsibleContent>
-                      <SidebarMenuSub>
-                        {contentTypesData.items.map((ct) => {
-                          const itemUrl = nav.urls.contents(ct.key);
-                          const isItemActive = pathname.startsWith(itemUrl);
-                          return (
-                            <SidebarMenuSubItem key={ct.id}>
-                              <SidebarMenuSubButton
-                                isActive={isItemActive}
-                                onPress={() => nav.toContents(ct.key)}
-                              >
-                                <DynamicIcon name={ct.icon} className="size-4 shrink-0" />
-                                <span>{ct.displayName || ct.name}</span>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          );
-                        })}
-                      </SidebarMenuSub>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </SidebarMenuItem>
-              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

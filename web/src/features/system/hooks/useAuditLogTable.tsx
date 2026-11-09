@@ -72,6 +72,7 @@ export function useAuditLogTable({
                     const item = row.original;
                     return (
                         <DataTableRowActions
+                            compact={false}
                             actions={[
                                 {
                                     label: t("common:view", { defaultValue: "View" }),

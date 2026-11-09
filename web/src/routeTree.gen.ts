@@ -49,6 +49,7 @@ import { Route as ProtectedLayoutSStudioSlugRunnersRunnerIdRouteImport } from '.
 import { Route as ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/route'
 import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/content-types'
 import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/contents'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/migrations'
 import { Route as ProtectedProjectSStudioSlugProjectsProjectIdOverviewRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/overview'
 import { Route as ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/repositories'
 import { Route as ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/structs'
@@ -294,6 +295,13 @@ const ProtectedProjectSStudioSlugProjectsProjectIdContentsRoute =
     getParentRoute: () =>
       ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
   } as any)
+const ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRouteImport.update({
+    id: '/migrations',
+    path: '/migrations',
+    getParentRoute: () =>
+      ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
+  } as any)
 const ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute =
   ProtectedProjectSStudioSlugProjectsProjectIdOverviewRouteImport.update({
     id: '/overview',
@@ -510,6 +518,7 @@ export interface FileRoutesByFullPath {
   '/s/$studioSlug/projects/': typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
   '/s/$studioSlug/projects/$projectId/content-types': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteWithChildren
   '/s/$studioSlug/projects/$projectId/contents': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteWithChildren
+  '/s/$studioSlug/projects/$projectId/migrations': typeof ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRoute
   '/s/$studioSlug/projects/$projectId/overview': typeof ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute
   '/s/$studioSlug/projects/$projectId/repositories': typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRouteWithChildren
   '/s/$studioSlug/projects/$projectId/structs': typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteWithChildren
@@ -564,6 +573,7 @@ export interface FileRoutesByTo {
   '/s/$studioSlug/projects/$projectId': typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteWithChildren
   '/s/$studioSlug/runners/$runnerId': typeof ProtectedLayoutSStudioSlugRunnersRunnerIdRoute
   '/s/$studioSlug/projects': typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
+  '/s/$studioSlug/projects/$projectId/migrations': typeof ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRoute
   '/s/$studioSlug/projects/$projectId/overview': typeof ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute
   '/s/$studioSlug/projects/$projectId/pipeline/$pipelineId': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRoute
   '/s/$studioSlug/projects/$projectId/repositories/$repositoryId': typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRepositoryIdRoute
@@ -625,6 +635,7 @@ export interface FileRoutesById {
   '/_protected/_layout/s/$studioSlug/projects/': typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
   '/_protected/_project/s/$studioSlug/projects/$projectId/content-types': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteWithChildren
   '/_protected/_project/s/$studioSlug/projects/$projectId/contents': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteWithChildren
+  '/_protected/_project/s/$studioSlug/projects/$projectId/migrations': typeof ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRoute
   '/_protected/_project/s/$studioSlug/projects/$projectId/overview': typeof ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute
   '/_protected/_project/s/$studioSlug/projects/$projectId/repositories': typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRouteWithChildren
   '/_protected/_project/s/$studioSlug/projects/$projectId/structs': typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteWithChildren
@@ -687,6 +698,7 @@ export interface FileRouteTypes {
     | '/s/$studioSlug/projects/'
     | '/s/$studioSlug/projects/$projectId/content-types'
     | '/s/$studioSlug/projects/$projectId/contents'
+    | '/s/$studioSlug/projects/$projectId/migrations'
     | '/s/$studioSlug/projects/$projectId/overview'
     | '/s/$studioSlug/projects/$projectId/repositories'
     | '/s/$studioSlug/projects/$projectId/structs'
@@ -741,6 +753,7 @@ export interface FileRouteTypes {
     | '/s/$studioSlug/projects/$projectId'
     | '/s/$studioSlug/runners/$runnerId'
     | '/s/$studioSlug/projects'
+    | '/s/$studioSlug/projects/$projectId/migrations'
     | '/s/$studioSlug/projects/$projectId/overview'
     | '/s/$studioSlug/projects/$projectId/pipeline/$pipelineId'
     | '/s/$studioSlug/projects/$projectId/repositories/$repositoryId'
@@ -801,6 +814,7 @@ export interface FileRouteTypes {
     | '/_protected/_layout/s/$studioSlug/projects/'
     | '/_protected/_project/s/$studioSlug/projects/$projectId/content-types'
     | '/_protected/_project/s/$studioSlug/projects/$projectId/contents'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/migrations'
     | '/_protected/_project/s/$studioSlug/projects/$projectId/overview'
     | '/_protected/_project/s/$studioSlug/projects/$projectId/repositories'
     | '/_protected/_project/s/$studioSlug/projects/$projectId/structs'
@@ -1109,6 +1123,13 @@ declare module '@tanstack/react-router' {
       path: '/contents'
       fullPath: '/s/$studioSlug/projects/$projectId/contents'
       preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
+    }
+    '/_protected/_project/s/$studioSlug/projects/$projectId/migrations': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/migrations'
+      path: '/migrations'
+      fullPath: '/s/$studioSlug/projects/$projectId/migrations'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRouteImport
       parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
     }
     '/_protected/_project/s/$studioSlug/projects/$projectId/overview': {
@@ -1481,6 +1502,7 @@ const ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteWithChildren =
 interface ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteChildren {
   ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteWithChildren
   ProtectedProjectSStudioSlugProjectsProjectIdContentsRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteWithChildren
+  ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRoute
   ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute
   ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRouteWithChildren
   ProtectedProjectSStudioSlugProjectsProjectIdStructsRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteWithChildren
@@ -1498,6 +1520,8 @@ const ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteChildren: ProtectedP
       ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteWithChildren,
     ProtectedProjectSStudioSlugProjectsProjectIdContentsRoute:
       ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteWithChildren,
+    ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRoute,
     ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute:
       ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute,
     ProtectedProjectSStudioSlugProjectsProjectIdRepositoriesRoute:

@@ -20,7 +20,8 @@ public class ProjectConfiguration : IEntityTypeConfiguration<Domain.Entities.Pro
             .HasMaxLength(150);
 
         builder.HasIndex(x => new { x.StudioId, x.Slug })
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("\"DeletedAt\" IS NULL");
 
         builder.HasIndex(x => x.StorageProfileId);
 

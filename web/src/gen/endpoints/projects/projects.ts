@@ -24,9 +24,14 @@ import type {
 import type {
   CreateProjectCommand,
   ErrorResponse,
+  ExportProjectPackageRequestModel,
   GetProjectByIdParams,
+  GetProjectMigrationHistoryParams,
   GetProjectsParams,
+  ImportProjectPackageRequestModel,
+  ImportProjectPackageResultDto,
   PagedResultOfProjectDto,
+  PagedResultOfProjectMigrationLogDto,
   ProjectDto,
   UpdateProjectCommand,
 } from "../../model";
@@ -549,4 +554,343 @@ export const useUpdateProject = <
   TContext
 > => {
   return useMutation(getUpdateProjectMutationOptions(options), queryClient);
+};
+export const exportProjectPackage = (
+  id: string,
+  exportProjectPackageRequestModel: ExportProjectPackageRequestModel,
+  signal?: AbortSignal,
+) => {
+  return customInstance<void>({
+    url: `/api/projects/${id}/migrations/export`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: exportProjectPackageRequestModel,
+    signal,
+  });
+};
+
+export const getExportProjectPackageMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof exportProjectPackage>>,
+    TError,
+    { id: string; data: ExportProjectPackageRequestModel },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof exportProjectPackage>>,
+  TError,
+  { id: string; data: ExportProjectPackageRequestModel },
+  TContext
+> => {
+  const mutationKey = ["exportProjectPackage"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof exportProjectPackage>>,
+    { id: string; data: ExportProjectPackageRequestModel }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return exportProjectPackage(id, data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ExportProjectPackageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof exportProjectPackage>>
+>;
+export type ExportProjectPackageMutationBody = ExportProjectPackageRequestModel;
+export type ExportProjectPackageMutationError = void;
+
+export const useExportProjectPackage = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof exportProjectPackage>>,
+      TError,
+      { id: string; data: ExportProjectPackageRequestModel },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof exportProjectPackage>>,
+  TError,
+  { id: string; data: ExportProjectPackageRequestModel },
+  TContext
+> => {
+  return useMutation(
+    getExportProjectPackageMutationOptions(options),
+    queryClient,
+  );
+};
+export const getProjectMigrationHistory = (
+  id: string,
+  params?: GetProjectMigrationHistoryParams,
+  signal?: AbortSignal,
+) => {
+  return customInstance<PagedResultOfProjectMigrationLogDto>({
+    url: `/api/projects/${id}/migrations/history`,
+    method: "GET",
+    params,
+    signal,
+  });
+};
+
+export const getGetProjectMigrationHistoryQueryKey = (
+  id: string,
+  params?: GetProjectMigrationHistoryParams,
+) => {
+  return [
+    `/api/projects/${id}/migrations/history`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetProjectMigrationHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getProjectMigrationHistory>>,
+  TError = void,
+>(
+  id: string,
+  params?: GetProjectMigrationHistoryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProjectMigrationHistory>>,
+        TError,
+        TData
+      >
+    >;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetProjectMigrationHistoryQueryKey(id, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getProjectMigrationHistory>>
+  > = ({ signal }) => getProjectMigrationHistory(id, params, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: id !== null && id !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getProjectMigrationHistory>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetProjectMigrationHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getProjectMigrationHistory>>
+>;
+export type GetProjectMigrationHistoryQueryError = void;
+
+export function useGetProjectMigrationHistory<
+  TData = Awaited<ReturnType<typeof getProjectMigrationHistory>>,
+  TError = void,
+>(
+  id: string,
+  params: undefined | GetProjectMigrationHistoryParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProjectMigrationHistory>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getProjectMigrationHistory>>,
+          TError,
+          Awaited<ReturnType<typeof getProjectMigrationHistory>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetProjectMigrationHistory<
+  TData = Awaited<ReturnType<typeof getProjectMigrationHistory>>,
+  TError = void,
+>(
+  id: string,
+  params?: GetProjectMigrationHistoryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProjectMigrationHistory>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getProjectMigrationHistory>>,
+          TError,
+          Awaited<ReturnType<typeof getProjectMigrationHistory>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetProjectMigrationHistory<
+  TData = Awaited<ReturnType<typeof getProjectMigrationHistory>>,
+  TError = void,
+>(
+  id: string,
+  params?: GetProjectMigrationHistoryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProjectMigrationHistory>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+
+export function useGetProjectMigrationHistory<
+  TData = Awaited<ReturnType<typeof getProjectMigrationHistory>>,
+  TError = void,
+>(
+  id: string,
+  params?: GetProjectMigrationHistoryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getProjectMigrationHistory>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetProjectMigrationHistoryQueryOptions(
+    id,
+    params,
+    options,
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const importProjectPackage = (
+  id: string,
+  importProjectPackageRequestModel: ImportProjectPackageRequestModel,
+  signal?: AbortSignal,
+) => {
+  const formData = new FormData();
+  if (importProjectPackageRequestModel.file !== undefined) {
+    formData.append(`file`, importProjectPackageRequestModel.file);
+  }
+  if (importProjectPackageRequestModel.strategy !== undefined) {
+    formData.append(
+      `strategy`,
+      importProjectPackageRequestModel.strategy.toString(),
+    );
+  }
+
+  return customInstance<ImportProjectPackageResultDto>({
+    url: `/api/projects/${id}/migrations/import`,
+    method: "POST",
+    headers: { "Content-Type": "multipart/form-data" },
+    data: formData,
+    signal,
+  });
+};
+
+export const getImportProjectPackageMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof importProjectPackage>>,
+    TError,
+    { id: string; data: ImportProjectPackageRequestModel },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof importProjectPackage>>,
+  TError,
+  { id: string; data: ImportProjectPackageRequestModel },
+  TContext
+> => {
+  const mutationKey = ["importProjectPackage"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof importProjectPackage>>,
+    { id: string; data: ImportProjectPackageRequestModel }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return importProjectPackage(id, data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ImportProjectPackageMutationResult = NonNullable<
+  Awaited<ReturnType<typeof importProjectPackage>>
+>;
+export type ImportProjectPackageMutationBody = ImportProjectPackageRequestModel;
+export type ImportProjectPackageMutationError = void;
+
+export const useImportProjectPackage = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof importProjectPackage>>,
+      TError,
+      { id: string; data: ImportProjectPackageRequestModel },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof importProjectPackage>>,
+  TError,
+  { id: string; data: ImportProjectPackageRequestModel },
+  TContext
+> => {
+  return useMutation(
+    getImportProjectPackageMutationOptions(options),
+    queryClient,
+  );
 };

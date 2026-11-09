@@ -27,11 +27,11 @@ export type {
   PipelineScriptDependencyPreviewDto,
 };
 
+import { saveFileWithStrategy } from "@/lib/platform/saveFileStrategy";
+
 export function downloadPackageFile(data: PipelinePackageDto, customFileName?: string) {
   const jsonStr = JSON.stringify(data, null, 2);
   const blob = new Blob([jsonStr], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
 
   let fileName = customFileName;
   if (!fileName) {
@@ -49,12 +49,12 @@ export function downloadPackageFile(data: PipelinePackageDto, customFileName?: s
     }
   }
 
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  saveFileWithStrategy({
+    fileName,
+    blob,
+    extensions: ["json", "pipeline.json"],
+    filterName: "Pipeline Package JSON",
+  });
 }
 
 export function usePipelineExport() {

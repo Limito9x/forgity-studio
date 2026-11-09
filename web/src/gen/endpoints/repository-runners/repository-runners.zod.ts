@@ -73,7 +73,8 @@ export const AttachRunnerToRepositoryResponse = /*#__PURE__*/ zod.object({
   "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 }))),
-  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "hardwareFingerprint": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 }))
 })
 

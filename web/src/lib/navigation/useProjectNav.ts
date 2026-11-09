@@ -98,6 +98,9 @@ export function useProjectNav(options?: ProjectNavOptions) {
     // Structs
     structs: () => `${projectBase}/structs`,
     structBuilder: (structId: string) => `${projectBase}/structs/${structId}/builder`,
+
+    // Migrations
+    migrations: () => `${projectBase}/migrations`,
   };
 
   // Helper for type-agnostic safe navigation
@@ -145,6 +148,9 @@ export function useProjectNav(options?: ProjectNavOptions) {
     // Structs
     toStructs: () => navTo(urls.structs()),
     toStructBuilder: (structId: string) => navTo(urls.structBuilder(structId)),
+
+    // Migrations
+    toMigrations: () => navTo(urls.migrations()),
 
     // Smart Back
     toBack: (fallbackUrl?: string) => {

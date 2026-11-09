@@ -66,6 +66,7 @@ export function useSystemSettingTable({
                     const item = row.original;
                     return (
                         <DataTableRowActions
+                            compact={false}
                             actions={[
                                 {
                                     label: t("common:edit", { defaultValue: "Edit" }),

@@ -111,7 +111,7 @@ export function useContentTypeTable({ data, totalCount, resource }: UseContentTy
                         }
                     ].filter(Boolean) as ActionItem[];
 
-                    return <DataTableRowActions actions={actions} />;
+                    return <DataTableRowActions actions={actions} compact={false} />;
                 },
             },
         ],

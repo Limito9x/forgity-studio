@@ -59,7 +59,8 @@ export const GetRunnersResponseItem = /*#__PURE__*/ zod.object({
   "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 }))),
-  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "hardwareFingerprint": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 export const GetRunnersResponse = /*#__PURE__*/ zod.array(GetRunnersResponseItem)
 
@@ -134,7 +135,8 @@ export const GetStudioRunnersResponseItem = /*#__PURE__*/ zod.object({
   "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 }))),
-  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "hardwareFingerprint": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 }))
 })
 export const GetStudioRunnersResponse = /*#__PURE__*/ zod.array(GetStudioRunnersResponseItem)
@@ -195,7 +197,8 @@ export const GetMyRunnerResponse = /*#__PURE__*/ zod.object({
   "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 }))),
-  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "hardwareFingerprint": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 export const registerRunnerBodyNameMin = 0;
@@ -234,7 +237,8 @@ export const RegisterRunnerResponse = /*#__PURE__*/ zod.object({
 export const RegisterRunnerWithTokenBody = /*#__PURE__*/ zod.object({
   "name": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(1)),
   "machineKey": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(1)),
-  "setupToken": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(1))
+  "setupToken": /*#__PURE__*/ zod.string().check(/*#__PURE__*/ zod.minLength(1)),
+  "hardwareFingerprint": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 export const RegisterRunnerWithTokenResponse = /*#__PURE__*/ zod.object({
@@ -516,7 +520,8 @@ export const UpdateRunnerHardwareProfileResponse = /*#__PURE__*/ zod.object({
   "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 }))),
-  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "hardwareFingerprint": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 export const ScanRunnerHardwareParams = /*#__PURE__*/ zod.object({
@@ -569,7 +574,8 @@ export const ScanRunnerHardwareResponse = /*#__PURE__*/ zod.object({
   "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 }))),
-  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "hardwareFingerprint": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })
 
 export const AttachRunnerToStudioParams = /*#__PURE__*/ zod.object({
@@ -634,7 +640,8 @@ export const AttachRunnerToStudioResponse = /*#__PURE__*/ zod.object({
   "settings": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 }))),
-  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "hardwareFingerprint": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 }))
 })
 

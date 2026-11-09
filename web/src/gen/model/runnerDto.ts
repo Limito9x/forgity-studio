@@ -34,4 +34,6 @@ export interface RunnerDto {
   executorConfigs?: unknown[] | null;
   /** @nullable */
   appVersion?: string | null;
+  /** @nullable */
+  hardwareFingerprint?: string | null;
 }

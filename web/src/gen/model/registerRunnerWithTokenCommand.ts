@@ -13,4 +13,6 @@ export interface RegisterRunnerWithTokenCommand {
   machineKey: string;
   /** @minLength 1 */
   setupToken: string;
+  /** @nullable */
+  hardwareFingerprint?: string | null;
 }

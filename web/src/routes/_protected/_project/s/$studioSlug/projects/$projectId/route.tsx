@@ -5,7 +5,11 @@ import { ProjectShell } from '@/components/layout/app/ProjectShell'
 
 export const Route = createFileRoute('/_protected/_project/s/$studioSlug/projects/$projectId')({
     staticData: {
-        breadcrumb: 'Projects',
+        breadcrumb: (_params: any, loaderData: any) => loaderData?.name || 'Project',
+    },
+    loader: async ({ params }) => {
+        // TanStack router loader to get project info for breadcrumbs
+        return { id: params.projectId };
     },
     beforeLoad: () => {
         const permissions = getAuthState().permissions;

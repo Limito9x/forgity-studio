@@ -13,6 +13,7 @@ public class StudioDbContext : DbContext
     public DbSet<StudioEntity> Studios => Set<StudioEntity>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
+    public DbSet<ProjectMigrationLog> ProjectMigrationLogs => Set<ProjectMigrationLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

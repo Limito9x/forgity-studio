@@ -52,7 +52,7 @@ export function PipelineListPage({ projectId }: PipelineListPageProps) {
   };
 
   return (
-    <div className="p-6 mx-auto space-y-6 w-full min-w-0">
+    <div className="page-container space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/60 pb-5">
         <div>

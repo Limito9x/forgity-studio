@@ -81,7 +81,7 @@ export function GlobalSidebar() {
   };
 
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border/40 pb-2">
         <StudioSwitcher />
       </SidebarHeader>

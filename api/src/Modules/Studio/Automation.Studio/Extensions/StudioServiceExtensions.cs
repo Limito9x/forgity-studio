@@ -1,4 +1,7 @@
 using Automation.Studio.Contracts;
+using Automation.Studio.Features.Migrations.Domain;
+using Automation.Studio.Features.Migrations.Providers;
+using Automation.Studio.Features.Migrations.Services;
 using Automation.Studio.Infrastructure.Services;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,6 +13,13 @@ public static class StudioServiceExtensions
     {
         services.AddScoped<IStudioApi, StudioApiService>();
         services.AddScoped<IProjectsApi, StudioApiService>();
+
+        // Project Migrations
+        services.AddScoped<IProjectMigrationProvider, PipelineMigrationProvider>();
+        services.AddScoped<IProjectMigrationProvider, ContentMigrationProvider>();
+        services.AddScoped<IProjectMigrationProvider, RepositoryMigrationProvider>();
+        services.AddScoped<ProjectMigrationOrchestrator>();
+
         return services;
     }
 

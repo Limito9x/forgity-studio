@@ -3,6 +3,10 @@
     <ItemGroup>
       <ProjectReference Include="..\..\..\SharedKernel\Automation.SharedKernel\Automation.SharedKernel.csproj" />
       <ProjectReference Include="..\Automation.Studio.Contracts\Automation.Studio.Contracts.csproj" />
+      <ProjectReference Include="..\..\Pipeline\Automation.Pipeline\Automation.Pipeline.csproj" />
+      <ProjectReference Include="..\..\Content\Automation.Content\Automation.Content.csproj" />
+      <ProjectReference Include="..\..\Repository\Automation.Repository\Automation.Repository.csproj" />
+      <ProjectReference Include="..\..\DynamicForms\Automation.DynamicForms\Automation.DynamicForms.csproj" />
     </ItemGroup>
 
     <PropertyGroup>
