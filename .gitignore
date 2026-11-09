@@ -30,3 +30,6 @@ htmlcov/
 # Database Backups
 backups/
 *.dump
+
+# Starter template package archive
+forgity_starter_template.zip

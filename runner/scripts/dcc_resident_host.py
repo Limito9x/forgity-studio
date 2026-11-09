@@ -87,6 +87,18 @@ def refresh_engine_state():
         pass
 
 
+def cleanup_engine_state():
+    """Performs garbage collection and refreshes asset registry after a stage completes."""
+    try:
+        import unreal
+        if hasattr(unreal, "SystemLibrary") and hasattr(unreal.SystemLibrary, "collect_garbage"):
+            unreal.SystemLibrary.collect_garbage()
+        asset_reg = unreal.AssetRegistryHelpers.get_asset_registry()
+        asset_reg.scan_paths_synchronous(["/Game"], True)
+    except Exception:
+        pass
+
+
 def main():
     control_pipe_path = os.environ.get("FORGITY_DCC_CONTROL_PIPE")
 
@@ -180,6 +192,7 @@ def main():
                     "error_message": err_msg,
                 })
                 print(f"[ResidentHost] === Completed Stage {stage_id} (success={success}, code={exit_code}) ===", flush=True)
+                cleanup_engine_state()
 
         except Exception as e:
             sys.stderr.write(f"[ResidentHost] Error processing message: {e}\n")

@@ -265,7 +265,7 @@ def main(
 
             output_names = [out["name"] for out in result["outputs"]]
             self.assertIn("body_meshes", output_names)
-            self.assertIn("cloth_map", output_names)
+            self.assertIn("wardrobe_items", output_names)
 
     def test_subprocess_cli_invocation_via_stdin(self):
         """Simulate how C# will invoke the analyzer folder via subprocess piping stdin."""

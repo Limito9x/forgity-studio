@@ -154,6 +154,8 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 > - **Công cụ tự động hóa**: Sử dụng python .agents/scripts/backlog.py [check|archive|new|list] để kiểm tra toàn vẹn, lưu trữ kế hoạch đã xong vào rchive/YYYY-MM/ và đồng bộ chỉ mục tự động.
 
 ### Kế hoạch đang thực hiện (Active):
+- [**bl-047-tauri-desktop-native-app-hybrid-file-browser-strategy-runner-identity-roadmap (09/11/2026)**](file:///D:/FullStack/Automation/.agents/plans/2026-11-09-bl-047-tauri-desktop-native-app-hybrid-file-browser-strategy-runner-identity-roadmap.md): Tauri Desktop Native App, Hybrid File Browser Strategy & Runner Identity Roadmap.
+- [**bl-046-1-click-starter-template-setup-in-engine-asset-ingestion (08/11/2026)**](file:///D:/FullStack/Automation/.agents/plans/2026-11-08-bl-046-1-click-starter-template-setup-in-engine-asset-ingestion.md): 1-Click Starter Template Setup & In-Engine Asset Ingestion.
 - [**bl-040-persistent-dcc-process-pool-and-keep-alive-worker-daemon (03/11/2026)**](file:///D:/FullStack/Automation/.agents/plans/2026-11-03-bl-040-persistent-dcc-process-pool-and-keep-alive-worker-daemon.md): Persistent DCC Process Pool and Keep-Alive Worker Daemon.
 
 ### Kế hoạch vừa hoàn thành gần nhất (Đã Archive):

@@ -26,7 +26,7 @@ def normalize_type_and_cardinality(annotation_node: Optional[ast.AST]) -> Tuple[
             first_type, first_card, first_opts = normalize_type_and_cardinality(elts[0]) if elts else ("Text", "Single", None)
             for meta_elt in elts[1:]:
                 meta_str = str(_extract_constant_val(meta_elt) or "").lower()
-                if "file" in meta_str or "asset" in meta_str:
+                if "file" in meta_str or "asset" in meta_str or "zip" in meta_str or "archive" in meta_str:
                     return "Asset", first_card, first_opts
             return first_type, first_card, first_opts
 
