@@ -77,6 +77,9 @@ Chào mừng đến với **Sổ Bộ Backlog** của dự án **Forgity Studio*
 | **BL-049** | 2026-11-09 | **Tolerant Reader API Evolution & Long-Term Versioning Strategy**<br/>*(Backend Architecture & API Contracts)* | Đánh giá độ cần thiết và thời điểm áp dụng API Versioning (`/v1/`, `/v2/`) khi lượng người dùng Desktop App phân tán qua nhiều phiên bản khác nhau. | 1. **Giai đoạn hiện tại (Solo/Lean)**: Áp dụng triệt để nguyên tắc *Tolerant Reader* & *Additive-only Changes* (thêm trường mới dạng optional/nullable, không xóa/đổi tên trường cũ) kết hợp với cờ `min_supported_version` yêu cầu cập nhật khi khởi động app Desktop.<br/>2. **Giai đoạn dài hạn (Multi-tenant/Public API)**: Khi cung cấp public developer API hoặc mở rộng cho bên thứ ba, nghiên cứu cơ chế URI Path Versioning (`/api/v1/`) kết hợp FastEndpoints versioning attributes. | - [docs/backend/ARCHITECTURE.md](file:///d:/FullStack/Automation/docs/backend/ARCHITECTURE.md) | `Deferred` *(Tương lai)* |
 
 ---
+| **BL-050** | 2026-11-09 | **Local-First Script Authoring, Multi-Folder Auto-Scan & Draft Pipeline Lifecycle**<br/>*(web/, web/src-tauri/, api/src/Modules/Pipeline/, runner/)* | Tách biệt rạch ròi Local Draft vs Published cho Script Nodes và Pipelines: theo dõi nhiều thư mục script cục bộ trên Tauri Desktop, phân tích AST + resolve contract không cần upload file nhị phân, chạy thử trực tiếp bằng FullPath trên Local Runner và đóng băng tự động khi Publish. | 1. Triển khai theo kế hoạch kỹ thuật chi tiết. | - [plans/2026-11-09-bl-050-local-first-script-authoring-multi-folder-auto-scan-draft-pipeline-lifecycle.md](file:///D:/FullStack/Automation/.agents/plans/2026-11-09-bl-050-local-first-script-authoring-multi-folder-auto-scan-draft-pipeline-lifecycle.md) | `Pending` |
+
+---
 
 ## 3. Quy Định Thêm Mới Vào Backlog
 
