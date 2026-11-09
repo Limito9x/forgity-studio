@@ -3,13 +3,15 @@ import { Form, FormGrid, zodResolver, useForm } from "@/components/form";
 import { FormInput, FormSelect } from "@/components/form-controls";
 import { useRunners } from "@/features/runners/hooks/useRunners";
 import { FolderBrowser } from "@/components/custom-ui/file-tree/FolderBrowser";
+import { useFilePickerStrategy } from "@/lib/platform/filePickerStrategy";
 import {
   attachRunnerSchema,
   type AttachRunnerInput,
   type AttachRunnerOutput,
 } from "../schemas/repositorySchema";
-import { HardDrive, FolderSearch, Info } from "lucide-react";
+import { HardDrive, FolderSearch, FolderOpen, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface AttachRunnerFormProps {
   formId?: string;
@@ -35,6 +37,9 @@ export function AttachRunnerForm({
 
   const selectedRunnerId = form.watch("runnerId");
   const currentRootPath = form.watch("rootPath");
+
+  const selectedRunner = runners.find((r) => r.id === selectedRunnerId);
+  const { isLocal, pickNative } = useFilePickerStrategy(selectedRunner);
 
   // Auto-select first runner if none selected and runners available
   useEffect(() => {
@@ -71,16 +76,45 @@ export function AttachRunnerForm({
               <span className="text-destructive">*</span>
             </span>
             {selectedRunnerId && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowBrowser((prev) => !prev)}
-                className="h-6 px-2 text-[11px] gap-1 text-primary hover:text-primary/80 cursor-pointer"
-              >
-                <FolderSearch className="size-3" />
-                <span>{showBrowser ? "Hide Browser" : "Browse Remote Folders"}</span>
-              </Button>
+              <div className="flex items-center gap-1.5">
+                {isLocal && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        const picked = await pickNative({
+                          mode: "folder",
+                          title: "Select Repository Root Folder",
+                          defaultPath: currentRootPath || undefined,
+                        });
+                        if (picked) {
+                          form.setValue("rootPath", picked, { shouldValidate: true, shouldDirty: true });
+                          toast.success("Selected local repository folder");
+                        }
+                      } catch (err: any) {
+                        toast.error(err?.message || "Failed to open folder picker");
+                      }
+                    }}
+                    className="h-6 px-2 text-[11px] gap-1 text-primary hover:text-primary/80 cursor-pointer"
+                  >
+                    <FolderOpen className="size-3" />
+                    <span>Browse Local Folder...</span>
+                  </Button>
+                )}
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowBrowser((prev) => !prev)}
+                  className="h-6 px-2 text-[11px] gap-1 text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  <FolderSearch className="size-3" />
+                  <span>{showBrowser ? "Hide Remote Tree" : "Remote Folder Tree"}</span>
+                </Button>
+              </div>
             )}
           </div>
 

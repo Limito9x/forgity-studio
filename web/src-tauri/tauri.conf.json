@@ -1,10 +1,10 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "automation-studio",
+  "productName": "Forgity Studio",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "studio.forgity.desktop",
   "build": {
-    "frontendDist": "../build",
+    "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build"
@@ -12,11 +12,14 @@
   "app": {
     "windows": [
       {
-        "title": "Automation Studio",
-        "width": 800,
-        "height": 600,
+        "title": "Forgity Studio",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 720,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "useHttpsScheme": true
       }
     ],
     "security": {

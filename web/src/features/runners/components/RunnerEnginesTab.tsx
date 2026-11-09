@@ -10,6 +10,7 @@ import { SUPPORTED_EXECUTOR_KEYS, getSoftwareMetadata } from "../constants/dccEn
 import { ExecutorIcon } from "./ExecutorIcon";
 import { UnrealExecutorExtension } from "./ExecutorExtensions";
 import { RemoteFileBrowserDialog } from "@/components/custom-ui/file-tree";
+import { useFilePickerStrategy } from "@/lib/platform/filePickerStrategy";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -42,6 +43,7 @@ export function RunnerEnginesTab({
 }: RunnerEnginesTabProps) {
   const { data: runners } = useRunners();
   const currentRunner = runners?.find((r) => r.id === runnerId);
+  const { isLocal, pickNative } = useFilePickerStrategy(currentRunner);
 
   const activeConfigs = (currentRunner?.executorConfigs || []) as RunnerExecutorConfigDto[];
   const activeConfigMap = useMemo(
@@ -282,30 +284,46 @@ export function RunnerEnginesTab({
                     <Button
                       variant="outline"
                       size="sm"
-                      onPress={() =>
-                        setBrowserState({
-                          open: true,
-                          executorKey: key,
-                          title: `Select ${meta.name} Executable`,
-                          initialPath: currentPath,
-                          onSelected: (selectedPath) => {
-                            const matchedCand = candidates.find(
-                              (c) => c.executablePath.toLowerCase() === selectedPath.toLowerCase()
-                            );
-                            handleSaveExecutor({
-                              executorKey: key,
-                              executablePath: selectedPath,
-                              version: matchedCand?.version || currentVersion || null,
-                              isEnabled: true,
-                              settings: (activeCfg?.settings as Record<string, any>) || {},
+                      onPress={async () => {
+                        const onSelected = (selectedPath: string) => {
+                          const matchedCand = candidates.find(
+                            (c) => c.executablePath.toLowerCase() === selectedPath.toLowerCase()
+                          );
+                          handleSaveExecutor({
+                            executorKey: key,
+                            executablePath: selectedPath,
+                            version: matchedCand?.version || currentVersion || null,
+                            isEnabled: true,
+                            settings: (activeCfg?.settings as Record<string, any>) || {},
+                          });
+                        };
+
+                        if (isLocal) {
+                          try {
+                            const picked = await pickNative({
+                              mode: "file",
+                              title: `Select ${meta.name} Executable`,
+                              defaultPath: currentPath,
+                              extensions: [".exe"],
                             });
-                          },
-                        })
-                      }
+                            if (picked) onSelected(picked);
+                          } catch (err: any) {
+                            toast.error(err?.message || "Failed to open local file picker");
+                          }
+                        } else {
+                          setBrowserState({
+                            open: true,
+                            executorKey: key,
+                            title: `Select ${meta.name} Executable`,
+                            initialPath: currentPath,
+                            onSelected,
+                          });
+                        }
+                      }}
                       className="gap-1.5 text-xs h-9 px-3.5 cursor-pointer shrink-0"
                     >
                       <FolderOpen className="size-3.5 text-primary" />
-                      <span>Browse Remote...</span>
+                      <span>{isLocal ? "Browse Local..." : "Browse Remote..."}</span>
                     </Button>
                   </div>
                 </div>

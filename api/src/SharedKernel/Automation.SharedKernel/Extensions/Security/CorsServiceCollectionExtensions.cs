@@ -35,6 +35,8 @@ public static class CorsServiceCollectionExtensions
                         var host = uri.Host;
                         if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
                             host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+                            host.Equals("tauri.localhost", StringComparison.OrdinalIgnoreCase) ||
+                            host.EndsWith(".tauri.localhost", StringComparison.OrdinalIgnoreCase) ||
                             host.EndsWith(".pages.dev", StringComparison.OrdinalIgnoreCase) ||
                             host.Equals("pages.dev", StringComparison.OrdinalIgnoreCase))
                         {

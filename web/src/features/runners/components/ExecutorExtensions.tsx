@@ -5,6 +5,8 @@ import { useProjects } from "@/features/projects/hooks/useProjects";
 import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 import { RemoteFileBrowserDialog } from "@/components/custom-ui/file-tree";
 import { useRunnerDccSessions, useStopRunnerDccSession } from "@/features/runners/hooks/useRunnerDccSessions";
+import { useRunners } from "@/features/runners/hooks/useRunners";
+import { useFilePickerStrategy } from "@/lib/platform/filePickerStrategy";
 import { FolderKanban, FolderOpen, Trash2, Zap, Power } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -30,6 +32,9 @@ export function UnrealExecutorExtension({
   const [activeBrowseProjectId, setActiveBrowseProjectId] = useState<string | null>(null);
 
   const { studioId: activeStudioId } = useCurrentStudio();
+  const { data: runners } = useRunners();
+  const currentRunner = runners?.find((r) => r.id === runnerId);
+  const { isLocal, pickNative } = useFilePickerStrategy(currentRunner);
   const { data: projectsData, isLoading: isLoadingProjects } = useProjects({
     page: 1,
     pageSize: 100,
@@ -176,13 +181,32 @@ export function UnrealExecutorExtension({
                       <Button
                         variant="outline"
                         size="sm"
-                        onPress={() => setActiveBrowseProjectId(project.id)}
+                        onPress={async () => {
+                          if (isLocal) {
+                            try {
+                              const picked = await pickNative({
+                                mode: "file",
+                                title: `Select .uproject for ${project.name}`,
+                                defaultPath: currentPath || undefined,
+                                extensions: [".uproject"],
+                              });
+                              if (picked) {
+                                handleUpdateProjectPath(project.id, picked);
+                                toast.success("Linked .uproject path to Studio project");
+                              }
+                            } catch (err: any) {
+                              toast.error(err?.message || "Failed to open local file picker");
+                            }
+                          } else {
+                            setActiveBrowseProjectId(project.id);
+                          }
+                        }}
                         isDisabled={disabled}
                         className="h-7 px-2 text-xs cursor-pointer gap-1 shrink-0"
                         aria-label={`Browse .uproject for ${project.name}`}
                       >
                         <FolderOpen className="size-3" />
-                        <span className="hidden sm:inline">Browse</span>
+                        <span className="hidden sm:inline">{isLocal ? "Browse Local" : "Browse"}</span>
                       </Button>
                     )}
 
