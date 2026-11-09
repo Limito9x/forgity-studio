@@ -58,6 +58,9 @@ namespace Automation.Runner.Infrastructure.Persistence.Migrations
                     b.Property<string>("HardwareDetails")
                         .HasColumnType("jsonb");
 
+                    b.Property<string>("HardwareFingerprint")
+                        .HasColumnType("text");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
@@ -89,6 +92,9 @@ namespace Automation.Runner.Infrastructure.Persistence.Migrations
 
                     b.Property<long>("PrimaryGpuVramBytes")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("RabbitMqEncryptedPassword")
+                        .HasColumnType("text");
 
                     b.Property<string>("RegistrationToken")
                         .IsRequired()

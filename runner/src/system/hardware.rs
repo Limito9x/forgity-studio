@@ -56,6 +56,33 @@ pub fn get_permanent_machine_key() -> String {
     format!("{}-PERMANENT", hostname)
 }
 
+/// Retrieves a cryptographic SHA-256 hardware fingerprint bound to the host physical machine.
+/// Used for Desktop native pairing and multi-tier trial quota identity.
+pub fn get_hardware_fingerprint() -> String {
+    use sha2::{Digest, Sha256};
+
+    #[cfg(target_os = "windows")]
+    {
+        use winreg::enums::HKEY_LOCAL_MACHINE;
+        use winreg::RegKey;
+        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+        if let Ok(crypto_key) = hklm.open_subkey(r"SOFTWARE\Microsoft\Cryptography") {
+            if let Ok(guid) = crypto_key.get_value::<String, _>("MachineGuid") {
+                let mut hasher = Sha256::new();
+                hasher.update(guid.trim().as_bytes());
+                return format!("{:x}", hasher.finalize());
+            }
+        }
+    }
+
+    let hostname = std::env::var("COMPUTERNAME")
+        .or_else(|_| std::env::var("HOSTNAME"))
+        .unwrap_or_else(|_| "DESKTOP".to_string());
+    let mut hasher = Sha256::new();
+    hasher.update(hostname.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
 pub fn get_hardware_snapshot() -> HardwareSnapshot {
     let mut sys = System::new_all();
     sys.refresh_all();

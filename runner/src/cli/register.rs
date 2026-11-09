@@ -11,6 +11,8 @@ struct RegisterPayload<'a> {
     setup_token: &'a str,
     name: &'a str,
     machine_key: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hardware_fingerprint: Option<&'a str>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -77,10 +79,12 @@ pub async fn run_register(
         .unwrap_or_else(|_| "Forgity-Workstation".to_string());
 
     let machine_key = crate::system::hardware::get_permanent_machine_key();
+    let hardware_fingerprint = crate::system::hardware::get_hardware_fingerprint();
 
     println!("{}", " [1] Workstation Identity".yellow().bold());
     println!("   Hostname   : {}", hostname.green());
     println!("   Machine Key: {}", machine_key.dimmed());
+    println!("   Fingerprint: {}", hardware_fingerprint[..16.min(hardware_fingerprint.len())].dimmed());
     println!("   API URL    : {}", api_url.white().bold());
     println!("   Token      : {}", format!("{}...", &token_val[..token_val.len().min(8)]).cyan());
     println!();
@@ -96,6 +100,7 @@ pub async fn run_register(
         setup_token: &token_val,
         name: &hostname,
         machine_key: &machine_key,
+        hardware_fingerprint: Some(&hardware_fingerprint),
     };
 
     // Try /api/runners/register-token, with fallback to /runners/register-token

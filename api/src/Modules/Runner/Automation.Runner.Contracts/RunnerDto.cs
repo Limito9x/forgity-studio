@@ -16,7 +16,8 @@ public record RunnerDto(
     DateTimeOffset? LastHardwareScannedAt = null,
     RunnerHardwareProfile? HardwareDetails = null,
     IReadOnlyList<RunnerExecutorConfigDto>? ExecutorConfigs = null,
-    string? AppVersion = null
+    string? AppVersion = null,
+    string? HardwareFingerprint = null
 );
 
 // Backward-compatibility alias

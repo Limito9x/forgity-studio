@@ -3,6 +3,7 @@ using Automation.Runner.Domain.Entities;
 using Automation.Runner.Infrastructure.Persistence;
 using Automation.Runner.Shared.Dtos;
 using Automation.SharedKernel.Abstractions.Caching;
+using Automation.SharedKernel.Abstractions.Security;
 using Automation.SharedKernel.Infrastructure.RabbitMq;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -11,7 +12,12 @@ using Wolverine.Attributes;
 
 namespace Automation.Runner.Features.Runners;
 
-public record RegisterRunnerWithTokenCommand(string Name, string MachineKey, string SetupToken);
+public record RegisterRunnerWithTokenCommand(
+    string Name, 
+    string MachineKey, 
+    string SetupToken,
+    string? HardwareFingerprint = null
+);
 
 public class RegisterRunnerWithTokenValidator : Validator<RegisterRunnerWithTokenCommand>
 {
@@ -49,6 +55,7 @@ public class RegisterRunnerWithTokenEndpoint(IMessageBus bus)
 public class RegisterRunnerWithTokenHandler(
     RunnerDbContext db,
     ICacheService cache,
+    ISecretProtector secretProtector,
     IRabbitMqProvisioningService? provisioningService = null,
     ILogger<RegisterRunnerWithTokenHandler>? logger = null,
     IConfiguration? configuration = null
@@ -78,14 +85,34 @@ public class RegisterRunnerWithTokenHandler(
         string runnerName;
         string machineKey;
         string registrationToken;
+        string dynamicPassword;
 
         if (existingRunner is not null)
         {
             if (!existingRunner.IsActive)
             {
                 existingRunner.IsActive = true;
-                await db.SaveChangesAsync(ct);
             }
+
+            if (!string.IsNullOrWhiteSpace(command.HardwareFingerprint) &&
+                existingRunner.HardwareFingerprint != command.HardwareFingerprint)
+            {
+                existingRunner.HardwareFingerprint = command.HardwareFingerprint;
+            }
+
+            // BL-042: Re-use persisted RabbitMQ password if available to prevent 403 ACCESS_REFUSED
+            if (!string.IsNullOrWhiteSpace(existingRunner.RabbitMqEncryptedPassword))
+            {
+                dynamicPassword = secretProtector.Unprotect(existingRunner.RabbitMqEncryptedPassword) 
+                                  ?? GenerateSecurePassword(32);
+            }
+            else
+            {
+                dynamicPassword = GenerateSecurePassword(32);
+                existingRunner.RabbitMqEncryptedPassword = secretProtector.Protect(dynamicPassword);
+            }
+
+            await db.SaveChangesAsync(ct);
 
             runnerId = existingRunner.Id;
             runnerName = existingRunner.Name;
@@ -99,11 +126,15 @@ public class RegisterRunnerWithTokenHandler(
             rng.GetBytes(tokenBytes);
             registrationToken = Convert.ToBase64String(tokenBytes);
 
+            dynamicPassword = GenerateSecurePassword(32);
+
             var runner = new Domain.Entities.Runner
             {
                 Name = command.Name,
                 MachineKey = command.MachineKey,
                 RegistrationToken = registrationToken,
+                HardwareFingerprint = command.HardwareFingerprint ?? command.MachineKey,
+                RabbitMqEncryptedPassword = secretProtector.Protect(dynamicPassword),
                 IsActive = true
             };
 
@@ -154,7 +185,6 @@ public class RegisterRunnerWithTokenHandler(
         if (provisioningService != null)
         {
             var dynamicUsername = $"rn_{runnerId:N}";
-            var dynamicPassword = GenerateSecurePassword(32);
 
             var provisionResult = await provisioningService.ProvisionRunnerUserAsync(
                 dynamicUsername,

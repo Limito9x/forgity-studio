@@ -10,6 +10,8 @@ public class Runner : BaseEntity
     public bool IsActive { get; set; } = true;
     public DateTimeOffset? LastSeenAt { get; set; }
     public string? AppVersion { get; set; }
+    public string? HardwareFingerprint { get; set; }
+    public string? RabbitMqEncryptedPassword { get; set; }
 
     // Hardware Specs (Indexable columns for Job Dispatching)
     public string OsPlatform { get; set; } = string.Empty;
