@@ -1,12 +1,14 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useNodePalette } from "../../hooks/usePipelines";
 import type { NodePaletteItemDto } from "@/gen/model";
-import { Search, Box, FileCode, Plus, X, Cpu, Server, Layers } from "lucide-react";
+import { Search, Box, FileCode, Plus, X, Cpu, Server, Layers, HardDrive } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { ScopeContainerNodeData } from "./ScopeContainerNode";
 import { getStageKindName } from "./hooks/canvasUtils";
+import { isTauriRuntime } from "@/lib/platform/filePickerStrategy";
+import { useLocalWorkspaceStore } from "../../stores/useLocalWorkspaceStore";
 
 export type StageCreationOption = {
   type: "stage";
@@ -51,6 +53,8 @@ export function ContextMenuPalette({
     : undefined;
 
   const { data: paletteItems = [], isLoading } = useNodePalette(projectId, executorParam);
+  const { draftNodes } = useLocalWorkspaceStore();
+  const isDesktop = isTauriRuntime();
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -150,15 +154,38 @@ export function ContextMenuPalette({
         ))
     );
 
+    // Merge local workspace draft nodes if in Desktop mode
+    const combined: NodePaletteItemDto[] = [...items];
+    if (isDesktop && draftNodes) {
+      const localItems: NodePaletteItemDto[] = Object.values(draftNodes)
+        .filter((draft) => {
+          if (!executorParam) return true;
+          return draft.executor.toLowerCase() === executorParam.toLowerCase();
+        })
+        .map((draft) => ({
+          key: `local:${draft.key}`,
+          label: draft.suggestedLabel || draft.suggestedName || draft.fileName,
+          category: `Local Scripts (${draft.namespace})`,
+          source: "LocalDraft",
+          executor: draft.executor,
+          inputs: draft.inputs || [],
+          outputs: draft.outputs || [],
+          description: draft.description || draft.fullPath,
+          id: `local:${draft.key}`,
+          isVisibleInPalette: true,
+        }));
+      combined.push(...localItems);
+    }
+
     const q = search.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(
+    if (!q) return combined;
+    return combined.filter(
       (item) =>
         item.label.toLowerCase().includes(q) ||
         item.key.toLowerCase().includes(q) ||
         (item.category && item.category.toLowerCase().includes(q))
     );
-  }, [paletteItems, search, targetStage]);
+  }, [paletteItems, draftNodes, isDesktop, executorParam, search, targetStage, currentPipelineId]);
 
   // Filtered stage options when adding to root canvas
   const filteredStages = useMemo(() => {
@@ -297,6 +324,7 @@ export function ContextMenuPalette({
                 <div className="space-y-0.5">
                   {items.map((item) => {
                     const isTool = item.source === "Tool";
+                    const isLocal = item.source === "LocalDraft";
                     const inCount = item.inputs?.length || 0;
                     const outCount = item.outputs?.length || 0;
                     const tooltipText = `${item.label} (${item.key})\nExecutor: ${item.executor}\nInputs (${inCount}): ${
@@ -319,10 +347,20 @@ export function ContextMenuPalette({
                           <div
                             className={cn(
                               "flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
-                              isTool ? "bg-blue-500/10 text-blue-500" : "bg-purple-500/10 text-purple-500"
+                              isLocal
+                                ? "bg-emerald-500/10 text-emerald-500"
+                                : isTool
+                                  ? "bg-blue-500/10 text-blue-500"
+                                  : "bg-purple-500/10 text-purple-500"
                             )}
                           >
-                            {isTool ? <Box className="h-3.5 w-3.5" /> : <FileCode className="h-3.5 w-3.5" />}
+                            {isLocal ? (
+                              <HardDrive className="h-3.5 w-3.5" />
+                            ) : isTool ? (
+                              <Box className="h-3.5 w-3.5" />
+                            ) : (
+                              <FileCode className="h-3.5 w-3.5" />
+                            )}
                           </div>
                           <div className="min-w-0">
                             <span className="block truncate font-medium text-foreground group-hover:text-primary">

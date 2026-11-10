@@ -20,6 +20,7 @@ import { ContextMenuPalette } from "./ContextMenuPalette";
 import { NodeConfigInspector } from "./NodeConfigInspector";
 import { CanvasToolbar } from "./CanvasToolbar";
 import { PipelineSnapshotHistoryDialog } from "../../dialogs/PipelineSnapshotHistoryDialog";
+import { PublishToStudioDialog } from "./PublishToStudioDialog";
 import { CanvasDiagnosticsPanel } from "./CanvasDiagnosticsPanel";
 import { PipelineParametersPanel, type ParameterTab } from "./PipelineParametersPanel";
 import { VariableDropMenu } from "./VariableDropMenu";
@@ -158,6 +159,7 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
 
   // Run modal state & Validation
   const [isRunModalOpen, setIsRunModalOpen] = useState(false);
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [isSnapshotsOpen, setIsSnapshotsOpen] = useState(false);
 
 
@@ -240,6 +242,7 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
           isExecuting={live.isExecutionRunning}
           isAutoFollow={isAutoFollow}
           onToggleAutoFollow={() => setIsAutoFollow((prev) => !prev)}
+          onOpenPublishModal={() => setIsPublishModalOpen(true)}
         />
 
         {/* Main Canvas & Inspector Layout */}
@@ -449,6 +452,18 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
           onOpenChange={setIsSnapshotsOpen}
           pipelineId={graph.id}
           pipelineName={graph.name}
+        />
+
+        {/* Publish to Studio Cloud Dialog */}
+        <PublishToStudioDialog
+          projectId={projectId}
+          pipelineId={graph.id}
+          initialName={graph.name}
+          nodes={draft.nodes}
+          edges={draft.edges}
+          parameters={draft.parameters}
+          isOpen={isPublishModalOpen}
+          onClose={() => setIsPublishModalOpen(false)}
         />
       </div>
     </PipelineFormScopeProvider>

@@ -19,6 +19,7 @@ import {
   Download,
   LocateFixed,
   GitCommit,
+  UploadCloud,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useReactFlow } from "@xyflow/react";
@@ -48,6 +49,7 @@ interface CanvasToolbarProps {
   isExecuting?: boolean;
   isAutoFollow?: boolean;
   onToggleAutoFollow?: () => void;
+  onOpenPublishModal?: () => void;
 }
 
 export function CanvasToolbar({
@@ -69,6 +71,7 @@ export function CanvasToolbar({
   isExecuting = false,
   isAutoFollow = true,
   onToggleAutoFollow,
+  onOpenPublishModal,
 }: CanvasToolbarProps) {
   const { studioSlug } = useCurrentStudio();
   const { fitView, zoomIn, zoomOut } = useReactFlow();
@@ -299,6 +302,19 @@ export function CanvasToolbar({
           >
             <GitCommit className="h-3.5 w-3.5 text-primary" />
             <span className="hidden sm:inline">Versions</span>
+          </Button>
+        )}
+
+        {/* Publish to Studio Cloud Trigger */}
+        {onOpenPublishModal && (
+          <Button
+            variant="outline"
+            size="sm"
+            onPress={onOpenPublishModal}
+            className="h-8 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+          >
+            <UploadCloud className="h-3.5 w-3.5 text-primary" />
+            <span className="hidden sm:inline">Publish to Studio</span>
           </Button>
         )}
 
