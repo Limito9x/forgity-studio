@@ -129,36 +129,53 @@ export function PipelineListPage({ projectId }: PipelineListPageProps) {
         )}
       </div>
 
-      {/* Main Studio Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-border/60 pb-px">
-        <button
-          onClick={() => setMainTab("pipelines")}
+      {/* Main Studio Navigation Segmented Capsule Tabs */}
+      <div className="flex items-center bg-muted/50 p-1 rounded-xl border border-border/60 gap-1 w-fit">
+        <Button
+          variant={mainTab === "pipelines" ? "secondary" : "ghost"}
+          size="sm"
+          onPress={() => setMainTab("pipelines")}
           className={cn(
-            "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-all cursor-pointer",
+            "group h-8 flex items-center gap-2 px-3 text-xs font-medium rounded-lg transition-all cursor-pointer",
             mainTab === "pipelines"
-              ? "border-sky-500 text-sky-500 font-semibold"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              ? "bg-background text-foreground font-semibold shadow-xs border border-border/50 hover:bg-background"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
           )}
         >
-          <Workflow className="h-4 w-4" />
+          <Workflow
+            className={cn(
+              "h-3.5 w-3.5",
+              mainTab === "pipelines" ? "text-primary" : "text-muted-foreground"
+            )}
+          />
           <span>Studio Pipelines</span>
-          <Badge variant="secondary" className="text-[10px] h-4.5 px-1.5 font-normal ml-0.5">
+          <Badge
+            variant="secondary"
+            className="text-[10px] h-4.5 px-1.5 font-normal ml-0.5"
+          >
             {activePipelines.length}
           </Badge>
-        </button>
+        </Button>
 
-        <button
-          onClick={() => setMainTab("catalog")}
+        <Button
+          variant={mainTab === "catalog" ? "secondary" : "ghost"}
+          size="sm"
+          onPress={() => setMainTab("catalog")}
           className={cn(
-            "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-all cursor-pointer",
+            "group h-8 flex items-center gap-2 px-3 text-xs font-medium rounded-lg transition-all cursor-pointer",
             mainTab === "catalog"
-              ? "border-sky-500 text-sky-500 font-semibold"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              ? "bg-background text-foreground font-semibold shadow-xs border border-border/50 hover:bg-background"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
           )}
         >
-          <Box className="h-4 w-4" />
+          <Box
+            className={cn(
+              "h-3.5 w-3.5",
+              mainTab === "catalog" ? "text-primary" : "text-muted-foreground"
+            )}
+          />
           <span>Node Catalog</span>
-        </button>
+        </Button>
       </div>
 
       {/* Main Tab Content */}

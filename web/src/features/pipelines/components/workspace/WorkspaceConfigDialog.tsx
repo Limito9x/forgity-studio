@@ -44,10 +44,11 @@ export function WorkspaceConfigDialog({
   const isDesktop = isTauriRuntime();
 
   useEffect(() => {
-    if (isOpen && projectId) {
+    // Only init if config is missing to avoid triggering full page isLoading spinner
+    if (isOpen && projectId && !config) {
       initWorkspace(projectId);
     }
-  }, [isOpen, projectId, initWorkspace]);
+  }, [isOpen, projectId, config, initWorkspace]);
 
   useEffect(() => {
     if (config) {

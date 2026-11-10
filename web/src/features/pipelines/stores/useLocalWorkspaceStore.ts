@@ -60,13 +60,7 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
         loadedConfig = {
           projectId,
           primaryPipelineFolder: "pipelines",
-          scriptFolders: [
-            {
-              namespace: "core",
-              path: "pipeline-scripts",
-              enabled: true,
-            },
-          ],
+          scriptFolders: [],
         };
         await set(WORKSPACE_CONFIG_KEY(projectId), loadedConfig);
       }
