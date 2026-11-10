@@ -196,7 +196,7 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
             suggestedName: analyzed.suggestedName,
             suggestedLabel: analyzed.suggestedLabel,
             executor: analyzed.executor,
-            description: analyzed.description,
+            description: analyzed.description ?? undefined,
             contentHash: analyzed.contentHash,
             inputs: analyzed.inputs as any[],
             outputs: analyzed.outputs as any[],
