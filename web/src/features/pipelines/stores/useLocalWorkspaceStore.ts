@@ -4,6 +4,7 @@ import { isTauriRuntime } from "@/lib/platform/filePickerStrategy";
 import type {
   ForgityWorkspaceConfig,
   LocalDraftNode,
+  ScannedPipelineYamlItemRust,
   ScannedScriptItemRust,
   ScriptFolderConfig,
   ScriptScanSummary,
@@ -18,6 +19,8 @@ interface LocalWorkspaceState {
   projectId: string | null;
   config: ForgityWorkspaceConfig | null;
   draftNodes: Record<string, LocalDraftNode>;
+  scannedDraftPipelines: ScannedPipelineYamlItemRust[];
+  activeDraftPipeline: ScannedPipelineYamlItemRust | null;
   scanSummary: ScriptScanSummary | null;
   isScanning: boolean;
   isLoading: boolean;
@@ -31,12 +34,16 @@ interface LocalWorkspaceState {
   toggleScriptFolder: (path: string, enabled: boolean) => Promise<void>;
   setPrimaryPipelineFolder: (path: string) => Promise<void>;
   scanAndSyncScripts: () => Promise<ScriptScanSummary | null>;
+  scanDraftPipelines: () => Promise<ScannedPipelineYamlItemRust[]>;
+  setActiveDraftPipeline: (draft: ScannedPipelineYamlItemRust | null) => void;
 }
 
 export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, getStore) => ({
   projectId: null,
   config: null,
   draftNodes: {},
+  scannedDraftPipelines: [],
+  activeDraftPipeline: null,
   scanSummary: null,
   isScanning: false,
   isLoading: false,
@@ -235,5 +242,29 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
       });
       throw new Error(errMsg);
     }
+  },
+
+  scanDraftPipelines: async () => {
+    const { config } = getStore();
+    if (!config?.primaryPipelineFolder || !isTauriRuntime()) {
+      return [];
+    }
+
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const drafts = await invoke<ScannedPipelineYamlItemRust[]>("scan_local_pipeline_drafts", {
+        folderPath: config.primaryPipelineFolder,
+      });
+
+      setStore({ scannedDraftPipelines: drafts });
+      return drafts;
+    } catch (err) {
+      console.warn("[useLocalWorkspaceStore] Failed to scan draft pipelines:", err);
+      return [];
+    }
+  },
+
+  setActiveDraftPipeline: (draft) => {
+    setStore({ activeDraftPipeline: draft });
   },
 }));

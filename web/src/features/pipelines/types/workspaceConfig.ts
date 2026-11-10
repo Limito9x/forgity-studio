@@ -42,6 +42,14 @@ export interface ScannedScriptItemRust {
   lastModifiedMs: number;
 }
 
+export interface ScannedPipelineYamlItemRust {
+  fileName: string;
+  relativePath: string;
+  fullPath: string;
+  content: string;
+  lastModifiedMs: number;
+}
+
 export interface ScriptScanSummary {
   unchanged: number;
   newCount: number;

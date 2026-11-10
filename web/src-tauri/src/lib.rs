@@ -32,6 +32,16 @@ pub struct ScannedScriptItem {
     pub last_modified_ms: u64,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScannedPipelineYamlItem {
+    pub file_name: String,
+    pub relative_path: String,
+    pub full_path: String,
+    pub content: String,
+    pub last_modified_ms: u64,
+}
+
 fn compute_hardware_fingerprint() -> String {
     #[cfg(target_os = "windows")]
     {
@@ -195,6 +205,65 @@ fn scan_local_script_folders(folders: Vec<ScriptFolderInput>) -> Vec<ScannedScri
     results
 }
 
+fn scan_yaml_recursive(root_path: &Path, current_path: &Path, results: &mut Vec<ScannedPipelineYamlItem>) {
+    let entries = match std::fs::read_dir(current_path) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            let dir_name = entry.file_name().to_string_lossy().to_string();
+            if dir_name != "__pycache__" && dir_name != ".git" && dir_name != "node_modules" {
+                scan_yaml_recursive(root_path, &path, results);
+            }
+        } else if path.is_file() {
+            let file_name = entry.file_name().to_string_lossy().to_string();
+            let is_pipeline_yaml = file_name.ends_with(".pipeline.yaml") || file_name.ends_with(".pipeline.yml");
+            if !is_pipeline_yaml {
+                continue;
+            }
+
+            let content = match std::fs::read_to_string(&path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
+            let relative = match path.strip_prefix(root_path) {
+                Ok(rel) => rel.to_string_lossy().replace('\\', "/"),
+                Err(_) => file_name.clone(),
+            };
+
+            let last_modified_ms = entry
+                .metadata()
+                .ok()
+                .and_then(|m| m.modified().ok())
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
+
+            results.push(ScannedPipelineYamlItem {
+                file_name,
+                relative_path: relative,
+                full_path: path.to_string_lossy().replace('\\', "/"),
+                content,
+                last_modified_ms,
+            });
+        }
+    }
+}
+
+#[tauri::command]
+fn scan_local_pipeline_drafts(folder_path: String) -> Vec<ScannedPipelineYamlItem> {
+    let mut results = Vec::new();
+    let root = Path::new(&folder_path);
+    if root.is_dir() {
+        scan_yaml_recursive(root, root, &mut results);
+    }
+    results
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -213,7 +282,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_local_machine_info,
-            scan_local_script_folders
+            scan_local_script_folders,
+            scan_local_pipeline_drafts
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
