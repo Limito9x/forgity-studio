@@ -98,3 +98,4 @@ Trong các phiên bản đầu, quy trình phát triển và kiểm thử Pipeli
 ### Đánh đổi & Thách thức cần kiểm soát (Trade-offs & Mitigations)
 1. **Tuổi thọ dữ liệu nháp (Draft State TTL)**: Vì draft execution chỉ lưu trên cache RAM/Redis với TTL = 2h, nếu người dùng muốn lưu lại lịch sử chạy nhiều ngày trước thì bắt buộc phải Publish pipeline lên Studio.
 2. **Sự phụ thuộc vào đường dẫn vật lý cục bộ**: Trong chế độ Local Workspace, các script gắn liền với đường dẫn máy trạm cục bộ. Khi đem file `.pipeline.yaml` sang máy khác, cần đảm bảo máy đó cũng có cấu hình các `scriptFolders` tương đương hoặc phải Publish lên Studio Central.
+

@@ -29,6 +29,8 @@ import {
   ArrowLeftRight,
   Workflow,
   FolderGit2,
+  Laptop,
+  Cloud,
 } from "lucide-react";
 import { NavUser } from "./NavUser";
 import { useRouterState } from "@tanstack/react-router";
@@ -49,11 +51,14 @@ export function ProjectSidebar() {
   const { data: contentTypesData } = useContentTypes({ PageSize: 100 } as any, projectId);
 
   const pipelinesBaseUrl = nav.urls.pipelines();
+  const workspaceBaseUrl = nav.urls.workspace();
   const nodesBaseUrl = nav.urls.nodes();
 
+  const isWorkspaceActive = pathname === workspaceBaseUrl || pathname.startsWith(`${workspaceBaseUrl}/`);
   const isPipelineActive =
-    pathname === pipelinesBaseUrl ||
-    (pathname.startsWith(`${pipelinesBaseUrl}/`) && !pathname.includes("/pipeline/nodes"));
+    (pathname === pipelinesBaseUrl || pathname.startsWith(`${pipelinesBaseUrl}/`)) &&
+    !isWorkspaceActive &&
+    !pathname.includes("/pipeline/nodes");
   const isNodesActive = pathname.startsWith(nodesBaseUrl);
 
   const isContentsParentActive = pathname.includes("/contents");
@@ -95,7 +100,7 @@ export function ProjectSidebar() {
                   <DropdownMenuTrigger>
                     <SidebarMenuButton
                       tooltip="Pipelines"
-                      isActive={isPipelineActive || isNodesActive}
+                      isActive={isWorkspaceActive || isPipelineActive || isNodesActive}
                     >
                       <Workflow />
                       <span>Pipelines</span>
@@ -103,11 +108,13 @@ export function ProjectSidebar() {
                     <DropdownMenu placement="right top" offset={8} className="min-w-44">
                       <DropdownMenuLabel>Pipelines</DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onAction={() => nav.toPipelines()}>
-                        <span>All Pipelines</span>
+                      <DropdownMenuItem onAction={() => nav.toWorkspace()}>
+                        <Laptop className="mr-2 h-4 w-4" />
+                        <span>Local Workspace</span>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onAction={() => nav.toNodes()}>
-                        <span>Node Library</span>
+                      <DropdownMenuItem onAction={() => nav.toPipelines()}>
+                        <Cloud className="mr-2 h-4 w-4" />
+                        <span>Studio Central</span>
                       </DropdownMenuItem>
                     </DropdownMenu>
                   </DropdownMenuTrigger>
@@ -125,18 +132,20 @@ export function ProjectSidebar() {
                       <SidebarMenuSub>
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton
-                            isActive={isPipelineActive}
-                            onPress={() => nav.toPipelines()}
+                            isActive={isWorkspaceActive}
+                            onPress={() => nav.toWorkspace()}
                           >
-                            <span>All Pipelines</span>
+                            <Laptop className="h-4 w-4 text-emerald-500" />
+                            <span>Local Workspace</span>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton
-                            isActive={isNodesActive}
-                            onPress={() => nav.toNodes()}
+                            isActive={isPipelineActive || isNodesActive}
+                            onPress={() => nav.toPipelines()}
                           >
-                            <span>Node Library</span>
+                            <Cloud className="h-4 w-4 text-sky-500" />
+                            <span>Studio Central</span>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       </SidebarMenuSub>

@@ -65,6 +65,7 @@ export function useProjectNav(options?: ProjectNavOptions) {
 
     // Pipelines
     pipelines: () => `${projectBase}/pipeline`,
+    workspace: () => `${projectBase}/pipeline/workspace`,
     pipelineDetail: (pipelineId: string) => `${projectBase}/pipeline/${pipelineId}`,
     nodes: () => `${projectBase}/pipeline/nodes`,
     nodeNew: (editNodeId?: string) =>
@@ -122,6 +123,7 @@ export function useProjectNav(options?: ProjectNavOptions) {
 
     // Pipelines
     toPipelines: () => navTo(urls.pipelines()),
+    toWorkspace: () => navTo(urls.workspace()),
     toPipeline: (pipelineId: string) => navTo(urls.pipelineDetail(pipelineId)),
     toNodes: () => navTo(urls.nodes()),
     toNodeNew: (editNodeId?: string) => navTo(urls.nodeNew(editNodeId)),
