@@ -1,4 +1,4 @@
-import yaml from "js-yaml";
+import { dump, load } from "js-yaml";
 import type { Node, Edge } from "@xyflow/react";
 
 export interface PipelineDslNode {
@@ -70,7 +70,7 @@ export function graphToPipelineYaml(
     edges: dslEdges.length > 0 ? dslEdges : undefined,
   };
 
-  return yaml.dump(doc, {
+  return dump(doc, {
     indent: 2,
     lineWidth: 120,
     noRefs: true,
@@ -86,7 +86,7 @@ export function pipelineYamlToGraph(yamlContent: string): {
   nodes: Node[];
   edges: Edge[];
 } {
-  const parsed = yaml.load(yamlContent) as PipelineDslDocument;
+  const parsed = load(yamlContent) as PipelineDslDocument;
   if (!parsed || !parsed.nodes) {
     throw new Error("Invalid pipeline YAML: missing 'nodes' root property");
   }

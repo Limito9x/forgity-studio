@@ -15,3 +15,4 @@ function LocalWorkspaceRoute() {
   const { projectId } = useProject();
   return <LocalWorkspacePage projectId={projectId} />;
 }
+
