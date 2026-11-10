@@ -24,6 +24,8 @@ import type {
 import type {
   AnalyzeCustomNodesBatchCommand,
   AnalyzeCustomNodesBatchResponseDto,
+  AnalyzeCustomNodesBatchStatelessCommand,
+  AnalyzeCustomNodesBatchStatelessResponseDto,
   BatchUpsertCustomNodesCommand,
   BatchUpsertCustomNodesResponseDto,
   CreateCustomNodeCommand,
@@ -214,6 +216,88 @@ export const useAnalyzeCustomNodesBatch = <
 > => {
   return useMutation(
     getAnalyzeCustomNodesBatchMutationOptions(options),
+    queryClient,
+  );
+};
+export const analyzeCustomNodesBatchStateless = (
+  analyzeCustomNodesBatchStatelessCommand: AnalyzeCustomNodesBatchStatelessCommand,
+  signal?: AbortSignal,
+) => {
+  return customInstance<AnalyzeCustomNodesBatchStatelessResponseDto>({
+    url: `/api/pipeline/nodes/custom/analyze-batch-stateless`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: analyzeCustomNodesBatchStatelessCommand,
+    signal,
+  });
+};
+
+export const getAnalyzeCustomNodesBatchStatelessMutationOptions = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeCustomNodesBatchStateless>>,
+    TError,
+    { data: AnalyzeCustomNodesBatchStatelessCommand },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof analyzeCustomNodesBatchStateless>>,
+  TError,
+  { data: AnalyzeCustomNodesBatchStatelessCommand },
+  TContext
+> => {
+  const mutationKey = ["analyzeCustomNodesBatchStateless"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof analyzeCustomNodesBatchStateless>>,
+    { data: AnalyzeCustomNodesBatchStatelessCommand }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return analyzeCustomNodesBatchStateless(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AnalyzeCustomNodesBatchStatelessMutationResult = NonNullable<
+  Awaited<ReturnType<typeof analyzeCustomNodesBatchStateless>>
+>;
+export type AnalyzeCustomNodesBatchStatelessMutationBody =
+  AnalyzeCustomNodesBatchStatelessCommand;
+export type AnalyzeCustomNodesBatchStatelessMutationError =
+  ErrorResponse | void;
+
+export const useAnalyzeCustomNodesBatchStateless = <
+  TError = ErrorResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof analyzeCustomNodesBatchStateless>>,
+      TError,
+      { data: AnalyzeCustomNodesBatchStatelessCommand },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof analyzeCustomNodesBatchStateless>>,
+  TError,
+  { data: AnalyzeCustomNodesBatchStatelessCommand },
+  TContext
+> => {
+  return useMutation(
+    getAnalyzeCustomNodesBatchStatelessMutationOptions(options),
     queryClient,
   );
 };

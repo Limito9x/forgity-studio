@@ -29,6 +29,9 @@ public class StageResultConsumer(
             message.StageExecutionId, message.Succeeded);
 
         PipelineExecution? execution = null;
+        bool isDraft = false;
+        PipelineExecutionState? draftState = null;
+
         if (Guid.TryParse(message.PipelineExecutionId, out var parsedExecId))
         {
             execution = await db.PipelineExecutions
@@ -39,6 +42,33 @@ public class StageResultConsumer(
         {
             execution = await db.PipelineExecutions
                 .FirstOrDefaultAsync(x => x.CurrentBatchId == message.StageExecutionId, ct);
+        }
+
+        if (execution == null && parsedExecId != Guid.Empty)
+        {
+            draftState = await stateStore.GetFullStateAsync(parsedExecId, ct);
+            if (draftState != null && draftState.IsDraft)
+            {
+                isDraft = true;
+                var transientPipeline = new Automation.Pipeline.Domain.Entities.Pipeline(draftState.ProjectId, string.IsNullOrWhiteSpace(draftState.PipelineName) ? "Draft Pipeline" : draftState.PipelineName)
+                {
+                    Id = draftState.PipelineId != Guid.Empty ? draftState.PipelineId : Guid.NewGuid(),
+                    GraphData = draftState.TransientGraphData ?? new PipelineGraphDocument()
+                };
+
+                execution = new PipelineExecution(transientPipeline.Id)
+                {
+                    Id = parsedExecId,
+                    Status = draftState.Status,
+                    NextNodeIndex = draftState.NextNodeIndex,
+                    CurrentBatchId = draftState.CurrentBatchId,
+                    StartedAt = draftState.StartedAt,
+                    FinishedAt = draftState.FinishedAt,
+                    ErrorMessage = draftState.ErrorMessage,
+                    Pipeline = transientPipeline
+                };
+                execution.SetState(draftState.ToJsonDocument(), draftState.NextNodeIndex, draftState.CurrentBatchId);
+            }
         }
 
         if (execution == null)
@@ -127,22 +157,33 @@ public class StageResultConsumer(
             }
 
             execution.MarkFailed(err, failSnapshot);
-            try
+            if (!isDraft)
             {
-                await db.SaveChangesAsync(ct);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to persist MarkFailed for Execution {ExecutionId}. Attempting fallback with truncated error.", execution.Id);
                 try
                 {
-                    execution.TruncateErrorMessage(1900);
                     await db.SaveChangesAsync(ct);
                 }
-                catch (Exception fallbackEx)
+                catch (Exception ex)
                 {
-                    logger.LogError(fallbackEx, "Fallback save also failed for Execution {ExecutionId}", execution.Id);
+                    logger.LogError(ex, "Failed to persist MarkFailed for Execution {ExecutionId}. Attempting fallback with truncated error.", execution.Id);
+                    try
+                    {
+                        execution.TruncateErrorMessage(1900);
+                        await db.SaveChangesAsync(ct);
+                    }
+                    catch (Exception fallbackEx)
+                    {
+                        logger.LogError(fallbackEx, "Fallback save also failed for Execution {ExecutionId}", execution.Id);
+                    }
                 }
+            }
+            else
+            {
+                draftState ??= state;
+                draftState.Status = execution.Status;
+                draftState.ErrorMessage = execution.ErrorMessage;
+                draftState.FinishedAt = execution.FinishedAt;
+                await stateStore.SaveFullStateAsync(execution.Id, draftState, ct);
             }
 
             if (subPipelineNotifier != null)
@@ -175,6 +216,19 @@ public class StageResultConsumer(
                         },
                         ct
                     );
+                    await hubContext.Clients.Group($"execution_{execution.Id}").SendAsync(
+                        "PipelineExecutionFinished",
+                        new
+                        {
+                            executionId = execution.Id,
+                            pipelineId = execution.PipelineId,
+                            status = "failed",
+                            errorMessage = err,
+                            finishedAt = DateTimeOffset.UtcNow,
+                            executionState = failSnapshot
+                        },
+                        ct
+                    );
                 }
                 catch (Exception ex)
                 {
@@ -187,7 +241,10 @@ public class StageResultConsumer(
 
         await stateStore.SaveFullStateAsync(execution.Id, state, ct);
         execution.SetState(state.ToJsonDocument(), execution.NextNodeIndex);
-        await db.SaveChangesAsync(ct);
+        if (!isDraft)
+        {
+            await db.SaveChangesAsync(ct);
+        }
 
         logger.LogInformation("Resuming PipelineExecution {ExecutionId} from node index {NextNodeIndex}", execution.Id, execution.NextNodeIndex);
 

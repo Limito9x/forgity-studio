@@ -24,12 +24,13 @@ public record ValidatePipelineResponse(
     IReadOnlyList<Contracts.Validation.PipelineDiagnostic>? Diagnostics = null
 );
 
-public record RunPipelineRequest(Dictionary<string, object?>? RuntimeInputs = null);
+public record RunPipelineRequest(Dictionary<string, object?>? RuntimeInputs = null, Guid? PreferredRunnerId = null);
 
 public record RunPipelineCommand(
     Guid PipelineId,
     Dictionary<string, object?>? RuntimeInputs = null,
-    bool IsEventTrigger = false
+    bool IsEventTrigger = false,
+    Guid? PreferredRunnerId = null
 );
 
 public record TriggerPipelineExecutionMessage(

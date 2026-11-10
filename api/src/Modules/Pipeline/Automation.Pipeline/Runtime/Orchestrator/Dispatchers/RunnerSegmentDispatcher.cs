@@ -49,12 +49,15 @@ public class RunnerSegmentDispatcher(
         var usedDefs = segment.Steps.Select(step => customDefsLookup.GetValueOrDefault(step.RefId)
             ?? customDefsKeyLookup.GetValueOrDefault(step.RefId)).Where(x => x != null).DistinctBy(x => x!.Id).ToList();
         Dictionary<Guid, AssetLinkDto> scriptsById = [];
-        if (usedDefs.Count > 0)
+
+        // Only query S3 AssetApi for definitions that DO NOT have a direct local disk path
+        var cloudDefs = usedDefs.Where(d => string.IsNullOrWhiteSpace(d!.SourceRepositoryPath)).ToList();
+        if (cloudDefs.Count > 0)
         {
-            var scriptResult = await assetApi.GetFilesAsync(usedDefs.Select(x => x!.Id.ToString()),
+            var scriptResult = await assetApi.GetFilesAsync(cloudDefs.Select(x => x!.Id.ToString()),
                 "NodeDefinition", PipelineAssetSlots.CustomScript, ct);
             if (scriptResult.IsFailed) return Result.Fail(scriptResult.Errors);
-            foreach (var definition in usedDefs)
+            foreach (var definition in cloudDefs)
             {
                 var files = scriptResult.Value.GetValueOrDefault(definition!.Id.ToString()) ?? [];
                 var file = files.Count == 1 ? files[0] : null;
@@ -135,13 +138,25 @@ public class RunnerSegmentDispatcher(
             string? scriptUrl = null;
             string? scriptHash = null;
             string? entryPoint = null;
+            string? scriptPath = null;
 
             if (def != null)
             {
-                var file = scriptsById[def.Id];
-                scriptUrl = file.PublicUrl;
-                scriptHash = file.HashSha256;
-                entryPoint = file.OriginalName;
+                if (!string.IsNullOrWhiteSpace(def.SourceRepositoryPath))
+                {
+                    // Direct Disk Script Bypass: run directly from local workstation disk (Zero S3 upload/download)
+                    scriptUrl = null;
+                    scriptHash = def.ContentHash;
+                    scriptPath = def.SourceRepositoryPath;
+                    entryPoint = System.IO.Path.GetFileName(def.SourceRepositoryPath);
+                }
+                else if (scriptsById.TryGetValue(def.Id, out var file))
+                {
+                    scriptUrl = file.PublicUrl;
+                    scriptHash = file.HashSha256;
+                    entryPoint = file.OriginalName;
+                    scriptPath = entryPoint;
+                }
             }
 
             steps.Add(
@@ -150,7 +165,7 @@ public class RunnerSegmentDispatcher(
                     StepExecutionId = step.NodeId.ToString(),
                     StepType = step.Kind.ToString(),
                     Name = step.Label,
-                    ScriptPath = def != null ? entryPoint! : step.RefId,
+                    ScriptPath = scriptPath ?? (def != null ? entryPoint! : step.RefId),
                     ScriptUrl = scriptUrl,
                     ScriptHash = scriptHash,
                     EntryPoint = entryPoint,
@@ -174,7 +189,40 @@ public class RunnerSegmentDispatcher(
         // Determine effective Runner ID from Stage TargetRunnerId (Single Source of Truth)
         var effectiveRunnerId = segment.TargetRunnerId ?? Guid.Empty;
 
-        // Fallback 1: Thử resolve dynamic wire vào pin "runner" của Stage nếu có
+        // Fallback 1: User Workstation Affinity (PreferredRunnerId passed from Desktop/CLI)
+        if (effectiveRunnerId == Guid.Empty && execution.ExecutionState != null)
+        {
+            try
+            {
+                var doc = execution.ExecutionState;
+                if (
+                    doc.RootElement.TryGetProperty("PreferredRunnerId", out var pRunner)
+                    || doc.RootElement.TryGetProperty("preferredRunnerId", out pRunner)
+                )
+                {
+                    var prefGuidStr = pRunner.GetString();
+                    if (Guid.TryParse(prefGuidStr, out var prefGuid) && prefGuid != Guid.Empty)
+                    {
+                        var runnerCheck = await runnerApi.GetRunnerByIdAsync(prefGuid, ct);
+                        if (runnerCheck.IsSuccess && runnerCheck.Value != null && runnerCheck.Value.IsOnline)
+                        {
+                            effectiveRunnerId = prefGuid;
+                            logger.LogInformation(
+                                "RunnerSegmentDispatcher: Dispatched to Preferred User Workstation Runner {RunnerId} ('{RunnerName}')",
+                                effectiveRunnerId,
+                                runnerCheck.Value.Name
+                            );
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "RunnerSegmentDispatcher: Failed to evaluate PreferredRunnerId affinity.");
+            }
+        }
+
+        // Fallback 2: Thử resolve dynamic wire vào pin "runner" của Stage nếu có
         if (effectiveRunnerId == Guid.Empty && pinResolver != null && segment.StageId.HasValue)
         {
             foreach (var pinName in new[] { "runner", "Runner", "runnerid" })

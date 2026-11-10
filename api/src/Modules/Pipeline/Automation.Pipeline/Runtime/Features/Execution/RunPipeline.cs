@@ -28,7 +28,7 @@ public class RunPipelineEndpoint(IMessageBus bus)
     public override async Task HandleAsync(RunPipelineRequest req, CancellationToken ct)
     {
         var pipelineId = Route<Guid>("pipelineId");
-        var cmd = new RunPipelineCommand(pipelineId, req.RuntimeInputs);
+        var cmd = new RunPipelineCommand(pipelineId, req.RuntimeInputs, PreferredRunnerId: req.PreferredRunnerId);
         var result = await bus.InvokeAsync<Result<PipelineExecutionDto>>(cmd, ct);
 
         if (result.IsFailed)
@@ -172,6 +172,10 @@ public class RunPipelineHandler(
         var execution = new PipelineExecution(pipeline.Id, snapshotId: snapshotId);
 
         var initialState = new Automation.Pipeline.Runtime.Planner.Models.PipelineExecutionState();
+        if (command.PreferredRunnerId.HasValue && command.PreferredRunnerId.Value != Guid.Empty)
+        {
+            initialState.PreferredRunnerId = command.PreferredRunnerId.Value;
+        }
         if (command.RuntimeInputs != null)
         {
             foreach (var (k, v) in command.RuntimeInputs)
@@ -222,7 +226,8 @@ public class TriggerPipelineExecutionHandler(
     IPipelineOrchestrator orchestrator,
     PipelineDbContext db,
     ILogger<TriggerPipelineExecutionHandler> logger,
-    IHubContext<PipelineExecutionHub>? hubContext = null
+    IHubContext<PipelineExecutionHub>? hubContext = null,
+    IExecutionStateStore? stateStore = null
 )
 {
     public async Task HandleAsync(TriggerPipelineExecutionMessage message, CancellationToken ct)
@@ -300,6 +305,67 @@ public class TriggerPipelineExecutionHandler(
                             },
                             CancellationToken.None
                         );
+                    await hubContext
+                        .Clients.Group($"execution_{exec.Id}")
+                        .SendAsync(
+                            "PipelineExecutionFinished",
+                            new
+                            {
+                                executionId = exec.Id,
+                                pipelineId = exec.PipelineId,
+                                status = (int)exec.Status,
+                                finishedAt = exec.FinishedAt,
+                                errorMessage,
+                                executionState = failSnapshot,
+                            },
+                            CancellationToken.None
+                        );
+                }
+            }
+            else if (exec == null && stateStore != null)
+            {
+                var draftState = await stateStore.GetFullStateAsync(executionId, CancellationToken.None);
+                if (draftState != null && draftState.IsDraft && draftState.Status != ExecutionStatus.Failed && draftState.Status != ExecutionStatus.Succeeded)
+                {
+                    draftState.Status = ExecutionStatus.Failed;
+                    draftState.ErrorMessage = errorMessage;
+                    draftState.FinishedAt = DateTimeOffset.UtcNow;
+                    await stateStore.SaveFullStateAsync(executionId, draftState, CancellationToken.None);
+
+                    if (hubContext != null)
+                    {
+                        var failSnapshot = draftState.ToJsonDocument();
+                        await hubContext
+                            .Clients.Group($"pipeline_{draftState.PipelineId}")
+                            .SendAsync(
+                                "PipelineExecutionFinished",
+                                new
+                                {
+                                    executionId,
+                                    pipelineId = draftState.PipelineId,
+                                    status = (int)ExecutionStatus.Failed,
+                                    finishedAt = draftState.FinishedAt,
+                                    errorMessage,
+                                    executionState = failSnapshot,
+                                },
+                                CancellationToken.None
+                            );
+                        await hubContext
+                            .Clients.Group($"execution_{executionId}")
+                            .SendAsync(
+                                "PipelineExecutionFinished",
+                                new
+                                {
+                                    executionId,
+                                    pipelineId = draftState.PipelineId,
+                                    status = (int)ExecutionStatus.Failed,
+                                    finishedAt = draftState.FinishedAt,
+                                    errorMessage,
+                                    executionState = failSnapshot,
+                                },
+                                CancellationToken.None
+                            );
+                    }
                 }
             }
         }

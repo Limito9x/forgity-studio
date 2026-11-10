@@ -49,8 +49,34 @@ public class PipelineOrchestrator(
         }
     }
 
-    private async Task SafeSaveFailedExecutionAsync(PipelineExecution execution, CancellationToken ct)
+    private async Task PersistExecutionAsync(PipelineExecution execution, bool isDraft, CancellationToken ct)
     {
+        if (isDraft)
+        {
+            var fullState = await stateStore.GetFullStateAsync(execution.Id, ct) ?? new PipelineExecutionState();
+            fullState.IsDraft = true;
+            fullState.Status = execution.Status;
+            fullState.NextNodeIndex = execution.NextNodeIndex;
+            fullState.CurrentBatchId = execution.CurrentBatchId;
+            fullState.ErrorMessage = execution.ErrorMessage;
+            fullState.StartedAt = execution.StartedAt;
+            fullState.FinishedAt = execution.FinishedAt;
+            await stateStore.SaveFullStateAsync(execution.Id, fullState, ct);
+        }
+        else
+        {
+            await db.SaveChangesAsync(ct);
+        }
+    }
+
+    private async Task SafeSaveFailedExecutionAsync(PipelineExecution execution, bool isDraft, CancellationToken ct)
+    {
+        if (isDraft)
+        {
+            await PersistExecutionAsync(execution, true, ct);
+            return;
+        }
+
         try
         {
             await db.SaveChangesAsync(ct);
@@ -80,9 +106,38 @@ public class PipelineOrchestrator(
             .Include(x => x.Pipeline)
             .FirstOrDefaultAsync(x => x.Id == executionId, ct);
 
+        bool isDraft = false;
+        PipelineExecutionState? draftState = null;
+
         if (execution == null)
         {
-            return Result.Fail<PipelineExecution>($"Pipeline execution '{executionId}' not found.");
+            draftState = await stateStore.GetFullStateAsync(executionId, ct);
+            if (draftState != null && draftState.IsDraft)
+            {
+                isDraft = true;
+                var transientPipeline = new Automation.Pipeline.Domain.Entities.Pipeline(draftState.ProjectId, string.IsNullOrWhiteSpace(draftState.PipelineName) ? "Draft Pipeline" : draftState.PipelineName)
+                {
+                    Id = draftState.PipelineId != Guid.Empty ? draftState.PipelineId : Guid.NewGuid(),
+                    GraphData = draftState.TransientGraphData ?? new PipelineGraphDocument()
+                };
+
+                execution = new PipelineExecution(transientPipeline.Id)
+                {
+                    Id = executionId,
+                    Status = draftState.Status,
+                    NextNodeIndex = draftState.NextNodeIndex,
+                    CurrentBatchId = draftState.CurrentBatchId,
+                    StartedAt = draftState.StartedAt,
+                    FinishedAt = draftState.FinishedAt,
+                    ErrorMessage = draftState.ErrorMessage,
+                    Pipeline = transientPipeline
+                };
+                execution.SetState(draftState.ToJsonDocument(), draftState.NextNodeIndex, draftState.CurrentBatchId);
+            }
+            else
+            {
+                return Result.Fail<PipelineExecution>($"Pipeline execution '{executionId}' not found.");
+            }
         }
 
         graphProvider?.RegisterExecution(execution);
@@ -109,6 +164,23 @@ public class PipelineOrchestrator(
             .AsNoTracking()
             .Where(x => x.ProjectId == execution.Pipeline.ProjectId)
             .ToListAsync(ct);
+
+        if (isDraft && draftState?.TransientNodeDefinitions?.Count > 0)
+        {
+            var existingKeys = customDefs.Select(d => d.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var transientDef in draftState.TransientNodeDefinitions)
+            {
+                var existingIdx = customDefs.FindIndex(d => string.Equals(d.Key, transientDef.Key, StringComparison.OrdinalIgnoreCase));
+                if (existingIdx >= 0)
+                {
+                    customDefs[existingIdx] = transientDef;
+                }
+                else
+                {
+                    customDefs.Add(transientDef);
+                }
+            }
+        }
 
         // 2. Populate Runtime / Start Inputs into Memory Store (from defaults, persisted ExecutionState, or arguments)
         var mergedStartInputs = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
@@ -231,11 +303,16 @@ public class PipelineOrchestrator(
             {
                 var cycleError = $"Pipeline contains cycle involving nodes: {string.Join(", ", plan.CycleNodeIds)}";
                 execution.MarkFailed(cycleError, execution.ExecutionState ?? JsonDocument.Parse("{}"));
-                await SafeSaveFailedExecutionAsync(execution, ct);
+                await SafeSaveFailedExecutionAsync(execution, isDraft, ct);
 
                 if (hubContext != null)
                 {
                     await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
+                        "PipelineExecutionFinished",
+                        new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = cycleError, executionState = execution.ExecutionState },
+                        ct
+                    );
+                    await hubContext.Clients.Group($"execution_{execution.Id}").SendAsync(
                         "PipelineExecutionFinished",
                         new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = cycleError, executionState = execution.ExecutionState },
                         ct
@@ -250,11 +327,16 @@ public class PipelineOrchestrator(
             {
                 var unresolvedMsg = $"Pipeline execution has {plan.UnresolvedPins.Count} unresolved required pin(s): {string.Join(", ", plan.UnresolvedPins.Select(p => $"{p.NodeLabel}.{p.PinLabel}"))}";
                 execution.MarkFailed(unresolvedMsg, execution.ExecutionState ?? JsonDocument.Parse("{}"));
-                await SafeSaveFailedExecutionAsync(execution, ct);
+                await SafeSaveFailedExecutionAsync(execution, isDraft, ct);
 
                 if (hubContext != null)
                 {
                     await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
+                        "PipelineExecutionFinished",
+                        new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = unresolvedMsg, executionState = execution.ExecutionState },
+                        ct
+                    );
+                    await hubContext.Clients.Group($"execution_{execution.Id}").SendAsync(
                         "PipelineExecutionFinished",
                         new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = unresolvedMsg, executionState = execution.ExecutionState },
                         ct
@@ -267,11 +349,16 @@ public class PipelineOrchestrator(
 
             var generalPlanError = "Pipeline execution plan is invalid.";
             execution.MarkFailed(generalPlanError, execution.ExecutionState ?? JsonDocument.Parse("{}"));
-            await SafeSaveFailedExecutionAsync(execution, ct);
+            await SafeSaveFailedExecutionAsync(execution, isDraft, ct);
 
             if (hubContext != null)
             {
                 await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
+                    "PipelineExecutionFinished",
+                    new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = generalPlanError, executionState = execution.ExecutionState },
+                    ct
+                );
+                await hubContext.Clients.Group($"execution_{execution.Id}").SendAsync(
                     "PipelineExecutionFinished",
                     new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = generalPlanError, executionState = execution.ExecutionState },
                     ct
@@ -285,11 +372,16 @@ public class PipelineOrchestrator(
         if (execution.Status == ExecutionStatus.Pending)
         {
             execution.Start();
-            await db.SaveChangesAsync(ct);
+            await PersistExecutionAsync(execution, isDraft, ct);
 
             if (hubContext != null)
             {
                 await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
+                    "PipelineExecutionStarted",
+                    new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, startedAt = execution.StartedAt },
+                    ct
+                );
+                await hubContext.Clients.Group($"execution_{execution.Id}").SendAsync(
                     "PipelineExecutionStarted",
                     new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, startedAt = execution.StartedAt },
                     ct
@@ -299,7 +391,7 @@ public class PipelineOrchestrator(
         else if (execution.Status is ExecutionStatus.WaitingForRunner or ExecutionStatus.WaitingForSubPipeline)
         {
             execution.Resume();
-            await db.SaveChangesAsync(ct);
+            await PersistExecutionAsync(execution, isDraft, ct);
         }
 
         var rootScope = new ScopeContext("root");
@@ -319,7 +411,7 @@ public class PipelineOrchestrator(
                     var err = subRes.Errors.FirstOrDefault()?.Message ?? "SubPipeline execution failed";
                     var failSnapshot = await CaptureExecutionStateSnapshotAsync(execution, ct);
                     execution.MarkFailed(err, failSnapshot);
-                    await SafeSaveFailedExecutionAsync(execution, ct);
+                    await SafeSaveFailedExecutionAsync(execution, isDraft, ct);
 
                     if (hubContext != null)
                     {
@@ -339,7 +431,7 @@ public class PipelineOrchestrator(
                     var childExecutionId = subRes.Value.ChildExecutionId!.Value;
                     var suspendSnapshot = await CaptureExecutionStateSnapshotAsync(execution, ct);
                     execution.MarkWaitingForSubPipeline(childExecutionId, segIdx + 1, suspendSnapshot);
-                    await db.SaveChangesAsync(ct);
+                    await PersistExecutionAsync(execution, isDraft, ct);
 
                     logger.LogInformation(
                         "Parent Execution [{ExecutionId}] suspended waiting for SubPipeline Execution [{ChildExecutionId}].",
@@ -358,11 +450,16 @@ public class PipelineOrchestrator(
                     var err = dotNetRes.Errors.FirstOrDefault()?.Message ?? "DotNet segment execution failed";
                     var failSnapshot = await CaptureExecutionStateSnapshotAsync(execution, ct);
                     execution.MarkFailed(err, failSnapshot);
-                    await SafeSaveFailedExecutionAsync(execution, ct);
+                    await SafeSaveFailedExecutionAsync(execution, isDraft, ct);
 
                     if (hubContext != null)
                     {
                         await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
+                            "PipelineExecutionFinished",
+                            new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = err, executionState = failSnapshot },
+                            ct
+                        );
+                        await hubContext.Clients.Group($"execution_{execution.Id}").SendAsync(
                             "PipelineExecutionFinished",
                             new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = err, executionState = failSnapshot },
                             ct
@@ -390,11 +487,16 @@ public class PipelineOrchestrator(
                     var err = agentRes.Errors.FirstOrDefault()?.Message ?? "Agent dispatch failed";
                     var failSnapshot = await CaptureExecutionStateSnapshotAsync(execution, ct);
                     execution.MarkFailed(err, failSnapshot);
-                    await SafeSaveFailedExecutionAsync(execution, ct);
+                    await SafeSaveFailedExecutionAsync(execution, isDraft, ct);
 
                     if (hubContext != null)
                     {
                         await hubContext.Clients.Group($"pipeline_{execution.PipelineId}").SendAsync(
+                            "PipelineExecutionFinished",
+                            new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = err, executionState = failSnapshot },
+                            ct
+                        );
+                        await hubContext.Clients.Group($"execution_{execution.Id}").SendAsync(
                             "PipelineExecutionFinished",
                             new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, errorMessage = err, executionState = failSnapshot },
                             ct
@@ -406,7 +508,7 @@ public class PipelineOrchestrator(
                 }
 
                 // Suspend and wait for Agent completion event
-                await db.SaveChangesAsync(ct);
+                await PersistExecutionAsync(execution, isDraft, ct);
                 return Result.Ok(execution);
             }
         }
@@ -414,7 +516,7 @@ public class PipelineOrchestrator(
         // 6. All segments succeeded - Capture complete parameter and state snapshot
         var finalSnapshot = await CaptureExecutionStateSnapshotAsync(execution, ct);
         execution.MarkSucceeded(finalSnapshot);
-        await db.SaveChangesAsync(ct);
+        await PersistExecutionAsync(execution, isDraft, ct);
 
         if (hubContext != null)
         {
@@ -423,12 +525,18 @@ public class PipelineOrchestrator(
                 new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, executionState = finalSnapshot },
                 ct
             );
+            await hubContext.Clients.Group($"execution_{execution.Id}").SendAsync(
+                "PipelineExecutionFinished",
+                new { executionId = execution.Id, pipelineId = execution.PipelineId, status = (int)execution.Status, finishedAt = execution.FinishedAt, executionState = finalSnapshot },
+                ct
+            );
         }
 
-        // Set 48h TTL on hot Redis keys now that atomic state is persisted in Postgres
+        // Set 48h (or 2h if draft) TTL on hot Redis keys
         try
         {
-            await stateStore.ExpireExecutionAsync(execution.Id, TimeSpan.FromHours(48), ct);
+            var ttl = isDraft ? TimeSpan.FromHours(2) : TimeSpan.FromHours(48);
+            await stateStore.ExpireExecutionAsync(execution.Id, ttl, ct);
         }
         catch (Exception ex)
         {

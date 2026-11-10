@@ -49,3 +49,4 @@ export interface ScriptScanSummary {
   total: number;
   lastScannedAt: string;
 }
+

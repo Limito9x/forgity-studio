@@ -183,6 +183,66 @@ export const AnalyzeCustomNodesBatchResponse = /*#__PURE__*/ zod.object({
 })
 
 
+
+
+
+export const AnalyzeCustomNodesBatchStatelessBody = /*#__PURE__*/ zod.object({
+  "projectId": /*#__PURE__*/ zod.uuid().check(/*#__PURE__*/ zod.minLength(1)),
+  "scripts": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "key": /*#__PURE__*/ zod.string(),
+  "fileName": /*#__PURE__*/ zod.string(),
+  "fullPath": /*#__PURE__*/ zod.string(),
+  "scriptContent": /*#__PURE__*/ zod.string(),
+  "contentHash": /*#__PURE__*/ zod.string()
+})).check(/*#__PURE__*/ zod.minLength(1))
+})
+
+export const AnalyzeCustomNodesBatchStatelessResponse = /*#__PURE__*/ zod.object({
+  "nodes": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "key": /*#__PURE__*/ zod.string(),
+  "fileName": /*#__PURE__*/ zod.string(),
+  "fullPath": /*#__PURE__*/ zod.string(),
+  "suggestedName": /*#__PURE__*/ zod.string(),
+  "suggestedLabel": /*#__PURE__*/ zod.string(),
+  "executor": /*#__PURE__*/ zod.string(),
+  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "contentHash": /*#__PURE__*/ zod.string(),
+  "inputs": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "label": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "kind": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.enum(['Data', 'Exec'])),
+  "primitiveType": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.enum(['String', 'Number', 'Boolean', 'EntityRef', 'Asset'])),
+  "cardinality": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.enum(['Single', 'Array', 'Map'])),
+  "isRequired": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean()),
+  "defaultValue": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "structType": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "allowedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "description": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "sampleJson": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
+})),
+  "outputs": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "label": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.string()),
+  "kind": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.enum(['Data', 'Exec'])),
+  "primitiveType": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.enum(['String', 'Number', 'Boolean', 'EntityRef', 'Asset'])),
+  "cardinality": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.enum(['Single', 'Array', 'Map'])),
+  "isRequired": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.boolean()),
+  "defaultValue": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "metadata": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "structType": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "allowedExtensions": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "description": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "sampleJson": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
+})),
+  "dependencies": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "module": /*#__PURE__*/ zod.string(),
+  "packageName": /*#__PURE__*/ zod.string()
+})))
+}))
+})
+
+
 export const batchUpsertCustomNodesBodyItemsItemStrategyDefault = `KeepCompatiblePins`;
 
 

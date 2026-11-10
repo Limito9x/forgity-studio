@@ -49,3 +49,4 @@ export function useAnalyzeCustomNodesBatchStatelessMutation() {
       analyzeCustomNodesBatchStateless(command),
   });
 }
+

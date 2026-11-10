@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 namespace Automation.Pipeline.Runtime.Planner.Models;
@@ -68,6 +69,22 @@ public class PipelineExecutionState
     public Dictionary<string, object?> RuntimeInputs { get; set; } = new();
     public Dictionary<string, object?> Variables { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> Metadata { get; set; } = new();
+
+    // Ephemeral Draft Execution Properties
+    public bool IsDraft { get; set; } = false;
+    public Guid ExecutionId { get; set; } = Guid.Empty;
+    public Guid ProjectId { get; set; } = Guid.Empty;
+    public Guid PipelineId { get; set; } = Guid.Empty;
+    public string PipelineName { get; set; } = string.Empty;
+    public ExecutionStatus Status { get; set; } = ExecutionStatus.Pending;
+    public int NextNodeIndex { get; set; } = 0;
+    public string? CurrentBatchId { get; set; }
+    public string? ErrorMessage { get; set; }
+    public DateTimeOffset? StartedAt { get; set; }
+    public DateTimeOffset? FinishedAt { get; set; }
+    public Guid? PreferredRunnerId { get; set; }
+    public PipelineGraphDocument? TransientGraphData { get; set; }
+    public List<NodeDefinition>? TransientNodeDefinitions { get; set; }
 
     public object? GetVariable(string name)
     {

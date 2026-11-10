@@ -223,28 +223,36 @@ Khi người dùng đã thử nghiệm xong ở chế độ Local Draft và mu�
 
 ## 4. Lộ Trình Triển Khai Theo Giai Đoạn (Phased Implementation)
 
-### Phase 1: Workspace Config, Tauri Scanner, IndexedDB & Stateless Analyzer API
-- [ ] **1.1 (Workspace Config & Store)**: Xây dựng cơ chế đọc/ghi `forgity.workspace.json` (quản lý `scriptFolders` và `primaryPipelineFolder`) và tích hợp IndexedDB (`idb-keyval`).
-- [ ] **1.2 (Tauri Rust Scanner)**: Thêm command `scan_local_script_folders` trong `web/src-tauri/src/lib.rs` quét đệ quy các `scriptFolders`, gắn prefix `namespace:`, lọc file `.py`, tính SHA-256 và trả về nội dung.
-- [ ] **1.3 (Backend .NET)**: Tạo Endpoint vô trạng thái `POST /api/projects/{projectId}/nodes/analyze-batch-stateless` phân tích hàng loạt script qua `IScriptSchemaAnalyzer` và chuẩn hóa `PinDefinition` mà **không lưu DB**.
+### Phase 1: Workspace Config, Tauri Scanner, IndexedDB & Stateless Analyzer API (✅ Đã hoàn thành)
+- [x] **1.1 (Workspace Config & Store)**: Xây dựng cơ chế đọc/ghi `forgity.workspace.json` (quản lý `scriptFolders` và `primaryPipelineFolder`) và tích hợp IndexedDB (`idb-keyval`) kèm Tri-State Change Detection (`Unchanged`, `New`, `Modified`).
+- [x] **1.2 (Tauri Rust Scanner)**: Thêm command `scan_local_script_folders` trong `web/src-tauri/src/lib.rs` quét đệ quy các `scriptFolders`, gắn prefix `namespace:`, lọc file `.py`, tính SHA-256 và trả về nội dung.
+- [x] **1.3 (Backend .NET)**: Tạo Endpoint vô trạng thái `POST /api/pipeline/nodes/custom/analyze-batch-stateless` phân tích hàng loạt script qua `IScriptSchemaAnalyzer` + `IEntityStructRegistry` và chuẩn hóa `PinDefinition` mà **không lưu DB**.
 
-### Phase 2: Ephemeral Draft Execution Engine & Direct Disk Runner
-- [ ] **2.1 (Backend Runtime)**: Nâng cấp `PipelineExecutionState` để mang theo `TransientGraphData` và `TransientNodeDefinitions` cho các lượt chạy Draft (`SnapshotId = null`).
-- [ ] **2.2 (Backend Dispatcher)**: Nâng cấp `RunnerSegmentDispatcher.cs` và `PipelineOrchestrator.cs`:
-  - Khôi phục đồ thị tạm và `TransientNodeDefinitions` từ `ExecutionState` trong suốt vòng đời chạy.
-  - Cho phép node có `SourceRepositoryPath` (FullPath) bypass `assetApi.GetFilesAsync` và truyền thẳng `ScriptPath = SourceRepositoryPath`, `ScriptUrl = null` xuống Runner.
-  - Khóa cứng `TargetRunnerId` vào Local Desktop Runner của máy người dùng.
-- [ ] **2.3 (Backend Endpoint)**: Tạo Endpoint `POST /api/projects/{projectId}/pipelines/run-draft` nhận trực tiếp đồ thị nháp + danh sách script local và kích hoạt chạy ngay lập tức.
-- [ ] **2.4 (Rust Runner)**: Tinh chỉnh `runner/src/core/dispatcher.rs` kiểm tra và log rõ khi chạy script trực tiếp từ `script_path` local mà không có `script_url`.
+### Phase 2: Ephemeral Draft Execution Engine, Direct Disk Runner & Workstation Affinity
+- [ ] **2.1 (Zero-DB Ephemeral Execution Store — Redis TTL)**:
+  - Mở rộng `PipelineExecutionState` để mang theo cờ `IsDraft = true`, `PreferredRunnerId`, `TransientGraphData` và `TransientNodeDefinitions`.
+  - Khi chạy Draft Pipeline (chưa có mặt trong bảng `Pipelines`), **tuyệt đối không insert vào bảng `db.PipelineExecutions`** (tránh lỗi Foreign Key `PipelineId` và giữ sạch lịch sử DB).
+  - Lưu trữ toàn bộ vòng đời thực thi nháp trong `IExecutionStateStore` (Redis / MemoryStore với TTL 2 giờ). Khi hoàn tất (`StageResultConsumer`), chỉ cập nhật Redis và bắn SignalR (`PipelineNodeExecutionUpdated`, `PipelineExecutionCompleted`) về Client/CLI.
+- [ ] **2.2 (Workstation Affinity & Direct Disk Dispatcher)**:
+  - Nâng cấp `RunnerSegmentDispatcher.cs` và `PipelineOrchestrator.cs`:
+    - **Chính sách "User Workstation Affinity"**:
+      - Với **Local Draft Run (`IsDraft = true`)**: Khóa cứng 100% các stage vào `PreferredRunnerId` (Local Desktop Runner của máy đang giữ file `.py`).
+      - Với **Published Pipeline Run (khi bấm từ Desktop)**: Truyền `PreferredRunnerId` (nhận diện tự động qua `BL-047` Machine Key) làm ưu tiên mặc định để các stage chạy ngay trên máy Runner đang hoạt động của chính người dùng đang thao tác.
+    - **Direct Disk Script Bypass**: Cho phép node có `SourceRepositoryPath` (FullPath trên đĩa) bypass hoàn toàn `assetApi.GetFilesAsync` (S3) và truyền thẳng `ScriptPath = SourceRepositoryPath`, `ScriptUrl = null` xuống Runner.
+- [ ] **2.3 (Backend Endpoints)**:
+  - Tạo Endpoint `POST /api/pipeline/run-draft` nhận trực tiếp đồ thị nháp + danh sách script local + `TargetRunnerId` và kích hoạt chạy Ephemeral ngay trong RAM/Redis.
+  - Bổ sung trường `PreferredRunnerId` tùy chọn vào `RunPipelineCommand` (cho Published Pipelines) để hỗ trợ Workstation Affinity.
+- [ ] **2.4 (Rust Runner Native Disk Execution)**:
+  - Tinh chỉnh `runner/src/core/dispatcher.rs` kiểm tra khi `script_url` rỗng và `script_path` là đường dẫn file local tồn tại trên đĩa thì thực thi trực tiếp mà không tải từ S3.
 
-### Phase 3: Giao Diện Node Library Local-First, Two-Way DSL & 1-Click Publish
-- [ ] **3.1 (Node Library UI)**:
-  - Thêm bảng quản lý **Workspace Config** (chọn `primaryPipelineFolder`, thêm các `scriptFolders` bằng Native Picker, nút **Scan & Sync**).
-  - Hiển thị danh mục Node với prefix namespace rõ ràng, badge `Local Draft` và `Published Studio` (kèm nút *Eject to Local*).
+### Phase 3: Phân Tách Scope Desktop vs Web, Giao Diện Node Library Local-First, Two-Way DSL & 1-Click Publish
+- [ ] **3.1 (Phân định ranh giới Desktop Workbench vs Web Hub)**:
+  - **Web Mode**: Ẩn/vô hiệu hóa chức năng Upload Script lẻ tẻ trên Web; chỉ hiển thị danh mục Node đã Publish ở chế độ Catalog Read-Only.
+  - **Desktop Mode**: Hiển thị danh mục Node hợp nhất với prefix namespace rõ ràng, badge `Local Draft` và `Published Studio` (kèm nút **"Fork / Eject to Local"** để kéo pipeline/script đã publish về sửa tại máy trạm).
 - [ ] **3.2 (Two-Way DSL Mirroring & Canvas Live Sync)**:
   - Khi lưu đồ thị trên Canvas: tự động xuất file `.pipeline.yaml` vào `primaryPipelineFolder`.
   - Nút **"Sync Local Scripts"** ngay trên Canvas Toolbar: sửa code `.py` ngoài VS Code $\rightarrow$ bấm 1 nút trên Canvas $\rightarrow$ cập nhật chân Pin ngay lập tức.
-  - Khi bấm **Run** trên Draft Pipeline: gọi `run-draft` khóa vào Local Desktop Runner.
+  - Khi bấm **Run** trên Desktop (dù là Draft hay Published Pipeline): tự động đính kèm `PreferredRunnerId` của máy trạm đang thao tác.
 - [ ] **3.3 (One-Shot Publish Wizard)**:
   - Nút **"Publish to Studio"**: Tự động đọc các file `.py` local đang dùng trong đồ thị, upload lên CAS Storage, đăng ký `NodeDefinitions` (`Published`, SemVer, Origin `folder@runner-id`) và tạo `Pipeline` + `PipelineSnapshot` chính thức trên DB.
 
