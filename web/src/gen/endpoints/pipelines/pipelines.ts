@@ -40,8 +40,11 @@ import type {
   PipelinePackageDto,
   PipelineSnapshotSummaryDto,
   PipelineSummaryDto,
+  PublishDraftPipelineRequest,
+  PublishDraftPipelineResponseDto,
   ResolveToolPinsCommand,
   ResolvedToolPinsDto,
+  RunDraftPipelineRequest,
   RunPipelineRequest,
   SavePipelineGraphRequest,
   UpdatePipelineRequest,
@@ -1018,6 +1021,157 @@ export function useGetPinCatalogue<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+export const publishDraftPipeline = (
+  publishDraftPipelineRequest: PublishDraftPipelineRequest,
+  signal?: AbortSignal,
+) => {
+  return customInstance<PublishDraftPipelineResponseDto>({
+    url: `/api/pipelines/publish-draft`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: publishDraftPipelineRequest,
+    signal,
+  });
+};
+
+export const getPublishDraftPipelineMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof publishDraftPipeline>>,
+    TError,
+    { data: PublishDraftPipelineRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof publishDraftPipeline>>,
+  TError,
+  { data: PublishDraftPipelineRequest },
+  TContext
+> => {
+  const mutationKey = ["publishDraftPipeline"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof publishDraftPipeline>>,
+    { data: PublishDraftPipelineRequest }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return publishDraftPipeline(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PublishDraftPipelineMutationResult = NonNullable<
+  Awaited<ReturnType<typeof publishDraftPipeline>>
+>;
+export type PublishDraftPipelineMutationBody = PublishDraftPipelineRequest;
+export type PublishDraftPipelineMutationError = void;
+
+export const usePublishDraftPipeline = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof publishDraftPipeline>>,
+      TError,
+      { data: PublishDraftPipelineRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof publishDraftPipeline>>,
+  TError,
+  { data: PublishDraftPipelineRequest },
+  TContext
+> => {
+  return useMutation(
+    getPublishDraftPipelineMutationOptions(options),
+    queryClient,
+  );
+};
+export const runDraftPipeline = (
+  runDraftPipelineRequest: RunDraftPipelineRequest,
+  signal?: AbortSignal,
+) => {
+  return customInstance<PipelineExecutionDto>({
+    url: `/api/pipelines/run-draft`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: runDraftPipelineRequest,
+    signal,
+  });
+};
+
+export const getRunDraftPipelineMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof runDraftPipeline>>,
+    TError,
+    { data: RunDraftPipelineRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof runDraftPipeline>>,
+  TError,
+  { data: RunDraftPipelineRequest },
+  TContext
+> => {
+  const mutationKey = ["runDraftPipeline"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof runDraftPipeline>>,
+    { data: RunDraftPipelineRequest }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return runDraftPipeline(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RunDraftPipelineMutationResult = NonNullable<
+  Awaited<ReturnType<typeof runDraftPipeline>>
+>;
+export type RunDraftPipelineMutationBody = RunDraftPipelineRequest;
+export type RunDraftPipelineMutationError = void;
+
+export const useRunDraftPipeline = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof runDraftPipeline>>,
+      TError,
+      { data: RunDraftPipelineRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof runDraftPipeline>>,
+  TError,
+  { data: RunDraftPipelineRequest },
+  TContext
+> => {
+  return useMutation(getRunDraftPipelineMutationOptions(options), queryClient);
+};
 export const getStructCatalogue = (
   params?: GetStructCatalogueParams,
   signal?: AbortSignal,

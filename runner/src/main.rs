@@ -13,17 +13,28 @@ use cli::{Cli, Commands};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Initialize tracing subscriber for clean console logs
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
-        .with_target(false)
-        .init();
-
     let cli = Cli::parse();
     let config_override = cli.config.as_deref();
+
+    // If running in MCP mode, avoid polluting stdout so JSON-RPC remains clean
+    if !matches!(cli.command, Commands::Mcp { .. }) {
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+            )
+            .with_target(false)
+            .init();
+    } else {
+        tracing_subscriber::fmt()
+            .with_writer(std::io::stderr)
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("error")),
+            )
+            .with_target(false)
+            .init();
+    }
 
     match cli.command {
         Commands::Doctor => {
@@ -52,6 +63,12 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Update { check, force } => {
             cli::update::run_update(check, force).await?;
+        }
+        Commands::Run { file, project, report } => {
+            cli::run::run_pipeline_file(&file, project.as_deref(), report.as_deref()).await?;
+        }
+        Commands::Mcp { workspace } => {
+            cli::mcp::run_mcp_server(workspace).await?;
         }
     }
 

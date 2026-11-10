@@ -3,7 +3,9 @@ pub mod daemon;
 pub mod dcc;
 pub mod doctor;
 pub mod env;
+pub mod mcp;
 pub mod register;
+pub mod run;
 pub mod setup;
 pub mod start;
 pub mod update;
@@ -99,5 +101,26 @@ pub enum Commands {
         /// Force reinstall even if already on the latest version
         #[arg(short, long)]
         force: bool,
+    },
+
+    /// Run a headless declarative pipeline (.pipeline.yaml) locally via Forgity API
+    Run {
+        /// Path to the .pipeline.yaml file
+        file: PathBuf,
+
+        /// Optional project ID override
+        #[arg(short, long)]
+        project: Option<String>,
+
+        /// Path to write the JSON test report
+        #[arg(short, long)]
+        report: Option<PathBuf>,
+    },
+
+    /// Start Model Context Protocol (MCP) server over stdin/stdout for AI agents (Cursor, Antigravity, Claude)
+    Mcp {
+        /// Optional path to project workspace directory
+        #[arg(short, long)]
+        workspace: Option<PathBuf>,
     },
 }

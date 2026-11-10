@@ -1,4 +1,5 @@
 using Automation.Pipeline.Infrastructure.Persistence;
+using Automation.Pipeline.Runtime.Planner.Models;
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Attributes;
 namespace Automation.Pipeline.Runtime.Features.Execution;
@@ -29,7 +30,10 @@ public class GetPipelineExecutionEndpoint(IMessageBus bus)
 public record GetPipelineExecutionQuery(Guid Id);
 
 [NonTransactional]
-public class GetPipelineExecutionHandler(PipelineDbContext db)
+public class GetPipelineExecutionHandler(
+    PipelineDbContext db,
+    IExecutionStateStore stateStore
+)
 {
     public async Task<Result<PipelineExecutionDto>> HandleAsync(
         GetPipelineExecutionQuery query,
@@ -40,23 +44,40 @@ public class GetPipelineExecutionHandler(PipelineDbContext db)
             .PipelineExecutions.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == query.Id, ct);
 
-        if (exec == null)
+        if (exec != null)
         {
-            return Result.Fail<PipelineExecutionDto>($"Pipeline execution '{query.Id}' not found.");
+            var dto = new PipelineExecutionDto(
+                exec.Id,
+                exec.PipelineId,
+                exec.Status,
+                exec.StartedAt,
+                exec.FinishedAt,
+                exec.ErrorMessage,
+                exec.NextNodeIndex,
+                exec.CurrentBatchId,
+                exec.ExecutionState
+            );
+            return Result.Ok(dto);
         }
 
-        var dto = new PipelineExecutionDto(
-            exec.Id,
-            exec.PipelineId,
-            exec.Status,
-            exec.StartedAt,
-            exec.FinishedAt,
-            exec.ErrorMessage,
-            exec.NextNodeIndex,
-            exec.CurrentBatchId,
-            exec.ExecutionState
-        );
+        // Ephemeral Draft Execution Fallback (Zero-DB)
+        var draftState = await stateStore.GetFullStateAsync(query.Id, ct);
+        if (draftState != null && draftState.IsDraft)
+        {
+            var draftDto = new PipelineExecutionDto(
+                draftState.ExecutionId != Guid.Empty ? draftState.ExecutionId : query.Id,
+                draftState.PipelineId,
+                draftState.Status,
+                draftState.StartedAt,
+                draftState.FinishedAt,
+                draftState.ErrorMessage,
+                draftState.NextNodeIndex,
+                draftState.CurrentBatchId,
+                null
+            );
+            return Result.Ok(draftDto);
+        }
 
-        return Result.Ok(dto);
+        return Result.Fail<PipelineExecutionDto>($"Pipeline execution '{query.Id}' not found.");
     }
 }

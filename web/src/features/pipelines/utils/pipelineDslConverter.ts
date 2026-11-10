@@ -149,3 +149,4 @@ export function pipelineYamlToGraph(yamlContent: string): {
     edges,
   };
 }
+

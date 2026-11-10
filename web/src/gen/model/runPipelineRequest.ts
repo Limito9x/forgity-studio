@@ -10,4 +10,6 @@ import type { DictionaryOfStringAndObject } from "./dictionaryOfStringAndObject"
 export interface RunPipelineRequest {
   /** @nullable */
   runtimeInputs?: DictionaryOfStringAndObject | null;
+  /** @nullable */
+  preferredRunnerId?: string | null;
 }

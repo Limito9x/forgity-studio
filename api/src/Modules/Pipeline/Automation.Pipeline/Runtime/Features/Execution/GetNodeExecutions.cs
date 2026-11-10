@@ -42,6 +42,45 @@ public class GetNodeExecutionsHandler(PipelineDbContext db, IExecutionStateStore
 
         if (execution == null)
         {
+            // Ephemeral Draft Execution Fallback (Zero-DB)
+            var draftState = await stateStore.GetFullStateAsync(query.ExecutionId, ct);
+            if (draftState != null && draftState.IsDraft)
+            {
+                var draftDtos = new List<NodeExecutionDto>();
+                var draftNodes = draftState.TransientGraphData?.Nodes ?? [];
+
+                foreach (var node in draftNodes)
+                {
+                    var statusStr = await stateStore.GetNodeStatusAsync(query.ExecutionId, node.Id, ct);
+                    var error = await stateStore.GetNodeErrorAsync(query.ExecutionId, node.Id, ct);
+                    if (statusStr == null && error == null) continue;
+
+                    var status = Enum.TryParse<ExecutionStatus>(statusStr, true, out var sEnum) ? sEnum : (error != null ? ExecutionStatus.Failed : ExecutionStatus.Pending);
+                    var outputs = await stateStore.GetNodeAllOutputsAsync(query.ExecutionId, node.Id, ct);
+                    var log = await stateStore.GetNodeLogAsync(query.ExecutionId, node.Id, ct);
+                    JsonDocument? outputDoc = null;
+                    if (outputs.Count > 0)
+                    {
+                        outputDoc = JsonDocument.Parse(JsonSerializer.Serialize(outputs));
+                    }
+                    JsonDocument? logDoc = !string.IsNullOrWhiteSpace(log) ? JsonDocument.Parse(JsonSerializer.Serialize(log)) : null;
+
+                    draftDtos.Add(new NodeExecutionDto(
+                        Guid.Empty,
+                        query.ExecutionId,
+                        node.Id,
+                        status,
+                        null,
+                        null,
+                        error,
+                        outputDoc,
+                        logDoc
+                    ));
+                }
+
+                return Result.Ok(draftDtos);
+            }
+
             return Result.Fail<List<NodeExecutionDto>>($"Pipeline execution '{query.ExecutionId}' not found.");
         }
 
