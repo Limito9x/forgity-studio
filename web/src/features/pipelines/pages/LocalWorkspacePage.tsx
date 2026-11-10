@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   Laptop,
-  HardDrive,
   RefreshCw,
   Settings2,
   FileCode2,
@@ -236,8 +235,9 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
 
       {/* Config Dialog */}
       <WorkspaceConfigDialog
-        open={configDialogOpen}
-        onOpenChange={setConfigDialogOpen}
+        projectId={projectId}
+        isOpen={configDialogOpen}
+        onClose={() => setConfigDialogOpen(false)}
       />
 
       {/* Slide-Over Script Review Sheet */}

@@ -69,6 +69,7 @@ import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNew
 import { Route as ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/index'
 import { Route as ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest'
 import { Route as ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/new'
+import { Route as ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/workspace/index'
 import { Route as ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/structs/$structId/builder'
 import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
 
@@ -461,6 +462,15 @@ const ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute =
         ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
     } as any,
   )
+const ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute =
+  ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRouteImport.update(
+    {
+      id: '/pipeline/workspace/',
+      path: '/pipeline/workspace/',
+      getParentRoute: () =>
+        ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
+    } as any,
+  )
 const ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRoute =
   ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRouteImport.update(
     {
@@ -539,6 +549,7 @@ export interface FileRoutesByFullPath {
   '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute
   '/s/$studioSlug/projects/$projectId/contents/$typeKey/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute
   '/s/$studioSlug/projects/$projectId/pipeline/nodes/': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute
+  '/s/$studioSlug/projects/$projectId/pipeline/workspace/': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute
   '/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute
 }
 export interface FileRoutesByTo {
@@ -591,6 +602,7 @@ export interface FileRoutesByTo {
   '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute
   '/s/$studioSlug/projects/$projectId/contents/$typeKey': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute
   '/s/$studioSlug/projects/$projectId/pipeline/nodes': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute
+  '/s/$studioSlug/projects/$projectId/pipeline/workspace': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute
   '/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute
 }
 export interface FileRoutesById {
@@ -656,6 +668,7 @@ export interface FileRoutesById {
   '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute
   '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute
   '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute
+  '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/workspace/': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute
   '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute
 }
 export interface FileRouteTypes {
@@ -719,6 +732,7 @@ export interface FileRouteTypes {
     | '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/'
     | '/s/$studioSlug/projects/$projectId/contents/$typeKey/'
     | '/s/$studioSlug/projects/$projectId/pipeline/nodes/'
+    | '/s/$studioSlug/projects/$projectId/pipeline/workspace/'
     | '/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -771,6 +785,7 @@ export interface FileRouteTypes {
     | '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId'
     | '/s/$studioSlug/projects/$projectId/contents/$typeKey'
     | '/s/$studioSlug/projects/$projectId/pipeline/nodes'
+    | '/s/$studioSlug/projects/$projectId/pipeline/workspace'
     | '/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
   id:
     | '__root__'
@@ -835,6 +850,7 @@ export interface FileRouteTypes {
     | '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/'
     | '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/'
     | '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/'
+    | '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/workspace/'
     | '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
   fileRoutesById: FileRoutesById
 }
@@ -1265,6 +1281,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRouteImport
       parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
     }
+    '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/workspace/': {
+      id: '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/workspace/'
+      path: '/pipeline/workspace'
+      fullPath: '/s/$studioSlug/projects/$projectId/pipeline/workspace/'
+      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRouteImport
+      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
+    }
     '/_protected/_project/s/$studioSlug/projects/$projectId/structs/$structId/builder': {
       id: '/_protected/_project/s/$studioSlug/projects/$projectId/structs/$structId/builder'
       path: '/$structId/builder'
@@ -1512,6 +1535,7 @@ interface ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteChildren {
   ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRoute
   ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute
   ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute
+  ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute
 }
 
 const ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteChildren: ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteChildren =
@@ -1540,6 +1564,8 @@ const ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteChildren: ProtectedP
       ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute,
     ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute:
       ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute,
+    ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute:
+      ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute,
   }
 
 const ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteWithChildren =

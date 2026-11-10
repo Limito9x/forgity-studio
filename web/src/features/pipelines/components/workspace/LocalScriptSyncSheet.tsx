@@ -7,15 +7,12 @@ import {
   RefreshCw,
   Search,
   Code2,
-  Workflow,
-  ShieldCheck,
   Sliders,
 } from "lucide-react";
 import { Sheet, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useLocalWorkspaceStore } from "../../stores/useLocalWorkspaceStore";
 import { VisualPinMapperTab } from "../script-ingestion/deck-workspace/VisualPinMapperTab";
@@ -85,8 +82,10 @@ export function LocalScriptSyncSheet({
       inputPinDiffs: [],
       outputPinDiffs: [],
       impactReport: {
-        totalPipelinesImpacted: 0,
-        pipelineNames: [],
+        affectedPipelineCount: 0,
+        affectedNodeCount: 0,
+        affectedEdgeCount: 0,
+        affectedPipelineNames: [],
       },
       dependencies: (activeNode.dependencies as any) || [],
     };
@@ -201,11 +200,10 @@ export function LocalScriptSyncSheet({
                   <div
                     key={node.key}
                     onClick={() => setSelectedKey(node.key)}
-                    className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer text-xs transition-all ${
-                      isSelected
+                    className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer text-xs transition-all ${isSelected
                         ? "bg-emerald-500/10 border border-emerald-500/30 text-foreground font-medium shadow-xs"
                         : "hover:bg-muted/60 text-muted-foreground hover:text-foreground"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
                       <FileCode className={`h-4 w-4 shrink-0 ${isSelected ? "text-emerald-500" : "text-muted-foreground"}`} />
@@ -254,22 +252,20 @@ export function LocalScriptSyncSheet({
                 <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border/60">
                   <button
                     onClick={() => setActiveTab("pins")}
-                    className={`flex items-center gap-1.5 px-3 py-1 text-xs rounded-md font-medium transition-all ${
-                      activeTab === "pins"
+                    className={`flex items-center gap-1.5 px-3 py-1 text-xs rounded-md font-medium transition-all ${activeTab === "pins"
                         ? "bg-background text-foreground shadow-xs"
                         : "text-muted-foreground hover:text-foreground"
-                    }`}
+                      }`}
                   >
                     <Sliders className="h-3.5 w-3.5" />
                     <span>Pin Mapper</span>
                   </button>
                   <button
                     onClick={() => setActiveTab("code")}
-                    className={`flex items-center gap-1.5 px-3 py-1 text-xs rounded-md font-medium transition-all ${
-                      activeTab === "code"
+                    className={`flex items-center gap-1.5 px-3 py-1 text-xs rounded-md font-medium transition-all ${activeTab === "code"
                         ? "bg-background text-foreground shadow-xs"
                         : "text-muted-foreground hover:text-foreground"
-                    }`}
+                      }`}
                   >
                     <Code2 className="h-3.5 w-3.5" />
                     <span>Source Code</span>
@@ -309,3 +305,4 @@ export function LocalScriptSyncSheet({
     </Sheet>
   );
 }
+
