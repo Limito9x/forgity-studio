@@ -34,6 +34,7 @@ interface LocalWorkspaceState {
   toggleScriptFolder: (path: string, enabled: boolean) => Promise<void>;
   setPrimaryPipelineFolder: (path: string) => Promise<void>;
   scanAndSyncScripts: () => Promise<ScriptScanSummary | null>;
+  updateDraftNode: (key: string, updates: Partial<LocalDraftNode>) => Promise<void>;
   scanDraftPipelines: () => Promise<ScannedPipelineYamlItemRust[]>;
   setActiveDraftPipeline: (draft: ScannedPipelineYamlItemRust | null) => void;
 }
@@ -205,6 +206,7 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
             executor: analyzed.executor,
             description: analyzed.description ?? undefined,
             contentHash: analyzed.contentHash,
+            sourceCode: originItem?.content || "",
             inputs: analyzed.inputs as any[],
             outputs: analyzed.outputs as any[],
             dependencies: analyzed.dependencies as any[],
@@ -214,6 +216,16 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
 
         // Persist updated draft nodes in IndexedDB
         await set(DRAFT_NODES_KEY(projectId), updatedDraftMap);
+      }
+
+      // Ensure all scanned items have their latest sourceCode in draftMap
+      for (const item of scannedItems) {
+        if (updatedDraftMap[item.key] && !updatedDraftMap[item.key].sourceCode) {
+          updatedDraftMap[item.key] = {
+            ...updatedDraftMap[item.key],
+            sourceCode: item.content,
+          };
+        }
       }
 
       const summary: ScriptScanSummary = {
@@ -242,6 +254,22 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
       });
       throw new Error(errMsg);
     }
+  },
+
+  updateDraftNode: async (key: string, updates: Partial<LocalDraftNode>) => {
+    const { projectId, draftNodes } = getStore();
+    if (!projectId || !draftNodes[key]) return;
+
+    const updatedMap = {
+      ...draftNodes,
+      [key]: {
+        ...draftNodes[key],
+        ...updates,
+      },
+    };
+
+    setStore({ draftNodes: updatedMap });
+    await set(DRAFT_NODES_KEY(projectId), updatedMap);
   },
 
   scanDraftPipelines: async () => {

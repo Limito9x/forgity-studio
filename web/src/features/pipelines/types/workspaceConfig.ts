@@ -22,6 +22,7 @@ export interface LocalDraftNode {
   executor: string;
   description?: string;
   contentHash: string;
+  sourceCode?: string;
   inputs: any[];
   outputs: any[];
   dependencies?: { module: string; packageName: string }[];

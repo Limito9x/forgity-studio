@@ -14,6 +14,7 @@ import { useLocalWorkspaceStore } from "../stores/useLocalWorkspaceStore";
 import { LocalWorkspaceEmptyState } from "../components/workspace/LocalWorkspaceEmptyState";
 import { LocalWorkspaceOutliner } from "../components/workspace/LocalWorkspaceOutliner";
 import { WorkspaceConfigDialog } from "../components/workspace/WorkspaceConfigDialog";
+import { LocalScriptSyncSheet } from "../components/workspace/LocalScriptSyncSheet";
 import type { LocalDraftNode, ScannedPipelineYamlItemRust } from "../types/workspaceConfig";
 
 interface LocalWorkspacePageProps {
@@ -34,6 +35,8 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
   } = useLocalWorkspaceStore();
 
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [syncSheetOpen, setSyncSheetOpen] = useState(false);
+  const [syncSheetInitialKey, setSyncSheetInitialKey] = useState<string | undefined>();
   const [selectedScript, setSelectedScript] = useState<LocalDraftNode | null>(null);
 
   useEffect(() => {
@@ -50,6 +53,16 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
 
   const handleSelectScript = (node: LocalDraftNode) => {
     setSelectedScript(node);
+  };
+
+  const handleOpenSyncAndReview = async (scriptKey?: string) => {
+    setSyncSheetInitialKey(scriptKey);
+    try {
+      await scanAndSyncScripts();
+    } catch {
+      // Continue opening review sheet even if some warnings occurred
+    }
+    setSyncSheetOpen(true);
   };
 
   const handleSelectDraft = (draft: ScannedPipelineYamlItemRust) => {
@@ -76,9 +89,11 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     <div className="flex h-[calc(100vh-3.5rem)] w-full overflow-hidden bg-background">
       {/* Left Outliner Panel */}
       <LocalWorkspaceOutliner
-        onSelectScript={handleSelectScript}
+        onSelectScript={(node) => {
+          handleSelectScript(node);
+        }}
         onSelectDraft={handleSelectDraft}
-        onOpenSyncSheet={scanAndSyncScripts}
+        onOpenSyncSheet={() => handleOpenSyncAndReview()}
       />
 
       {/* Main Workbench Area */}
@@ -101,12 +116,12 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
             <Button
               variant="outline"
               size="sm"
-              onPress={() => scanAndSyncScripts()}
+              onPress={() => handleOpenSyncAndReview()}
               isDisabled={isScanning}
               className="gap-1.5 text-xs h-8"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isScanning ? "animate-spin text-emerald-500" : ""}`} />
-              Sync Scripts
+              Sync & Review Scripts
             </Button>
 
             <Button
@@ -181,6 +196,18 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                   </ul>
                 </div>
               </div>
+
+              <div className="pt-2 flex items-center justify-end">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onPress={() => handleOpenSyncAndReview(selectedScript.key)}
+                  className="gap-1.5 text-xs text-emerald-500 hover:text-emerald-600 border-emerald-500/30"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Inspect AST Pins & Code
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="max-w-md space-y-3">
@@ -211,6 +238,13 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
       <WorkspaceConfigDialog
         open={configDialogOpen}
         onOpenChange={setConfigDialogOpen}
+      />
+
+      {/* Slide-Over Script Review Sheet */}
+      <LocalScriptSyncSheet
+        isOpen={syncSheetOpen}
+        onClose={() => setSyncSheetOpen(false)}
+        initialScriptKey={syncSheetInitialKey}
       />
     </div>
   );
