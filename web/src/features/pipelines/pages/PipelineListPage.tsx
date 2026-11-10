@@ -8,6 +8,7 @@ import {
   Download,
   UploadCloud,
   Trash2,
+  Settings2,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +23,7 @@ import { useDialogStore } from "@/stores/dialogStore";
 import { ActivePipelinesTab } from "../components/pipeline-list/ActivePipelinesTab";
 import { TrashPipelinesTab } from "../components/pipeline-list/TrashPipelinesTab";
 import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
+import { WorkspaceConfigDialog } from "../components/workspace/WorkspaceConfigDialog";
 
 // Ensure pipeline dialogs are registered into the global registry
 import "../dialogs";
@@ -33,6 +35,7 @@ interface PipelineListPageProps {
 export function PipelineListPage({ projectId }: PipelineListPageProps) {
   const { studioSlug } = useCurrentStudio();
   const [activeTab, setActiveTab] = useState<"active" | "trash">("active");
+  const [workspaceConfigOpen, setWorkspaceConfigOpen] = useState(false);
 
   const { data: activePipelines = [], isLoading: isActiveLoading } =
     usePipelines(projectId, false);
@@ -84,6 +87,16 @@ export function PipelineListPage({ projectId }: PipelineListPageProps) {
               <span className="hidden sm:inline">Export All</span>
             </Button>
           )}
+
+          <Button
+            variant="outline"
+            size="sm"
+            onPress={() => setWorkspaceConfigOpen(true)}
+            className="gap-1.5 text-xs"
+          >
+            <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="hidden sm:inline">Workspace Settings</span>
+          </Button>
 
           <Button
             variant="outline"
@@ -194,6 +207,12 @@ export function PipelineListPage({ projectId }: PipelineListPageProps) {
           isRestoring={restoreMutation.isPending}
         />
       )}
+      {/* Local-First Workspace Settings Dialog */}
+      <WorkspaceConfigDialog
+        projectId={projectId}
+        isOpen={workspaceConfigOpen}
+        onClose={() => setWorkspaceConfigOpen(false)}
+      />
     </div>
   );
 }
