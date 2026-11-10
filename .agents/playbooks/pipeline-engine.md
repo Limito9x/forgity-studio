@@ -139,6 +139,19 @@ Hệ thống phân tách rạch ròi giữa **Dữ liệu bền vững (Durable 
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
+### 2.1. Phân Nhánh: Production Execution (DB-backed) vs Ephemeral Draft Execution (ADR-006 Zero-DB)
+Theo quyết sách [ADR-006](file:///d:/FullStack/Automation/docs/adr/ADR-006-local-first-script-authoring-and-ephemeral-draft-lifecycle.md), hệ thống hỗ trợ 2 chế độ thực thi song song:
+- **Production Pipeline Run (`POST /api/pipelines/{id}/run`)**:
+  - Ghi nhận đầy đủ vào PostgreSQL: `PipelineExecution`, `CurrentBatchId`, `FinishedAt`.
+  - Lưu vĩnh viễn lịch sử chạy phục vụ thống kê, kiểm toán (Auditing) của Studio.
+- **Ephemeral Draft Pipeline Run (`POST /api/pipelines/run-draft`)**:
+  - Dành riêng cho `Local Workspace`, chạy test nháp từ Canvas hoặc file `.pipeline.yaml`.
+  - **Zero-DB Pollution**: Hoàn toàn **KHÔNG** tạo bản ghi nào trong PostgreSQL (`Pipelines`, `PipelineNodes`, `PipelineExecutions`).
+  - Toàn bộ trạng thái chỉ sống trên `IExecutionStateStore` (Redis/MemoryCache) với cờ `IsDraft = true` và thời gian sống `TTL = 2 giờ`.
+  - **Direct Disk Bypass**: Đối với node script local (`local:*`), bỏ qua việc tải S3; truyền thẳng `SourceRepositoryPath` tới Runner nội bộ thông qua `preferredRunnerId` (workstation affinity).
+  - **Query Fallback**: Các API đọc trạng thái (`GetPipelineExecution`, `GetNodeExecutions`) nếu không tìm thấy execution trong PostgreSQL sẽ tự động fallback sang `IExecutionStateStore` nếu là Draft.
+
+
 ---
 
 ## 3. Phân Biệt Các Loại Stage & Dispatchers

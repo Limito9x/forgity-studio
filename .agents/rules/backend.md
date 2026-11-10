@@ -139,6 +139,13 @@ Quy tắc áp dụng bắt buộc khi xây dựng hoặc sửa đổi mã nguồ
       - Test BẮT BUỘC phải tự trang bị cơ chế khởi tạo và test fixture riêng biệt (dùng Mocking qua `NSubstitute`, Test Builder, In-Memory DB, hoặc `WebApplicationFactory`).
       - Nếu một class nghiệp vụ thực sự có kịch bản chạy offline độc lập (như `FrozenExecutionGraph`), bộc lộ qua **Explicit Static Factory Method** (ví dụ `CreateWithoutDatabase(...)`) hoặc constructor `internal` đi kèm `[InternalsVisibleTo]`. Một class dịch vụ DI chỉ được phép có **DUY NHẤT 1 PUBLIC CONSTRUCTOR** với đầy đủ các dependencies cần thiết để chạy production.
 
+22. **Quy Chuẩn Local-First & Ephemeral Draft Pipeline (ADR-006):**
+    - **Zero-DB Pollution:** Các luồng kiểm thử nháp (`RunDraftPipeline`) TUYỆT ĐỐI KHÔNG ghi bản ghi vào PostgreSQL (`Pipelines`, `PipelineNodes`, `PipelineExecutions`). Trạng thái chỉ sống trên `IExecutionStateStore` (Redis/MemoryStore) với `TTL = 2 giờ`.
+    - **Stateless AST Analysis:** Bóc tách schema script Python thông qua `POST /api/pipeline/nodes/custom/analyze-batch-stateless`, trả về danh sách pins trực tiếp, không tạo thực thể `NodeDefinition` trong DB.
+    - **Direct Disk Bypass:** Đối với script local máy trạm (`local:*`), Dispatcher truyền thẳng đường dẫn đĩa vật lý `SourceRepositoryPath` và `ScriptUrl = null`, bỏ qua việc tải lên/tải xuống S3.
+    - **Workstation Affinity:** Điều hướng task runner ưu tiên theo `preferredRunnerId` (chính là machineKey của máy trạm local).
+
+
 
 
 
