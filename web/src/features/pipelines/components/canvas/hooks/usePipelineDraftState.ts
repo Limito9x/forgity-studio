@@ -518,7 +518,9 @@ export function usePipelineDraftState(
         );
       }
 
-      const hasMeaningfulChange = clampedChanges.some((c) => c.type !== "select");
+      const hasMeaningfulChange = clampedChanges.some(
+        (c) => c.type !== "select" && c.type !== "dimensions"
+      );
       if (hasMeaningfulChange) {
         setIsDirty(true);
       }

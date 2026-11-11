@@ -105,17 +105,26 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
 
   const draftNodeList = Object.values(draftNodes);
 
-  // Parse active draft YAML into ExtendedPipelineGraphDto for PipelineCanvas (Fallback when no snapshot exists)
+  // Parse active draft YAML into ExtendedPipelineGraphDto for PipelineCanvas
+  // YAML is the Single Source of Truth for nodes and edges; snapshot supplies cached coordinates & sizes.
   const parsedCanvasGraph = useMemo<ExtendedPipelineGraphDto | null>(() => {
-    if (cachedSnapshotGraph) return cachedSnapshotGraph;
     if (!activeDraftPipeline?.content) return null;
     try {
       const parsed = pipelineYamlToGraph(activeDraftPipeline.content);
+
+      // Position, size and custom config lookup map from snapshot if available
+      const snapNodeMap = new Map<string, any>();
+      if (cachedSnapshotGraph?.nodes) {
+        for (const sn of cachedSnapshotGraph.nodes) {
+          snapNodeMap.set(sn.id, sn);
+        }
+      }
+
       const graphDto: ExtendedPipelineGraphDto = {
         id: activeDraftPipeline.fullPath,
         name: parsed.name || activeDraftPipeline.fileName,
         projectId,
-        triggerType: PipelineTriggerType.Manual,
+        triggerType: cachedSnapshotGraph?.triggerType ?? PipelineTriggerType.Manual,
         nodes: parsed.nodes.map((n) => {
           const refIdLower = String(n.data?.refId || n.id).toLowerCase();
           const isStart = refIdLower === "start" || refIdLower === "beginexecute";
@@ -131,6 +140,9 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
           const matchedScript = Object.values(draftNodes).find(
             (d) => d.key === n.data?.refId || `local:${d.key}` === n.data?.refId
           );
+
+          const snapNode = snapNodeMap.get(n.id);
+
           return {
             id: n.id,
             refId: (n.data?.refId as string) || n.id,
@@ -138,11 +150,16 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
             kind,
             category: isStart || isReturn ? "Flow Control" : matchedScript?.executor || (n.data?.category as string) || "Tool",
             executor: isStart || isReturn ? "server" : matchedScript?.executor || (n.data?.executor as string) || "python",
-            position: n.position,
+            position: snapNode?.position || n.position,
             parentId: n.parentId || null,
-            configValues: (n.data?.configValues as any) || {},
-            inputs: matchedScript?.inputs || [],
-            outputs: matchedScript?.outputs || [],
+            size: snapNode?.size,
+            configValues: (n.data?.configValues as any) || snapNode?.configValues || {},
+            inputs: isReturn
+              ? [{ id: "exec_in", label: "Exec", kind: "Exec" as any, isRequired: false }]
+              : snapNode?.inputs?.length ? snapNode.inputs : (matchedScript?.inputs || []),
+            outputs: isStart
+              ? [{ id: "exec_out", label: "Start", kind: "Exec" as any, isRequired: false }]
+              : snapNode?.outputs?.length ? snapNode.outputs : (matchedScript?.outputs || []),
             metadata: {
               isLocalDraft: n.data?.isLocalDraft,
               label: n.data?.label,
@@ -156,7 +173,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
           targetNodeId: e.target,
           targetPin: e.targetHandle || "in",
         })),
-        parameters: [],
+        parameters: cachedSnapshotGraph?.parameters || [],
       };
       return graphDto;
     } catch (err: any) {

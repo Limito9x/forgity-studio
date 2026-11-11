@@ -103,13 +103,23 @@ export function pipelineYamlToGraph(yamlContent: string): {
 
   // Auto layout position tracking
   let currentX = 100;
-  let currentY = 100;
+  let currentY = 150;
 
   for (const item of parsed.nodes) {
+    const isStart = item.id.toLowerCase() === "start" || item.tool.toLowerCase() === "start";
+    const isReturn = item.id.toLowerCase() === "return" || item.tool.toLowerCase() === "return";
+
+    let nodePos = { x: currentX, y: currentY };
+    if (isStart) {
+      nodePos = { x: 100, y: 150 };
+    } else if (isReturn && parsed.nodes.length <= 2) {
+      nodePos = { x: 700, y: 150 };
+    }
+
     nodes.push({
       id: item.id,
       type: "pipelineNode",
-      position: { x: currentX, y: currentY },
+      position: nodePos,
       parentId: item.stage,
       data: {
         id: item.id,

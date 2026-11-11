@@ -394,6 +394,14 @@ fn create_local_pipeline_draft(
     std::fs::write(&full_path, &default_yaml)
         .map_err(|e| format!("Failed to write draft pipeline: {}", e))?;
 
+    // Also remove any stale snapshot from earlier deleted pipelines with the same slug
+    if let Some(parent) = dir.parent() {
+        let snap_file = parent.join(".forgity").join("snapshots").join(format!("{}.snap.json", file_slug));
+        if snap_file.is_file() {
+            let _ = std::fs::remove_file(snap_file);
+        }
+    }
+
     let last_modified_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
@@ -430,6 +438,13 @@ fn rename_local_pipeline_draft(
     }
 
     let parent = old_p.parent().unwrap_or_else(|| Path::new("."));
+    let old_slug = old_p
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("pipeline")
+        .trim_end_matches(".pipeline.yaml")
+        .trim_end_matches(".pipeline.yml");
+
     let slug: String = new_name
         .to_ascii_lowercase()
         .chars()
@@ -458,6 +473,14 @@ fn rename_local_pipeline_draft(
 
     if new_p != old_p {
         std::fs::remove_file(old_p).map_err(|e| format!("Failed to remove old file: {}", e))?;
+        // Rename snapshot file if it exists
+        if let Some(root) = parent.parent() {
+            let old_snap = root.join(".forgity").join("snapshots").join(format!("{}.snap.json", old_slug));
+            let new_snap = root.join(".forgity").join("snapshots").join(format!("{}.snap.json", file_slug));
+            if old_snap.is_file() {
+                let _ = std::fs::rename(old_snap, new_snap);
+            }
+        }
     }
     std::fs::write(&new_p, &updated_content)
         .map_err(|e| format!("Failed to write renamed pipeline: {}", e))?;
@@ -567,6 +590,22 @@ fn load_local_pipeline_snapshot(
 fn delete_local_pipeline_draft(file_path: String) -> Result<(), String> {
     let p = Path::new(&file_path);
     if p.is_file() {
+        let file_stem = p
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("pipeline")
+            .trim_end_matches(".pipeline.yaml")
+            .trim_end_matches(".pipeline.yml");
+
+        if let Some(parent) = p.parent() {
+            if let Some(root) = parent.parent() {
+                let snap_file = root.join(".forgity").join("snapshots").join(format!("{}.snap.json", file_stem));
+                if snap_file.is_file() {
+                    let _ = std::fs::remove_file(snap_file);
+                }
+            }
+        }
+
         std::fs::remove_file(p).map_err(|e| format!("Failed to delete pipeline: {}", e))?;
     }
     Ok(())
