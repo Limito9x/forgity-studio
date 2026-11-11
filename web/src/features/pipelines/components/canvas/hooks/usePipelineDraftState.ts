@@ -234,10 +234,14 @@ export function usePipelineDraftState(
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-  // Sync initial graph when graph ID changes
+  // Sync initial graph ONLY when graph ID changes (e.g. switching to another pipeline)
+  const prevGraphIdRef = useRef(graph.id);
   useEffect(() => {
-    setNodes(initialNodes);
-    setEdges(initialEdges);
+    if (prevGraphIdRef.current !== graph.id) {
+      prevGraphIdRef.current = graph.id;
+      setNodes(initialNodes);
+      setEdges(initialEdges);
+    }
   }, [graph.id, initialNodes, initialEdges, setNodes, setEdges]);
 
   // Draft state & Auto-save

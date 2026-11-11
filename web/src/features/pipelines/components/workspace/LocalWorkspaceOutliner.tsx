@@ -387,8 +387,24 @@ export function LocalWorkspaceOutliner({
                 filteredNodes.map((node) => (
                   <div
                     key={node.key}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData(
+                        "application/forgity-node",
+                        JSON.stringify({
+                          key: `local:${node.key}`,
+                          label: node.suggestedLabel || node.fileName,
+                          category: "Local Scripts",
+                          executor: node.executor,
+                          inputs: node.inputs || [],
+                          outputs: node.outputs || [],
+                          source: "LocalDraft",
+                        })
+                      );
+                      e.dataTransfer.effectAllowed = "copy";
+                    }}
                     onClick={() => onSelectScript?.(node)}
-                    className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-muted/60 cursor-pointer text-xs group transition-colors"
+                    className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-muted/60 cursor-grab active:cursor-grabbing text-xs group transition-colors select-none"
                   >
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       <FileCode className="h-3.5 w-3.5 text-muted-foreground shrink-0 group-hover:text-emerald-500" />

@@ -57,7 +57,8 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
   const [selectedScript, setSelectedScript] = useState<LocalDraftNode | null>(null);
   const [viewMode, setViewMode] = useState<"visual" | "yaml">("visual");
   const [rawYamlContent, setRawYamlContent] = useState("");
-  const [cachedSnapshotGraph, setCachedSnapshotGraph] = useState<ExtendedPipelineGraphDto | null>(null);
+  const [loadedGraph, setLoadedGraph] = useState<ExtendedPipelineGraphDto | null>(null);
+  const [graphRevision, setGraphRevision] = useState<number>(0);
   const [validateControls, setValidateControls] = useState<CanvasValidateControls | null>(null);
 
   const runDraftMutation = useRunDraftPipeline();
@@ -77,110 +78,97 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
 
   useEffect(() => {
     if (!activeDraftPipeline || !pipelineSlug) {
-      setCachedSnapshotGraph(null);
+      setLoadedGraph(null);
       return;
     }
     setRawYamlContent(activeDraftPipeline.content);
 
-    // Try loading snapshot from .forgity/snapshots/<pipelineSlug>.snap.json
+    // Load graph from .forgity/snapshots/<pipelineSlug>.snap.json (acting like local database)
     let isCancelled = false;
     loadPipelineSnapshotFromDisk(pipelineSlug).then((snapJson) => {
       if (isCancelled) return;
       if (snapJson) {
         try {
           const parsedDto = JSON.parse(snapJson) as ExtendedPipelineGraphDto;
-          setCachedSnapshotGraph(parsedDto);
-          return;
+          if (parsedDto && parsedDto.nodes && parsedDto.nodes.length > 0) {
+            setLoadedGraph(parsedDto);
+            setGraphRevision((v) => v + 1);
+            return;
+          }
         } catch (e) {
           console.warn("[LocalWorkspacePage] Failed to parse snapshot json:", e);
         }
       }
-      setCachedSnapshotGraph(null);
+
+      // Fallback: parse YAML if snapshot does not exist yet
+      try {
+        const parsed = pipelineYamlToGraph(activeDraftPipeline.content);
+        const graphDto: ExtendedPipelineGraphDto = {
+          id: activeDraftPipeline.fullPath,
+          name: parsed.name || activeDraftPipeline.fileName,
+          projectId,
+          triggerType: PipelineTriggerType.Manual,
+          nodes: parsed.nodes.map((n) => {
+            const refIdLower = String(n.data?.refId || n.id).toLowerCase();
+            const isStart = refIdLower === "start" || refIdLower === "beginexecute";
+            const isReturn = refIdLower === "return" || refIdLower === "endexecute";
+            const isStage = n.type === "scopeContainer";
+
+            let kind: any = PipelineNodeKind.Tool;
+            if (isStart) kind = PipelineNodeKind.Start;
+            else if (isReturn) kind = PipelineNodeKind.Return;
+            else if (isStage) kind = PipelineNodeKind.Container;
+            else if (n.data?.isLocalDraft) kind = PipelineNodeKind.Custom;
+
+            const matchedScript = Object.values(draftNodes).find(
+              (d) => d.key === n.data?.refId || `local:${d.key}` === n.data?.refId
+            );
+
+            return {
+              id: n.id,
+              refId: (n.data?.refId as string) || n.id,
+              label: (n.data?.label as string) || n.id,
+              kind,
+              category: isStart || isReturn ? "Flow Control" : matchedScript?.executor || (n.data?.category as string) || "Tool",
+              executor: isStart || isReturn ? "server" : matchedScript?.executor || (n.data?.executor as string) || "python",
+              position: n.position,
+              parentId: n.parentId || null,
+              configValues: (n.data?.configValues as any) || {},
+              inputs: isReturn
+                ? [{ id: "exec_in", label: "Exec", kind: "Exec" as any, isRequired: false }]
+                : (matchedScript?.inputs || []),
+              outputs: isStart
+                ? [{ id: "exec_out", label: "Start", kind: "Exec" as any, isRequired: false }]
+                : (matchedScript?.outputs || []),
+              metadata: {
+                isLocalDraft: n.data?.isLocalDraft,
+                label: n.data?.label,
+              },
+            };
+          }),
+          edges: parsed.edges.map((e) => ({
+            id: e.id,
+            sourceNodeId: e.source,
+            sourcePin: e.sourceHandle || "out",
+            targetNodeId: e.target,
+            targetPin: e.targetHandle || "in",
+          })),
+          parameters: [],
+        };
+        setLoadedGraph(graphDto);
+        setGraphRevision((v) => v + 1);
+      } catch (err) {
+        console.warn("[LocalWorkspacePage] Failed to parse pipeline YAML:", err);
+        setLoadedGraph(null);
+      }
     });
 
     return () => {
       isCancelled = true;
     };
-  }, [activeDraftPipeline?.fullPath, pipelineSlug, loadPipelineSnapshotFromDisk]);
+  }, [activeDraftPipeline?.fullPath, pipelineSlug, loadPipelineSnapshotFromDisk, projectId, draftNodes]);
 
   const draftNodeList = Object.values(draftNodes);
-
-  // Parse active draft YAML into ExtendedPipelineGraphDto for PipelineCanvas
-  // YAML is the Single Source of Truth for nodes and edges; snapshot supplies cached coordinates & sizes.
-  const parsedCanvasGraph = useMemo<ExtendedPipelineGraphDto | null>(() => {
-    if (!activeDraftPipeline?.content) return null;
-    try {
-      const parsed = pipelineYamlToGraph(activeDraftPipeline.content);
-
-      // Position, size and custom config lookup map from snapshot if available
-      const snapNodeMap = new Map<string, any>();
-      if (cachedSnapshotGraph?.nodes) {
-        for (const sn of cachedSnapshotGraph.nodes) {
-          snapNodeMap.set(sn.id, sn);
-        }
-      }
-
-      const graphDto: ExtendedPipelineGraphDto = {
-        id: activeDraftPipeline.fullPath,
-        name: parsed.name || activeDraftPipeline.fileName,
-        projectId,
-        triggerType: cachedSnapshotGraph?.triggerType ?? PipelineTriggerType.Manual,
-        nodes: parsed.nodes.map((n) => {
-          const refIdLower = String(n.data?.refId || n.id).toLowerCase();
-          const isStart = refIdLower === "start" || refIdLower === "beginexecute";
-          const isReturn = refIdLower === "return" || refIdLower === "endexecute";
-          const isStage = n.type === "scopeContainer";
-
-          let kind: any = PipelineNodeKind.Tool;
-          if (isStart) kind = PipelineNodeKind.Start;
-          else if (isReturn) kind = PipelineNodeKind.Return;
-          else if (isStage) kind = PipelineNodeKind.Container;
-          else if (n.data?.isLocalDraft) kind = PipelineNodeKind.Custom;
-
-          const matchedScript = Object.values(draftNodes).find(
-            (d) => d.key === n.data?.refId || `local:${d.key}` === n.data?.refId
-          );
-
-          const snapNode = snapNodeMap.get(n.id);
-
-          return {
-            id: n.id,
-            refId: (n.data?.refId as string) || n.id,
-            label: (n.data?.label as string) || n.id,
-            kind,
-            category: isStart || isReturn ? "Flow Control" : matchedScript?.executor || (n.data?.category as string) || "Tool",
-            executor: isStart || isReturn ? "server" : matchedScript?.executor || (n.data?.executor as string) || "python",
-            position: snapNode?.position || n.position,
-            parentId: n.parentId || null,
-            size: snapNode?.size,
-            configValues: (n.data?.configValues as any) || snapNode?.configValues || {},
-            inputs: isReturn
-              ? [{ id: "exec_in", label: "Exec", kind: "Exec" as any, isRequired: false }]
-              : snapNode?.inputs?.length ? snapNode.inputs : (matchedScript?.inputs || []),
-            outputs: isStart
-              ? [{ id: "exec_out", label: "Start", kind: "Exec" as any, isRequired: false }]
-              : snapNode?.outputs?.length ? snapNode.outputs : (matchedScript?.outputs || []),
-            metadata: {
-              isLocalDraft: n.data?.isLocalDraft,
-              label: n.data?.label,
-            },
-          };
-        }),
-        edges: parsed.edges.map((e) => ({
-          id: e.id,
-          sourceNodeId: e.source,
-          sourcePin: e.sourceHandle || "out",
-          targetNodeId: e.target,
-          targetPin: e.targetHandle || "in",
-        })),
-        parameters: cachedSnapshotGraph?.parameters || [],
-      };
-      return graphDto;
-    } catch (err: any) {
-      console.warn("[LocalWorkspacePage] Failed to parse pipeline YAML:", err);
-      return null;
-    }
-  }, [cachedSnapshotGraph, activeDraftPipeline, projectId, draftNodes]);
 
   const handleSelectScript = (node: LocalDraftNode) => {
     setSelectedScript(node);
@@ -272,7 +260,8 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
           };
 
           await savePipelineSnapshotOnDisk(pipelineSlug, JSON.stringify(updatedSnapDto, null, 2));
-          setCachedSnapshotGraph(updatedSnapDto);
+          setLoadedGraph(updatedSnapDto);
+          setGraphRevision((v) => v + 1);
         } catch (snapErr) {
           console.warn("[LocalWorkspacePage] Could not update snapshot from raw YAML:", snapErr);
         }
@@ -550,11 +539,12 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                   />
                 </div>
               </div>
-            ) : parsedCanvasGraph ? (
+            ) : loadedGraph ? (
               <div className="h-full w-full">
                 <PipelineCanvas
+                  key={`${activeDraftPipeline.fullPath}:${graphRevision}`}
                   projectId={projectId}
-                  graph={parsedCanvasGraph}
+                  graph={loadedGraph}
                   isLocalMode={true}
                   onRegisterValidateControls={setValidateControls}
                   onSaveLocalDraft={async (yamlContent) => {
@@ -667,12 +657,12 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
       />
 
       {/* Publish to Studio Dialog */}
-      {parsedCanvasGraph && (
+      {loadedGraph && (
         <PublishToStudioDialog
           projectId={projectId}
-          initialName={parsedCanvasGraph.name || "Draft Pipeline"}
-          nodes={parsedCanvasGraph.nodes as any}
-          edges={parsedCanvasGraph.edges as any}
+          initialName={loadedGraph.name || "Draft Pipeline"}
+          nodes={loadedGraph.nodes as any}
+          edges={loadedGraph.edges as any}
           isOpen={publishDialogOpen}
           onClose={() => setPublishDialogOpen(false)}
           onPublished={() => {

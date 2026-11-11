@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import type { NodePaletteItemDto } from "@/gen/model";
 import {
   ReactFlow,
   Background,
@@ -196,6 +197,38 @@ function PipelineCanvasContent({
     screenToFlowPosition,
   });
 
+  // Handle Palette Script node drag & drop directly onto Canvas
+  const handleCanvasDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (e.dataTransfer.types.includes("application/forgity-node")) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+        return;
+      }
+      dnd.onDragOver(e);
+    },
+    [dnd]
+  );
+
+  const handleCanvasDrop = useCallback(
+    (e: React.DragEvent) => {
+      const nodeData = e.dataTransfer.getData("application/forgity-node");
+      if (nodeData) {
+        e.preventDefault();
+        try {
+          const item = JSON.parse(nodeData) as NodePaletteItemDto;
+          const flowPos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+          draft.handleSelectPaletteItem(item, null, flowPos);
+          return;
+        } catch (err) {
+          console.warn("Failed to drop palette item onto canvas:", err);
+        }
+      }
+      dnd.onDrop(e);
+    },
+    [screenToFlowPosition, draft, dnd]
+  );
+
   // Parameters panel tab state (Inputs | Outputs | Variables | Context)
   const [paramTab, setParamTab] = useState<ParameterTab>("variables");
 
@@ -354,8 +387,8 @@ function PipelineCanvasContent({
               }}
               onPaneClick={() => draft.setSelectedNodeId(null)}
               onPaneContextMenu={isLocked ? undefined : ctxMenu.onPaneContextMenu}
-              onDragOver={isLocked ? undefined : dnd.onDragOver}
-              onDrop={isLocked ? undefined : dnd.onDrop}
+              onDragOver={isLocked ? undefined : handleCanvasDragOver}
+              onDrop={isLocked ? undefined : handleCanvasDrop}
               fitView
               fitViewOptions={{ padding: 0.2 }}
               onlyRenderVisibleElements={false}
