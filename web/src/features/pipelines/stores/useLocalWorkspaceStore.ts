@@ -34,7 +34,8 @@ interface LocalWorkspaceState {
   toggleScriptFolder: (path: string, enabled: boolean) => Promise<void>;
   setPrimaryPipelineFolder: (path: string) => Promise<void>;
   scanLocalScriptsNative: () => Promise<StagedScriptItem[]>;
-  applyStagedNodesToPalette: (staged: StagedScriptItem[]) => Promise<void>;
+  applyStagedNodesToPalette: (staged: StagedScriptItem[], replace?: boolean) => Promise<void>;
+  clearLocalPalette: () => Promise<void>;
   scanAndSyncScripts: () => Promise<ScriptScanSummary | null>;
   updateDraftNode: (key: string, updates: Partial<LocalDraftNode>) => Promise<void>;
   scanDraftPipelines: () => Promise<ScannedPipelineYamlItemRust[]>;
@@ -184,11 +185,11 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
     }
   },
 
-  applyStagedNodesToPalette: async (staged: StagedScriptItem[]) => {
+  applyStagedNodesToPalette: async (staged: StagedScriptItem[], replace = true) => {
     const { projectId, draftNodes } = getStore();
     if (!projectId) return;
 
-    const nextDraftNodes: Record<string, LocalDraftNode> = { ...draftNodes };
+    const nextDraftNodes: Record<string, LocalDraftNode> = replace ? {} : { ...draftNodes };
     let newCount = 0;
     let modified = 0;
     let unchanged = 0;
@@ -217,6 +218,17 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
 
     await set(DRAFT_NODES_KEY(projectId), nextDraftNodes);
     await set(SCAN_SUMMARY_KEY(projectId), summary);
+  },
+
+  clearLocalPalette: async () => {
+    const { projectId } = getStore();
+    if (!projectId) return;
+    setStore({
+      draftNodes: {},
+      scanSummary: null,
+    });
+    await set(DRAFT_NODES_KEY(projectId), {});
+    await set(SCAN_SUMMARY_KEY(projectId), null);
   },
 
   scanAndSyncScripts: async () => {

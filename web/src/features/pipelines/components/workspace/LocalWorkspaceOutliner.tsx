@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 import { openNativeFileOrFolderDialog, isTauriRuntime } from "@/lib/platform/filePickerStrategy";
 import { useLocalWorkspaceStore } from "../../stores/useLocalWorkspaceStore";
 import type { LocalDraftNode, ScannedPipelineYamlItemRust } from "../../types/workspaceConfig";
@@ -38,6 +39,7 @@ export function LocalWorkspaceOutliner({
     removeScriptFolder,
     toggleScriptFolder,
     scanAndSyncScripts,
+    clearLocalPalette,
   } = useLocalWorkspaceStore();
 
   const [foldersExpanded, setFoldersExpanded] = useState(true);
@@ -77,6 +79,15 @@ export function LocalWorkspaceOutliner({
       await scanAndSyncScripts();
     } catch (err) {
       console.error("[LocalWorkspaceOutliner] Failed to add folder:", err);
+    }
+  };
+
+  const handleClearPalette = async () => {
+    try {
+      await clearLocalPalette();
+      toast.success("Local palette cleared!");
+    } catch (err: any) {
+      toast.error("Failed to clear palette", { description: err?.message });
     }
   };
 
@@ -182,11 +193,23 @@ export function LocalWorkspaceOutliner({
               {scriptsExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
               <span>Local Palette Nodes ({draftNodeList.length})</span>
             </button>
-            {draftNodeList.length > 0 && (
-              <Badge variant="outline" className="text-[10px] text-emerald-500 border-emerald-500/30 px-1 py-0 h-4">
-                Ready
-              </Badge>
-            )}
+            <div className="flex items-center gap-1.5">
+              {draftNodeList.length > 0 && (
+                <>
+                  <Badge variant="outline" className="text-[10px] text-emerald-500 border-emerald-500/30 px-1 py-0 h-4">
+                    Ready
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onPress={handleClearPalette}
+                    className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
 
           {scriptsExpanded && (
