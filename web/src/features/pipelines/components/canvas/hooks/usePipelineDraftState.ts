@@ -28,7 +28,20 @@ import {
 import { getStartNodeEventTriggerPins } from "../constants/structPins";
 import { applyNodeConfigUpdate } from "../../../nodeDefinitions";
 
-export function usePipelineDraftState(graph: ExtendedPipelineGraphDto, structCatalogue?: StructDefinitionDto[]) {
+import { graphToPipelineYaml } from "../../../utils/pipelineDslConverter";
+
+interface PipelineDraftOptions {
+  isLocalMode?: boolean;
+  onSaveLocalDraft?: (yamlContent: string) => Promise<void>;
+}
+
+export function usePipelineDraftState(
+  graph: ExtendedPipelineGraphDto,
+  structCatalogue?: StructDefinitionDto[],
+  options?: PipelineDraftOptions
+) {
+  const isLocalMode = options?.isLocalMode ?? false;
+  const onSaveLocalDraft = options?.onSaveLocalDraft;
   // 1. Initial nodes mapping from DTO (Unified Nodes architecture)
   const initialNodes: Node[] = useMemo(() => {
     const rawNodes = (graph.nodes || []) as any[];
@@ -228,7 +241,7 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto, structCat
   // Draft state & Auto-save
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const saveMutation = useSavePipelineGraph(graph.id);
+  const saveMutation = useSavePipelineGraph(isLocalMode ? "" : graph.id);
   const isInitialMount = useRef(true);
 
   // Helper to synchronize Start and Return node pins from current parameters
@@ -540,6 +553,16 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto, structCat
 
       try {
         setIsSaving(true);
+
+        if (isLocalMode) {
+          if (onSaveLocalDraft) {
+            const yamlStr = graphToPipelineYaml(graph.name, nodes, edges);
+            await onSaveLocalDraft(yamlStr);
+          }
+          setIsSaving(false);
+          return;
+        }
+
         const saveNodes: SavePipelineNodeItem[] = [];
         const saveEdges: SavePipelineEdgeItem[] = [];
 

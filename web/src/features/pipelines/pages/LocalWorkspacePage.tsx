@@ -342,6 +342,12 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                 <PipelineCanvas
                   projectId={projectId}
                   graph={parsedCanvasGraph}
+                  isLocalMode={true}
+                  onSaveLocalDraft={async (yamlContent) => {
+                    if (activeDraftPipeline) {
+                      await savePipelineDraft(activeDraftPipeline.fullPath, yamlContent);
+                    }
+                  }}
                 />
               </div>
             ) : (

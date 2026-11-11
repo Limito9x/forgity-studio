@@ -45,6 +45,8 @@ import {
 interface PipelineCanvasProps {
   projectId: string;
   graph: ExtendedPipelineGraphDto;
+  isLocalMode?: boolean;
+  onSaveLocalDraft?: (yamlContent: string) => Promise<void>;
 }
 
 const nodeTypes = {
@@ -75,14 +77,17 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
   );
 }
 
-function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
+function PipelineCanvasContent({ projectId, graph, isLocalMode = false, onSaveLocalDraft }: PipelineCanvasProps) {
   const { screenToFlowPosition, setCenter } = useReactFlow();
   const { data: paletteItems = [] } = useNodePalette(projectId);
   const { data: structCatalogue = [] } = useGetStructCatalogue({ projectId });
   const [isAutoFollow, setIsAutoFollow] = useState(true);
 
   // 1. Headless Draft State & Auto-save (with Stage Auto-expanding)
-  const draft = usePipelineDraftState(graph, structCatalogue);
+  const draft = usePipelineDraftState(graph, structCatalogue, {
+    isLocalMode,
+    onSaveLocalDraft,
+  });
 
   // 1b. Real-time Diagnostics Scope
   const [isDiagnosticsPanelOpen, setIsDiagnosticsPanelOpen] = useState(false);
@@ -114,9 +119,9 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
     draft.setSelectedNodeId(nodeId);
   };
 
-  // 2. Real-time Live Execution Tracking & SignalR
+  // 2. Real-time Live Execution Tracking & SignalR (only for server pipelines)
   const live = usePipelineLiveTracking({
-    pipelineId: graph.id,
+    pipelineId: isLocalMode ? "" : graph.id,
     setNodes: draft.setNodes,
   });
 
@@ -226,31 +231,33 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
     <PipelineFormScopeProvider value={scopeValue}>
       <div className="relative flex h-full w-full flex-col overflow-hidden bg-background">
         {/* Top Toolbar */}
-        <CanvasToolbar
-          projectId={projectId}
-          pipelineId={graph.id}
-          pipelineName={graph.name}
-          triggerType={graph.triggerType}
-          isSaving={draft.isSaving}
-          onOpenRunModal={() => setIsRunModalOpen(true)}
-          onOpenHistory={() => {
-            live.setDrawerDefaultTab("history");
-            live.setIsDrawerOpen(true);
-          }}
-          onOpenSnapshots={() => setIsSnapshotsOpen(true)}
-          onValidate={diagnosticsScope.validateDraft}
-          isValidating={diagnosticsScope.isValidating}
-          validationStatus={diagnosticsScope.validationStatus}
-          errorCount={diagnosticsScope.errorCount}
-          warningCount={diagnosticsScope.warningCount}
-          isStale={diagnosticsScope.isStale}
-          isDiagnosticsPanelOpen={isDiagnosticsPanelOpen}
-          onToggleDiagnosticsPanel={() => setIsDiagnosticsPanelOpen((prev) => !prev)}
-          isExecuting={live.isExecutionRunning}
-          isAutoFollow={isAutoFollow}
-          onToggleAutoFollow={() => setIsAutoFollow((prev) => !prev)}
-          onOpenPublishModal={() => setIsPublishModalOpen(true)}
-        />
+        {!isLocalMode && (
+          <CanvasToolbar
+            projectId={projectId}
+            pipelineId={graph.id}
+            pipelineName={graph.name}
+            triggerType={graph.triggerType}
+            isSaving={draft.isSaving}
+            onOpenRunModal={() => setIsRunModalOpen(true)}
+            onOpenHistory={() => {
+              live.setDrawerDefaultTab("history");
+              live.setIsDrawerOpen(true);
+            }}
+            onOpenSnapshots={() => setIsSnapshotsOpen(true)}
+            onValidate={diagnosticsScope.validateDraft}
+            isValidating={diagnosticsScope.isValidating}
+            validationStatus={diagnosticsScope.validationStatus}
+            errorCount={diagnosticsScope.errorCount}
+            warningCount={diagnosticsScope.warningCount}
+            isStale={diagnosticsScope.isStale}
+            isDiagnosticsPanelOpen={isDiagnosticsPanelOpen}
+            onToggleDiagnosticsPanel={() => setIsDiagnosticsPanelOpen((prev) => !prev)}
+            isExecuting={live.isExecutionRunning}
+            isAutoFollow={isAutoFollow}
+            onToggleAutoFollow={() => setIsAutoFollow((prev) => !prev)}
+            onOpenPublishModal={() => setIsPublishModalOpen(true)}
+          />
+        )}
 
         {/* Main Canvas & Inspector Layout */}
         <div className="relative flex flex-1 overflow-hidden">
@@ -329,7 +336,7 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
             {/* Right-click Context Palette Popover */}
             <ContextMenuPalette
               projectId={projectId}
-              currentPipelineId={graph.id}
+              currentPipelineId={isLocalMode ? undefined : graph.id}
               position={ctxMenu.palettePosition}
               targetStage={ctxMenu.targetStage}
               onClose={ctxMenu.closePalette}
@@ -410,7 +417,7 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
           {/* Selected Node Config Inspector Side Panel */}
           {draft.selectedNode && draft.selectedNode.type !== "scopeContainer" && (
             <NodeConfigInspector
-              pipelineId={graph.id}
+              pipelineId={isLocalMode ? "" : graph.id}
               node={draft.selectedNode}
               triggerType={graph.triggerType}
               triggerConfig={graph.triggerConfig}
