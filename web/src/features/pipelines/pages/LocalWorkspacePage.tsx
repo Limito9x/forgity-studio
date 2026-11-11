@@ -38,7 +38,6 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     isScanning,
     isLoading,
     initWorkspace,
-    scanAndSyncScripts,
     scanDraftPipelines,
     activeDraftPipeline,
     setActiveDraftPipeline,

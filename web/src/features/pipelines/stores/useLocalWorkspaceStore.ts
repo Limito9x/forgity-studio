@@ -5,7 +5,6 @@ import type {
   ForgityWorkspaceConfig,
   LocalDraftNode,
   ScannedPipelineYamlItemRust,
-  ScannedScriptItemRust,
   ScriptFolderConfig,
   ScriptScanSummary,
   StagedScriptItem,
@@ -240,10 +239,6 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
         lastError: errMsg,
       });
       throw err;
-    }
-  },
-      });
-      throw new Error(errMsg);
     }
   },
 
