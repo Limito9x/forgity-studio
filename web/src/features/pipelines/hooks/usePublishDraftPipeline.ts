@@ -20,10 +20,10 @@ export function usePublishDraftPipelineMutation() {
   return useMutation({
     mutationFn: (data: PublishDraftPipelineRequest) => publishDraftPipeline(data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/pipelines"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/pipeline/nodes"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/pipelines`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/pipeline-nodes`] });
       if (variables.pipelineId) {
-        queryClient.invalidateQueries({ queryKey: ["/api/pipeline/pipelines", variables.pipelineId] });
+        queryClient.invalidateQueries({ queryKey: [`/api/pipelines`, variables.pipelineId] });
       }
     },
   });

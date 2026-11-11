@@ -19,7 +19,7 @@ import { WorkspaceConfigDialog } from "../components/workspace/WorkspaceConfigDi
 import { LocalScriptSyncSheet } from "../components/workspace/LocalScriptSyncSheet";
 import { PublishToStudioDialog } from "../components/canvas/PublishToStudioDialog";
 import { PipelineCanvas } from "../components/canvas/PipelineCanvas";
-import { pipelineYamlToGraph } from "../utils/pipelineDslConverter";
+import { pipelineYamlToGraph, graphToPipelineYaml } from "../utils/pipelineDslConverter";
 import { useRunDraftPipeline } from "@/gen/endpoints/pipelines/pipelines";
 import { getLocalMachineInfo } from "@/lib/platform/filePickerStrategy";
 import { PipelineTriggerType } from "@/gen/model/pipelineTriggerType";
@@ -374,7 +374,25 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                     Visual Canvas
                   </button>
                   <button
-                    onClick={() => setViewMode("yaml")}
+                    onClick={async () => {
+                      if (pipelineSlug) {
+                        const snapJson = await loadPipelineSnapshotFromDisk(pipelineSlug);
+                        if (snapJson) {
+                          try {
+                            const parsedDto = JSON.parse(snapJson) as ExtendedPipelineGraphDto;
+                            const yamlStr = graphToPipelineYaml(
+                              parsedDto.name,
+                              parsedDto.nodes as any,
+                              parsedDto.edges as any
+                            );
+                            setRawYamlContent(yamlStr);
+                          } catch (e) {
+                            console.warn("Failed to generate raw yaml from current snapshot", e);
+                          }
+                        }
+                      }
+                      setViewMode("yaml");
+                    }}
                     className={`px-2.5 py-1 text-xs rounded-md font-medium transition-all ${
                       viewMode === "yaml"
                         ? "bg-background text-foreground shadow-xs"

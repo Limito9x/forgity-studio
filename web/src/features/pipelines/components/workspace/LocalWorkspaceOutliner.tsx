@@ -213,77 +213,7 @@ export function LocalWorkspaceOutliner({
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
-        {/* Section 1: Local Palette Scripts */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-xs font-medium text-foreground px-1 py-1">
-            <button
-              onClick={() => setScriptsExpanded(!scriptsExpanded)}
-              className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {scriptsExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-              <span>Local Palette Nodes ({draftNodeList.length})</span>
-            </button>
-            <div className="flex items-center gap-1.5">
-              {draftNodeList.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onPress={handleClearPalette}
-                  className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive transition-colors"
-                  aria-label="Clear Local Palette"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {scriptsExpanded && (
-            <div className="space-y-1 pl-1">
-              {draftNodeList.length > 6 && (
-                <div className="px-1 py-1">
-                  <Input
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Filter scripts..."
-                    className="h-7 text-xs bg-background/50"
-                  />
-                </div>
-              )}
-
-              {filteredNodes.length === 0 ? (
-                <p className="text-[11px] text-muted-foreground px-2 py-1 italic">
-                  {draftNodeList.length === 0 ? "No palette saved. Click Sync to scan scripts." : "No matching scripts."}
-                </p>
-              ) : (
-                filteredNodes.map((node) => (
-                  <div
-                    key={node.key}
-                    onClick={() => onSelectScript?.(node)}
-                    className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-muted/60 cursor-pointer text-xs group transition-colors"
-                  >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <FileCode className="h-3.5 w-3.5 text-muted-foreground shrink-0 group-hover:text-emerald-500" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-foreground font-medium text-[11px]">
-                          {node.suggestedLabel || node.fileName}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground truncate font-mono">
-                          {node.key}
-                        </p>
-                      </div>
-                    </div>
-                    <Badge variant="outline" className={`text-[9px] px-1 py-0 h-4 ${getExecutorColor(node.executor)}`}>
-                      {node.executor}
-                    </Badge>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Section 2: Pipelines (.pipeline.yaml) */}
+        {/* Section 1: Pipelines (.pipeline.yaml) */}
         <div className="space-y-1">
           <div className="flex items-center justify-between text-xs font-medium text-foreground px-1 py-1">
             <button
@@ -406,6 +336,76 @@ export function LocalWorkspaceOutliner({
                     </div>
                   );
                 })
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Section 2: Local Palette Scripts */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-xs font-medium text-foreground px-1 py-1">
+            <button
+              onClick={() => setScriptsExpanded(!scriptsExpanded)}
+              className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {scriptsExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+              <span>Local Palette Nodes ({draftNodeList.length})</span>
+            </button>
+            <div className="flex items-center gap-1.5">
+              {draftNodeList.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onPress={handleClearPalette}
+                  className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive transition-colors"
+                  aria-label="Clear Local Palette"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {scriptsExpanded && (
+            <div className="space-y-1 pl-1">
+              {draftNodeList.length > 6 && (
+                <div className="px-1 py-1">
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Filter scripts..."
+                    className="h-7 text-xs bg-background/50"
+                  />
+                </div>
+              )}
+
+              {filteredNodes.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground px-2 py-1 italic">
+                  {draftNodeList.length === 0 ? "No palette saved. Click Sync to scan scripts." : "No matching scripts."}
+                </p>
+              ) : (
+                filteredNodes.map((node) => (
+                  <div
+                    key={node.key}
+                    onClick={() => onSelectScript?.(node)}
+                    className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-muted/60 cursor-pointer text-xs group transition-colors"
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <FileCode className="h-3.5 w-3.5 text-muted-foreground shrink-0 group-hover:text-emerald-500" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-foreground font-medium text-[11px]">
+                          {node.suggestedLabel || node.fileName}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground truncate font-mono">
+                          {node.key}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className={`text-[9px] px-1 py-0 h-4 ${getExecutorColor(node.executor)}`}>
+                      {node.executor}
+                    </Badge>
+                  </div>
+                ))
               )}
             </div>
           )}

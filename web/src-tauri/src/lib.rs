@@ -387,7 +387,7 @@ fn create_local_pipeline_draft(
     let full_path = dir.join(&file_name);
 
     let default_yaml = format!(
-        "name: \"{}\"\nversion: \"draft\"\nrunner: \"local\"\nnodes:\n  - id: start\n    tool: Start\n    label: \"Start Pipeline\"\nedges: []\n",
+        "name: \"{}\"\nversion: \"draft\"\nrunner: \"local\"\nnodes:\n  - id: start\n    tool: Start\n    label: \"Start Pipeline\"\n  - id: return\n    tool: Return\n    label: \"Return\"\nedges: []\n",
         name
     );
 
