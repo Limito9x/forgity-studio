@@ -462,12 +462,14 @@ function PipelineCanvasContent({ projectId, graph, isLocalMode = false, onSaveLo
         />
 
         {/* Snapshot / Version History Dialog */}
-        <PipelineSnapshotHistoryDialog
-          open={isSnapshotsOpen}
-          onOpenChange={setIsSnapshotsOpen}
-          pipelineId={graph.id}
-          pipelineName={graph.name}
-        />
+        {!isLocalMode && (
+          <PipelineSnapshotHistoryDialog
+            open={isSnapshotsOpen}
+            onOpenChange={setIsSnapshotsOpen}
+            pipelineId={graph.id}
+            pipelineName={graph.name}
+          />
+        )}
 
         {/* Publish to Studio Cloud Dialog */}
         <PublishToStudioDialog

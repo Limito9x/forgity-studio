@@ -22,10 +22,10 @@ import { PipelineCanvas } from "../components/canvas/PipelineCanvas";
 import { pipelineYamlToGraph } from "../utils/pipelineDslConverter";
 import { useRunDraftPipeline } from "@/gen/endpoints/pipelines/pipelines";
 import { getLocalMachineInfo } from "@/lib/platform/filePickerStrategy";
-import { PipelineNodeKind } from "@/gen/model/pipelineNodeKind";
 import { PipelineTriggerType } from "@/gen/model/pipelineTriggerType";
 import type { LocalDraftNode, ScannedPipelineYamlItemRust } from "../types/workspaceConfig";
 import type { ExtendedPipelineGraphDto, SavePipelineNodeItem, SavePipelineEdgeItem } from "../hooks/usePipelineGraph";
+import { PipelineNodeKind } from "../hooks/usePipelineGraph";
 
 interface LocalWorkspacePageProps {
   projectId: string;
@@ -81,6 +81,17 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
         projectId,
         triggerType: PipelineTriggerType.Manual,
         nodes: parsed.nodes.map((n) => {
+          const refIdLower = String(n.data?.refId || n.id).toLowerCase();
+          const isStart = refIdLower === "start" || refIdLower === "beginexecute";
+          const isReturn = refIdLower === "return" || refIdLower === "endexecute";
+          const isStage = n.type === "scopeContainer";
+
+          let kind: any = PipelineNodeKind.Tool;
+          if (isStart) kind = PipelineNodeKind.Start;
+          else if (isReturn) kind = PipelineNodeKind.Return;
+          else if (isStage) kind = PipelineNodeKind.Container;
+          else if (n.data?.isLocalDraft) kind = PipelineNodeKind.Custom;
+
           const matchedScript = Object.values(draftNodes).find(
             (d) => d.key === n.data?.refId || `local:${d.key}` === n.data?.refId
           );
@@ -88,8 +99,8 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
             id: n.id,
             refId: (n.data?.refId as string) || n.id,
             label: (n.data?.label as string) || n.id,
-            kind: n.data?.isLocalDraft ? PipelineNodeKind.Custom : PipelineNodeKind.Tool,
-            category: matchedScript?.executor || (n.data?.category as string) || "Tool",
+            kind,
+            category: matchedScript?.executor || (n.data?.category as string) || (isStart || isReturn ? "Flow Control" : "Tool"),
             executor: matchedScript?.executor || (n.data?.executor as string) || "python",
             position: n.position,
             parentId: n.parentId || null,
