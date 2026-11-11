@@ -42,6 +42,8 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     activeDraftPipeline,
     setActiveDraftPipeline,
     savePipelineDraft,
+    savePipelineSnapshotOnDisk,
+    loadPipelineSnapshotFromDisk,
   } = useLocalWorkspaceStore();
 
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
@@ -51,6 +53,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
   const [selectedScript, setSelectedScript] = useState<LocalDraftNode | null>(null);
   const [viewMode, setViewMode] = useState<"visual" | "yaml">("visual");
   const [rawYamlContent, setRawYamlContent] = useState("");
+  const [cachedSnapshotGraph, setCachedSnapshotGraph] = useState<ExtendedPipelineGraphDto | null>(null);
 
   const runDraftMutation = useRunDraftPipeline();
 
@@ -62,16 +65,44 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     }
   }, [projectId, initWorkspace, scanDraftPipelines]);
 
+  const pipelineSlug = useMemo(() => {
+    if (!activeDraftPipeline) return "";
+    return activeDraftPipeline.fileName.replace(/\.pipeline\.(yaml|yml)$/, "");
+  }, [activeDraftPipeline?.fileName]);
+
   useEffect(() => {
-    if (activeDraftPipeline) {
-      setRawYamlContent(activeDraftPipeline.content);
+    if (!activeDraftPipeline || !pipelineSlug) {
+      setCachedSnapshotGraph(null);
+      return;
     }
-  }, [activeDraftPipeline?.fullPath, activeDraftPipeline?.content]);
+    setRawYamlContent(activeDraftPipeline.content);
+
+    // Try loading snapshot from .forgity/snapshots/<pipelineSlug>.snap.json
+    let isCancelled = false;
+    loadPipelineSnapshotFromDisk(pipelineSlug).then((snapJson) => {
+      if (isCancelled) return;
+      if (snapJson) {
+        try {
+          const parsedDto = JSON.parse(snapJson) as ExtendedPipelineGraphDto;
+          setCachedSnapshotGraph(parsedDto);
+          return;
+        } catch (e) {
+          console.warn("[LocalWorkspacePage] Failed to parse snapshot json:", e);
+        }
+      }
+      setCachedSnapshotGraph(null);
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeDraftPipeline?.fullPath, pipelineSlug, loadPipelineSnapshotFromDisk]);
 
   const draftNodeList = Object.values(draftNodes);
 
-  // Parse active draft YAML into ExtendedPipelineGraphDto for PipelineCanvas
+  // Parse active draft YAML into ExtendedPipelineGraphDto for PipelineCanvas (Fallback when no snapshot exists)
   const parsedCanvasGraph = useMemo<ExtendedPipelineGraphDto | null>(() => {
+    if (cachedSnapshotGraph) return cachedSnapshotGraph;
     if (!activeDraftPipeline?.content) return null;
     try {
       const parsed = pipelineYamlToGraph(activeDraftPipeline.content);
@@ -127,7 +158,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
       console.warn("[LocalWorkspacePage] Failed to parse pipeline YAML:", err);
       return null;
     }
-  }, [activeDraftPipeline, projectId]);
+  }, [cachedSnapshotGraph, activeDraftPipeline, projectId, draftNodes]);
 
   const handleSelectScript = (node: LocalDraftNode) => {
     setSelectedScript(node);
@@ -357,6 +388,11 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                   onSaveLocalDraft={async (yamlContent) => {
                     if (activeDraftPipeline) {
                       await savePipelineDraft(activeDraftPipeline.fullPath, yamlContent);
+                    }
+                  }}
+                  onSaveLocalSnapshot={async (snapshotDto) => {
+                    if (pipelineSlug) {
+                      await savePipelineSnapshotOnDisk(pipelineSlug, JSON.stringify(snapshotDto, null, 2));
                     }
                   }}
                 />

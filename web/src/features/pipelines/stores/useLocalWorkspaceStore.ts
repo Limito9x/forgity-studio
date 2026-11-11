@@ -43,6 +43,8 @@ interface LocalWorkspaceState {
   renamePipelineDraft: (filePath: string, newName: string) => Promise<ScannedPipelineYamlItemRust | null>;
   duplicatePipelineDraft: (filePath: string) => Promise<ScannedPipelineYamlItemRust | null>;
   deletePipelineDraft: (filePath: string) => Promise<void>;
+  savePipelineSnapshotOnDisk: (pipelineSlug: string, snapshotJson: string) => Promise<void>;
+  loadPipelineSnapshotFromDisk: (pipelineSlug: string) => Promise<string | null>;
 }
 
 export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, getStore) => ({
@@ -425,6 +427,37 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
     } catch (err) {
       console.error("[useLocalWorkspaceStore] Failed to delete pipeline draft:", err);
       throw err;
+    }
+  },
+
+  savePipelineSnapshotOnDisk: async (pipelineSlug: string, snapshotJson: string) => {
+    const { rootPath } = getStore();
+    if (!rootPath || !isTauriRuntime()) return;
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("save_local_pipeline_snapshot", {
+        rootPath,
+        pipelineSlug,
+        snapshotJson,
+      });
+    } catch (err) {
+      console.error("[useLocalWorkspaceStore] Failed to save pipeline snapshot on disk:", err);
+    }
+  },
+
+  loadPipelineSnapshotFromDisk: async (pipelineSlug: string) => {
+    const { rootPath } = getStore();
+    if (!rootPath || !isTauriRuntime()) return null;
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const snap = await invoke<string | null>("load_local_pipeline_snapshot", {
+        rootPath,
+        pipelineSlug,
+      });
+      return snap;
+    } catch (err) {
+      console.warn("[useLocalWorkspaceStore] Failed to load pipeline snapshot from disk:", err);
+      return null;
     }
   },
 }));

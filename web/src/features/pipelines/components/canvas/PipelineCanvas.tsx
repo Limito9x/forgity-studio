@@ -47,6 +47,7 @@ interface PipelineCanvasProps {
   graph: ExtendedPipelineGraphDto;
   isLocalMode?: boolean;
   onSaveLocalDraft?: (yamlContent: string) => Promise<void>;
+  onSaveLocalSnapshot?: (snapshotDto: ExtendedPipelineGraphDto) => Promise<void>;
 }
 
 const nodeTypes = {
@@ -77,7 +78,13 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
   );
 }
 
-function PipelineCanvasContent({ projectId, graph, isLocalMode = false, onSaveLocalDraft }: PipelineCanvasProps) {
+function PipelineCanvasContent({
+  projectId,
+  graph,
+  isLocalMode = false,
+  onSaveLocalDraft,
+  onSaveLocalSnapshot,
+}: PipelineCanvasProps) {
   const { screenToFlowPosition, setCenter } = useReactFlow();
   const { data: paletteItems = [] } = useNodePalette(projectId);
   const { data: structCatalogue = [] } = useGetStructCatalogue({ projectId });
@@ -87,6 +94,7 @@ function PipelineCanvasContent({ projectId, graph, isLocalMode = false, onSaveLo
   const draft = usePipelineDraftState(graph, structCatalogue, {
     isLocalMode,
     onSaveLocalDraft,
+    onSaveLocalSnapshot,
   });
 
   // 1b. Real-time Diagnostics Scope

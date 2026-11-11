@@ -33,6 +33,7 @@ import { graphToPipelineYaml } from "../../../utils/pipelineDslConverter";
 interface PipelineDraftOptions {
   isLocalMode?: boolean;
   onSaveLocalDraft?: (yamlContent: string) => Promise<void>;
+  onSaveLocalSnapshot?: (snapshotDto: ExtendedPipelineGraphDto) => Promise<void>;
 }
 
 export function usePipelineDraftState(
@@ -42,6 +43,7 @@ export function usePipelineDraftState(
 ) {
   const isLocalMode = options?.isLocalMode ?? false;
   const onSaveLocalDraft = options?.onSaveLocalDraft;
+  const onSaveLocalSnapshot = options?.onSaveLocalSnapshot;
   // 1. Initial nodes mapping from DTO (Unified Nodes architecture)
   const initialNodes: Node[] = useMemo(() => {
     const rawNodes = (graph.nodes || []) as any[];
@@ -558,6 +560,44 @@ export function usePipelineDraftState(
           if (onSaveLocalDraft) {
             const yamlStr = graphToPipelineYaml(graph.name, nodes, edges);
             await onSaveLocalDraft(yamlStr);
+          }
+          if (onSaveLocalSnapshot) {
+            const snapshotDto: ExtendedPipelineGraphDto = {
+              id: graph.id,
+              name: graph.name,
+              projectId: graph.projectId,
+              triggerType: graph.triggerType,
+              nodes: nodes.map((n) => {
+                const data = (n.data || {}) as CustomPipelineNodeData;
+                return {
+                  id: n.id,
+                  refId: data.refId || n.id,
+                  label: data.label || n.id,
+                  kind: (data.kind as any) || PipelineNodeKind.Tool,
+                  category: data.category || "Tool",
+                  executor: data.executor || "python",
+                  position: n.position,
+                  parentId: n.parentId || null,
+                  size: {
+                    width: typeof n.width === "number" ? n.width : n.measured?.width ?? 240,
+                    height: typeof n.height === "number" ? n.height : n.measured?.height ?? 120,
+                  },
+                  configValues: data.configValues || {},
+                  inputs: data.inputs || [],
+                  outputs: data.outputs || [],
+                  metadata: data.metadata,
+                };
+              }),
+              edges: edges.map((e) => ({
+                id: e.id,
+                sourceNodeId: e.source,
+                sourcePin: e.sourceHandle || "out",
+                targetNodeId: e.target,
+                targetPin: e.targetHandle || "in",
+              })),
+              parameters,
+            };
+            await onSaveLocalSnapshot(snapshotDto);
           }
           setIsSaving(false);
           return;

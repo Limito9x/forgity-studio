@@ -529,6 +529,41 @@ fn duplicate_local_pipeline_draft(file_path: String) -> Result<ScannedPipelineYa
 }
 
 #[tauri::command]
+fn save_local_pipeline_snapshot(
+    root_path: String,
+    pipeline_slug: String,
+    snapshot_json: String,
+) -> Result<(), String> {
+    let snaps_dir = Path::new(&root_path).join(".forgity").join("snapshots");
+    std::fs::create_dir_all(&snaps_dir)
+        .map_err(|e| format!("Failed to create .forgity/snapshots directory: {}", e))?;
+
+    let snap_file = snaps_dir.join(format!("{}.snap.json", pipeline_slug));
+    std::fs::write(snap_file, snapshot_json)
+        .map_err(|e| format!("Failed to write snapshot json: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn load_local_pipeline_snapshot(
+    root_path: String,
+    pipeline_slug: String,
+) -> Result<Option<String>, String> {
+    let snap_file = Path::new(&root_path)
+        .join(".forgity")
+        .join("snapshots")
+        .join(format!("{}.snap.json", pipeline_slug));
+
+    if !snap_file.is_file() {
+        return Ok(None);
+    }
+
+    let content = std::fs::read_to_string(snap_file)
+        .map_err(|e| format!("Failed to read snapshot json: {}", e))?;
+    Ok(Some(content))
+}
+
+#[tauri::command]
 fn delete_local_pipeline_draft(file_path: String) -> Result<(), String> {
     let p = Path::new(&file_path);
     if p.is_file() {
@@ -982,6 +1017,8 @@ pub fn run() {
             rename_local_pipeline_draft,
             duplicate_local_pipeline_draft,
             delete_local_pipeline_draft,
+            save_local_pipeline_snapshot,
+            load_local_pipeline_snapshot,
             scan_local_script_folders,
             scan_local_pipeline_drafts,
             analyze_local_scripts_native
