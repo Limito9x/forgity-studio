@@ -42,14 +42,21 @@ export function graphToPipelineYaml(
 
     const data = n.data || {};
     const refId = (data.refId as string) || (data.key as string) || n.id;
+    const refIdLower = refId.toLowerCase();
+    const isControlNode =
+      refIdLower === "start" ||
+      refIdLower === "beginexecute" ||
+      refIdLower === "return" ||
+      refIdLower === "endexecute";
+
     const inputsConfig: Record<string, any> = (data.configValues as Record<string, any>) || {};
 
     dslNodes.push({
       id: n.id,
       tool: refId,
       label: (data.label as string) || undefined,
-      category: (data.category as string) || undefined,
-      executor: (data.executor as string) || undefined,
+      category: isControlNode ? undefined : (data.category as string) || undefined,
+      executor: isControlNode ? undefined : (data.executor as string) || undefined,
       stage: (n.parentId as string) || undefined,
       inputs: Object.keys(inputsConfig).length > 0 ? inputsConfig : undefined,
       metadata: data.isLocalDraft ? { isLocalDraft: true, sourcePath: data.sourcePath } : undefined,
