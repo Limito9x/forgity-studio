@@ -8,8 +8,9 @@ import type {
   ScannedScriptItemRust,
   ScriptFolderConfig,
   ScriptScanSummary,
+  StagedScriptItem,
+  ScriptSyncStatus,
 } from "../types/workspaceConfig";
-import { analyzeCustomNodesBatchStateless } from "../hooks/useAnalyzeCustomNodesStateless";
 
 const WORKSPACE_CONFIG_KEY = (projectId: string) => `forgity:workspace_config:${projectId}`;
 const DRAFT_NODES_KEY = (projectId: string) => `forgity:local_draft_nodes:${projectId}`;
@@ -33,6 +34,8 @@ interface LocalWorkspaceState {
   removeScriptFolder: (path: string) => Promise<void>;
   toggleScriptFolder: (path: string, enabled: boolean) => Promise<void>;
   setPrimaryPipelineFolder: (path: string) => Promise<void>;
+  scanLocalScriptsNative: () => Promise<StagedScriptItem[]>;
+  applyStagedNodesToPalette: (staged: StagedScriptItem[]) => Promise<void>;
   scanAndSyncScripts: () => Promise<ScriptScanSummary | null>;
   updateDraftNode: (key: string, updates: Partial<LocalDraftNode>) => Promise<void>;
   scanDraftPipelines: () => Promise<ScannedPipelineYamlItemRust[]>;
@@ -126,125 +129,119 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
     }));
   },
 
-  scanAndSyncScripts: async () => {
-    const { projectId, config, draftNodes, isScanning } = getStore();
-    if (!projectId || !config || isScanning) return null;
+  scanLocalScriptsNative: async (): Promise<StagedScriptItem[]> => {
+    const { config, draftNodes } = getStore();
+    if (!config) return [];
+
+    const activeFolders = (config.scriptFolders || []).filter((f) => f.enabled && f.path.trim().length > 0);
+    if (activeFolders.length === 0) return [];
 
     if (!isTauriRuntime()) {
-      console.warn("[useLocalWorkspaceStore] scan_local_script_folders is only available on Desktop runtime.");
-      return null;
+      console.warn("[useLocalWorkspaceStore] Native script analysis requires Desktop runtime.");
+      return [];
     }
 
-    setStore({ isScanning: true, lastError: null });
-
     try {
-      const activeFolders = config.scriptFolders.filter((f) => f.enabled && f.path.trim().length > 0);
-      if (activeFolders.length === 0) {
-        setStore({ isScanning: false });
-        return null;
-      }
-
       const { invoke } = await import("@tauri-apps/api/core");
-      const scannedItems = await invoke<ScannedScriptItemRust[]>("scan_local_script_folders", {
+      const analyzed = await invoke<any[]>("analyze_local_scripts_native", {
         folders: activeFolders.map((f) => ({
           namespace: f.namespace,
           path: f.path,
         })),
       });
 
-      let unchanged = 0;
-      let newCount = 0;
-      let modified = 0;
-
-      const itemsToAnalyze: ScannedScriptItemRust[] = [];
-      const updatedDraftMap = { ...draftNodes };
-
-      for (const item of scannedItems) {
+      const now = new Date().toISOString();
+      return analyzed.map((item) => {
         const cached = draftNodes[item.key];
-
+        let status: ScriptSyncStatus = "unchanged";
         if (!cached) {
-          newCount++;
-          itemsToAnalyze.push(item);
-        } else if (cached.contentHash === item.contentHash) {
-          unchanged++;
-        } else {
-          modified++;
-          itemsToAnalyze.push(item);
-        }
-      }
-
-      // If there are new or modified scripts, send to Stateless Analyzer API
-      if (itemsToAnalyze.length > 0) {
-        const response = await analyzeCustomNodesBatchStateless({
-          projectId,
-          scripts: itemsToAnalyze.map((s) => ({
-            key: s.key,
-            fileName: s.fileName,
-            fullPath: s.fullPath,
-            scriptContent: s.content,
-            contentHash: s.contentHash,
-          })),
-        });
-
-        const now = new Date().toISOString();
-        for (const analyzed of response.nodes) {
-          const originItem = itemsToAnalyze.find((it) => it.key === analyzed.key);
-          updatedDraftMap[analyzed.key] = {
-            key: analyzed.key,
-            fileName: analyzed.fileName,
-            fullPath: analyzed.fullPath,
-            folderRoot: originItem?.folderRoot || "",
-            namespace: originItem?.namespace || "core",
-            suggestedName: analyzed.suggestedName,
-            suggestedLabel: analyzed.suggestedLabel,
-            executor: analyzed.executor,
-            description: analyzed.description ?? undefined,
-            contentHash: analyzed.contentHash,
-            sourceCode: originItem?.content || "",
-            inputs: analyzed.inputs as any[],
-            outputs: analyzed.outputs as any[],
-            dependencies: analyzed.dependencies as any[],
-            lastSyncedAt: now,
-          };
+          status = "new";
+        } else if (cached.contentHash !== item.contentHash) {
+          status = "modified";
         }
 
-        // Persist updated draft nodes in IndexedDB
-        await set(DRAFT_NODES_KEY(projectId), updatedDraftMap);
-      }
-
-      // Ensure all scanned items have their latest sourceCode in draftMap
-      for (const item of scannedItems) {
-        if (updatedDraftMap[item.key] && !updatedDraftMap[item.key].sourceCode) {
-          updatedDraftMap[item.key] = {
-            ...updatedDraftMap[item.key],
-            sourceCode: item.content,
-          };
-        }
-      }
-
-      const summary: ScriptScanSummary = {
-        unchanged,
-        newCount,
-        modified,
-        total: scannedItems.length,
-        lastScannedAt: new Date().toISOString(),
-      };
-
-      await set(SCAN_SUMMARY_KEY(projectId), summary);
-
-      setStore({
-        draftNodes: updatedDraftMap,
-        scanSummary: summary,
-        isScanning: false,
+        return {
+          key: item.key,
+          fileName: item.fileName,
+          fullPath: item.fullPath,
+          folderRoot: item.folderRoot,
+          namespace: item.namespace,
+          suggestedName: item.suggestedName,
+          suggestedLabel: item.suggestedLabel,
+          executor: item.executor,
+          description: item.description ?? undefined,
+          contentHash: item.contentHash,
+          sourceCode: item.sourceCode || "",
+          inputs: item.inputs || [],
+          outputs: item.outputs || [],
+          dependencies: item.dependencies || [],
+          lastSyncedAt: now,
+          status,
+        };
       });
+    } catch (err: any) {
+      console.error("[useLocalWorkspaceStore] Native script analysis failed:", err);
+      throw err;
+    }
+  },
 
+  applyStagedNodesToPalette: async (staged: StagedScriptItem[]) => {
+    const { projectId, draftNodes } = getStore();
+    if (!projectId) return;
+
+    const nextDraftNodes: Record<string, LocalDraftNode> = { ...draftNodes };
+    let newCount = 0;
+    let modified = 0;
+    let unchanged = 0;
+
+    for (const item of staged) {
+      if (item.status === "new") newCount++;
+      else if (item.status === "modified") modified++;
+      else unchanged++;
+
+      const { status: _s, ...nodeData } = item;
+      nextDraftNodes[item.key] = nodeData;
+    }
+
+    const summary: ScriptScanSummary = {
+      newCount,
+      modified,
+      unchanged,
+      total: staged.length,
+      lastScannedAt: new Date().toISOString(),
+    };
+
+    setStore({
+      draftNodes: nextDraftNodes,
+      scanSummary: summary,
+    });
+
+    await set(DRAFT_NODES_KEY(projectId), nextDraftNodes);
+    await set(SCAN_SUMMARY_KEY(projectId), summary);
+  },
+
+  scanAndSyncScripts: async () => {
+    const { isScanning } = getStore();
+    if (isScanning) return null;
+
+    setStore({ isScanning: true, lastError: null });
+
+    try {
+      const staged = await getStore().scanLocalScriptsNative();
+      await getStore().applyStagedNodesToPalette(staged);
+      const summary = getStore().scanSummary;
+      setStore({ isScanning: false });
       return summary;
     } catch (err: any) {
       console.error("[useLocalWorkspaceStore] Error while scanning/syncing local scripts:", err);
-      const errMsg = err?.response?.data?.message || err?.message || "Failed to scan and sync local scripts";
+      const errMsg = err?.message || "Failed to scan and sync local scripts";
       setStore({
         isScanning: false,
         lastError: errMsg,
+      });
+      throw err;
+    }
+  },
       });
       throw new Error(errMsg);
     }

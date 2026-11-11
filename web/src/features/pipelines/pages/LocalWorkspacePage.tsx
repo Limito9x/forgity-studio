@@ -85,13 +85,8 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     setSelectedScript(node);
   };
 
-  const handleOpenSyncAndReview = async (scriptKey?: string) => {
+  const handleOpenSyncAndReview = (scriptKey?: string) => {
     setSyncSheetInitialKey(scriptKey);
-    try {
-      await scanAndSyncScripts();
-    } catch {
-      // Continue opening review sheet even if some warnings occurred
-    }
     setSyncSheetOpen(true);
   };
 
@@ -376,7 +371,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                   </span>
                   <ul className="space-y-0.5 text-muted-foreground font-mono text-[11px]">
                     {selectedScript.inputs?.map((p: any) => (
-                      <li key={p.name} className="truncate">• {p.name}</li>
+                      <li key={p.id || p.name} className="truncate">• {p.label || p.id || p.name}</li>
                     ))}
                   </ul>
                 </div>
@@ -386,7 +381,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                   </span>
                   <ul className="space-y-0.5 text-muted-foreground font-mono text-[11px]">
                     {selectedScript.outputs?.map((p: any) => (
-                      <li key={p.name} className="truncate">• {p.name}</li>
+                      <li key={p.id || p.name} className="truncate">• {p.label || p.id || p.name}</li>
                     ))}
                   </ul>
                 </div>

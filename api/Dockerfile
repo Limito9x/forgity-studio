@@ -25,25 +25,16 @@ RUN dotnet publish ./api/src/Automation.Api/Automation.Api.csproj \
     /p:UseAppHost=false
 
 # =========================================================================
-# Stage 2: Runtime (ASP.NET Core 10 + Python 3 Native AST Analyzer)
+# Stage 2: Runtime (ASP.NET Core 10 - Ultra-Clean, Zero-Python)
 # =========================================================================
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
-
-# Cài đặt Python 3 runtime phục vụ phân tích cú pháp tĩnh Python Script (AST Analyzer Sidecar)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    && rm -rf /var/lib/apt/lists/*
 
 # Expose HTTP API và gRPC Ports
 EXPOSE 5189
 EXPOSE 50051
 
-ENV PYTHON_PATH=python3
-ENV ANALYZER_SCRIPT_PATH=/app/lib/analyzers/python_script_analyzer.py
-
 COPY --from=build /app/publish .
 COPY runner/scripts/ ./runner/scripts/
-COPY api/lib/ ./lib/
 
 ENTRYPOINT ["dotnet", "Automation.Api.dll"]

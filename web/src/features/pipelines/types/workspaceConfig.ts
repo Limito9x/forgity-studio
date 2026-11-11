@@ -31,6 +31,10 @@ export interface LocalDraftNode {
 
 export type ScriptSyncStatus = 'unchanged' | 'new' | 'modified';
 
+export interface StagedScriptItem extends LocalDraftNode {
+  status: ScriptSyncStatus;
+}
+
 export interface ScannedScriptItemRust {
   namespace: string;
   key: string;
