@@ -585,7 +585,7 @@ export function usePipelineDraftState(
                   configValues: data.configValues || {},
                   inputs: data.inputs || [],
                   outputs: data.outputs || [],
-                  metadata: data.metadata,
+                  metadata: (data.metadata as any) || null,
                 };
               }),
               edges: edges.map((e) => ({
