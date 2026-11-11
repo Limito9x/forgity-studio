@@ -365,6 +365,35 @@ public class ExportPipelinesHandler(
                     }
                     if (cleanConfigValues.Count == 0) cleanConfigValues = null;
                 }
+                else if (query.Mode == ExportPipelineMode.TextOnly)
+                {
+                    // TextOnly: Keep all primitive/string/number configs, but strip all file pins
+                    if (n.ConfigValues != null)
+                    {
+                        cleanConfigValues = new Dictionary<string, object?>();
+                        var filePinIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        if (n.Inputs != null)
+                        {
+                            foreach (var pin in n.Inputs.Where(PipelineFileValue.IsFilePin))
+                            {
+                                filePinIds.Add(pin.Id);
+                            }
+                        }
+
+                        foreach (var (k, v) in n.ConfigValues)
+                        {
+                            if (filePinIds.Contains(k)) continue;
+                            if (PipelineFileValue.TryGetUnbound(v, out _)) continue;
+                            cleanConfigValues[k] = v;
+                        }
+
+                        if (refPipelineBundleId != null)
+                        {
+                            cleanConfigValues["pipelineBundleId"] = refPipelineBundleId;
+                        }
+                        if (cleanConfigValues.Count == 0) cleanConfigValues = null;
+                    }
+                }
                 else
                 {
                     if (n.ConfigValues != null)

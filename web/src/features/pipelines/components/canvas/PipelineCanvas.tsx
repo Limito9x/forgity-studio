@@ -43,23 +43,17 @@ import {
   usePipelineDiagnostics,
 } from "./hooks";
 
-export interface CanvasValidateControls {
-  validate: () => Promise<void>;
-  errorCount: number;
-  warningCount: number;
-  isValidating: boolean;
-  isStale: boolean;
-  toggleDiagnostics: () => void;
-  isDiagnosticsOpen: boolean;
-}
-
 interface PipelineCanvasProps {
   projectId: string;
   graph: ExtendedPipelineGraphDto;
   isLocalMode?: boolean;
+  viewMode?: "visual" | "yaml";
+  onToggleViewMode?: (mode: "visual" | "yaml") => void;
   onSaveLocalDraft?: (yamlContent: string) => Promise<void>;
   onSaveLocalSnapshot?: (snapshotDto: ExtendedPipelineGraphDto) => Promise<void>;
-  onRegisterValidateControls?: (controls: CanvasValidateControls) => void;
+  onRunDraft?: () => void;
+  isRunningDraft?: boolean;
+  onOpenPublishModal?: () => void;
 }
 
 const nodeTypes = {
@@ -94,9 +88,13 @@ function PipelineCanvasContent({
   projectId,
   graph,
   isLocalMode = false,
+  viewMode = "visual",
+  onToggleViewMode,
   onSaveLocalDraft,
   onSaveLocalSnapshot,
-  onRegisterValidateControls,
+  onRunDraft,
+  isRunningDraft = false,
+  onOpenPublishModal,
 }: PipelineCanvasProps) {
   const { screenToFlowPosition, setCenter } = useReactFlow();
   const { data: paletteItems = [] } = useNodePalette(projectId);
@@ -121,29 +119,6 @@ function PipelineCanvasContent({
     lastSavedDiagnostics: null,
     isLocalMode,
   });
-
-  // Register validate controls back to parent if requested
-  useEffect(() => {
-    if (onRegisterValidateControls) {
-      onRegisterValidateControls({
-        validate: diagnosticsScope.validateDraft,
-        errorCount: diagnosticsScope.errorCount,
-        warningCount: diagnosticsScope.warningCount,
-        isValidating: diagnosticsScope.isValidating,
-        isStale: diagnosticsScope.isStale,
-        toggleDiagnostics: () => setIsDiagnosticsPanelOpen((prev) => !prev),
-        isDiagnosticsOpen: isDiagnosticsPanelOpen,
-      });
-    }
-  }, [
-    onRegisterValidateControls,
-    diagnosticsScope.validateDraft,
-    diagnosticsScope.errorCount,
-    diagnosticsScope.warningCount,
-    diagnosticsScope.isValidating,
-    diagnosticsScope.isStale,
-    isDiagnosticsPanelOpen,
-  ]);
 
   const handleFocusNode = (nodeId: string) => {
     const targetNode = draft.nodes.find((n) => n.id === nodeId);
@@ -308,33 +283,39 @@ function PipelineCanvasContent({
     <PipelineFormScopeProvider value={scopeValue}>
       <div className="relative flex h-full w-full flex-col overflow-hidden bg-background">
         {/* Top Toolbar */}
-        {!isLocalMode && (
-          <CanvasToolbar
-            projectId={projectId}
-            pipelineId={graph.id}
-            pipelineName={graph.name}
-            triggerType={graph.triggerType}
-            isSaving={draft.isSaving}
-            onOpenRunModal={() => setIsRunModalOpen(true)}
-            onOpenHistory={() => {
-              live.setDrawerDefaultTab("history");
-              live.setIsDrawerOpen(true);
-            }}
-            onOpenSnapshots={() => setIsSnapshotsOpen(true)}
-            onValidate={diagnosticsScope.validateDraft}
-            isValidating={diagnosticsScope.isValidating}
-            validationStatus={diagnosticsScope.validationStatus}
-            errorCount={diagnosticsScope.errorCount}
-            warningCount={diagnosticsScope.warningCount}
-            isStale={diagnosticsScope.isStale}
-            isDiagnosticsPanelOpen={isDiagnosticsPanelOpen}
-            onToggleDiagnosticsPanel={() => setIsDiagnosticsPanelOpen((prev) => !prev)}
-            isExecuting={live.isExecutionRunning}
-            isAutoFollow={isAutoFollow}
-            onToggleAutoFollow={() => setIsAutoFollow((prev) => !prev)}
-            onOpenPublishModal={() => setIsPublishModalOpen(true)}
-          />
-        )}
+        <CanvasToolbar
+          projectId={projectId}
+          pipelineId={graph.id}
+          pipelineName={graph.name}
+          triggerType={graph.triggerType}
+          isSaving={draft.isSaving}
+          isLocalMode={isLocalMode}
+          viewMode={viewMode}
+          onToggleViewMode={onToggleViewMode}
+          isRunningDraft={isRunningDraft}
+          onOpenRunModal={isLocalMode && onRunDraft ? onRunDraft : () => setIsRunModalOpen(true)}
+          onOpenHistory={
+            isLocalMode
+              ? undefined
+              : () => {
+                  live.setDrawerDefaultTab("history");
+                  live.setIsDrawerOpen(true);
+                }
+          }
+          onOpenSnapshots={isLocalMode ? undefined : () => setIsSnapshotsOpen(true)}
+          onValidate={diagnosticsScope.validateDraft}
+          isValidating={diagnosticsScope.isValidating}
+          validationStatus={diagnosticsScope.validationStatus}
+          errorCount={diagnosticsScope.errorCount}
+          warningCount={diagnosticsScope.warningCount}
+          isStale={diagnosticsScope.isStale}
+          isDiagnosticsPanelOpen={isDiagnosticsPanelOpen}
+          onToggleDiagnosticsPanel={() => setIsDiagnosticsPanelOpen((prev) => !prev)}
+          isExecuting={isLocalMode ? isRunningDraft || live.isExecutionRunning : live.isExecutionRunning}
+          isAutoFollow={isAutoFollow}
+          onToggleAutoFollow={() => setIsAutoFollow((prev) => !prev)}
+          onOpenPublishModal={onOpenPublishModal || (() => setIsPublishModalOpen(true))}
+        />
 
         {/* Main Canvas & Inspector Layout */}
         <div className="relative flex flex-1 overflow-hidden">

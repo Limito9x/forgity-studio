@@ -3,13 +3,13 @@ import { Link } from "@tanstack/react-router";
 import {
   Workflow,
   Plus,
-  FileCode,
   Loader2,
   Download,
   UploadCloud,
   Trash2,
   Cloud,
   Box,
+  Laptop,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -115,15 +115,15 @@ export function PipelineListPage({ projectId }: PipelineListPageProps) {
         ) : (
           <div className="flex items-center gap-2">
             <Link
-              to="/s/$studioSlug/projects/$projectId/pipeline/nodes/new"
+              to="/s/$studioSlug/projects/$projectId/pipeline/workspace"
               params={{ studioSlug, projectId }}
               className={cn(
                 buttonVariants({ variant: "outline", size: "sm" }),
-                "gap-1.5 text-xs"
+                "gap-1.5 text-xs bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
               )}
             >
-              <FileCode className="h-3.5 w-3.5" />
-              <span>New Custom Node</span>
+              <Laptop className="h-3.5 w-3.5" />
+              <span>Open Local Workspace</span>
             </Link>
           </div>
         )}

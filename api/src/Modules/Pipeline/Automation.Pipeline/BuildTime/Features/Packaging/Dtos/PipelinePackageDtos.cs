@@ -43,7 +43,8 @@ public record PipelinePackageGraphDto(
 public enum ExportPipelineMode
 {
     FullBackup = 0,
-    CleanTemplate = 1
+    CleanTemplate = 1,
+    TextOnly = 2
 }
 
 public record PipelinePackageFilePinMetadataDto(

@@ -26,11 +26,11 @@ Qua thực tiễn phát triển các pipeline DCC (Blender, Unreal Engine, Daz3D
 | Tiêu chí | Luồng 1: LOCAL DRAFT (Sandbox Cá Nhân trên Desktop) | Luồng 2: PUBLISHED STUDIO (Chính Thức cho Team) |
 | :--- | :--- | :--- |
 | **Nơi lưu trữ Cấu hình** | **File cấu hình chung `forgity.workspace.json`** quản lý danh sách `scriptFolders` và thư mục chính `primaryPipelineFolder`. | Cấu hình Studio & Project lưu trên PostgreSQL. |
-| **Nơi lưu trữ Script Nodes** | **100% trên máy Desktop** (`IndexedDB` + file `.py` gốc trên ổ cứng tại các `scriptFolders`). | **Bảng `NodeDefinitions` trên PostgreSQL** + File `.py` đã băm SHA-256 trên **CAS Storage (MinIO/S3)**. |
+| **Nơi lưu trữ Script Nodes** | **100% trên máy Desktop** (File `.forgity/local_palette.json` + file `.py` gốc trên ổ cứng tại các `scriptFolders`). | **Bảng `NodeDefinitions` trên PostgreSQL** + File `.py` đã băm SHA-256 trên **CAS Storage (MinIO/S3)**. |
 | **Định danh & Version Script** | Định danh bằng `Namespace:RelativePath` (`core:blender/bake_character`). Version chính là **SHA-256 ContentHash** (Hot-reload tức thì). | Lưu `Key` chuẩn, Semantic Versioning (**SemVer: `1.0.0`, `1.1.0`**), kèm nguồn gốc **`SourceOrigin: folder@runner-id`**. |
-| **Nơi lưu trữ Đồ thị Pipeline** | **100% trên máy Desktop** (IndexedDB + File phẳng phản chiếu 2 chiều **`.pipeline.yaml`** lưu tại `primaryPipelineFolder`). | **Bảng `Pipelines` & `PipelineSnapshots` bất biến (`v1, v2...`)** trên PostgreSQL. |
-| **Cách phân giải Chân Pin (AST + Structs)** | Gọi API **Vô trạng thái (Stateless)**: `POST /nodes/analyze-batch-stateless` $\rightarrow$ Backend parse AST + ghép `StructType` rồi **trả JSON về ngay, KHÔNG lưu DB**. | Đọc từ `NodeDefinitions` đã lưu trong DB. |
-| **Cách Thực Thi (`Run`)** | **`RunTransientDraftPipeline`**: Gửi kèm công thức (`GraphData` + `LocalScriptDefinitions` với `FullPath`) $\rightarrow$ Backend dựng đồ thị trong RAM (`TransientPipelineGraphFactory`), **KHÔNG tạo `PipelineSnapshot`**, khóa cứng vào **Local Desktop Runner** và chạy trực tiếp file trên đĩa! | **`RunPipeline` chuẩn**: Đọc từ `PipelineSnapshot` bất biến trong DB, tải script qua `ScriptUrl` về cache của bất kỳ Runner nào trong Farm. |
+| **Nơi lưu trữ Đồ thị Pipeline** | **100% trên máy Desktop** (Local JSON DB `.forgity/pipelines/<slug>.pipeline.json` + Snapshots `.forgity/snapshots/<slug>.snap.json` + Phản chiếu 2 chiều Declarative DSL **`.pipeline.yaml`** lưu tại `primaryPipelineFolder`). | **Bảng `Pipelines` & `PipelineSnapshots` bất biến (`v1, v2...`)** trên PostgreSQL. |
+| **Cách phân giải Chân Pin (AST + Structs)** | Phân tích Native Rust nhúng AST analyzer hoặc gọi API **Vô trạng thái (Stateless)**: `POST /nodes/analyze-batch-stateless` $\rightarrow$ Backend parse AST + ghép `StructType` rồi **trả JSON về ngay, KHÔNG lưu DB**. | Đọc từ `NodeDefinitions` đã lưu trong DB. |
+| **Cách Thực Thi (`Run`)** | **`RunTransientDraftPipeline`**: Gửi kèm công thức (`GraphData` + `LocalScriptDefinitions` với `FullPath` + cố định `PipelineId: Guid` local) $\rightarrow$ Backend dựng đồ thị trong RAM (`TransientPipelineGraphFactory`), **KHÔNG tạo `PipelineSnapshot`** trên DB, khóa cứng vào **Local Desktop Runner**, phát sóng SignalR tiến độ node theo `PipelineId` và lưu lịch sử vào `.forgity/executions/<slug>.executions.json`! | **`RunPipeline` chuẩn**: Đọc từ `PipelineSnapshot` bất biến trong DB, tải script qua `ScriptUrl` về cache của bất kỳ Runner nào trong Farm. |
 | **Đối với `Resources` (FBX, Blend, Texture)** | **Giữ nguyên Sync Draft trên DB Repository** để đóng vai trò **"Phép thử thật" (Production Simulation)**, đảm bảo khi Artist sync tài nguyên lên chạy sẽ khớp 100% với lúc TA thiết kế. | Giữ nguyên vòng đời `Repository ➔ Resource ➔ Content Anchor`. |
 
 ---
@@ -43,14 +43,14 @@ flowchart TD
         WSConfig["Workspace Config\n(`forgity.workspace.json`)"]
         VSCode["VS Code / AI Agent\n(Sửa file .py trực tiếp trên đĩa)"]
         ScriptDirs["scriptFolders[]\n- core: ./pipeline-scripts\n- custom: E:/DCC_Tools"]
-        LocalStore[("Local Desktop Store (IndexedDB)\n- localDraftNodes[]\n- localDraftPipelines[]")]
+        LocalStore[("Local Document DB (.forgity/)\n- local_palette.json\n- pipelines/<slug>.pipeline.json\n- snapshots/<slug>.snap.json\n- executions/<slug>.executions.json")]
         DSLFolder["primaryPipelineFolder\n(`./pipelines/*.pipeline.yaml`)"]
         LocalRunner["Forgity Native Rust Runner\n(Local Workstation Identity)"]
     end
 
     subgraph BackendStateless ["2. Backend .NET 10 — Chế Độ Stateless & Ephemeral (Khi Dev/Draft)"]
         StatelessAPI["POST /nodes/analyze-batch-stateless\n(NativePythonScriptAnalyzer +\nINodeContractResolver)"]
-        TransientRun["POST /pipelines/run-draft\n(TransientPipelineGraphFactory in-RAM\nKHÔNG tạo PipelineSnapshot)"]
+        TransientRun["POST /pipelines/run-draft\n(TransientPipelineGraphFactory in-RAM\nKHÔNG tạo PipelineSnapshot trên Postgres)"]
     end
 
     subgraph BackendStudio ["3. Backend .NET 10 — Chế Độ Published (Khi Chốt Cho Team)"]

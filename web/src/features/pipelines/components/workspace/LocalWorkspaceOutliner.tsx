@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   FolderOpen,
   Plus,
@@ -12,6 +12,8 @@ import {
   Copy,
   Pencil,
   Settings2,
+  CloudDownload,
+  Package,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +28,9 @@ interface LocalWorkspaceOutlinerProps {
   onSelectDraft?: (draft: ScannedPipelineYamlItemRust) => void;
   onOpenSyncSheet?: () => void;
   onOpenConfig?: () => void;
+  onRequestCreatePipeline?: (triggerFn: () => void) => void;
+  onOpenPullDialog?: () => void;
+  onOpenUnpackDialog?: () => void;
 }
 
 export function LocalWorkspaceOutliner({
@@ -33,6 +38,9 @@ export function LocalWorkspaceOutliner({
   onSelectDraft,
   onOpenSyncSheet,
   onOpenConfig,
+  onRequestCreatePipeline,
+  onOpenPullDialog,
+  onOpenUnpackDialog,
 }: LocalWorkspaceOutlinerProps) {
   const {
     rootPath,
@@ -61,6 +69,15 @@ export function LocalWorkspaceOutliner({
   // Pipeline create state
   const [isCreatingPipeline, setIsCreatingPipeline] = useState(false);
   const [newPipelineName, setNewPipelineName] = useState("");
+
+  useEffect(() => {
+    if (onRequestCreatePipeline) {
+      onRequestCreatePipeline(() => {
+        setIsCreatingPipeline(true);
+        setDraftsExpanded(true);
+      });
+    }
+  }, [onRequestCreatePipeline]);
 
   const draftNodeList = Object.values(draftNodes);
   const rootFolderName = rootPath ? rootPath.split(/[/\\]/).filter(Boolean).pop() || "Workspace" : "No Workspace";
@@ -223,15 +240,45 @@ export function LocalWorkspaceOutliner({
               {draftsExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
               <span>Pipelines ({scannedDraftPipelines.length})</span>
             </button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onPress={() => setIsCreatingPipeline(true)}
-              className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
-              aria-label="New Pipeline"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </Button>
+            <div className="flex items-center gap-1">
+              {onOpenPullDialog && (
+                <span title="Pull Pipeline from Studio">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onPress={onOpenPullDialog}
+                    className="h-5 w-5 p-0 text-muted-foreground hover:text-primary transition-colors"
+                    aria-label="Pull from Studio"
+                  >
+                    <CloudDownload className="h-3.5 w-3.5" />
+                  </Button>
+                </span>
+              )}
+              {onOpenUnpackDialog && (
+                <span title="Import Package (.json)">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onPress={onOpenUnpackDialog}
+                    className="h-5 w-5 p-0 text-muted-foreground hover:text-emerald-500 transition-colors"
+                    aria-label="Import Package"
+                  >
+                    <Package className="h-3.5 w-3.5" />
+                  </Button>
+                </span>
+              )}
+              <span title="New Pipeline">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onPress={() => setIsCreatingPipeline(true)}
+                  className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                  aria-label="New Pipeline"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </Button>
+              </span>
+            </div>
           </div>
 
           {draftsExpanded && (

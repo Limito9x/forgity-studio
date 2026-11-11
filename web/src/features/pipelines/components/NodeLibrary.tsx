@@ -18,7 +18,7 @@ import {
   Box,
   Workflow,
   ArrowRight,
-  UploadCloud,
+  Laptop,
   X,
   Layers,
   Trash2,
@@ -193,11 +193,11 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
 
           <Button
             size="sm"
-            className="h-8 gap-1.5 text-xs shadow-xs"
-            onPress={() => nav.toNodeIngest()}
+            className="h-8 gap-1.5 text-xs shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+            onPress={() => nav.toWorkspace()}
           >
-            <UploadCloud className="size-3.5" />
-            Upload Scripts
+            <Laptop className="size-3.5" />
+            Open Local Workspace
           </Button>
         </div>
       </div>
@@ -361,17 +361,17 @@ export function NodeLibrary({ projectId }: NodeLibraryProps) {
           </p>
           <p className="text-xs text-muted-foreground max-w-sm mx-auto">
             {activeScopeTab === "custom"
-              ? "You haven't uploaded any custom Python script nodes yet. Click 'Upload Scripts' to get started."
+              ? "You haven't published any custom Python script nodes yet. Open Local Workspace to author and publish scripts."
               : "Try adjusting your search query or selecting a different category filter."}
           </p>
           {activeScopeTab === "custom" ? (
             <Button
               size="sm"
-              className="h-7 text-xs gap-1.5"
-              onPress={() => nav.toNodeIngest()}
+              className="h-7 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+              onPress={() => nav.toWorkspace()}
             >
-              <UploadCloud className="size-3.5" />
-              Upload Python Script
+              <Laptop className="size-3.5" />
+              Open Local Workspace
             </Button>
           ) : (
             <Button

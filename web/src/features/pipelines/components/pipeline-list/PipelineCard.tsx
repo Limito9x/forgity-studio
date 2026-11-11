@@ -34,7 +34,7 @@ interface PipelineCardProps {
   pipeline: PipelineSummaryDto;
   mode: "active" | "trash";
   projectId: string;
-  onExportSingle?: (id: string, mode?: "FullBackup" | "CleanTemplate") => void;
+  onExportSingle?: (id: string, mode?: "FullBackup" | "CleanTemplate" | "TextOnly") => void;
   onRestore?: (pipeline: PipelineSummaryDto) => void;
   isRestoring?: boolean;
 }
@@ -161,7 +161,14 @@ export function PipelineCard({
                         className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 outline-none hover:bg-accent hover:text-accent-foreground cursor-pointer"
                       >
                         <Download className="h-3.5 w-3.5" />
-                        <span>Export (Full Bundle)</span>
+                        <span>Export Full Package</span>
+                      </MenuItem>
+                      <MenuItem
+                        onAction={() => onExportSingle(p.id, "TextOnly")}
+                        className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 outline-none hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                      >
+                        <FileCode className="h-3.5 w-3.5 text-primary" />
+                        <span>Export Text Inputs Only</span>
                       </MenuItem>
                       <MenuItem
                         onAction={() => onExportSingle(p.id, "CleanTemplate")}

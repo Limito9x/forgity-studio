@@ -29,7 +29,7 @@ export function FormPinAssetUpload<T extends FieldValues>({
           value={field.value}
           onChange={field.onChange}
           accept={accept}
-          placeholder={placeholder || "Upload asset file (Preset / Script)..."}
+          placeholder={placeholder || "Select or enter file path..."}
           disabled={disabled}
           fileAsset={fileAsset}
           persistAsLink={persistAsLink}

@@ -20,6 +20,7 @@ import {
   LocateFixed,
   GitCommit,
   UploadCloud,
+  Laptop,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useReactFlow } from "@xyflow/react";
@@ -50,6 +51,10 @@ interface CanvasToolbarProps {
   isAutoFollow?: boolean;
   onToggleAutoFollow?: () => void;
   onOpenPublishModal?: () => void;
+  isLocalMode?: boolean;
+  viewMode?: "visual" | "yaml";
+  onToggleViewMode?: (mode: "visual" | "yaml") => void;
+  isRunningDraft?: boolean;
 }
 
 export function CanvasToolbar({
@@ -72,6 +77,10 @@ export function CanvasToolbar({
   isAutoFollow = true,
   onToggleAutoFollow,
   onOpenPublishModal,
+  isLocalMode = false,
+  viewMode = "visual",
+  onToggleViewMode,
+  isRunningDraft = false,
 }: CanvasToolbarProps) {
   const { studioSlug } = useCurrentStudio();
   const { fitView, zoomIn, zoomOut } = useReactFlow();
@@ -145,16 +154,25 @@ export function CanvasToolbar({
     <div className="flex h-14 w-full items-center justify-between border-b border-border/80 bg-background px-4 shadow-sm z-30">
       {/* Left: Back & Title */}
       <div className="flex items-center gap-3 min-w-0">
-        <Link
-          to="/s/$studioSlug/projects/$projectId/pipeline"
-          params={{ studioSlug, projectId }}
-          className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8 text-muted-foreground")}
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
+        {!isLocalMode && (
+          <Link
+            to="/s/$studioSlug/projects/$projectId/pipeline"
+            params={{ studioSlug, projectId }}
+            className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8 text-muted-foreground")}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+        )}
+
+        {isLocalMode && (
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-muted/50 border border-border/50 text-emerald-500 font-medium text-xs shrink-0">
+            <Laptop className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Local Runner</span>
+          </div>
+        )}
 
         <div className="flex items-center gap-2 min-w-0">
-          {isEditingName ? (
+          {!isLocalMode && isEditingName ? (
             <div className="flex items-center gap-1.5">
               <input
                 ref={inputRef}
@@ -187,19 +205,21 @@ export function CanvasToolbar({
               <h1 className="text-sm font-semibold tracking-tight text-foreground truncate max-w-[200px] md:max-w-[320px]">
                 {pipelineName}
               </h1>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground"
-                onPress={() => setIsEditingName(true)}
-                aria-label="Edit pipeline name"
-              >
-                <Pencil className="h-3 w-3" />
-              </Button>
+              {!isLocalMode && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground"
+                  onPress={() => setIsEditingName(true)}
+                  aria-label="Edit pipeline name"
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
+              )}
             </div>
           )}
 
-          {renderTriggerBadge()}
+          {!isLocalMode && renderTriggerBadge()}
 
           {/* Autosave Indicator */}
           <div className="hidden lg:flex items-center gap-1.5 pl-2 text-xs text-muted-foreground">
@@ -220,6 +240,36 @@ export function CanvasToolbar({
 
       {/* Right: Controls & Actions */}
       <div className="flex items-center gap-2">
+        {/* View Mode Toggle (Visual Canvas vs YAML DSL) */}
+        {isLocalMode && onToggleViewMode && (
+          <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border/60 mr-1">
+            <button
+              type="button"
+              onClick={() => onToggleViewMode("visual")}
+              className={cn(
+                "px-2.5 py-1 text-xs rounded-md font-medium transition-all cursor-pointer",
+                viewMode === "visual"
+                  ? "bg-background text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Canvas
+            </button>
+            <button
+              type="button"
+              onClick={() => onToggleViewMode("yaml")}
+              className={cn(
+                "px-2.5 py-1 text-xs rounded-md font-medium transition-all cursor-pointer",
+                viewMode === "yaml"
+                  ? "bg-background text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              YAML
+            </button>
+          </div>
+        )}
+
         {/* Auto-Follow Camera Toggle during Live Execution */}
         {isExecuting && onToggleAutoFollow && (
           <span title={isAutoFollow ? "Auto-focusing active node" : "Camera auto-follow disabled"}>
@@ -280,7 +330,7 @@ export function CanvasToolbar({
         </div>
 
         {/* History / Executions Drawer Trigger */}
-        {onOpenHistory && (
+        {!isLocalMode && onOpenHistory && (
           <Button
             variant="outline"
             size="sm"
@@ -293,7 +343,7 @@ export function CanvasToolbar({
         )}
 
         {/* Snapshots / Version History Trigger */}
-        {onOpenSnapshots && (
+        {!isLocalMode && onOpenSnapshots && (
           <Button
             variant="outline"
             size="sm"
@@ -319,24 +369,26 @@ export function CanvasToolbar({
         )}
 
         {/* Export Pipeline Package */}
-        <Button
-          variant="outline"
-          size="sm"
-          onPress={() => {
-            if (pipelineId) {
-              exportSingle({ id: pipelineId });
-            }
-          }}
-          isDisabled={!pipelineId || isExportingSingle}
-          className="h-8 text-xs gap-1.5"
-        >
-          {isExportingSingle ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Download className="h-3.5 w-3.5 text-primary" />
-          )}
-          <span className="hidden sm:inline">Export</span>
-        </Button>
+        {!isLocalMode && (
+          <Button
+            variant="outline"
+            size="sm"
+            onPress={() => {
+              if (pipelineId) {
+                exportSingle({ id: pipelineId });
+              }
+            }}
+            isDisabled={!pipelineId || isExportingSingle}
+            className="h-8 text-xs gap-1.5"
+          >
+            {isExportingSingle ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Download className="h-3.5 w-3.5 text-primary" />
+            )}
+            <span className="hidden sm:inline">Export</span>
+          </Button>
+        )}
 
         {/* Validate Button with Diagnostic Badge */}
         <div className="flex items-center">
@@ -344,7 +396,7 @@ export function CanvasToolbar({
             variant="outline"
             size="sm"
             onPress={onValidate}
-            isDisabled={isValidating || isExecuting}
+            isDisabled={isValidating || isExecuting || isRunningDraft}
             className={cn(
               "h-8 text-xs gap-1.5",
               errorCount > 0
@@ -405,18 +457,21 @@ export function CanvasToolbar({
           <Button
             size="sm"
             onPress={onOpenRunModal}
-            isDisabled={isExecuting}
-            className="h-8 text-xs gap-1.5 shadow-sm"
+            isDisabled={isExecuting || isRunningDraft}
+            className={cn(
+              "h-8 text-xs gap-1.5 shadow-sm",
+              isLocalMode && "bg-emerald-600 hover:bg-emerald-700 text-white"
+            )}
           >
-            {isExecuting ? (
+            {isExecuting || isRunningDraft ? (
               <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-500" />
-                <span className="text-amber-500 font-medium">Running...</span>
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-white" />
+                <span className="text-white font-medium">Running...</span>
               </>
             ) : (
               <>
                 <Play className="h-3.5 w-3.5 fill-current" />
-                <span>Run Pipeline</span>
+                <span>{isLocalMode ? "Run Draft" : "Run Pipeline"}</span>
               </>
             )}
           </Button>

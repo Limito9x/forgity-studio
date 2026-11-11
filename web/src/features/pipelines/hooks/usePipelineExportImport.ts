@@ -57,6 +57,20 @@ export function downloadPackageFile(data: PipelinePackageDto, customFileName?: s
   });
 }
 
+export type ExportPipelineMode = "FullBackup" | "CleanTemplate" | "TextOnly";
+
+function mapExportModeToApi(mode: ExportPipelineMode): number {
+  switch (mode) {
+    case "CleanTemplate":
+      return 1;
+    case "TextOnly":
+      return 2;
+    case "FullBackup":
+    default:
+      return 0;
+  }
+}
+
 export function usePipelineExport() {
   const exportSingleMutation = useMutation({
     mutationFn: async ({
@@ -66,11 +80,11 @@ export function usePipelineExport() {
     }: {
       id: string;
       fileName?: string;
-      mode?: "FullBackup" | "CleanTemplate";
+      mode?: ExportPipelineMode;
     }) => {
       const packageData = await exportPipelineBatch({
         pipelineIds: [id],
-        mode: mode === "CleanTemplate" ? 1 : 0,
+        mode: mapExportModeToApi(mode),
       } as any);
       downloadPackageFile(packageData, fileName);
       return packageData;
@@ -97,11 +111,11 @@ export function usePipelineExport() {
     }: {
       pipelineIds: string[];
       customFileName?: string;
-      mode?: "FullBackup" | "CleanTemplate";
+      mode?: ExportPipelineMode;
     }) => {
       const packageData = await exportPipelineBatch({
         pipelineIds,
-        mode: mode === "CleanTemplate" ? 1 : 0,
+        mode: mapExportModeToApi(mode),
       } as any);
       downloadPackageFile(packageData, customFileName);
       return packageData;
