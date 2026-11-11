@@ -165,7 +165,7 @@ export function ContextMenuPalette({
         .map((draft) => ({
           key: `local:${draft.key}`,
           label: draft.suggestedLabel || draft.suggestedName || draft.fileName,
-          category: `Local Scripts (${draft.namespace})`,
+          category: "Local Scripts",
           source: "LocalDraft",
           executor: draft.executor,
           inputs: draft.inputs || [],

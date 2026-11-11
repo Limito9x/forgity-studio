@@ -104,8 +104,6 @@ export function WorkspaceHeader({
               <span>File: <strong className="text-foreground font-medium">{node.fileName}</strong></span>
               <span>•</span>
               <span>Key: <strong className="text-foreground font-medium">{node.key}</strong></span>
-              <span>•</span>
-              <span>Hash: <strong className="text-muted-foreground">{node.contentHash?.substring(0, 10)}...</strong></span>
             </div>
           </div>
         </div>

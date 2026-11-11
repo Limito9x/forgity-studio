@@ -980,12 +980,38 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto, structCat
       setEdges((eds) =>
         eds.filter((e) => e.source !== nodeId && e.target !== nodeId),
       );
-      setIsDirty(true);
       if (selectedNodeId === nodeId) {
         setSelectedNodeId(null);
       }
+      setIsDirty(true);
     },
-    [selectedNodeId, setNodes, setEdges],
+    [selectedNodeId, setEdges, setNodes],
+  );
+
+  // Rename Node Label
+  const handleRenameNode = useCallback(
+    (nodeId: string, newLabel: string) => {
+      setNodes((nds) =>
+        nds.map((n) => {
+          if (n.id !== nodeId) return n;
+          const currentData = (n.data as any) || {};
+          const currentMeta = currentData.metadata || {};
+          return {
+            ...n,
+            data: {
+              ...currentData,
+              label: newLabel,
+              metadata: {
+                ...currentMeta,
+                label: newLabel,
+              },
+            },
+          };
+        }),
+      );
+      setIsDirty(true);
+    },
+    [setNodes],
   );
 
   // Add Action Node from Palette
@@ -1092,6 +1118,7 @@ export function usePipelineDraftState(graph: ExtendedPipelineGraphDto, structCat
     onNodesDelete,
     handleUpdateConfig,
     handleDeleteNode,
+    handleRenameNode,
     handleSelectPaletteItem,
     handleCreateStage,
     parameters,

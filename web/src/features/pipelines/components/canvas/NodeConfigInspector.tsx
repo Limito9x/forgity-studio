@@ -26,6 +26,7 @@ interface NodeConfigInspectorProps {
   onClose: () => void;
   onUpdateConfig: (nodeId: string, pinId: string, value: any) => void;
   onDeleteNode: (nodeId: string) => void;
+  onRenameNode?: (nodeId: string, newLabel: string) => void;
   isReadOnly?: boolean;
 }
 
@@ -37,6 +38,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
   onClose,
   onUpdateConfig,
   onDeleteNode,
+  onRenameNode,
   isReadOnly = false,
 }: NodeConfigInspectorProps) {
   const { edges = [], nodes = [], projectId = "" } = usePipelineFormScope();
@@ -151,6 +153,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
         isReadOnly={isReadOnly}
         onDelete={() => onDeleteNode(node.id)}
         onClose={onClose}
+        onRenameLabel={(newLabel) => onRenameNode?.(node.id, newLabel)}
       />
 
       {/* Body Content */}

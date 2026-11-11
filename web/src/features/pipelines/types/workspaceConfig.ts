@@ -1,14 +1,13 @@
-export interface ScriptFolderConfig {
-  namespace: string;
-  path: string;
-  enabled: boolean;
+export interface WorkspaceRootConfig {
+  version: number;
+  scriptsDir: string;
+  pipelinesDir: string;
 }
 
-export interface ForgityWorkspaceConfig {
-  $schema?: string;
-  projectId: string;
-  primaryPipelineFolder: string;
-  scriptFolders: ScriptFolderConfig[];
+export interface WorkspaceInitResult {
+  rootPath: string;
+  config: WorkspaceRootConfig;
+  localPaletteJson?: string | null;
 }
 
 export interface LocalDraftNode {
@@ -16,7 +15,7 @@ export interface LocalDraftNode {
   fileName: string;
   fullPath: string;
   folderRoot: string;
-  namespace: string;
+  namespace?: string;
   suggestedName: string;
   suggestedLabel: string;
   executor: string;
@@ -62,4 +61,3 @@ export interface ScriptScanSummary {
   total: number;
   lastScannedAt: string;
 }
-

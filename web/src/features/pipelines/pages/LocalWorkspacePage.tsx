@@ -4,11 +4,10 @@ import {
   RefreshCw,
   Settings2,
   FileCode2,
-  Workflow,
-  Sparkles,
   Play,
   UploadCloud,
-  Layers,
+  FolderOpen,
+  Sliders,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,13 +18,14 @@ import { LocalWorkspaceOutliner } from "../components/workspace/LocalWorkspaceOu
 import { WorkspaceConfigDialog } from "../components/workspace/WorkspaceConfigDialog";
 import { LocalScriptSyncSheet } from "../components/workspace/LocalScriptSyncSheet";
 import { PublishToStudioDialog } from "../components/canvas/PublishToStudioDialog";
+import { PipelineCanvas } from "../components/canvas/PipelineCanvas";
 import { pipelineYamlToGraph } from "../utils/pipelineDslConverter";
 import { useRunDraftPipeline } from "@/gen/endpoints/pipelines/pipelines";
 import { getLocalMachineInfo } from "@/lib/platform/filePickerStrategy";
 import { PipelineNodeKind } from "@/gen/model/pipelineNodeKind";
+import { PipelineTriggerType } from "@/gen/model/pipelineTriggerType";
 import type { LocalDraftNode, ScannedPipelineYamlItemRust } from "../types/workspaceConfig";
-import type { SavePipelineNodeItem } from "@/gen/model/savePipelineNodeItem";
-import type { SavePipelineEdgeItem } from "@/gen/model/savePipelineEdgeItem";
+import type { ExtendedPipelineGraphDto, SavePipelineNodeItem, SavePipelineEdgeItem } from "../hooks/usePipelineGraph";
 
 interface LocalWorkspacePageProps {
   projectId: string;
@@ -33,7 +33,7 @@ interface LocalWorkspacePageProps {
 
 export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
   const {
-    config,
+    rootPath,
     draftNodes,
     isScanning,
     isLoading,
@@ -41,6 +41,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     scanDraftPipelines,
     activeDraftPipeline,
     setActiveDraftPipeline,
+    savePipelineDraft,
   } = useLocalWorkspaceStore();
 
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
@@ -49,6 +50,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
   const [syncSheetInitialKey, setSyncSheetInitialKey] = useState<string | undefined>();
   const [selectedScript, setSelectedScript] = useState<LocalDraftNode | null>(null);
   const [viewMode, setViewMode] = useState<"visual" | "yaml">("visual");
+  const [rawYamlContent, setRawYamlContent] = useState("");
 
   const runDraftMutation = useRunDraftPipeline();
 
@@ -60,25 +62,61 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     }
   }, [projectId, initWorkspace, scanDraftPipelines]);
 
-  const scriptFolders = config?.scriptFolders ?? [];
-  const hasConfiguredFolders = scriptFolders.length > 0;
+  useEffect(() => {
+    if (activeDraftPipeline) {
+      setRawYamlContent(activeDraftPipeline.content);
+    }
+  }, [activeDraftPipeline?.fullPath, activeDraftPipeline?.content]);
+
   const draftNodeList = Object.values(draftNodes);
 
-  // Parse active draft YAML into visual nodes & edges
-  const parsedGraph = useMemo(() => {
+  // Parse active draft YAML into ExtendedPipelineGraphDto for PipelineCanvas
+  const parsedCanvasGraph = useMemo<ExtendedPipelineGraphDto | null>(() => {
     if (!activeDraftPipeline?.content) return null;
     try {
-      return pipelineYamlToGraph(activeDraftPipeline.content);
+      const parsed = pipelineYamlToGraph(activeDraftPipeline.content);
+      const graphDto: ExtendedPipelineGraphDto = {
+        id: activeDraftPipeline.fullPath,
+        name: parsed.name || activeDraftPipeline.fileName,
+        projectId,
+        triggerType: PipelineTriggerType.Manual,
+        nodes: parsed.nodes.map((n) => {
+          const matchedScript = Object.values(draftNodes).find(
+            (d) => d.key === n.data?.refId || `local:${d.key}` === n.data?.refId
+          );
+          return {
+            id: n.id,
+            refId: (n.data?.refId as string) || n.id,
+            label: (n.data?.label as string) || n.id,
+            kind: n.data?.isLocalDraft ? PipelineNodeKind.Custom : PipelineNodeKind.Tool,
+            category: matchedScript?.executor || (n.data?.category as string) || "Tool",
+            executor: matchedScript?.executor || (n.data?.executor as string) || "python",
+            position: n.position,
+            parentId: n.parentId || null,
+            configValues: (n.data?.configValues as any) || {},
+            inputs: matchedScript?.inputs || [],
+            outputs: matchedScript?.outputs || [],
+            metadata: {
+              isLocalDraft: n.data?.isLocalDraft,
+              label: n.data?.label,
+            },
+          };
+        }),
+        edges: parsed.edges.map((e) => ({
+          id: e.id,
+          sourceNodeId: e.source,
+          sourcePin: e.sourceHandle || "out",
+          targetNodeId: e.target,
+          targetPin: e.targetHandle || "in",
+        })),
+        parameters: [],
+      };
+      return graphDto;
     } catch (err: any) {
       console.warn("[LocalWorkspacePage] Failed to parse pipeline YAML:", err);
-      return {
-        name: activeDraftPipeline.fileName,
-        nodes: [],
-        edges: [],
-        parseError: err?.message || "Invalid YAML syntax",
-      };
+      return null;
     }
-  }, [activeDraftPipeline]);
+  }, [activeDraftPipeline, projectId]);
 
   const handleSelectScript = (node: LocalDraftNode) => {
     setSelectedScript(node);
@@ -94,12 +132,23 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     setSelectedScript(null);
   };
 
+  const handleSaveRawYaml = async () => {
+    if (!activeDraftPipeline) return;
+    try {
+      await savePipelineDraft(activeDraftPipeline.fullPath, rawYamlContent);
+      toast.success("Pipeline YAML saved to disk!");
+    } catch (err: any) {
+      toast.error("Failed to save pipeline YAML", { description: err?.message });
+    }
+  };
+
   const handleRunDraft = async () => {
-    if (!parsedGraph || !activeDraftPipeline) return;
+    if (!activeDraftPipeline) return;
 
     try {
+      const parsed = pipelineYamlToGraph(activeDraftPipeline.content);
       const machineInfo = await getLocalMachineInfo();
-      const saveNodes: SavePipelineNodeItem[] = parsedGraph.nodes.map((n, idx) => ({
+      const saveNodes: SavePipelineNodeItem[] = parsed.nodes.map((n, idx) => ({
         id: n.id,
         refId: String(n.data?.refId || n.id),
         kind: n.data?.isLocalDraft ? PipelineNodeKind.Custom : PipelineNodeKind.Tool,
@@ -108,7 +157,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
         configValues: (n.data?.configValues as any) || {},
       }));
 
-      const saveEdges: SavePipelineEdgeItem[] = parsedGraph.edges.map((e) => ({
+      const saveEdges: SavePipelineEdgeItem[] = parsed.edges.map((e) => ({
         id: e.id,
         sourceNodeId: e.source,
         sourcePin: e.sourceHandle || "out",
@@ -130,7 +179,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
       const res = await runDraftMutation.mutateAsync({
         data: {
           projectId,
-          name: parsedGraph.name || activeDraftPipeline.fileName,
+          name: parsed.name || activeDraftPipeline.fileName,
           preferredRunnerId: machineInfo.machineKey,
           localScripts,
           graphData: {
@@ -158,7 +207,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     );
   }
 
-  if (!hasConfiguredFolders) {
+  if (!rootPath) {
     return (
       <div className="page-container">
         <LocalWorkspaceEmptyState />
@@ -175,6 +224,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
         }}
         onSelectDraft={handleSelectDraft}
         onOpenSyncSheet={() => handleOpenSyncAndReview()}
+        onOpenConfig={() => setConfigDialogOpen(true)}
       />
 
       {/* Main Workbench Area */}
@@ -182,13 +232,10 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
         {/* Top Workbench Toolbar */}
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/60 bg-card/40 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
-            <Laptop className="h-5 w-5 text-emerald-500 shrink-0" />
+            <Laptop className="h-4 w-4 text-emerald-500 shrink-0" />
             <div className="min-w-0">
-              <h2 className="text-sm font-semibold tracking-tight text-foreground truncate flex items-center gap-2">
+              <h2 className="text-xs font-semibold tracking-tight text-foreground truncate">
                 {activeDraftPipeline ? activeDraftPipeline.fileName : "Local Workbench"}
-                <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-500 border-emerald-500/20 px-1.5 py-0">
-                  Draft Mode
-                </Badge>
               </h2>
             </div>
           </div>
@@ -205,7 +252,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    Visual Flow
+                    Visual Canvas
                   </button>
                   <button
                     onClick={() => setViewMode("yaml")}
@@ -218,6 +265,17 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                     Raw YAML
                   </button>
                 </div>
+
+                {viewMode === "yaml" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onPress={handleSaveRawYaml}
+                    className="gap-1.5 text-xs h-8 text-foreground"
+                  >
+                    Save YAML
+                  </Button>
+                )}
 
                 <Button
                   size="sm"
@@ -259,87 +317,36 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
               className="gap-1.5 text-xs h-8"
             >
               <Settings2 className="h-3.5 w-3.5" />
-              Folders Config
+              Settings
             </Button>
           </div>
         </div>
 
         {/* Center Content / Workbench Canvas Area */}
-        <div className="flex-1 min-h-0 relative bg-background/50 overflow-y-auto p-6">
-          {activeDraftPipeline && parsedGraph ? (
+        <div className="flex-1 min-h-0 relative bg-background/50 overflow-hidden">
+          {activeDraftPipeline ? (
             viewMode === "yaml" ? (
-              <div className="h-full max-w-4xl mx-auto bg-card rounded-xl border border-border/60 p-4 font-mono text-xs overflow-auto">
-                <pre className="text-muted-foreground leading-relaxed">
-                  {activeDraftPipeline.content}
-                </pre>
+              <div className="h-full w-full p-4 overflow-auto">
+                <div className="h-full max-w-4xl mx-auto flex flex-col gap-2">
+                  <textarea
+                    value={rawYamlContent}
+                    onChange={(e) => setRawYamlContent(e.target.value)}
+                    className="flex-1 w-full bg-card rounded-xl border border-border/60 p-4 font-mono text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary leading-relaxed resize-none shadow-sm"
+                    placeholder="Declarative pipeline YAML content..."
+                    spellCheck={false}
+                  />
+                </div>
+              </div>
+            ) : parsedCanvasGraph ? (
+              <div className="h-full w-full">
+                <PipelineCanvas
+                  projectId={projectId}
+                  graph={parsedCanvasGraph}
+                />
               </div>
             ) : (
-              <div className="max-w-4xl mx-auto space-y-6">
-                {/* Draft Summary Header Card */}
-                <div className="flex items-center justify-between p-4 bg-card/60 rounded-xl border border-border/60">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                      <Workflow className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-sm text-foreground">
-                        {parsedGraph.name || activeDraftPipeline.fileName}
-                      </h3>
-                      <p className="text-xs text-muted-foreground font-mono">
-                        {activeDraftPipeline.fullPath}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">
-                      {parsedGraph.nodes.length} Nodes
-                    </Badge>
-                    <Badge variant="outline" className="text-xs">
-                      {parsedGraph.edges.length} Wires
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* Visual Steps DAG Preview */}
-                <div className="space-y-3">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <Layers className="h-3.5 w-3.5" />
-                    Pipeline Execution Steps
-                  </h4>
-
-                  {parsedGraph.nodes.length === 0 ? (
-                    <div className="p-8 text-center bg-card/40 rounded-xl border border-dashed border-border/80 text-xs text-muted-foreground">
-                      No nodes defined in this pipeline YAML. Add nodes in your editor or via AI MCP.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {parsedGraph.nodes.map((n, idx) => (
-                        <div
-                          key={n.id}
-                          className="p-3.5 rounded-xl border border-border/60 bg-card/80 shadow-xs space-y-2"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold text-xs text-foreground truncate">
-                              {idx + 1}. {String(n.data?.label || n.id)}
-                            </span>
-                            <Badge variant="outline" className="text-[10px]">
-                              {String(n.data?.executor || "Python")}
-                            </Badge>
-                          </div>
-                          <p className="text-[11px] font-mono text-muted-foreground truncate">
-                            Tool: {String(n.data?.refId || n.id)}
-                          </p>
-                          {Boolean(n.data?.configValues && Object.keys(n.data.configValues as any).length > 0) && (
-                            <div className="bg-muted/40 p-2 rounded text-[10px] font-mono text-muted-foreground truncate">
-                              inputs: {JSON.stringify(n.data?.configValues)}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+              <div className="flex items-center justify-center h-full text-xs text-destructive">
+                Failed to parse pipeline YAML for Visual Canvas.
               </div>
             )
           ) : selectedScript ? (
@@ -393,29 +400,26 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                   onPress={() => handleOpenSyncAndReview(selectedScript.key)}
                   className="gap-1.5 text-xs text-emerald-500 hover:text-emerald-600 border-emerald-500/30"
                 >
-                  <Sparkles className="h-3.5 w-3.5" />
+                  <Sliders className="h-3.5 w-3.5" />
                   Inspect AST Pins & Code
                 </Button>
               </div>
             </div>
           ) : (
             <div className="max-w-md mx-auto space-y-3 text-center mt-16">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-500 mx-auto">
-                <Sparkles className="h-7 w-7" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-500 mx-auto">
+                <FolderOpen className="h-6 w-6" />
               </div>
-              <h3 className="text-base font-semibold text-foreground">
+              <h3 className="text-sm font-semibold text-foreground">
                 Local Workspace Ready
               </h3>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Select a script from the Outliner to inspect extracted AST pins, or select a .pipeline.yaml
-                draft to preview visual execution steps and test headless runs.
+                pipeline to view and edit in the ReactFlow Canvas.
               </p>
               <div className="flex items-center justify-center gap-2 pt-2">
                 <Badge variant="outline" className="text-xs text-muted-foreground">
-                  {draftNodeList.length} local tools loaded
-                </Badge>
-                <Badge variant="outline" className="text-xs text-muted-foreground">
-                  Zero DB footprint
+                  {draftNodeList.length} local tools in palette
                 </Badge>
               </div>
             </div>
@@ -438,12 +442,12 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
       />
 
       {/* Publish to Studio Dialog */}
-      {parsedGraph && (
+      {parsedCanvasGraph && (
         <PublishToStudioDialog
           projectId={projectId}
-          initialName={parsedGraph.name || "Draft Pipeline"}
-          nodes={parsedGraph.nodes}
-          edges={parsedGraph.edges}
+          initialName={parsedCanvasGraph.name || "Draft Pipeline"}
+          nodes={parsedCanvasGraph.nodes as any}
+          edges={parsedCanvasGraph.edges as any}
           isOpen={publishDialogOpen}
           onClose={() => setPublishDialogOpen(false)}
           onPublished={() => {

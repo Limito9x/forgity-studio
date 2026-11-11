@@ -2,7 +2,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Cpu, Tag, Sparkles } from "lucide-react";
+import { Cpu, Tag, Type } from "lucide-react";
 
 interface NodeMetaFormProps {
   name: string;
@@ -41,7 +41,7 @@ export function NodeMetaForm({
 
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold flex items-center gap-1.5">
-              <Sparkles className="size-3.5 text-primary" />
+              <Type className="size-3.5 text-muted-foreground" />
               Display Title
             </Label>
             <Input
@@ -50,7 +50,6 @@ export function NodeMetaForm({
               onChange={(e) => onChangeLabel(e.target.value)}
               className="h-9 text-xs"
             />
-            <p className="text-[10px] text-muted-foreground">Readable title displayed on canvas.</p>
           </div>
 
           <div className="space-y-1.5">

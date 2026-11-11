@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Tag, Sparkles, Cpu, Info, FileText, Package } from "lucide-react";
+import { Tag, Type, Cpu, Info, FileText, Package } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -102,7 +102,7 @@ export function VisualPinMapperTab({
             {/* Display Title */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold flex items-center gap-1.5">
-                <Sparkles className="size-3.5 text-primary" />
+                <Type className="size-3.5 text-muted-foreground" />
                 Display Title (Canvas Label)
               </Label>
               <Input
@@ -111,7 +111,6 @@ export function VisualPinMapperTab({
                 onChange={(e) => onUpdateNode({ suggestedLabel: e.target.value })}
                 className="h-9 text-xs"
               />
-              <p className="text-[10px] text-muted-foreground">Title displayed on pipeline node header.</p>
             </div>
 
             {/* Node Identifier / Key */}

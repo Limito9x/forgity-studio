@@ -1,6 +1,6 @@
-import { memo } from "react";
+import { memo, useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, X, PlayCircle, Box, FileCode } from "lucide-react";
+import { Trash2, X, PlayCircle, Box, FileCode, Pencil, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NodeConfigHeaderProps {
@@ -11,6 +11,7 @@ interface NodeConfigHeaderProps {
   isReadOnly: boolean;
   onDelete: () => void;
   onClose: () => void;
+  onRenameLabel?: (newLabel: string) => void;
 }
 
 export const NodeConfigHeader = memo(function NodeConfigHeader({
@@ -21,13 +22,38 @@ export const NodeConfigHeader = memo(function NodeConfigHeader({
   isReadOnly,
   onDelete,
   onClose,
+  onRenameLabel,
 }: NodeConfigHeaderProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(label || "");
+
+  useEffect(() => {
+    setEditValue(label || "");
+    setIsEditing(false);
+  }, [label]);
+
+  const handleSaveRename = () => {
+    if (editValue.trim() && editValue.trim() !== label) {
+      onRenameLabel?.(editValue.trim());
+    }
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleSaveRename();
+    } else if (e.key === "Escape") {
+      setEditValue(label || "");
+      setIsEditing(false);
+    }
+  };
+
   return (
     <div className="flex items-center justify-between p-4 border-b border-border/50 bg-muted/20">
-      <div className="flex items-center gap-2.5 min-w-0">
+      <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
         <div
           className={cn(
-            "p-2 rounded-xl border flex items-center justify-center shadow-sm",
+            "p-2 rounded-xl border flex items-center justify-center shadow-sm shrink-0",
             isLifecycleEntry
               ? "bg-primary/10 border-primary/20 text-primary"
               : "bg-sky-500/10 border-sky-500/20 text-sky-500"
@@ -41,10 +67,51 @@ export const NodeConfigHeader = memo(function NodeConfigHeader({
             <FileCode className="h-4 w-4" />
           )}
         </div>
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-foreground truncate" title={label}>
-            {label || "Node Properties"}
-          </h3>
+        <div className="min-w-0 flex-1">
+          {isEditing && !isReadOnly && !isLifecycleEntry ? (
+            <div className="flex items-center gap-1">
+              <input
+                autoFocus
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={handleSaveRename}
+                onKeyDown={handleKeyDown}
+                className="h-6 text-xs px-1.5 py-0.5 rounded bg-background border border-primary text-foreground font-semibold w-full focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleSaveRename}
+                className="p-1 rounded text-primary hover:bg-primary/10"
+                title="Save label"
+              >
+                <Check className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 group">
+              <h3
+                className={cn(
+                  "text-sm font-semibold text-foreground truncate",
+                  !isReadOnly && !isLifecycleEntry && "cursor-pointer hover:text-primary transition-colors"
+                )}
+                title={label}
+                onDoubleClick={() => !isReadOnly && !isLifecycleEntry && setIsEditing(true)}
+              >
+                {label || "Node Properties"}
+              </h3>
+              {!isReadOnly && !isLifecycleEntry && (
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
+                  className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-muted-foreground hover:text-foreground transition-opacity"
+                  title="Rename node"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center gap-1.5 mt-0.5">
             <Badge
               variant="outline"

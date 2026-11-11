@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import {
-  Sparkles,
+  FileCode,
   Check,
   RefreshCw,
   Trash2,
@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useLocalWorkspaceStore } from "../../stores/useLocalWorkspaceStore";
 import { DeckSidebar } from "../script-ingestion/deck-sidebar/DeckSidebar";
@@ -129,10 +128,8 @@ export function LocalScriptSyncSheet({
 
   const handleApplyPalette = async () => {
     try {
-      await applyStagedNodesToPalette(stagedNodes, true);
-      toast.success(`${stagedNodes.length} local tools applied to palette!`, {
-        description: "Fresh palette synced with zero database footprint.",
-      });
+      await applyStagedNodesToPalette(stagedNodes);
+      toast.success(`${stagedNodes.length} local tools applied to palette!`);
       onClose();
     } catch (err: any) {
       toast.error("Failed to apply tools to palette", {
@@ -174,18 +171,12 @@ export function LocalScriptSyncSheet({
       <div className="h-14 border-b border-border bg-card/60 px-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500">
-            <Sparkles className="size-4" />
+            <FileCode className="size-4" />
           </div>
           <div>
-            <h1 className="text-sm font-bold tracking-tight text-foreground flex items-center gap-2">
+            <h1 className="text-sm font-bold tracking-tight text-foreground">
               Local Script Ingestion & Review Studio
-              <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
-                Native 1-Process
-              </Badge>
             </h1>
-            <p className="text-[11px] text-muted-foreground truncate">
-              Inspect inferred input/output pins, labels, and contracts before applying to local palette.
-            </p>
           </div>
         </div>
 

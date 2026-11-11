@@ -2,23 +2,23 @@ import { create } from "zustand";
 import { get, set } from "idb-keyval";
 import { isTauriRuntime } from "@/lib/platform/filePickerStrategy";
 import type {
-  ForgityWorkspaceConfig,
+  WorkspaceRootConfig,
+  WorkspaceInitResult,
   LocalDraftNode,
   ScannedPipelineYamlItemRust,
-  ScriptFolderConfig,
   ScriptScanSummary,
   StagedScriptItem,
   ScriptSyncStatus,
 } from "../types/workspaceConfig";
 
-const WORKSPACE_CONFIG_KEY = (projectId: string) => `forgity:workspace_config:${projectId}`;
-const DRAFT_NODES_KEY = (projectId: string) => `forgity:local_draft_nodes:${projectId}`;
-const SCAN_SUMMARY_KEY = (projectId: string) => `forgity:scan_summary:${projectId}`;
+const ROOT_PATH_KEY = (projectId: string) => `forgity:workspace_root:${projectId}`;
 
 interface LocalWorkspaceState {
   projectId: string | null;
-  config: ForgityWorkspaceConfig | null;
+  rootPath: string | null;
+  config: WorkspaceRootConfig | null;
   draftNodes: Record<string, LocalDraftNode>;
+  stagedItems: StagedScriptItem[];
   scannedDraftPipelines: ScannedPipelineYamlItemRust[];
   activeDraftPipeline: ScannedPipelineYamlItemRust | null;
   scanSummary: ScriptScanSummary | null;
@@ -28,24 +28,29 @@ interface LocalWorkspaceState {
 
   // Actions
   initWorkspace: (projectId: string) => Promise<void>;
-  updateConfig: (updater: (prev: ForgityWorkspaceConfig) => ForgityWorkspaceConfig) => Promise<void>;
-  addScriptFolder: (folder: ScriptFolderConfig) => Promise<void>;
-  removeScriptFolder: (path: string) => Promise<void>;
-  toggleScriptFolder: (path: string, enabled: boolean) => Promise<void>;
-  setPrimaryPipelineFolder: (path: string) => Promise<void>;
+  openWorkspaceRoot: (targetRootPath: string) => Promise<void>;
+  updateWorkspaceConfig: (scriptsDir: string, pipelinesDir: string) => Promise<void>;
   scanLocalScriptsNative: () => Promise<StagedScriptItem[]>;
-  applyStagedNodesToPalette: (staged: StagedScriptItem[], replace?: boolean) => Promise<void>;
+  applyStagedNodesToPalette: (staged?: StagedScriptItem[]) => Promise<void>;
   clearLocalPalette: () => Promise<void>;
   scanAndSyncScripts: () => Promise<ScriptScanSummary | null>;
-  updateDraftNode: (key: string, updates: Partial<LocalDraftNode>) => Promise<void>;
   scanDraftPipelines: () => Promise<ScannedPipelineYamlItemRust[]>;
   setActiveDraftPipeline: (draft: ScannedPipelineYamlItemRust | null) => void;
+
+  // Pipeline File Actions (Rust Native)
+  createPipelineDraft: (name: string) => Promise<ScannedPipelineYamlItemRust | null>;
+  savePipelineDraft: (filePath: string, yamlContent: string) => Promise<void>;
+  renamePipelineDraft: (filePath: string, newName: string) => Promise<ScannedPipelineYamlItemRust | null>;
+  duplicatePipelineDraft: (filePath: string) => Promise<ScannedPipelineYamlItemRust | null>;
+  deletePipelineDraft: (filePath: string) => Promise<void>;
 }
 
 export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, getStore) => ({
   projectId: null,
+  rootPath: null,
   config: null,
   draftNodes: {},
+  stagedItems: [],
   scannedDraftPipelines: [],
   activeDraftPipeline: null,
   scanSummary: null,
@@ -58,25 +63,12 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
     setStore({ projectId, isLoading: true, lastError: null });
 
     try {
-      let loadedConfig = await get<ForgityWorkspaceConfig>(WORKSPACE_CONFIG_KEY(projectId));
-      if (!loadedConfig) {
-        loadedConfig = {
-          projectId,
-          primaryPipelineFolder: "pipelines",
-          scriptFolders: [],
-        };
-        await set(WORKSPACE_CONFIG_KEY(projectId), loadedConfig);
+      const savedRootPath = await get<string>(ROOT_PATH_KEY(projectId));
+      if (savedRootPath && isTauriRuntime()) {
+        await getStore().openWorkspaceRoot(savedRootPath);
+      } else {
+        setStore({ isLoading: false });
       }
-
-      const loadedDraftNodes = (await get<Record<string, LocalDraftNode>>(DRAFT_NODES_KEY(projectId))) || {};
-      const loadedSummary = (await get<ScriptScanSummary>(SCAN_SUMMARY_KEY(projectId))) || null;
-
-      setStore({
-        config: loadedConfig,
-        draftNodes: loadedDraftNodes,
-        scanSummary: loadedSummary,
-        isLoading: false,
-      });
     } catch (err: any) {
       console.error("[useLocalWorkspaceStore] Failed to initialize local workspace:", err);
       setStore({
@@ -86,55 +78,91 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
     }
   },
 
-  updateConfig: async (updater) => {
-    const { projectId, config } = getStore();
-    if (!projectId || !config) return;
+  openWorkspaceRoot: async (targetRootPath: string) => {
+    const { projectId } = getStore();
+    if (!targetRootPath) return;
 
-    const nextConfig = updater(config);
-    setStore({ config: nextConfig });
-    await set(WORKSPACE_CONFIG_KEY(projectId), nextConfig);
+    setStore({ isLoading: true, lastError: null });
+
+    try {
+      if (!isTauriRuntime()) {
+        setStore({
+          rootPath: targetRootPath,
+          config: { version: 1, scriptsDir: "pipeline-scripts", pipelinesDir: "pipelines" },
+          isLoading: false,
+        });
+        return;
+      }
+
+      const { invoke } = await import("@tauri-apps/api/core");
+      const initResult = await invoke<WorkspaceInitResult>("open_or_init_workspace_root", {
+        rootPath: targetRootPath,
+      });
+
+      let loadedPalette: Record<string, LocalDraftNode> = {};
+      if (initResult.localPaletteJson) {
+        try {
+          loadedPalette = JSON.parse(initResult.localPaletteJson);
+        } catch (e) {
+          console.warn("[useLocalWorkspaceStore] Failed to parse local_palette.json:", e);
+        }
+      }
+
+      if (projectId) {
+        await set(ROOT_PATH_KEY(projectId), targetRootPath);
+      }
+
+      setStore({
+        rootPath: initResult.rootPath,
+        config: initResult.config,
+        draftNodes: loadedPalette,
+        isLoading: false,
+      });
+
+      // Automatically scan draft pipelines
+      await getStore().scanDraftPipelines();
+    } catch (err: any) {
+      console.error("[useLocalWorkspaceStore] Failed to open workspace root:", err);
+      setStore({
+        isLoading: false,
+        lastError: err?.message || "Failed to open workspace root",
+      });
+      throw err;
+    }
   },
 
-  addScriptFolder: async (folder) => {
-    await getStore().updateConfig((prev) => {
-      const exists = prev.scriptFolders.some((f) => f.path.toLowerCase() === folder.path.toLowerCase());
-      if (exists) return prev;
-      return {
-        ...prev,
-        scriptFolders: [...prev.scriptFolders, folder],
-      };
-    });
-  },
+  updateWorkspaceConfig: async (scriptsDir: string, pipelinesDir: string) => {
+    const { rootPath, config } = getStore();
+    if (!rootPath || !config) return;
 
-  removeScriptFolder: async (pathToRemove) => {
-    await getStore().updateConfig((prev) => ({
-      ...prev,
-      scriptFolders: prev.scriptFolders.filter((f) => f.path.toLowerCase() !== pathToRemove.toLowerCase()),
-    }));
-  },
+    try {
+      if (isTauriRuntime()) {
+        const { invoke } = await import("@tauri-apps/api/core");
+        await invoke("save_workspace_root_config", {
+          rootPath,
+          scriptsDir,
+          pipelinesDir,
+        });
+      }
 
-  toggleScriptFolder: async (targetPath, enabled) => {
-    await getStore().updateConfig((prev) => ({
-      ...prev,
-      scriptFolders: prev.scriptFolders.map((f) =>
-        f.path.toLowerCase() === targetPath.toLowerCase() ? { ...f, enabled } : f
-      ),
-    }));
-  },
+      setStore({
+        config: {
+          ...config,
+          scriptsDir,
+          pipelinesDir,
+        },
+      });
 
-  setPrimaryPipelineFolder: async (primaryPath) => {
-    await getStore().updateConfig((prev) => ({
-      ...prev,
-      primaryPipelineFolder: primaryPath,
-    }));
+      await getStore().scanDraftPipelines();
+    } catch (err: any) {
+      console.error("[useLocalWorkspaceStore] Failed to save config:", err);
+      throw err;
+    }
   },
 
   scanLocalScriptsNative: async (): Promise<StagedScriptItem[]> => {
-    const { config, draftNodes } = getStore();
-    if (!config) return [];
-
-    const activeFolders = (config.scriptFolders || []).filter((f) => f.enabled && f.path.trim().length > 0);
-    if (activeFolders.length === 0) return [];
+    const { rootPath, config, draftNodes } = getStore();
+    if (!rootPath || !config) return [];
 
     if (!isTauriRuntime()) {
       console.warn("[useLocalWorkspaceStore] Native script analysis requires Desktop runtime.");
@@ -143,15 +171,19 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
 
     try {
       const { invoke } = await import("@tauri-apps/api/core");
+      const scriptsFullPath = config.scriptsDir === "." 
+        ? rootPath 
+        : `${rootPath.replace(/[/\\]+$/, "")}/${config.scriptsDir.replace(/^[/\\]+/, "")}`;
+
       const analyzed = await invoke<any[]>("analyze_local_scripts_native", {
-        folders: activeFolders.map((f) => ({
-          namespace: f.namespace,
-          path: f.path,
-        })),
+        folders: [{
+          namespace: "",
+          path: scriptsFullPath,
+        }],
       });
 
       const now = new Date().toISOString();
-      return analyzed.map((item) => {
+      const staged: StagedScriptItem[] = analyzed.map((item) => {
         const cached = draftNodes[item.key];
         let status: ScriptSyncStatus = "unchanged";
         if (!cached) {
@@ -165,7 +197,7 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
           fileName: item.fileName,
           fullPath: item.fullPath,
           folderRoot: item.folderRoot,
-          namespace: item.namespace,
+          namespace: "",
           suggestedName: item.suggestedName,
           suggestedLabel: item.suggestedLabel,
           executor: item.executor,
@@ -179,22 +211,26 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
           status,
         };
       });
+
+      setStore({ stagedItems: staged });
+      return staged;
     } catch (err: any) {
       console.error("[useLocalWorkspaceStore] Native script analysis failed:", err);
       throw err;
     }
   },
 
-  applyStagedNodesToPalette: async (staged: StagedScriptItem[], replace = true) => {
-    const { projectId, draftNodes } = getStore();
-    if (!projectId) return;
+  applyStagedNodesToPalette: async (stagedParam?: StagedScriptItem[]) => {
+    const { rootPath, draftNodes, stagedItems } = getStore();
+    if (!rootPath) return;
 
-    const nextDraftNodes: Record<string, LocalDraftNode> = replace ? {} : { ...draftNodes };
+    const itemsToApply = stagedParam || stagedItems;
+    const nextDraftNodes: Record<string, LocalDraftNode> = { ...draftNodes };
     let newCount = 0;
     let modified = 0;
     let unchanged = 0;
 
-    for (const item of staged) {
+    for (const item of itemsToApply) {
       if (item.status === "new") newCount++;
       else if (item.status === "modified") modified++;
       else unchanged++;
@@ -207,7 +243,7 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
       newCount,
       modified,
       unchanged,
-      total: staged.length,
+      total: itemsToApply.length,
       lastScannedAt: new Date().toISOString(),
     };
 
@@ -216,19 +252,32 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
       scanSummary: summary,
     });
 
-    await set(DRAFT_NODES_KEY(projectId), nextDraftNodes);
-    await set(SCAN_SUMMARY_KEY(projectId), summary);
+    if (isTauriRuntime()) {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("save_local_palette", {
+        rootPath,
+        paletteJson: JSON.stringify(nextDraftNodes, null, 2),
+      });
+    }
   },
 
   clearLocalPalette: async () => {
-    const { projectId } = getStore();
-    if (!projectId) return;
+    const { rootPath } = getStore();
+    if (!rootPath) return;
+
     setStore({
       draftNodes: {},
+      stagedItems: [],
       scanSummary: null,
     });
-    await set(DRAFT_NODES_KEY(projectId), {});
-    await set(SCAN_SUMMARY_KEY(projectId), null);
+
+    if (isTauriRuntime()) {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("save_local_palette", {
+        rootPath,
+        paletteJson: "{}",
+      });
+    }
   },
 
   scanAndSyncScripts: async () => {
@@ -254,32 +303,20 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
     }
   },
 
-  updateDraftNode: async (key: string, updates: Partial<LocalDraftNode>) => {
-    const { projectId, draftNodes } = getStore();
-    if (!projectId || !draftNodes[key]) return;
-
-    const updatedMap = {
-      ...draftNodes,
-      [key]: {
-        ...draftNodes[key],
-        ...updates,
-      },
-    };
-
-    setStore({ draftNodes: updatedMap });
-    await set(DRAFT_NODES_KEY(projectId), updatedMap);
-  },
-
   scanDraftPipelines: async () => {
-    const { config } = getStore();
-    if (!config?.primaryPipelineFolder || !isTauriRuntime()) {
+    const { rootPath, config } = getStore();
+    if (!rootPath || !config?.pipelinesDir || !isTauriRuntime()) {
       return [];
     }
 
     try {
       const { invoke } = await import("@tauri-apps/api/core");
+      const pipelinesFullPath = config.pipelinesDir === "."
+        ? rootPath
+        : `${rootPath.replace(/[/\\]+$/, "")}/${config.pipelinesDir.replace(/^[/\\]+/, "")}`;
+
       const drafts = await invoke<ScannedPipelineYamlItemRust[]>("scan_local_pipeline_drafts", {
-        folderPath: config.primaryPipelineFolder,
+        folderPath: pipelinesFullPath,
       });
 
       setStore({ scannedDraftPipelines: drafts });
@@ -292,5 +329,102 @@ export const useLocalWorkspaceStore = create<LocalWorkspaceState>((setStore, get
 
   setActiveDraftPipeline: (draft) => {
     setStore({ activeDraftPipeline: draft });
+  },
+
+  createPipelineDraft: async (name: string) => {
+    const { rootPath, config } = getStore();
+    if (!rootPath || !config || !isTauriRuntime()) return null;
+
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const pipelinesFullPath = `${rootPath.replace(/[/\\]+$/, "")}/${config.pipelinesDir.replace(/^[/\\]+/, "")}`;
+      const created = await invoke<ScannedPipelineYamlItemRust>("create_local_pipeline_draft", {
+        pipelinesDirPath: pipelinesFullPath,
+        name,
+      });
+
+      await getStore().scanDraftPipelines();
+      setStore({ activeDraftPipeline: created });
+      return created;
+    } catch (err) {
+      console.error("[useLocalWorkspaceStore] Failed to create pipeline draft:", err);
+      throw err;
+    }
+  },
+
+  savePipelineDraft: async (filePath: string, yamlContent: string) => {
+    if (!isTauriRuntime()) return;
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("save_local_pipeline_draft", {
+        filePath,
+        content: yamlContent,
+      });
+      // update active draft content in store
+      const active = getStore().activeDraftPipeline;
+      if (active && active.fullPath === filePath) {
+        setStore({
+          activeDraftPipeline: {
+            ...active,
+            content: yamlContent,
+            lastModifiedMs: Date.now(),
+          },
+        });
+      }
+    } catch (err) {
+      console.error("[useLocalWorkspaceStore] Failed to save pipeline draft:", err);
+      throw err;
+    }
+  },
+
+  renamePipelineDraft: async (filePath: string, newName: string) => {
+    if (!isTauriRuntime()) return null;
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const updated = await invoke<ScannedPipelineYamlItemRust>("rename_local_pipeline_draft", {
+        filePath,
+        newName,
+      });
+      await getStore().scanDraftPipelines();
+      setStore({ activeDraftPipeline: updated });
+      return updated;
+    } catch (err) {
+      console.error("[useLocalWorkspaceStore] Failed to rename pipeline draft:", err);
+      throw err;
+    }
+  },
+
+  duplicatePipelineDraft: async (filePath: string) => {
+    if (!isTauriRuntime()) return null;
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const duplicated = await invoke<ScannedPipelineYamlItemRust>("duplicate_local_pipeline_draft", {
+        filePath,
+      });
+      await getStore().scanDraftPipelines();
+      setStore({ activeDraftPipeline: duplicated });
+      return duplicated;
+    } catch (err) {
+      console.error("[useLocalWorkspaceStore] Failed to duplicate pipeline draft:", err);
+      throw err;
+    }
+  },
+
+  deletePipelineDraft: async (filePath: string) => {
+    if (!isTauriRuntime()) return;
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("delete_local_pipeline_draft", {
+        filePath,
+      });
+      const active = getStore().activeDraftPipeline;
+      if (active && active.fullPath === filePath) {
+        setStore({ activeDraftPipeline: null });
+      }
+      await getStore().scanDraftPipelines();
+    } catch (err) {
+      console.error("[useLocalWorkspaceStore] Failed to delete pipeline draft:", err);
+      throw err;
+    }
   },
 }));

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { RotateCcw, AlertTriangle, Loader2, Sparkles } from "lucide-react";
+import { RotateCcw, AlertTriangle, Loader2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { AnalyzedCustomNodeDto } from "@/gen/model";
@@ -81,7 +81,7 @@ export function IngestionFooterBar({
             </>
           ) : (
             <>
-              <Sparkles className="size-3.5" />
+              <Check className="size-3.5" />
               Publish All ({stats.total})
             </>
           )}

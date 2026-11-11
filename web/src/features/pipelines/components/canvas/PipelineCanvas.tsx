@@ -410,6 +410,7 @@ function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
               onClose={() => draft.setSelectedNodeId(null)}
               onUpdateConfig={draft.handleUpdateConfig}
               onDeleteNode={draft.handleDeleteNode}
+              onRenameNode={draft.handleRenameNode}
               isReadOnly={isLocked}
             />
           )}
