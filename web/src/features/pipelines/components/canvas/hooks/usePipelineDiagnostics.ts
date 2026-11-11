@@ -17,6 +17,7 @@ interface UsePipelineDiagnosticsOptions {
   parameters: PipelineParameterDto[];
   isDirty: boolean;
   lastSavedDiagnostics?: PipelineDiagnostic[] | null;
+  isLocalMode?: boolean;
 }
 
 export function usePipelineDiagnostics({
@@ -26,6 +27,7 @@ export function usePipelineDiagnostics({
   parameters,
   isDirty,
   lastSavedDiagnostics,
+  isLocalMode = false,
 }: UsePipelineDiagnosticsOptions): PipelineDiagnosticsScope {
   // Initial diagnostics from graph DTO
   const initialDiagnostics = useMemo(() => {
@@ -159,6 +161,88 @@ export function usePipelineDiagnostics({
 
   const validateDraft = useCallback(async () => {
     try {
+      if (isLocalMode) {
+        // Pure local structural validation
+        const localDiagnostics: PipelineDiagnostic[] = [];
+        const startNode = nodes.find((n) => {
+          const kindStr = String((n.data as any)?.kind || "").toLowerCase();
+          const refIdStr = String((n.data as any)?.refId || n.id).toLowerCase();
+          return kindStr === "start" || refIdStr === "start";
+        });
+
+        if (!startNode) {
+          localDiagnostics.push({
+            code: "MissingNodeDefinition",
+            severity: "Error",
+            message: "Pipeline must have a Start node.",
+          });
+        }
+
+        // Check cycle
+        const adj = new Map<string, string[]>();
+        nodes.forEach((n) => adj.set(n.id, []));
+        edges.forEach((e) => {
+          if (adj.has(e.source)) adj.get(e.source)!.push(e.target);
+        });
+
+        const visited = new Set<string>();
+        const inStack = new Set<string>();
+
+        const checkCycle = (curr: string) => {
+          visited.add(curr);
+          inStack.add(curr);
+          for (const next of adj.get(curr) || []) {
+            if (!visited.has(next)) {
+              if (checkCycle(next)) return true;
+            } else if (inStack.has(next)) {
+              localDiagnostics.push({
+                code: "DagCycleDetected",
+                severity: "Error",
+                nodeId: next,
+                message: "Loop/Cycle detected involving this node.",
+              });
+              return true;
+            }
+          }
+          inStack.delete(curr);
+          return false;
+        };
+
+        for (const n of nodes) {
+          if (!visited.has(n.id)) checkCycle(n.id);
+        }
+
+        // Check unconnected inputs on tool nodes
+        for (const n of nodes) {
+          const kind = (n.data as any)?.kind;
+          if (kind === "Start" || kind === "Capsule" || n.type === "scopeContainer") continue;
+          const inputs = ((n.data as any)?.inputs || []) as any[];
+          const incomingEdges = edges.filter((e) => e.target === n.id);
+          const hasExecIn = incomingEdges.some((e) => (e.targetHandle || "").toLowerCase().includes("exec"));
+          if (!hasExecIn && inputs.some((p) => p.kind === "Exec" || p.id === "exec_in")) {
+            localDiagnostics.push({
+              code: "OrphanNode",
+              severity: "Warning",
+              nodeId: n.id,
+              message: "Execution input is not connected; node might not be reachable.",
+            });
+          }
+        }
+
+        setDiagnostics(localDiagnostics);
+        setIsStale(false);
+
+        const errors = localDiagnostics.filter((d) => d.severity === "Error");
+        if (errors.length > 0) {
+          toast.error(`Validation found ${errors.length} error(s). Review highlighted nodes.`);
+        } else if (localDiagnostics.length > 0) {
+          toast.warning(`Validation passed with ${localDiagnostics.length} warning(s).`);
+        } else {
+          toast.success("Local pipeline graph is valid with no structural errors!");
+        }
+        return;
+      }
+
       const payload = buildDraftSnapshot();
       const res = await validateMutation.mutateAsync(payload);
 
@@ -182,7 +266,7 @@ export function usePipelineDiagnostics({
       const msg = err instanceof Error ? err.message : "Validation failed";
       toast.error(msg);
     }
-  }, [buildDraftSnapshot, validateMutation]);
+  }, [isLocalMode, nodes, edges, buildDraftSnapshot, validateMutation]);
 
   // Filter diagnostics to remove ghost entries for deleted nodes
   const activeNodeIds = useMemo(() => new Set(nodes.map((n) => n.id)), [nodes]);

@@ -42,12 +42,23 @@ import {
   usePipelineDiagnostics,
 } from "./hooks";
 
+export interface CanvasValidateControls {
+  validate: () => Promise<void>;
+  errorCount: number;
+  warningCount: number;
+  isValidating: boolean;
+  isStale: boolean;
+  toggleDiagnostics: () => void;
+  isDiagnosticsOpen: boolean;
+}
+
 interface PipelineCanvasProps {
   projectId: string;
   graph: ExtendedPipelineGraphDto;
   isLocalMode?: boolean;
   onSaveLocalDraft?: (yamlContent: string) => Promise<void>;
   onSaveLocalSnapshot?: (snapshotDto: ExtendedPipelineGraphDto) => Promise<void>;
+  onRegisterValidateControls?: (controls: CanvasValidateControls) => void;
 }
 
 const nodeTypes = {
@@ -84,6 +95,7 @@ function PipelineCanvasContent({
   isLocalMode = false,
   onSaveLocalDraft,
   onSaveLocalSnapshot,
+  onRegisterValidateControls,
 }: PipelineCanvasProps) {
   const { screenToFlowPosition, setCenter } = useReactFlow();
   const { data: paletteItems = [] } = useNodePalette(projectId);
@@ -106,7 +118,31 @@ function PipelineCanvasContent({
     parameters: draft.parameters,
     isDirty: draft.isDirty,
     lastSavedDiagnostics: null,
+    isLocalMode,
   });
+
+  // Register validate controls back to parent if requested
+  useEffect(() => {
+    if (onRegisterValidateControls) {
+      onRegisterValidateControls({
+        validate: diagnosticsScope.validateDraft,
+        errorCount: diagnosticsScope.errorCount,
+        warningCount: diagnosticsScope.warningCount,
+        isValidating: diagnosticsScope.isValidating,
+        isStale: diagnosticsScope.isStale,
+        toggleDiagnostics: () => setIsDiagnosticsPanelOpen((prev) => !prev),
+        isDiagnosticsOpen: isDiagnosticsPanelOpen,
+      });
+    }
+  }, [
+    onRegisterValidateControls,
+    diagnosticsScope.validateDraft,
+    diagnosticsScope.errorCount,
+    diagnosticsScope.warningCount,
+    diagnosticsScope.isValidating,
+    diagnosticsScope.isStale,
+    isDiagnosticsPanelOpen,
+  ]);
 
   const handleFocusNode = (nodeId: string) => {
     const targetNode = draft.nodes.find((n) => n.id === nodeId);

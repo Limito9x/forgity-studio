@@ -8,6 +8,10 @@ import {
   UploadCloud,
   FolderOpen,
   Sliders,
+  ShieldAlert,
+  ShieldCheck,
+  AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +22,7 @@ import { LocalWorkspaceOutliner } from "../components/workspace/LocalWorkspaceOu
 import { WorkspaceConfigDialog } from "../components/workspace/WorkspaceConfigDialog";
 import { LocalScriptSyncSheet } from "../components/workspace/LocalScriptSyncSheet";
 import { PublishToStudioDialog } from "../components/canvas/PublishToStudioDialog";
-import { PipelineCanvas } from "../components/canvas/PipelineCanvas";
+import { PipelineCanvas, type CanvasValidateControls } from "../components/canvas/PipelineCanvas";
 import { pipelineYamlToGraph, graphToPipelineYaml } from "../utils/pipelineDslConverter";
 import { useRunDraftPipeline } from "@/gen/endpoints/pipelines/pipelines";
 import { getLocalMachineInfo } from "@/lib/platform/filePickerStrategy";
@@ -54,6 +58,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
   const [viewMode, setViewMode] = useState<"visual" | "yaml">("visual");
   const [rawYamlContent, setRawYamlContent] = useState("");
   const [cachedSnapshotGraph, setCachedSnapshotGraph] = useState<ExtendedPipelineGraphDto | null>(null);
+  const [validateControls, setValidateControls] = useState<CanvasValidateControls | null>(null);
 
   const runDraftMutation = useRunDraftPipeline();
 
@@ -414,6 +419,60 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                   </Button>
                 )}
 
+                {viewMode === "visual" && validateControls && (
+                  <div className="flex items-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onPress={() => validateControls.validate()}
+                      isDisabled={validateControls.isValidating || runDraftMutation.isPending}
+                      className={`gap-1.5 text-xs h-8 ${
+                        validateControls.errorCount > 0
+                          ? "border-destructive/50 text-destructive hover:bg-destructive/10"
+                          : validateControls.warningCount > 0
+                            ? "border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+                            : ""
+                      }`}
+                    >
+                      {validateControls.isValidating ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : validateControls.errorCount > 0 ? (
+                        <ShieldAlert className="h-3.5 w-3.5 text-destructive" />
+                      ) : validateControls.warningCount > 0 ? (
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                      ) : (
+                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                      )}
+                      <span>Validate</span>
+                      {validateControls.errorCount > 0 && (
+                        <Badge variant="destructive" className="h-4 px-1 py-0 text-[9px] font-mono">
+                          {validateControls.errorCount}
+                        </Badge>
+                      )}
+                      {validateControls.errorCount === 0 && validateControls.warningCount > 0 && (
+                        <Badge
+                          variant="outline"
+                          className="h-4 px-1 py-0 text-[9px] font-mono border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
+                        >
+                          {validateControls.warningCount}
+                        </Badge>
+                      )}
+                      {validateControls.isStale && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" title="Draft changed" />
+                      )}
+                    </Button>
+                    <Button
+                      variant={validateControls.isDiagnosticsOpen ? "secondary" : "ghost"}
+                      size="icon"
+                      className="h-8 w-6 ml-0.5 px-0 text-muted-foreground hover:text-foreground"
+                      onPress={validateControls.toggleDiagnostics}
+                      aria-label="Toggle diagnostics list"
+                    >
+                      <span className="text-[10px] font-mono">▼</span>
+                    </Button>
+                  </div>
+                )}
+
                 <Button
                   size="sm"
                   onPress={handleRunDraft}
@@ -480,6 +539,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                   projectId={projectId}
                   graph={parsedCanvasGraph}
                   isLocalMode={true}
+                  onRegisterValidateControls={setValidateControls}
                   onSaveLocalDraft={async (yamlContent) => {
                     if (activeDraftPipeline) {
                       await savePipelineDraft(activeDraftPipeline.fullPath, yamlContent);
