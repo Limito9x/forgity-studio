@@ -178,6 +178,83 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     if (!activeDraftPipeline) return;
     try {
       await savePipelineDraft(activeDraftPipeline.fullPath, rawYamlContent);
+      // Synchronize with snapshot: merge updated YAML nodes/edges while preserving existing coordinates
+      if (pipelineSlug) {
+        try {
+          const parsed = pipelineYamlToGraph(rawYamlContent);
+          const currentSnapStr = await loadPipelineSnapshotFromDisk(pipelineSlug);
+          const currentSnap = currentSnapStr ? (JSON.parse(currentSnapStr) as ExtendedPipelineGraphDto) : null;
+          const posMap = new Map<string, { x: number; y: number }>();
+          const sizeMap = new Map<string, { width: number; height: number }>();
+          if (currentSnap?.nodes) {
+            for (const sn of currentSnap.nodes) {
+              if (sn.position) posMap.set(sn.id, sn.position);
+              if (sn.size) sizeMap.set(sn.id, sn.size);
+            }
+          }
+
+          const updatedNodes = parsed.nodes.map((n, idx) => {
+            const existingPos = posMap.get(n.id);
+            const existingSize = sizeMap.get(n.id);
+            const refIdLower = String(n.data?.refId || n.id).toLowerCase();
+            const isStart = refIdLower === "start" || refIdLower === "beginexecute";
+            const isReturn = refIdLower === "return" || refIdLower === "endexecute";
+            const isStage = n.type === "scopeContainer";
+
+            let kind: any = PipelineNodeKind.Tool;
+            if (isStart) kind = PipelineNodeKind.Start;
+            else if (isReturn) kind = PipelineNodeKind.Return;
+            else if (isStage) kind = PipelineNodeKind.Container;
+            else if (n.data?.isLocalDraft) kind = PipelineNodeKind.Custom;
+
+            const matchedScript = Object.values(draftNodes).find(
+              (d) => d.key === n.data?.refId || `local:${d.key}` === n.data?.refId
+            );
+
+            return {
+              id: n.id,
+              refId: (n.data?.refId as string) || n.id,
+              label: (n.data?.label as string) || n.id,
+              kind,
+              category: matchedScript?.executor || (n.data?.category as string) || (isStart || isReturn ? "Flow Control" : "Tool"),
+              executor: matchedScript?.executor || (n.data?.executor as string) || "python",
+              position: existingPos || n.position || { x: 100 + idx * 250, y: 100 },
+              parentId: n.parentId || null,
+              size: existingSize || { width: 240, height: 120 },
+              configValues: (n.data?.configValues as any) || {},
+              inputs: matchedScript?.inputs || [],
+              outputs: matchedScript?.outputs || [],
+              metadata: {
+                isLocalDraft: n.data?.isLocalDraft,
+                label: n.data?.label,
+              },
+            };
+          });
+
+          const updatedEdges = parsed.edges.map((e) => ({
+            id: e.id,
+            sourceNodeId: e.source,
+            sourcePin: e.sourceHandle || "out",
+            targetNodeId: e.target,
+            targetPin: e.targetHandle || "in",
+          }));
+
+          const updatedSnapDto: ExtendedPipelineGraphDto = {
+            id: activeDraftPipeline.fullPath,
+            name: parsed.name || activeDraftPipeline.fileName,
+            projectId,
+            triggerType: PipelineTriggerType.Manual,
+            nodes: updatedNodes,
+            edges: updatedEdges,
+            parameters: currentSnap?.parameters || [],
+          };
+
+          await savePipelineSnapshotOnDisk(pipelineSlug, JSON.stringify(updatedSnapDto, null, 2));
+          setCachedSnapshotGraph(updatedSnapDto);
+        } catch (snapErr) {
+          console.warn("[LocalWorkspacePage] Could not update snapshot from raw YAML:", snapErr);
+        }
+      }
       toast.success("Pipeline YAML saved to disk!");
     } catch (err: any) {
       toast.error("Failed to save pipeline YAML", { description: err?.message });
@@ -368,8 +445,8 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
         <div className="flex-1 min-h-0 relative bg-background/50 overflow-hidden">
           {activeDraftPipeline ? (
             viewMode === "yaml" ? (
-              <div className="h-full w-full p-4 overflow-auto">
-                <div className="h-full max-w-4xl mx-auto flex flex-col gap-2">
+              <div className="h-full w-full p-4 overflow-hidden flex flex-col">
+                <div className="h-full w-full flex flex-col gap-2">
                   <textarea
                     value={rawYamlContent}
                     onChange={(e) => setRawYamlContent(e.target.value)}
