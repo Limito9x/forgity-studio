@@ -7,6 +7,7 @@ import {
   BackgroundVariant,
   useReactFlow,
   ConnectionLineType,
+  ReactFlowProvider,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { toast } from "sonner";
@@ -65,7 +66,13 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
     if (definitions.isError) return <div role="alert">Failed to load node definitions. <button onClick={() => void definitions.refetch()}>Retry</button></div>;
     return <div role="status">Loading node definitions...</div>;
   }
-  return <NodeDefinitionsProvider items={definitions.data}><PipelineCanvasContent key={`${props.projectId}:${props.graph.id}:${(props.graph as any).activeSnapshotId || (props.graph as any).graphHash || ""}`} {...props} /></NodeDefinitionsProvider>;
+  return (
+    <ReactFlowProvider>
+      <NodeDefinitionsProvider items={definitions.data}>
+        <PipelineCanvasContent key={`${props.projectId}:${props.graph.id}:${(props.graph as any).activeSnapshotId || (props.graph as any).graphHash || ""}`} {...props} />
+      </NodeDefinitionsProvider>
+    </ReactFlowProvider>
+  );
 }
 
 function PipelineCanvasContent({ projectId, graph }: PipelineCanvasProps) {
