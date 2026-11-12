@@ -40,25 +40,15 @@ const PIN_BG_CLASSES: Record<NormalizedPinType, { bgClass: string; textClass: st
 export function getPinVisual(type?: PinPrimitiveType | number | string, pin?: PinDefinition): PinTypeVisual {
   let norm = normalizePinType(type);
 
-  if (norm === "String" && pin) {
-    let hintType: string | undefined;
-    if (pin.metadata) {
-      try {
-        const metaObj = typeof pin.metadata === "string" ? JSON.parse(pin.metadata) : pin.metadata;
-        hintType = metaObj?.type?.toLowerCase();
-      } catch { }
-    }
-
-    const idLower = (pin.id || "").toLowerCase();
-    if (
-      hintType === "file" ||
-      hintType === "asset" ||
-      idLower.includes("preset") ||
-      idLower.endsWith("_file") ||
-      idLower.endsWith("_asset")
-    ) {
-      norm = "Asset";
-    }
+  // Chỉ chuyển sang Asset nếu metadata thực sự khai báo type là file/asset một cách tường minh, KHÔNG đoán mò theo tên ID
+  if (norm === "String" && pin?.metadata) {
+    try {
+      const metaObj = typeof pin.metadata === "string" ? JSON.parse(pin.metadata) : pin.metadata;
+      const hintType = metaObj?.type?.toLowerCase();
+      if (hintType === "file" || hintType === "asset") {
+        norm = "Asset";
+      }
+    } catch { }
   }
 
   const visual = getCatalogueVisual(norm);

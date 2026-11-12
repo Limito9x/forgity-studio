@@ -6,15 +6,7 @@ export const assetAdapter: FieldAdapter = {
     if (ctx.primitive === "Asset") return true;
 
     const hintType = ctx.hint?.type?.toLowerCase();
-    if (hintType === "file" || hintType === "asset") return true;
-
-    // Graceful backward compatibility fallback for preset / file pins
-    const idLower = ctx.pinId.toLowerCase();
-    return (
-      idLower.includes("preset") ||
-      idLower.endsWith("_file") ||
-      idLower.endsWith("_asset")
-    );
+    return hintType === "file" || hintType === "asset";
   },
   create: (ctx: PinFieldContext) => {
     const hintAccept = (ctx.hint as any)?.accept || (ctx.hint?.properties as any)?.accept;

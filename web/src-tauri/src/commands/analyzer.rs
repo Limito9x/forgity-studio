@@ -298,13 +298,6 @@ fn map_raw_pin(raw: &serde_json::Value, is_input: bool) -> PinDefinitionDto {
     };
 
     let name_lower = name.to_lowercase();
-    if is_input && primitive_type == "String" && (
-        name_lower.contains("preset") ||
-        name_lower.ends_with("_file") ||
-        name_lower.ends_with("_asset")
-    ) {
-        primitive_type = "Asset";
-    }
 
     let raw_cardinality = raw.get("cardinality").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
     let cardinality = match raw_cardinality.as_str() {
