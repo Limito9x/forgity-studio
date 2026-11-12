@@ -72,7 +72,15 @@ export function useLocalWorkspaceConfig(projectId: string) {
   });
 
   const updateConfigMutation = useMutation({
-    mutationFn: async ({ scriptsDir, pipelinesDir }: { scriptsDir: string; pipelinesDir: string }) => {
+    mutationFn: async ({
+      scriptsDir,
+      pipelinesDir,
+      ignorePatterns,
+    }: {
+      scriptsDir: string;
+      pipelinesDir: string;
+      ignorePatterns?: string[];
+    }) => {
       const rootPath = query.data?.rootPath;
       if (!rootPath || !isTauriRuntime()) return;
 
@@ -81,9 +89,10 @@ export function useLocalWorkspaceConfig(projectId: string) {
         rootPath,
         scriptsDir,
         pipelinesDir,
+        ignorePatterns: ignorePatterns || [],
       });
 
-      return { scriptsDir, pipelinesDir };
+      return { scriptsDir, pipelinesDir, ignorePatterns: ignorePatterns || [] };
     },
     onSuccess: (updated) => {
       if (!updated) return;
@@ -95,6 +104,7 @@ export function useLocalWorkspaceConfig(projectId: string) {
             ...old.config,
             scriptsDir: updated.scriptsDir,
             pipelinesDir: updated.pipelinesDir,
+            ignorePatterns: updated.ignorePatterns,
           },
         };
       });

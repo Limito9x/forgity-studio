@@ -48,7 +48,11 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     switchRootFolder,
   } = useLocalWorkspaceConfig(projectId);
 
-  const { draftNodes } = useLocalPaletteQuery(rootPath, config?.scriptsDir);
+  const {
+    draftNodes,
+    reanalyzeSingleScript,
+    removeNodeFromPalette,
+  } = useLocalPaletteQuery(rootPath, config?.scriptsDir, config?.ignorePatterns);
 
   const {
     pipelines: scannedDraftPipelines,
@@ -543,7 +547,15 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
         onClose={() => setIsScriptDrawerOpen(false)}
         hasActivePipeline={Boolean(activeDraftPipeline)}
         onReanalyzeNode={async (node) => {
-          await handleOpenSyncAndReview(node.key);
+          const res = await reanalyzeSingleScript(node.key);
+          if (res?.draftNodes[node.key]) {
+            setSelectedScript(res.draftNodes[node.key]);
+          }
+        }}
+        onRemoveNode={async (nodeKey) => {
+          await removeNodeFromPalette(nodeKey);
+          setIsScriptDrawerOpen(false);
+          setSelectedScript(null);
         }}
       />
 
@@ -551,6 +563,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
       <LocalScriptSyncSheet
         rootPath={rootPath}
         scriptsDir={config?.scriptsDir}
+        customIgnores={config?.ignorePatterns}
         isOpen={syncSheetOpen}
         onClose={() => setSyncSheetOpen(false)}
         initialScriptKey={syncSheetInitialKey}

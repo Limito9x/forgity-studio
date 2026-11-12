@@ -7,6 +7,8 @@ pub struct WorkspaceRootConfig {
     pub version: u32,
     pub scripts_dir: String,
     pub pipelines_dir: String,
+    #[serde(default)]
+    pub ignore_patterns: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,6 +42,7 @@ pub fn open_or_init_workspace_root(root_path: String) -> Result<WorkspaceInitRes
                 version: 1,
                 scripts_dir: "pipeline-scripts".to_string(),
                 pipelines_dir: "pipelines".to_string(),
+                ignore_patterns: Vec::new(),
             })
     } else {
         let scripts_dir = if root.join("pipeline-scripts").is_dir() {
@@ -54,6 +57,7 @@ pub fn open_or_init_workspace_root(root_path: String) -> Result<WorkspaceInitRes
             version: 1,
             scripts_dir,
             pipelines_dir: "pipelines".to_string(),
+            ignore_patterns: Vec::new(),
         };
 
         let json_str = serde_json::to_string_pretty(&cfg)
@@ -94,6 +98,7 @@ pub fn save_workspace_root_config(
     root_path: String,
     scripts_dir: String,
     pipelines_dir: String,
+    ignore_patterns: Option<Vec<String>>,
 ) -> Result<(), String> {
     let forgity_dir = Path::new(&root_path).join(".forgity");
     std::fs::create_dir_all(&forgity_dir)
@@ -103,6 +108,7 @@ pub fn save_workspace_root_config(
         version: 1,
         scripts_dir,
         pipelines_dir,
+        ignore_patterns: ignore_patterns.unwrap_or_default(),
     };
     let json_str = serde_json::to_string_pretty(&cfg)
         .map_err(|e| format!("Failed to serialize config: {}", e))?;

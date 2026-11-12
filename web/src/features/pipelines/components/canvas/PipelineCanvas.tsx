@@ -26,8 +26,12 @@ import { ExecutionStatusBanner } from "./ExecutionStatusBanner";
 import { PipelineFormScopeProvider } from "../../form-scope/PipelineFormScope";
 import { useNodePalette, useCancelPipelineExecution } from "../../hooks/usePipelines";
 import { useGetStructCatalogue } from "@/gen/endpoints/pipelines/pipelines";
-import { useLocalPaletteQuery } from "../../hooks/workspace";
-import { localStructsToCatalogue } from "../../utils/structPaletteGenerator";
+import { useLocalPaletteQuery, useLocalPipelinesQuery } from "../../hooks/workspace";
+import {
+  localStructsToCatalogue,
+  generateLocalStructPaletteItems,
+  generateComponentPipePaletteItems,
+} from "../../utils/structPaletteGenerator";
 import type { ExtendedPipelineGraphDto } from "../../hooks/usePipelineGraph";
 import {
   usePipelineDraftState,
@@ -64,18 +68,26 @@ const defaultEdgeOptions = {
 };
 
 export function PipelineCanvas(props: PipelineCanvasProps) {
+  const isLocal = Boolean(props.rootPath);
   const definitions = useNodePalette(props.projectId);
-  const { draftNodes } = useLocalPaletteQuery(props.rootPath ?? null);
+  const { draftNodes, localStructs } = useLocalPaletteQuery(props.rootPath ?? null);
+  const { pipelines: scannedPipelines } = useLocalPipelinesQuery(props.rootPath ?? null);
 
-  // Combine server palette items with local draft nodes
+  // Combine server palette items (only in Cloud mode) with local definitions
   const allDefinitions = useMemo(() => {
-    const list: NodePaletteItemDto[] = [...(definitions.data || [])];
+    const list: NodePaletteItemDto[] = [];
+
+    // Local-First: Khi ở Local Workspace, tuyệt đối KHÔNG kéo node definitions từ DB
+    if (!isLocal && definitions.data) {
+      list.push(...definitions.data);
+    }
+
     if (draftNodes) {
       for (const draft of Object.values(draftNodes)) {
         const item: NodePaletteItemDto = {
           key: draft.key,
           label: draft.suggestedLabel || draft.suggestedName || draft.fileName,
-          category: draft.executor || "Local Scripts",
+          category: "Local Scripts",
           source: "Custom" as any,
           executor: draft.executor,
           inputs: (draft.inputs || []) as any,
@@ -92,8 +104,23 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
         });
       }
     }
+
+    // Nạp Struct Make/Break companion nodes
+    if (localStructs && localStructs.length > 0) {
+      const structItems = generateLocalStructPaletteItems(localStructs);
+      list.push(...structItems);
+    }
+
+    // Nạp Component Pipes dưới dạng Sub-Pipeline nodes
+    if (scannedPipelines && scannedPipelines.length > 0) {
+      const componentPipes = scannedPipelines.filter((p) => p.pipelineKind === "component");
+      if (componentPipes.length > 0) {
+        list.push(...generateComponentPipePaletteItems(componentPipes));
+      }
+    }
+
     return list;
-  }, [definitions.data, draftNodes]);
+  }, [isLocal, definitions.data, draftNodes, localStructs, scannedPipelines]);
 
   return (
     <ReactFlowProvider>

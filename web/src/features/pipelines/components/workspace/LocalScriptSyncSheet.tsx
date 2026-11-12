@@ -25,6 +25,7 @@ import type { AnalyzedCustomNodeDto } from "@/gen/model";
 interface LocalScriptSyncSheetProps {
   rootPath?: string | null;
   scriptsDir?: string;
+  customIgnores?: string[];
   isOpen: boolean;
   onClose: () => void;
   initialScriptKey?: string;
@@ -33,6 +34,7 @@ interface LocalScriptSyncSheetProps {
 export function LocalScriptSyncSheet({
   rootPath = null,
   scriptsDir,
+  customIgnores,
   isOpen,
   onClose,
   initialScriptKey: _initialScriptKey,
@@ -41,7 +43,7 @@ export function LocalScriptSyncSheet({
     previewScanScripts,
     applyPalette,
     clearPalette,
-  } = useLocalPaletteQuery(rootPath, scriptsDir);
+  } = useLocalPaletteQuery(rootPath, scriptsDir, customIgnores);
 
   const [stagedNodes, setStagedNodes] = useState<StagedScriptItem[]>([]);
   const [stagedStructs, setStagedStructs] = useState<LocalStructDefinition[]>([]);
@@ -56,23 +58,30 @@ export function LocalScriptSyncSheet({
       if (result) {
         setStagedStructs(result.localStructs || []);
         const nodesMap = result.draftNodes;
-        const items: StagedScriptItem[] = Object.values(nodesMap).map((node) => ({
-          key: node.key,
-          fileName: node.fileName,
-          fullPath: node.fullPath,
-          folderRoot: node.folderRoot || "",
-          executor: node.executor,
-          suggestedName: node.suggestedName,
-          suggestedLabel: node.suggestedLabel,
-          description: node.description,
-          contentHash: node.contentHash,
-          inputs: node.inputs || [],
-          outputs: node.outputs || [],
-          dependencies: node.dependencies || [],
-          sourceCode: node.sourceCode || "",
-          status: "unchanged",
-          lastSyncedAt: node.lastSyncedAt || "",
-        }));
+        const items: StagedScriptItem[] = Object.values(nodesMap).map((node) => {
+          const cached = (result.scanSummary as any)?.originalPalette?.[node.key];
+          let status: "new" | "modified" | "unchanged" = "new";
+          if (cached) {
+            status = cached.contentHash === node.contentHash ? "unchanged" : "modified";
+          }
+          return {
+            key: node.key,
+            fileName: node.fileName,
+            fullPath: node.fullPath,
+            folderRoot: node.folderRoot || "",
+            executor: node.executor,
+            suggestedName: node.suggestedName,
+            suggestedLabel: node.suggestedLabel,
+            description: node.description,
+            contentHash: node.contentHash,
+            inputs: node.inputs || [],
+            outputs: node.outputs || [],
+            dependencies: node.dependencies || [],
+            sourceCode: node.sourceCode || "",
+            status,
+            lastSyncedAt: node.lastSyncedAt || "",
+          };
+        });
         setStagedNodes(items);
         if (_initialScriptKey) {
           const foundIdx = items.findIndex((i) => i.key === _initialScriptKey);

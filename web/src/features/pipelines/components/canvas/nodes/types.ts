@@ -62,7 +62,23 @@ export function getPinVisual(type?: PinPrimitiveType | number | string, pin?: Pi
   }
 
   const visual = getCatalogueVisual(norm);
-  const style = PIN_BG_CLASSES[norm] || PIN_BG_CLASSES.String;
+  let style = PIN_BG_CLASSES[norm] || PIN_BG_CLASSES.String;
+
+  const cardVal = pin?.cardinality as any;
+  const isMap = cardVal === 2 || cardVal === "2" || cardVal === "Map" || cardVal === "map";
+  if (isMap) {
+    const pinIdLower = (pin?.id || "").toLowerCase();
+    const isAssetMap = (pin as any)?.valueType === "Asset" || pinIdLower.endsWith("_maps") || pinIdLower.includes("baked");
+    if (isAssetMap) {
+      style = PIN_BG_CLASSES.Asset;
+      return {
+        label: "Asset Map",
+        hex: "#ec4899",
+        bgClass: style.bgClass,
+        textClass: style.textClass,
+      };
+    }
+  }
 
   return {
     label: visual.label,
@@ -115,7 +131,29 @@ export function formatPinTypeLabel(type?: PinPrimitiveType | number | string, ca
   const isMap = cardinality === 2 || cardinality === "2" || cardinality === "Map" || cardinality === "map";
 
   if (isMap) {
-    return `Map<${visual.label}>`;
+    const rawKey = (pin as any)?.keyType || "Text";
+    let rawVal = (pin as any)?.valueType;
+    if (!rawVal) {
+      const pinIdLower = (pin?.id || "").toLowerCase();
+      if (pin?.structType) {
+        rawVal = pin.structType;
+      } else if (
+        pinIdLower.endsWith("_maps") ||
+        pinIdLower.endsWith("_paths") ||
+        pinIdLower.endsWith("_files") ||
+        pinIdLower.includes("texture") ||
+        pinIdLower === "baked_maps"
+      ) {
+        rawVal = "Asset";
+      } else if (pinIdLower === "material_roles") {
+        rawVal = "Text";
+      } else if (visual.label === "File Upload" || visual.label === "Asset") {
+        rawVal = "Asset";
+      } else {
+        rawVal = "Text";
+      }
+    }
+    return `Map<${rawKey}, ${rawVal}>`;
   }
   if (isArray) {
     return `${visual.label}[]`;

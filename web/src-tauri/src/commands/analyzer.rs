@@ -42,6 +42,10 @@ pub struct PinDefinitionDto {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub struct_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub key_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
 
@@ -109,12 +113,20 @@ fn is_hex_hash_stem(stem: &str) -> bool {
     stem.chars().all(|c| c.is_ascii_hexdigit())
 }
 
-fn is_ignored_dir(name: &str) -> bool {
+fn is_ignored_dir(name: &str, custom_ignores: &[String]) -> bool {
     if name.starts_with('.') {
         return true;
     }
+    let lower = name.to_ascii_lowercase();
+
+    // Check custom user ignore patterns from workspace config
+    if custom_ignores.iter().any(|pattern| pattern.to_ascii_lowercase() == lower) {
+        return true;
+    }
+
+    // Standard dev & build artifacts only
     matches!(
-        name.to_ascii_lowercase().as_str(),
+        lower.as_str(),
         "__pycache__"
             | "venv"
             | ".venv"
@@ -129,15 +141,6 @@ fn is_ignored_dir(name: &str) -> bool {
             | "temp"
             | "tmp"
             | "logs"
-            | "presets"
-            | "tests"
-            | "test"
-            | "scratch"
-            | "runner"
-            | "api"
-            | "web"
-            | "packages"
-            | "tools"
     )
 }
 
@@ -168,6 +171,7 @@ fn scan_dir_recursive(
     root_path: &Path,
     current_dir: &Path,
     results: &mut Vec<ScannedScriptItem>,
+    custom_ignores: &[String],
 ) {
     let read_dir = match std::fs::read_dir(current_dir) {
         Ok(entries) => entries,
@@ -179,8 +183,8 @@ fn scan_dir_recursive(
         let file_name = entry.file_name().to_string_lossy().to_string();
 
         if path.is_dir() {
-            if !is_ignored_dir(&file_name) {
-                scan_dir_recursive(root_path, &path, results);
+            if !is_ignored_dir(&file_name, custom_ignores) {
+                scan_dir_recursive(root_path, &path, results, custom_ignores);
             }
         } else if path.is_file() {
             let is_python = path
@@ -241,12 +245,16 @@ fn scan_dir_recursive(
 }
 
 #[tauri::command]
-pub fn scan_local_script_folders(folders: Vec<ScriptFolderInput>) -> Vec<ScannedScriptItem> {
+pub fn scan_local_script_folders(
+    folders: Vec<ScriptFolderInput>,
+    custom_ignores: Option<Vec<String>>,
+) -> Vec<ScannedScriptItem> {
+    let ignores = custom_ignores.unwrap_or_default();
     let mut results = Vec::new();
     for folder in folders {
         let folder_path = Path::new(&folder.path);
         if folder_path.is_dir() {
-            scan_dir_recursive(folder_path, folder_path, &mut results);
+            scan_dir_recursive(folder_path, folder_path, &mut results, &ignores);
         }
     }
     results
@@ -278,10 +286,13 @@ fn map_raw_pin(raw: &serde_json::Value, is_input: bool) -> PinDefinitionDto {
     };
 
     let data_type = raw.get("dataType").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+    let struct_type = raw.get("structType").and_then(|v| v.as_str()).map(|s| s.to_string());
+
     let mut primitive_type = match data_type.as_str() {
         "number" | "int" | "float" => "Number",
         "bool" | "boolean" => "Boolean",
         "asset" | "file" => "Asset",
+        "struct" => "Struct",
         "entityref" => "EntityRef",
         _ => "String",
     };
@@ -338,6 +349,20 @@ fn map_raw_pin(raw: &serde_json::Value, is_input: bool) -> PinDefinitionDto {
     let default_value = raw.get("defaultValue").cloned().filter(|v| !v.is_null());
     let description = raw.get("description").and_then(|v| v.as_str()).map(|s| s.to_string());
 
+    let (key_type, value_type) = if cardinality == "Map" {
+        let kt = raw.get("keyType").and_then(|v| v.as_str()).unwrap_or("Text").to_string();
+        let vt = raw.get("valueType").and_then(|v| v.as_str()).map(|s| s.to_string()).unwrap_or_else(|| {
+            if name_lower.ends_with("_maps") || name_lower.ends_with("_paths") || name_lower.ends_with("_files") || name_lower.contains("texture") {
+                "Asset".to_string()
+            } else {
+                "Text".to_string()
+            }
+        });
+        (Some(kt), Some(vt))
+    } else {
+        (None, None)
+    };
+
     PinDefinitionDto {
         id: name,
         label,
@@ -347,7 +372,9 @@ fn map_raw_pin(raw: &serde_json::Value, is_input: bool) -> PinDefinitionDto {
         is_required,
         default_value,
         metadata,
-        struct_type: None,
+        struct_type,
+        key_type,
+        value_type,
         description,
     }
 }
@@ -426,8 +453,11 @@ fn find_python_executable() -> String {
 }
 
 #[tauri::command]
-pub fn analyze_local_scripts_native(folders: Vec<ScriptFolderInput>) -> Result<Vec<AnalyzedLocalScriptItem>, String> {
-    let scanned_items = scan_local_script_folders(folders);
+pub fn analyze_local_scripts_native(
+    folders: Vec<ScriptFolderInput>,
+    custom_ignores: Option<Vec<String>>,
+) -> Result<Vec<AnalyzedLocalScriptItem>, String> {
+    let scanned_items = scan_local_script_folders(folders, custom_ignores);
     if scanned_items.is_empty() {
         return Ok(Vec::new());
     }

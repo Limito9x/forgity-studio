@@ -2,6 +2,7 @@ export interface WorkspaceRootConfig {
   version: number;
   scriptsDir: string;
   pipelinesDir: string;
+  ignorePatterns?: string[];
 }
 
 export interface WorkspaceInitResult {

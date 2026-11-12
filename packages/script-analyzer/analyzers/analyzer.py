@@ -14,7 +14,7 @@ from .strategies import (
     GenericPythonExecutorStrategy,
     OutputDiscoveryStrategy,
 )
-from .typing_utils import extract_default_value, normalize_type_and_cardinality
+from .typing_utils import extract_default_value, normalize_type_and_cardinality, extract_map_key_value_types
 
 
 class PythonScriptAnalyzer:
@@ -79,6 +79,18 @@ class PythonScriptAnalyzer:
                     break
         if not outputs:
             outputs = [{"name": "result", "dataType": "Text", "cardinality": "Single", "description": "Output"}]
+
+        # 6b. Reconcile Outputs with Detected Structs
+        for out in outputs:
+            out_name = out.get("name", "").lower()
+            for s in detected_structs:
+                s_slug = s["slug"].lower()
+                s_name = s["displayName"].lower()
+                if out_name == s_slug or s_slug.endswith(out_name) or out_name.endswith(s_slug) or (out_name == "manifest" and "manifest" in s_slug):
+                    out["dataType"] = "Struct"
+                    out["cardinality"] = "Single"
+                    out["structType"] = s["slug"]
+                    break
 
         # 7. Dynamic Dependencies Resolution
         dependencies = self.dep_resolver.resolve(ctx.imported_modules, active_executor.dcc_builtins)
@@ -256,6 +268,16 @@ class PythonScriptAnalyzer:
                 "metadata": metadata_hint,
                 "description": desc
             }
+            if cardinality == "Map":
+                k_t, v_t = extract_map_key_value_types(arg.annotation)
+                name_l = name.lower()
+                if name_l.endswith("_maps") or name_l.endswith("_paths") or name_l.endswith("_files") or "texture" in name_l:
+                    v_t = "Asset"
+                elif name_l == "material_roles":
+                    v_t = "Text"
+                input_entry["keyType"] = k_t
+                input_entry["valueType"] = v_t
+
             if matched_struct_type:
                 input_entry["structType"] = matched_struct_type
 

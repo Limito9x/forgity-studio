@@ -7,6 +7,7 @@ import {
   Code2,
   ListTree,
   Copy,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,7 @@ interface LocalNodeDetailDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onReanalyzeNode?: (node: LocalDraftNode) => Promise<void>;
+  onRemoveNode?: (nodeKey: string) => Promise<void>;
   onAddToPipeline?: (node: LocalDraftNode) => void;
   hasActivePipeline?: boolean;
 }
@@ -27,11 +29,13 @@ export function LocalNodeDetailDrawer({
   isOpen,
   onClose,
   onReanalyzeNode,
+  onRemoveNode,
   onAddToPipeline,
   hasActivePipeline = false,
 }: LocalNodeDetailDrawerProps) {
   const [activeTab, setActiveTab] = useState<"contracts" | "source">("contracts");
   const [isReanalyzing, setIsReanalyzing] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   if (!isOpen || !node) return null;
 
@@ -49,6 +53,22 @@ export function LocalNodeDetailDrawer({
       });
     } finally {
       setIsReanalyzing(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    if (!onRemoveNode) return;
+    setIsRemoving(true);
+    try {
+      await onRemoveNode(node.key);
+      toast.success(`Removed '${node.key}' from Palette`);
+      onClose();
+    } catch (err: any) {
+      toast.error("Failed to remove script", {
+        description: err?.message || "Unknown error",
+      });
+    } finally {
+      setIsRemoving(false);
     }
   };
 
@@ -238,16 +258,31 @@ export function LocalNodeDetailDrawer({
 
       {/* Footer Actions */}
       <div className="border-t border-border/70 bg-card/60 px-5 py-3 flex items-center justify-between shrink-0">
-        <Button
-          variant="outline"
-          size="sm"
-          onPress={handleReanalyze}
-          isDisabled={isReanalyzing}
-          className="gap-1.5 text-xs h-8"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${isReanalyzing ? "animate-spin text-emerald-500" : ""}`} />
-          <span>Re-analyze File</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onPress={handleReanalyze}
+            isDisabled={isReanalyzing || isRemoving}
+            className="gap-1.5 text-xs h-8"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isReanalyzing ? "animate-spin text-emerald-500" : ""}`} />
+            <span>Re-analyze File</span>
+          </Button>
+
+          {onRemoveNode && (
+            <Button
+              variant="outline"
+              size="sm"
+              onPress={handleRemove}
+              isDisabled={isReanalyzing || isRemoving}
+              className="gap-1.5 text-xs h-8 text-destructive hover:bg-destructive/10 border-destructive/30"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Remove from Palette</span>
+            </Button>
+          )}
+        </div>
 
         <div className="flex items-center gap-2">
           {hasActivePipeline && onAddToPipeline && (

@@ -72,9 +72,9 @@ export function LocalWorkspaceOutliner({
     localStructs,
     isScanning,
     scanAndSyncScripts,
-    clearPalette,
+    removeNodeFromPalette,
     deleteLocalStruct,
-  } = useLocalPaletteQuery(rootPath, config?.scriptsDir);
+  } = useLocalPaletteQuery(rootPath, config?.scriptsDir, config?.ignorePatterns);
 
   const {
     componentPipes,
@@ -136,12 +136,12 @@ export function LocalWorkspaceOutliner({
     }
   };
 
-  const handleClearPalette = async () => {
+  const handleRemoveNode = async (nodeKey: string) => {
     try {
-      await clearPalette();
-      toast.success("Local palette cleared from disk!");
+      await removeNodeFromPalette(nodeKey);
+      toast.success(`Removed '${nodeKey}' from palette`);
     } catch (err: any) {
-      toast.error("Failed to clear palette", { description: err?.message });
+      toast.error("Failed to remove node", { description: err?.message });
     }
   };
 
@@ -636,19 +636,6 @@ export function LocalWorkspaceOutliner({
               {scriptsExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
               <span>Local Palette Nodes ({draftNodeList.length})</span>
             </button>
-            <div className="flex items-center gap-1.5">
-              {draftNodeList.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onPress={handleClearPalette}
-                  className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive transition-colors"
-                  aria-label="Clear Local Palette"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              )}
-            </div>
           </div>
 
           {scriptsExpanded && (
@@ -702,9 +689,22 @@ export function LocalWorkspaceOutliner({
                         </p>
                       </div>
                     </div>
-                    <Badge variant="outline" className={`text-[9px] px-1 py-0 h-4 ${getExecutorColor(node.executor)}`}>
-                      {node.executor}
-                    </Badge>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveNode(node.key);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity"
+                        title={`Remove '${node.key}' from Palette`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                      <Badge variant="outline" className={`text-[9px] px-1 py-0 h-4 ${getExecutorColor(node.executor)}`}>
+                        {node.executor}
+                      </Badge>
+                    </div>
                   </div>
                 ))
               )}

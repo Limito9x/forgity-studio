@@ -151,3 +151,46 @@ def _is_none(node: ast.AST) -> bool:
     if isinstance(node, ast.Name) and node.id == "None":
         return True
     return False
+
+
+def extract_map_key_value_types(annotation_node: Optional[ast.AST]) -> Tuple[str, str]:
+    """Extracts (key_type, value_type) for Dict / Mapping types."""
+    if annotation_node is None:
+        return "Text", "Text"
+
+    # Unwrap Optional/Union/Annotated
+    if isinstance(annotation_node, ast.Subscript):
+        base_id = _get_identifier(annotation_node.value)
+        if base_id in ("Optional", "Union"):
+            slice_node = annotation_node.slice
+            if isinstance(slice_node, ast.Tuple):
+                for e in slice_node.elts:
+                    if not _is_none(e):
+                        return extract_map_key_value_types(e)
+            else:
+                return extract_map_key_value_types(slice_node)
+
+        if base_id in ("Annotated", "typing.Annotated"):
+            slice_node = annotation_node.slice
+            elts = slice_node.elts if isinstance(slice_node, ast.Tuple) else [slice_node]
+            if elts:
+                return extract_map_key_value_types(elts[0])
+
+        if base_id in ("Dict", "dict", "Mapping"):
+            slice_node = annotation_node.slice
+            if isinstance(slice_node, ast.Tuple) and len(slice_node.elts) >= 2:
+                k_type, _, _ = normalize_type_and_cardinality(slice_node.elts[0])
+                v_node = slice_node.elts[1]
+                v_type, _, _ = normalize_type_and_cardinality(v_node)
+
+                v_ident = _get_identifier(v_node).lower()
+                if "path" in v_ident or "file" in v_ident or "asset" in v_ident:
+                    v_type = "Asset"
+                elif v_ident in ("str", "string"):
+                    v_type = "Text"
+
+                key_res = k_type if k_type != "Unknown" else "Text"
+                val_res = v_type if v_type != "Unknown" else "Text"
+                return key_res, val_res
+
+    return "Text", "Text"

@@ -4,9 +4,27 @@ export const definitionKey = (kind: string, refId: string) => `${kind}:${refId.t
 export function indexDefinitions(items: NodePaletteItemDto[]) {
   const definitions = new Map<string, NodePaletteItemDto>();
   for (const item of items) {
+    // 1. Index theo source (Tool, Custom, LocalDraft...)
     definitions.set(definitionKey(item.source, item.key), item);
-    // Graphs can reference custom definitions by key or persistent ID.
     if (item.id) definitions.set(definitionKey(item.source, item.id), item);
+
+    // 2. Index đa năng theo các kind phổ biến trong graph: LocalDraft, Custom, Tool
+    definitions.set(definitionKey("LocalDraft", item.key), item);
+    definitions.set(definitionKey("Custom", item.key), item);
+    definitions.set(definitionKey("Tool", item.key), item);
+
+    // 3. Hỗ trợ tìm kiếm theo cả key trần (không có tiền tố local:) lẫn có tiền tố local:
+    if (item.key.startsWith("local:")) {
+      const bareKey = item.key.slice("local:".length);
+      definitions.set(definitionKey("LocalDraft", bareKey), item);
+      definitions.set(definitionKey("Custom", bareKey), item);
+      definitions.set(definitionKey("Tool", bareKey), item);
+    } else {
+      const prefixedKey = `local:${item.key}`;
+      definitions.set(definitionKey("LocalDraft", prefixedKey), item);
+      definitions.set(definitionKey("Custom", prefixedKey), item);
+      definitions.set(definitionKey("Tool", prefixedKey), item);
+    }
   }
   return definitions;
 }

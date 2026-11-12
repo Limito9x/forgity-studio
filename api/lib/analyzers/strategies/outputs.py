@@ -65,12 +65,21 @@ class ReturnDictInspectionStrategy(OutputDiscoveryStrategy):
                                 elif name.endswith("es") or name.endswith("s") or name.endswith("_list"):
                                     cardinality = "Array"
 
-                            outputs.append({
+                            out_item: Dict[str, Any] = {
                                 "name": name,
                                 "dataType": prim_type,
                                 "cardinality": cardinality,
                                 "description": f"Output property '{name}'"
-                            })
+                            }
+                            if cardinality == "Map":
+                                out_item["keyType"] = "Text"
+                                name_l = name.lower()
+                                if name_l.endswith("_maps") or name_l.endswith("_paths") or name_l.endswith("_files") or "texture" in name_l:
+                                    out_item["valueType"] = "Asset"
+                                else:
+                                    out_item["valueType"] = "Text"
+
+                            outputs.append(out_item)
 
         return outputs
 
@@ -101,12 +110,21 @@ class DocstringOutputsStrategy(OutputDiscoveryStrategy):
                         cardinality = "Array" if "list" in item.lower() or "[]" in item else "Single"
                         if "dict" in item.lower() or "map" in item.lower():
                             cardinality = "Map"
-                        outputs.append({
+                        out_item: Dict[str, Any] = {
                             "name": pin_name,
                             "dataType": "Text",
                             "cardinality": cardinality,
                             "description": desc
-                        })
+                        }
+                        if cardinality == "Map":
+                            out_item["keyType"] = "Text"
+                            p_l = pin_name.lower()
+                            if p_l.endswith("_maps") or p_l.endswith("_paths") or p_l.endswith("_files") or "texture" in p_l or "texture" in desc.lower():
+                                out_item["valueType"] = "Asset"
+                            else:
+                                out_item["valueType"] = "Text"
+
+                        outputs.append(out_item)
                 elif stripped and not (line.startswith("  ") or line.startswith("\t")):
                     in_returns = False
 

@@ -89,18 +89,20 @@ export function ContextMenuPalette({
         ))
     );
 
-    // Merge local workspace draft nodes if in Desktop mode
-    const combined: NodePaletteItemDto[] = [...items];
+    // Local-First: Khi ở Desktop Local Workspace, tuyệt đối KHÔNG kéo actions từ server DB
+    const combined: NodePaletteItemDto[] = isDesktop ? [] : [...items];
     if (isDesktop && draftNodes) {
       const localItems: NodePaletteItemDto[] = Object.values(draftNodes)
         .filter((draft) => {
           if (!executorParam) return true;
-          return draft.executor.toLowerCase() === executorParam.toLowerCase();
+          const draftExec = draft.executor.toLowerCase();
+          const targetExec = executorParam.toLowerCase();
+          return draftExec === targetExec || (draftExec === "python" && ["blender", "unreal"].includes(targetExec));
         })
         .map((draft) => ({
           key: `local:${draft.key}`,
           label: draft.suggestedLabel || draft.suggestedName || draft.fileName,
-          category: draft.executor || "Local Scripts",
+          category: "Local Scripts",
           source: "LocalDraft" as any,
           executor: draft.executor,
           inputs: draft.inputs || [],
@@ -137,18 +139,6 @@ export function ContextMenuPalette({
     );
   }, [paletteItems, draftNodes, localStructs, scannedDraftPipelines, isDesktop, executorParam, search, currentPipelineId, isComponentPipe]);
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, NodePaletteItemDto[]>();
-    for (const item of filteredItems) {
-      const cat = item.category || (item.source === "Tool" ? "Built-in Tools" : "Custom Nodes");
-      if (!map.has(cat)) {
-        map.set(cat, []);
-      }
-      map.get(cat)!.push(item);
-    }
-    return map;
-  }, [filteredItems]);
-
   if (!position) return null;
 
   return (
@@ -173,42 +163,33 @@ export function ContextMenuPalette({
       </div>
 
       {/* Content list */}
-      <div className="flex-1 overflow-y-auto pr-1 space-y-3 custom-scrollbar text-xs">
+      <div className="flex-1 overflow-y-auto pr-1 space-y-1 custom-scrollbar text-xs">
         {isLoading && <div className="text-center py-4 text-muted-foreground">Loading actions...</div>}
 
         {!isLoading && filteredItems.length === 0 && (
           <div className="text-center py-4 text-muted-foreground">No matching actions found</div>
         )}
 
-        {Array.from(grouped.entries()).map(([category, items]) => (
-          <div key={category} className="space-y-1">
-            <div className="text-[10px] font-semibold tracking-wider uppercase text-muted-foreground px-2 py-0.5">
-              {category}
+        {filteredItems.map((item) => (
+          <button
+            key={item.id || item.key}
+            type="button"
+            onClick={() => {
+              onSelect(item);
+              onClose();
+            }}
+            className="w-full text-left px-2 py-1.5 rounded-md hover:bg-accent/80 hover:text-accent-foreground flex items-center justify-between group transition-colors cursor-pointer"
+          >
+            <div className="flex flex-col min-w-0">
+              <span className="font-medium text-foreground truncate">{item.label}</span>
+              <span className="text-[10px] text-muted-foreground truncate">{item.key}</span>
             </div>
-            <div className="space-y-0.5">
-              {items.map((item) => (
-                <button
-                  key={item.id || item.key}
-                  type="button"
-                  onClick={() => {
-                    onSelect(item);
-                    onClose();
-                  }}
-                  className="w-full text-left px-2 py-1.5 rounded-md hover:bg-accent/80 hover:text-accent-foreground flex items-center justify-between group transition-colors cursor-pointer"
-                >
-                  <div className="flex flex-col min-w-0">
-                    <span className="font-medium text-foreground truncate">{item.label}</span>
-                    <span className="text-[10px] text-muted-foreground truncate">{item.key}</span>
-                  </div>
-                  {item.executor && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase font-mono shrink-0 ml-2">
-                      {item.executor}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
+            {item.executor && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase font-mono shrink-0 ml-2">
+                {item.executor}
+              </span>
+            )}
+          </button>
         ))}
       </div>
     </div>

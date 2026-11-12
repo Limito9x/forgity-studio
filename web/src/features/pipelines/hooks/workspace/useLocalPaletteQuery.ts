@@ -19,7 +19,11 @@ export interface LocalPaletteData {
 /**
  * Hook hạ tầng quản lý Palette Nodes và Local Structs (Single Source of Truth trên đĩa)
  */
-export function useLocalPaletteQuery(rootPath: string | null, scriptsDir?: string) {
+export function useLocalPaletteQuery(
+  rootPath: string | null,
+  scriptsDir?: string,
+  customIgnores?: string[],
+) {
   const queryClient = useQueryClient();
 
   const query = useQuery({
@@ -92,6 +96,7 @@ export function useLocalPaletteQuery(rootPath: string | null, scriptsDir?: strin
             path: scriptsFullPath,
           },
         ],
+        customIgnores: customIgnores && customIgnores.length > 0 ? customIgnores : null,
       });
 
       const currentPalette = query.data?.draftNodes || {};
@@ -158,12 +163,13 @@ export function useLocalPaletteQuery(rootPath: string | null, scriptsDir?: strin
         }
       }
 
-      const summary: ScriptScanSummary = {
+      const summary: ScriptScanSummary & { originalPalette?: Record<string, LocalDraftNode> } = {
         newCount,
         modified,
         unchanged,
         total: analyzed.length,
         lastScannedAt: now,
+        originalPalette: currentPalette,
       };
 
       return {
@@ -268,16 +274,123 @@ export function useLocalPaletteQuery(rootPath: string | null, scriptsDir?: strin
     },
   });
 
+  // Mutation xóa 1 node khỏi palette
+  const removeNodeMutation = useMutation({
+    mutationFn: async (nodeKey: string) => {
+      if (!isTauriRuntime() || !rootPath) return;
+      const current = { ...(query.data?.draftNodes || {}) };
+      delete current[nodeKey];
+
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("save_local_palette", {
+        rootPath,
+        paletteJson: JSON.stringify(current, null, 2),
+      });
+      return current;
+    },
+    onSuccess: (updatedNodes) => {
+      if (!updatedNodes) return;
+      queryClient.setQueryData(LOCAL_PALETTE_QUERY_KEY(rootPath), (old: LocalPaletteData | null) => ({
+        draftNodes: updatedNodes,
+        localStructs: old?.localStructs || [],
+        scanSummary: old?.scanSummary || null,
+      }));
+    },
+  });
+
+  // Mutation phân tích lại và cập nhật tức thì cho riêng 1 script
+  const reanalyzeSingleScriptMutation = useMutation({
+    mutationFn: async (scriptKey: string) => {
+      if (!isTauriRuntime() || !rootPath) return null;
+      const currentDir = scriptsDir || "scripts";
+      const scriptsFullPath =
+        currentDir === "."
+          ? rootPath
+          : `${rootPath.replace(/[/\\]+$/, "")}/${currentDir.replace(/^[/\\]+/, "")}`;
+
+      const { invoke } = await import("@tauri-apps/api/core");
+      const analyzed = await invoke<any[]>("analyze_local_scripts_native", {
+        folders: [
+          {
+            namespace: "",
+            path: scriptsFullPath,
+          },
+        ],
+        customIgnores: customIgnores && customIgnores.length > 0 ? customIgnores : null,
+      });
+
+      const target = (analyzed || []).find((a) => a.key === scriptKey);
+      if (!target) {
+        throw new Error(`Script '${scriptKey}' not found during re-analysis.`);
+      }
+
+      const currentPalette = { ...(query.data?.draftNodes || {}) };
+      const currentStructs = [...(query.data?.localStructs || [])];
+      const now = new Date().toISOString();
+
+      currentPalette[target.key] = {
+        key: target.key,
+        fileName: target.fileName,
+        fullPath: target.fullPath,
+        folderRoot: target.folderRoot,
+        namespace: target.namespace,
+        suggestedName: target.suggestedName,
+        suggestedLabel: target.suggestedLabel,
+        executor: target.executor,
+        description: target.description,
+        contentHash: target.contentHash,
+        sourceCode: target.sourceCode,
+        inputs: target.inputs || [],
+        outputs: target.outputs || [],
+        detectedStructs: target.detectedStructs,
+        dependencies: target.dependencies,
+        lastSyncedAt: now,
+      };
+
+      if (target.detectedStructs && target.detectedStructs.length > 0) {
+        for (const s of target.detectedStructs) {
+          const idx = currentStructs.findIndex((existing) => existing.slug === s.slug);
+          if (idx >= 0) {
+            currentStructs[idx] = { ...s, updatedAt: now };
+          } else {
+            currentStructs.push({ ...s, updatedAt: now });
+          }
+        }
+        await invoke("save_local_structs", {
+          rootPath,
+          structsJson: JSON.stringify(currentStructs, null, 2),
+        });
+      }
+
+      await invoke("save_local_palette", {
+        rootPath,
+        paletteJson: JSON.stringify(currentPalette, null, 2),
+      });
+
+      return {
+        draftNodes: currentPalette,
+        localStructs: currentStructs,
+        scanSummary: query.data?.scanSummary || null,
+      };
+    },
+    onSuccess: (updated) => {
+      if (!updated) return;
+      queryClient.setQueryData(LOCAL_PALETTE_QUERY_KEY(rootPath), updated);
+    },
+  });
+
   return {
     draftNodes: query.data?.draftNodes || {},
     localStructs: query.data?.localStructs || [],
     scanSummary: query.data?.scanSummary || null,
     isLoading: query.isLoading,
-    isScanning: previewScanMutation.isPending || scanAndSyncMutation.isPending,
+    isScanning: previewScanMutation.isPending || scanAndSyncMutation.isPending || reanalyzeSingleScriptMutation.isPending,
     previewScanScripts: previewScanMutation.mutateAsync,
     scanAndSyncScripts: scanAndSyncMutation.mutateAsync,
     applyPalette: applyPaletteMutation.mutateAsync,
     clearPalette: clearPaletteMutation.mutateAsync,
+    removeNodeFromPalette: removeNodeMutation.mutateAsync,
+    reanalyzeSingleScript: reanalyzeSingleScriptMutation.mutateAsync,
     savePalette: (nodes: Record<string, LocalDraftNode>) =>
       applyPaletteMutation.mutateAsync({ nodes }),
     deleteLocalStruct: deleteStructMutation.mutateAsync,

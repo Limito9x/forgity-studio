@@ -39,21 +39,29 @@ export function WorkspaceConfigDialog(props: WorkspaceConfigDialogProps) {
 
   const [scriptsDir, setScriptsDir] = useState("");
   const [pipelinesDir, setPipelinesDir] = useState("");
+  const [ignorePatternsInput, setIgnorePatternsInput] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (config) {
       setScriptsDir(config.scriptsDir || "scripts");
       setPipelinesDir(config.pipelinesDir || "pipelines");
+      setIgnorePatternsInput((config.ignorePatterns || []).join(", "));
     }
   }, [config]);
 
   const handleSave = async () => {
     try {
       setIsSaving(true);
+      const parsedIgnores = ignorePatternsInput
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
       await updateConfig({
         scriptsDir: scriptsDir.trim() || "scripts",
         pipelinesDir: pipelinesDir.trim() || "pipelines",
+        ignorePatterns: parsedIgnores,
       });
       toast.success("Workspace folder configuration saved!");
       handleClose();
@@ -116,6 +124,22 @@ export function WorkspaceConfigDialog(props: WorkspaceConfigDialogProps) {
             placeholder="e.g. pipelines"
             className="text-xs h-8 font-mono"
           />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+            <Folder className="h-3.5 w-3.5 text-muted-foreground" />
+            Custom Ignore Patterns (Comma-separated)
+          </label>
+          <Input
+            value={ignorePatternsInput}
+            onChange={(e) => setIgnorePatternsInput(e.target.value)}
+            placeholder="e.g. deprecated, tests, scratch"
+            className="text-xs h-8 font-mono"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Standard build artifacts (node_modules, __pycache__, target, etc.) are ignored automatically.
+          </p>
         </div>
 
         <div className="pt-2 border-t border-border/60 flex items-center justify-between">
