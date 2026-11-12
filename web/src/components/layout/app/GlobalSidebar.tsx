@@ -16,7 +16,7 @@ import {
   SidebarMenuSubItem,
   SidebarGroupAction,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, Users, Settings2, Shield, Settings, MonitorCog, Logs, Cpu, Plus, FolderKanban, FolderGit2, HardDrive } from "lucide-react";
+import { LayoutDashboard, Users, Shield, Settings, Logs, Cpu, Plus, FolderKanban, FolderGit2, HardDrive, Building2 } from "lucide-react";
 import { NavUser } from "./NavUser";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useProjects } from "@/features/projects/hooks/useProjects";
@@ -40,19 +40,14 @@ const navItems = [
     icon: HardDrive,
   },
   {
-    title: "Identity",
-    icon: Settings2,
+    title: "Administration",
+    icon: Shield,
     items: [
+      { title: "Studios & Quotas", url: "/system/studios", icon: Building2, featurePrefix: "system-studios:" },
       { title: "Users", url: "/users", icon: Users, featurePrefix: "users:" },
       { title: "Roles", url: "/roles", icon: Shield, featurePrefix: "roles:" },
-    ]
-  },
-  {
-    title: "System",
-    icon: MonitorCog,
-    items: [
       { title: "Audit Logs", url: "/system/audit-logs", icon: Logs, featurePrefix: "auditlogs:" },
-      { title: "Settings", url: "/system/settings", icon: Settings, featurePrefix: "systemsettings:" },
+      { title: "System Settings", url: "/system/settings", icon: Settings, featurePrefix: "systemsettings:" },
     ]
   }
 ] as const;

@@ -2,10 +2,12 @@ import { useState } from "react";
 import { FolderOpen, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { openNativeFileOrFolderDialog, isTauriRuntime } from "@/lib/platform/filePickerStrategy";
-import { useLocalWorkspaceStore } from "../../stores/useLocalWorkspaceStore";
 
-export function LocalWorkspaceEmptyState() {
-  const { openWorkspaceRoot } = useLocalWorkspaceStore();
+interface LocalWorkspaceEmptyStateProps {
+  onOpenWorkspaceRoot: (path: string) => Promise<any>;
+}
+
+export function LocalWorkspaceEmptyState({ onOpenWorkspaceRoot }: LocalWorkspaceEmptyStateProps) {
   const [isPicking, setIsPicking] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const isDesktop = isTauriRuntime();
@@ -29,7 +31,7 @@ export function LocalWorkspaceEmptyState() {
         return;
       }
 
-      await openWorkspaceRoot(selectedPath);
+      await onOpenWorkspaceRoot(selectedPath);
     } catch (err: any) {
       console.error("[LocalWorkspaceEmptyState] Failed to open workspace root:", err);
       setErrorMsg(err?.message || "Failed to open workspace root folder");

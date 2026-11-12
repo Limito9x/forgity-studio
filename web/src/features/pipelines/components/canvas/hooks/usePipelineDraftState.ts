@@ -1,209 +1,72 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
-import { useNodesState, useEdgesState, MarkerType } from "@xyflow/react";
-import type { Node, Edge, OnNodesChange, OnEdgesChange } from "@xyflow/react";
-import { toast } from "sonner";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import {
+  useNodesState,
+  useEdgesState,
+  MarkerType,
+} from "@xyflow/react";
+import type { Node, Edge } from "@xyflow/react";
 import type {
   ExtendedPipelineGraphDto,
-  SavePipelineNodeItem,
-  SavePipelineEdgeItem,
-  PipelineParameterDto,
 } from "../../../hooks/usePipelineGraph";
-import {
-  PipelineNodeKind,
-  useSavePipelineGraph,
-} from "../../../hooks/usePipelineGraph";
-import type { NodePaletteItemDto, PinDefinition, StructDefinitionDto } from "@/gen/model";
+import { PipelineNodeKind } from "../../../hooks/usePipelineGraph";
 import type { CustomPipelineNodeData } from "../nodes/types";
-import { isExecPin } from "../nodes/types";
-import type { CapsuleNodeData } from "../CapsuleNode";
-import type { ScopeContainerNodeData } from "../ScopeContainerNode";
-import type { StageCreationOption } from "../ContextMenuPalette";
-import {
-  isExecEdge,
-  expandStageBoundsIfNeeded,
-  expandStageLiveWhileDragging,
-  STAGE_PADDING_LEFT,
-  STAGE_PADDING_TOP,
-} from "./canvasUtils";
-import { getStartNodeEventTriggerPins } from "../constants/structPins";
+import type {
+  NodePaletteItemDto,
+  PinDefinition,
+  PipelineParameterDto,
+  StructDefinitionDto,
+} from "@/gen/model";
 import { applyNodeConfigUpdate } from "../../../nodeDefinitions";
+import { isExecHandle } from "./canvasUtils";
+import { usePipelineContractSync } from "./usePipelineContractSync";
+import type { IPipelineStorageAdapter } from "../../../adapters/pipelineStorageAdapter";
 
-import { graphToPipelineYaml } from "../../../utils/pipelineDslConverter";
-
-interface PipelineDraftOptions {
-  isLocalMode?: boolean;
-  onSaveLocalDraft?: (yamlContent: string) => Promise<void>;
-  onSaveLocalSnapshot?: (snapshotDto: ExtendedPipelineGraphDto) => Promise<void>;
+interface UsePipelineDraftStateOptions {
+  storage: IPipelineStorageAdapter;
 }
 
 export function usePipelineDraftState(
   graph: ExtendedPipelineGraphDto,
-  structCatalogue?: StructDefinitionDto[],
-  options?: PipelineDraftOptions
+  structCatalogue: StructDefinitionDto[] | undefined,
+  { storage }: UsePipelineDraftStateOptions
 ) {
-  const isLocalMode = options?.isLocalMode ?? false;
-  const onSaveLocalDraft = options?.onSaveLocalDraft;
-  const onSaveLocalSnapshot = options?.onSaveLocalSnapshot;
-  // 1. Initial nodes mapping from DTO (Unified Nodes architecture)
+  // 1. Initial Flat Nodes (No Stage Scoping)
   const initialNodes: Node[] = useMemo(() => {
-    const rawNodes = (graph.nodes || []) as any[];
-
-    const stageNodes: Node[] = [];
-    const regularNodes: Node[] = [];
-
-    for (const n of rawNodes) {
-      const kindStr = String(n.kind || "").toLowerCase();
-      const refIdStr = String(n.refId || "").toLowerCase();
-      const isStart = kindStr === "start" || refIdStr === "start";
-      const isContainer =
-        n.kind === PipelineNodeKind.Container ||
-        kindStr === "container" ||
-        n.kind === 8 ||
-        refIdStr === "scopecontainer" ||
-        refIdStr === "container";
-      const isCapsule =
-        n.kind === PipelineNodeKind.Capsule ||
-        kindStr === "capsule" ||
-        n.kind === 9 ||
-        refIdStr === "capsule" ||
-        refIdStr === "getvariable";
-
-      if (isContainer) {
-        const meta = n.metadata || {};
-        const w = n.size?.width ?? 520;
-        const h = n.size?.height ?? 380;
-        stageNodes.push({
-          id: n.id,
-          type: "scopeContainer",
-          position: { x: n.position?.x ?? 0, y: n.position?.y ?? 0 },
-          width: w,
-          height: h,
-          style: {
-            width: w,
-            height: h,
-          },
-          data: {
-            stageId: n.id,
-            name: meta.name || n.label || "Container",
-            kind: meta.kind || "Worker",
-            executorKey: meta.executorKey || "blender",
-            targetRunnerId: meta.targetRunnerId || null,
-            pipelineId: graph.id,
-          } as ScopeContainerNodeData,
-        });
-      } else if (isCapsule) {
-        const cfg = n.configValues || {};
-        const meta = n.metadata || {};
-        const varKey =
-          cfg.VariableName || cfg.variableName || cfg.key || n.label || "";
-        regularNodes.push({
-          id: n.id,
-          type: "capsuleNode",
-          deletable: true,
-          parentId: undefined,
-          position: { x: n.position?.x ?? 0, y: n.position?.y ?? 0 },
-          data: {
-            refId: n.refId || "Capsule",
-            key: varKey,
-            label: n.label || varKey,
-            category:
-              meta.category ||
-              n.category ||
-              (refIdStr.includes("runner")
-                ? "Runner"
-                : refIdStr.includes("workspace")
-                  ? "Workspace"
-                  : "Variable"),
-            pinType: cfg.type ?? 0,
-            cardinality: cfg.cardinality ?? 0,
-            structType: cfg.structType,
-            description: cfg.description,
-            pipelineId: graph.id,
-          } as CapsuleNodeData,
-        });
-      } else {
-        let initialOutputs = n.outputs || [];
-        if (isStart) {
-          const isEventTrigger =
-            (graph.triggerType as any) === 1 ||
-            (graph.triggerType as any) === 2 ||
-            (graph.triggerType as any) === "OnResourceCreated" ||
-            (graph.triggerType as any) === "OnResourceVersionUpdated";
-
-          if (isEventTrigger) {
-            const hasResources = initialOutputs.some(
-              (p: any) => p.id === "Resources",
-            );
-            if (!hasResources) {
-              const execOutputs = initialOutputs.filter(isExecPin);
-              const otherOutputs = initialOutputs.filter(
-                (p: any) => !isExecPin(p),
-              );
-              initialOutputs = [
-                ...execOutputs,
-                ...getStartNodeEventTriggerPins(),
-                ...otherOutputs,
-              ];
-            }
-          }
-        }
-
-        regularNodes.push({
-          id: n.id,
-          type: "pipelineNode",
-          deletable: !isStart,
-          parentId: n.parentId ?? undefined,
-          position: { x: n.position?.x ?? 0, y: n.position?.y ?? 0 },
-          data: {
-            refId: n.refId,
-            kind: n.kind,
-            label: n.label,
-            category: n.category,
-            executor: n.executor,
-            inputs: n.inputs || [],
-            outputs: initialOutputs,
-            configValues: n.configValues || {},
-            fileAssets: n.fileAssets || {},
-            metadata: n.metadata,
-            pipelineId: graph.id,
-          } as CustomPipelineNodeData,
-        });
+    return (graph.nodes || []).map((n) => {
+      let nodeType = "pipelineNode";
+      if (n.kind === PipelineNodeKind.Capsule) {
+        nodeType = "capsuleNode";
       }
-    }
 
-    // Stage containers placed first in array so child nodes render on top
-    return [...stageNodes, ...regularNodes];
+      return {
+        id: n.id,
+        type: nodeType,
+        parentId: undefined, // Flat DAG: no parent stages
+        position: n.position || { x: 100, y: 100 },
+        data: {
+          refId: n.refId,
+          kind: n.kind,
+          label: n.label,
+          category: n.category,
+          executor: n.executor,
+          inputs: n.inputs || [],
+          outputs: n.outputs || [],
+          configValues: n.configValues || {},
+          metadata: n.metadata,
+          fileAssets: n.fileAssets || [],
+          pipelineId: graph.id,
+        } as CustomPipelineNodeData,
+      };
+    });
   }, [graph.nodes, graph.id]);
 
-  // 2. Initial edges mapping from DTO (Unified Edges architecture)
+  // 2. Initial Flat Edges
   const initialEdges: Edge[] = useMemo(() => {
-    return ((graph.edges || []) as any[]).map((e) => {
-      let sourceHandle = e.sourcePin;
-      let targetHandle = e.targetPin;
+    return (graph.edges || []).map((e) => {
+      const sourceHandle = e.sourcePin || "out";
+      const targetHandle = e.targetPin || "in";
+      const isExec = isExecHandle(sourceHandle) || isExecHandle(targetHandle);
 
-      const srcLower = (sourceHandle || "").toLowerCase();
-      if (
-        srcLower === "start" ||
-        srcLower === "beginexecute" ||
-        srcLower === "exec" ||
-        srcLower === "execout" ||
-        srcLower === "out_exec"
-      ) {
-        sourceHandle = "exec_out";
-      }
-
-      const tgtLower = (targetHandle || "").toLowerCase();
-      if (
-        tgtLower === "exec" ||
-        tgtLower === "execin" ||
-        tgtLower === "in_exec" ||
-        tgtLower === "endexecute" ||
-        tgtLower === "return"
-      ) {
-        targetHandle = "exec_in";
-      }
-
-      const isExec = isExecEdge(sourceHandle, targetHandle, e.kind);
       return {
         id: e.id,
         source: e.sourceNodeId,
@@ -221,11 +84,7 @@ export function usePipelineDraftState(
         type: "smoothstep",
         pathOptions: { borderRadius: 12 },
         style: isExec
-          ? {
-              stroke: "currentColor",
-              strokeWidth: 3.5,
-              strokeDasharray: "none",
-            }
+          ? { stroke: "currentColor", strokeWidth: 3.5, strokeDasharray: "none" }
           : { stroke: "#38bdf8", strokeWidth: 2 },
       };
     });
@@ -234,7 +93,7 @@ export function usePipelineDraftState(
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-  // Sync initial graph ONLY when graph ID changes (e.g. switching to another pipeline)
+  // Sync initial graph when graph ID changes
   const prevGraphIdRef = useRef(graph.id);
   useEffect(() => {
     if (prevGraphIdRef.current !== graph.id) {
@@ -244,741 +103,84 @@ export function usePipelineDraftState(
     }
   }, [graph.id, initialNodes, initialEdges, setNodes, setEdges]);
 
-  // Draft state & Auto-save
-  const [isDirty, setIsDirty] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const saveMutation = useSavePipelineGraph(isLocalMode ? "" : graph.id);
-  const isInitialMount = useRef(true);
-
-  // Helper to synchronize Start and Return node pins from current parameters
-  const syncParametersToNodes = useCallback(
-    (currentParams: PipelineParameterDto[]) => {
-      const inputParams = currentParams.filter(
-        (p) => p.kind === "Input" || (p.kind as any) === 1,
-      );
-      const outputParams = currentParams.filter(
-        (p) => p.kind === "Output" || (p.kind as any) === 2,
-      );
-
-      const isEventTrigger =
-            (graph.triggerType as any) === 1 ||
-            (graph.triggerType as any) === 2 ||
-            (graph.triggerType as any) === "OnResourceCreated" ||
-            (graph.triggerType as any) === "OnResourceVersionUpdated";
-
-      setNodes((currentNodes) => {
-        let hasChanges = false;
-        const updatedNodes = currentNodes.map((node) => {
-          const nodeData = node.data as CustomPipelineNodeData;
-          if (!nodeData) return node;
-
-          const kindStr = String(nodeData.kind || "").toLowerCase();
-          const refIdStr = String(nodeData.refId || "").toLowerCase();
-
-          const isStart =
-            kindStr === "start" ||
-            refIdStr === "start" ||
-            refIdStr === "beginexecute";
-          const isReturn =
-            kindStr === "return" ||
-            refIdStr === "return" ||
-            refIdStr === "endexecute";
-
-          if (isStart) {
-            // Keep Exec pin
-            const systemPins = (nodeData.outputs || []).filter(isExecPin);
-            if (systemPins.length === 0) {
-              systemPins.push({
-                id: "exec_out",
-                label: "Start",
-                kind: "Exec" as any,
-                isRequired: false,
-              });
-            }
-
-            // Automatic event trigger outputs (Resources[], Repository, Runner)
-            const eventPins = isEventTrigger
-              ? getStartNodeEventTriggerPins()
-              : [];
-
-            const paramPins: PinDefinition[] = inputParams.map((p) => ({
-              id: p.key,
-              label: p.label || p.key,
-              kind: "Data" as any,
-              primitiveType: p.type as any,
-              cardinality: p.cardinality as any,
-              metadata: p.structType as any,
-              isRequired: p.isRequired,
-              defaultValue: p.defaultValue,
-            }));
-
-            const nextOutputs = [...systemPins, ...eventPins, ...paramPins];
-            const nextLabel = isEventTrigger
-              ? (graph.triggerType as any) === 2 || (graph.triggerType as any) === "OnResourceVersionUpdated"
-                ? "On Resource Version Updated"
-                : "On Resource Created"
-              : "Start Pipeline";
-
-            const isSame =
-              nodeData.label === nextLabel &&
-              nodeData.outputs?.length === nextOutputs.length &&
-              nodeData.outputs.every(
-                (p, idx) =>
-                  p.id === nextOutputs[idx].id &&
-                  p.label === nextOutputs[idx].label &&
-                  p.primitiveType === nextOutputs[idx].primitiveType,
-              );
-
-            if (!isSame) {
-              hasChanges = true;
-              return {
-                ...node,
-                data: {
-                  ...nodeData,
-                  label: nextLabel,
-                  outputs: nextOutputs,
-                },
-              };
-            }
-          }
-
-          if (isReturn) {
-            // Keep Exec in pin
-            const systemPins = (nodeData.inputs || []).filter(isExecPin);
-            if (systemPins.length === 0) {
-              systemPins.push({
-                id: "Exec",
-                label: "Exec",
-                kind: "Exec" as any,
-                isRequired: false,
-              });
-            }
-
-            const paramPins: PinDefinition[] = outputParams.map((p) => ({
-              id: p.key,
-              label: p.label || p.key,
-              kind: "Data" as any,
-              primitiveType: p.type as any,
-              cardinality: p.cardinality as any,
-              metadata: p.structType as any,
-              isRequired: p.isRequired,
-              defaultValue: p.defaultValue,
-            }));
-
-            const nextInputs = [...systemPins, ...paramPins];
-            const isSame =
-              nodeData.inputs?.length === nextInputs.length &&
-              nodeData.inputs.every(
-                (p, idx) =>
-                  p.id === nextInputs[idx].id &&
-                  p.label === nextInputs[idx].label &&
-                  p.primitiveType === nextInputs[idx].primitiveType,
-              );
-
-            if (!isSame) {
-              hasChanges = true;
-              return {
-                ...node,
-                data: {
-                  ...nodeData,
-                  inputs: nextInputs,
-                },
-              };
-            }
-          }
-
-          return node;
-        });
-
-        return hasChanges ? updatedNodes : currentNodes;
-      });
-    },
-    [setNodes, graph.triggerType],
-  );
-
-  // Parameters state
+  // Parameters State (Inputs / Outputs strictly, NO Variables)
   const [parameters, setParameters] = useState<PipelineParameterDto[]>(() => {
-    return (graph.parameters as PipelineParameterDto[]) || [];
+    return (graph.parameters || []).filter((p) => p.kind !== "Variable" && (p.kind as any) !== 3);
   });
 
-  useEffect(() => {
-    if (graph.parameters) {
-      const nextParams = graph.parameters as PipelineParameterDto[];
-      setParameters(nextParams);
-      syncParametersToNodes(nextParams);
-    } else {
-      syncParametersToNodes(parameters);
-    }
-  }, [graph.parameters, graph.triggerType, syncParametersToNodes]);
+  const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const isInitialMount = useRef(true);
 
-  const handleAddParameter = useCallback(
-    (param: PipelineParameterDto) => {
-      setParameters((prev) => {
-        const next = [...prev, param];
-        syncParametersToNodes(next);
-        return next;
-      });
-      setIsDirty(true);
-    },
-    [syncParametersToNodes],
-  );
+  // Tách riêng module Contract Sync
+  usePipelineContractSync({
+    parameters,
+    setNodes,
+    setEdges,
+    setIsDirty,
+    triggerType: graph.triggerType,
+  });
 
-  const handleUpdateParameter = useCallback(
-    (key: string, updated: Partial<PipelineParameterDto>) => {
-      setParameters((prev) => {
-        const next = prev.map((p) =>
-          p.key.toLowerCase() === key.toLowerCase() ? { ...p, ...updated } : p,
-        );
-        syncParametersToNodes(next);
-        return next;
-      });
-      setIsDirty(true);
-    },
-    [syncParametersToNodes],
-  );
-
-  const handleDeleteParameter = useCallback(
-    (key: string) => {
-      const keyLower = key.toLowerCase();
-      setParameters((prev) => {
-        const next = prev.filter((p) => p.key.toLowerCase() !== keyLower);
-        syncParametersToNodes(next);
-        return next;
-      });
-
-      // Clean up orphaned edges connected to this deleted parameter on Start/Return
-      setEdges((prev) =>
-        prev.filter((e) => {
-          const sourceNode = nodes.find((n) => n.id === e.source);
-          const isStart =
-            String(sourceNode?.data?.refId || "").toLowerCase() === "start";
-          if (isStart && e.sourceHandle?.toLowerCase() === keyLower)
-            return false;
-
-          const targetNode = nodes.find((n) => n.id === e.target);
-          const isReturn =
-            String(targetNode?.data?.refId || "").toLowerCase() === "return";
-          if (isReturn && e.targetHandle?.toLowerCase() === keyLower)
-            return false;
-
-          return true;
-        }),
-      );
-
-      setIsDirty(true);
-    },
-    [nodes, setEdges, syncParametersToNodes],
-  );
-
-  // Selected node
+  // Selected Node State
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const selectedNode = useMemo(
     () => nodes.find((n) => n.id === selectedNodeId) || null,
-    [nodes, selectedNodeId],
+    [nodes, selectedNodeId]
   );
 
-  // Mark dirty on meaningful node/edge changes
-  const handleNodesChange: OnNodesChange<Node> = useCallback(
-    (changes) => {
-      const clampedChanges = changes.map((c) => {
-        if (c.type === "position" && c.position) {
-          const targetNode = nodes.find((n) => n.id === c.id);
-          if (targetNode?.parentId) {
-            return {
-              ...c,
-              position: {
-                x: Math.max(STAGE_PADDING_LEFT, c.position.x),
-                y: Math.max(STAGE_PADDING_TOP, c.position.y),
-              },
-            };
-          }
-        }
-        return c;
-      });
-
-      onNodesChange(clampedChanges);
-
-      // Keep node.style.width/height in sync with NodeResizer dimensions
-      const dimensionChanges = clampedChanges.filter(
-        (c) => c.type === "dimensions" && (c as any).dimensions
-      );
-      if (dimensionChanges.length > 0) {
-        setNodes((nds) =>
-          nds.map((n) => {
-            const dc = dimensionChanges.find((c) => (c as any).id === n.id);
-            if (!dc || !(dc as any).dimensions) return n;
-            const dims = (dc as any).dimensions;
-            return {
-              ...n,
-              width: dims.width,
-              height: dims.height,
-              style: {
-                ...n.style,
-                width: dims.width,
-                height: dims.height,
-              },
-            };
-          })
-        );
-      }
-
-      const hasMeaningfulChange = clampedChanges.some(
-        (c) => c.type !== "select" && c.type !== "dimensions"
-      );
-      if (hasMeaningfulChange) {
-        setIsDirty(true);
-      }
-    },
-    [nodes, onNodesChange, setNodes],
-  );
-
-  const handleEdgesChange: OnEdgesChange<Edge> = useCallback(
-    (changes) => {
-      onEdgesChange(changes);
-      const hasMeaningfulChange = changes.some((c) => c.type !== "select");
-      if (hasMeaningfulChange) {
-        setIsDirty(true);
-      }
-    },
-    [onEdgesChange],
-  );
-
-  const saveMutationRef = useRef(saveMutation);
-  saveMutationRef.current = saveMutation;
-
-  // Auto-save debounce effect (1000ms)
+  // Auto-Save Debounced Strategy
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
     }
-
-    if (!isDirty || isSaving) return;
+    if (!isDirty) return;
 
     const timer = setTimeout(async () => {
-      // Mark clean first to avoid infinite re-trigger loop if server returns error
-      setIsDirty(false);
-
       try {
         setIsSaving(true);
-
-        if (isLocalMode) {
-          if (onSaveLocalDraft) {
-            const yamlStr = graphToPipelineYaml(graph.name, nodes, edges);
-            await onSaveLocalDraft(yamlStr);
-          }
-          if (onSaveLocalSnapshot) {
-            const snapshotDto: ExtendedPipelineGraphDto = {
-              id: graph.id,
-              name: graph.name,
-              projectId: graph.projectId,
-              triggerType: graph.triggerType,
-              nodes: nodes.map((n) => {
-                const data = (n.data || {}) as CustomPipelineNodeData;
-                return {
-                  id: n.id,
-                  refId: data.refId || n.id,
-                  label: data.label || n.id,
-                  kind: (data.kind as any) || PipelineNodeKind.Tool,
-                  category: data.category || "Tool",
-                  executor: data.executor || "python",
-                  position: n.position,
-                  parentId: n.parentId || null,
-                  size: {
-                    width: typeof n.width === "number" ? n.width : n.measured?.width ?? 240,
-                    height: typeof n.height === "number" ? n.height : n.measured?.height ?? 120,
-                  },
-                  configValues: data.configValues || {},
-                  inputs: data.inputs || [],
-                  outputs: data.outputs || [],
-                  metadata: (data.metadata as any) || null,
-                };
-              }),
-              edges: edges.map((e) => ({
-                id: e.id,
-                sourceNodeId: e.source,
-                sourcePin: e.sourceHandle || "out",
-                targetNodeId: e.target,
-                targetPin: e.targetHandle || "in",
-              })),
-              parameters,
-            };
-            await onSaveLocalSnapshot(snapshotDto);
-          }
-          setIsSaving(false);
-          return;
-        }
-
-        const saveNodes: SavePipelineNodeItem[] = [];
-        const saveEdges: SavePipelineEdgeItem[] = [];
-
-        for (const n of nodes) {
-          if (n.type === "scopeContainer") {
-            const stageData = n.data as ScopeContainerNodeData;
-            const nodeW =
-              typeof n.width === "number"
-                ? n.width
-                : typeof n.measured?.width === "number"
-                  ? n.measured.width
-                  : typeof n.style?.width === "number"
-                    ? n.style.width
-                    : 520;
-            const nodeH =
-              typeof n.height === "number"
-                ? n.height
-                : typeof n.measured?.height === "number"
-                  ? n.measured.height
-                  : typeof n.style?.height === "number"
-                    ? n.style.height
-                    : 380;
-            saveNodes.push({
-              id: n.id,
-              refId: "ScopeContainer",
-              kind: "Container" as any,
-              parentId: null,
-              positionX: n.position.x,
-              positionY: n.position.y,
-              width: Math.round(nodeW),
-              height: Math.round(nodeH),
-              configValues: {},
-              metadata: {
-                name: stageData.name,
-                kind: stageData.kind,
-                executorKey: stageData.executorKey || "blender",
-                targetRunnerId: stageData.targetRunnerId || null,
-              },
-            });
-          } else if (n.type === "capsuleNode") {
-            const cData = n.data as CapsuleNodeData;
-            saveNodes.push({
-              id: n.id,
-              refId: cData.refId || "Capsule",
-              kind: "Capsule" as any,
-              parentId: null,
-              positionX: n.position.x,
-              positionY: n.position.y,
-              configValues: {
-                VariableName: cData.key,
-                key: cData.key,
-                type: cData.pinType,
-                cardinality: cData.cardinality,
-                structType: cData.structType,
-                description: cData.description,
-              },
-              metadata: {
-                category: cData.category,
-              },
-            });
-          } else {
-            const nodeData = n.data as CustomPipelineNodeData;
-            saveNodes.push({
-              id: n.id,
-              refId: nodeData.refId,
-              kind:
-                (nodeData.kind as PipelineNodeKind) || PipelineNodeKind.Tool,
-              parentId: n.parentId || null,
-              positionX: n.position.x,
-              positionY: n.position.y,
-              configValues: nodeData.configValues || {},
-            });
-          }
-        }
-
-        for (const e of edges) {
-          saveEdges.push({
-            id: e.id,
-            sourceNodeId: e.source,
-            sourcePin: e.sourceHandle || "",
-            targetNodeId: e.target,
-            targetPin: e.targetHandle || "",
-          });
-        }
-
-        const saved = await saveMutationRef.current.mutateAsync({
-          nodes: saveNodes,
-          edges: saveEdges,
-          parameters,
-        });
-        if (saved.id !== graph.id) return;
-        // Apply server-created link PKs without overwriting edits made during this request.
-        setNodes((current) =>
-          current.map((n) => {
-            const submitted = saveNodes.find((item) => item.id === n.id);
-            const response = saved.nodes?.find((item) => item.id === n.id);
-            if (n.type !== "pipelineNode" || !submitted || !response) return n;
-            const data = n.data as CustomPipelineNodeData;
-            const config = { ...data.configValues };
-            for (const [key, value] of Object.entries(
-              response.configValues || {},
-            )) {
-              if (
-                JSON.stringify(config[key]) ===
-                JSON.stringify(submitted.configValues?.[key])
-              ) {
-                config[key] = value;
-              }
-            }
-            if (response.configValues?.StructType && !config.StructType) {
-              config.StructType = response.configValues.StructType;
-            }
-
+        const currentGraph: ExtendedPipelineGraphDto = {
+          ...graph,
+          nodes: nodes.map((n) => {
+            const data = (n.data as any) || {};
             return {
-              ...n,
-              data: {
-                ...data,
-                configValues: config,
-                fileAssets: response.fileAssets,
-                inputs: (response.inputs as PinDefinition[]) ?? data.inputs,
-                outputs: (response.outputs as PinDefinition[]) ?? data.outputs,
-              },
+              id: n.id,
+              refId: String(data.refId || n.id),
+              label: data.label || n.id,
+              kind: data.kind || PipelineNodeKind.Tool,
+              category: data.category,
+              executor: data.executor,
+              position: n.position,
+              configValues: data.configValues || {},
+              inputs: data.inputs || [],
+              outputs: data.outputs || [],
+              metadata: data.metadata,
+              fileAssets: data.fileAssets || [],
             };
           }),
-        );
-      } catch (err: any) {
-        console.error("Auto-save pipeline graph failed:", err);
-        toast.error(
-          `Auto-save failed: ${err?.message || "Internal server error"}`,
-        );
+          edges: edges.map((e) => ({
+            id: e.id,
+            sourceNodeId: e.source,
+            sourcePin: e.sourceHandle || "out",
+            targetNodeId: e.target,
+            targetPin: e.targetHandle || "in",
+          })),
+          parameters,
+        };
+
+        await storage.saveDraft(graph.id, currentGraph);
+        setIsDirty(false);
+      } catch (err) {
+        console.warn("[usePipelineDraftState] Auto-save error:", err);
       } finally {
         setIsSaving(false);
       }
-    }, 1000);
+    }, 600);
 
     return () => clearTimeout(timer);
-  }, [nodes, edges, parameters, isDirty, isSaving, graph.id, setNodes]);
+  }, [nodes, edges, parameters, isDirty, storage, graph]);
 
-  // Real-time fast dynamic expansion while dragging a node
-  const onNodeDrag = useCallback(
-    (_event: any, draggedNode: Node) => {
-      if (!draggedNode.parentId) return;
-
-      setNodes((nds) => {
-        const { updatedNodes, didExpand } = expandStageLiveWhileDragging(
-          nds,
-          draggedNode.parentId!,
-          draggedNode,
-        );
-        if (didExpand) {
-          setIsDirty(true);
-        }
-        return updatedNodes;
-      });
-    },
-    [setNodes],
-  );
-
-  // Node Drag Stop: Auto-expand parent stage bounding box in 4 directions if child node dragged near boundary
-  const onNodeDragStop = useCallback(
-    (_event: any, draggedNode: Node) => {
-      if (!draggedNode.parentId) return;
-
-      setNodes((nds) => {
-        const { updatedNodes, didExpand } = expandStageBoundsIfNeeded(
-          nds,
-          draggedNode.parentId!,
-          draggedNode,
-        );
-        if (didExpand) {
-          setIsDirty(true);
-        }
-        return updatedNodes;
-      });
-    },
-    [setNodes],
-  );
-
-  // Pending Stage Delete Confirmation State
-  const [pendingStageDelete, setPendingStageDelete] = useState<{
-    stageId: string;
-    stageName: string;
-    childCount: number;
-    resolve?: (ok: boolean) => void;
-  } | null>(null);
-
-  // Window event listeners for node/stage updates
-  useEffect(() => {
-    const handleStageUpdate = (e: Event) => {
-      const { stageId, name, executorKey, targetRunnerId, width, height } = (e as CustomEvent)
-        .detail;
-      setNodes((nds) =>
-        nds.map((n) => {
-          if (n.id !== stageId) return n;
-          const prev = n.data as ScopeContainerNodeData;
-          const nextW = typeof width === "number" ? width : n.width;
-          const nextH = typeof height === "number" ? height : n.height;
-          return {
-            ...n,
-            ...(nextW !== undefined ? { width: nextW } : {}),
-            ...(nextH !== undefined ? { height: nextH } : {}),
-            style: {
-              ...n.style,
-              ...(nextW !== undefined ? { width: nextW } : {}),
-              ...(nextH !== undefined ? { height: nextH } : {}),
-            },
-            data: {
-              ...prev,
-              ...(name !== undefined ? { name } : {}),
-              ...(executorKey !== undefined ? { executorKey } : {}),
-              ...(targetRunnerId !== undefined ? { targetRunnerId } : {}),
-            },
-          };
-        }),
-      );
-      setIsDirty(true);
-    };
-
-    const handleStageDelete = (e: Event) => {
-      const { stageId, force } = (e as CustomEvent).detail || {};
-      if (!stageId) return;
-
-      if (force) {
-        setNodes((nds) =>
-          nds.filter((n) => n.id !== stageId && n.parentId !== stageId),
-        );
-        setEdges((eds) =>
-          eds.filter((e) => e.source !== stageId && e.target !== stageId),
-        );
-        setIsDirty(true);
-        toast.info("Stage deleted");
-        return;
-      }
-
-      setNodes((currentNodes) => {
-        const stageNode = currentNodes.find((n) => n.id === stageId);
-        const stageName = (stageNode?.data as any)?.name || "Stage Scope";
-        const childCount = currentNodes.filter(
-          (n) => n.parentId === stageId,
-        ).length;
-
-        setPendingStageDelete({
-          stageId,
-          stageName,
-          childCount,
-        });
-        return currentNodes;
-      });
-    };
-
-    const handleCustomUpdate = (e: Event) => {
-      const { nodeId, configValues } = (e as CustomEvent).detail;
-      setNodes((nds) =>
-        nds.map((n) => {
-          if (n.id !== nodeId) return n;
-          return {
-            ...n,
-            data: {
-              ...n.data,
-              configValues,
-            },
-          };
-        }),
-      );
-      setIsDirty(true);
-    };
-
-    window.addEventListener("pipeline:update-stage", handleStageUpdate);
-    window.addEventListener("pipeline:delete-stage", handleStageDelete);
-    window.addEventListener("pipeline:update-node-config", handleCustomUpdate);
-
-    return () => {
-      window.removeEventListener("pipeline:update-stage", handleStageUpdate);
-      window.removeEventListener("pipeline:delete-stage", handleStageDelete);
-      window.removeEventListener(
-        "pipeline:update-node-config",
-        handleCustomUpdate,
-      );
-    };
-  }, [setNodes, setEdges]);
-
-  // Nodes deleted handler (Cascades child nodes of deleted stages)
-  const onNodesDelete = useCallback(
-    (deletedNodes: Node[]) => {
-      const filtered = deletedNodes.filter((n) => {
-        const kindStr = String((n.data as any)?.kind || "").toLowerCase();
-        const refIdStr = String((n.data as any)?.refId || "").toLowerCase();
-        return kindStr !== "start" && refIdStr !== "start";
-      });
-      const deletedIds = new Set(filtered.map((n) => n.id));
-      for (const n of nodes) {
-        if (n.parentId && deletedIds.has(n.parentId)) {
-          deletedIds.add(n.id);
-        }
-      }
-
-      setNodes((nds) => nds.filter((n) => !deletedIds.has(n.id)));
-      setEdges((eds) =>
-        eds.filter(
-          (e) => !deletedIds.has(e.source) && !deletedIds.has(e.target),
-        ),
-      );
-      setIsDirty(true);
-
-      if (selectedNodeId && deletedIds.has(selectedNodeId)) {
-        setSelectedNodeId(null);
-      }
-    },
-    [nodes, selectedNodeId, setNodes, setEdges],
-  );
-
-  // Hook for ReactFlow onBeforeDelete: Intercepts stage container deletion and asks for confirmation
-  const handleBeforeDelete = useCallback(
-    async ({ nodes: nodesToDelete }: { nodes: Node[]; edges: any[] }) => {
-      const stageToDelete = nodesToDelete.find(
-        (n) =>
-          n.type === "scopeContainer" ||
-          (n.data as any)?.kind === PipelineNodeKind.Container ||
-          (n.data as any)?.kind === "Container" ||
-          (n.data as any)?.kind === 8,
-      );
-
-      if (stageToDelete) {
-        const stageName = (stageToDelete.data as any)?.name || "Stage Scope";
-        const childCount = nodes.filter(
-          (n) => n.parentId === stageToDelete.id,
-        ).length;
-
-        return new Promise<boolean>((resolve) => {
-          setPendingStageDelete({
-            stageId: stageToDelete.id,
-            stageName,
-            childCount,
-            resolve,
-          });
-        });
-      }
-
-      return true;
-    },
-    [nodes],
-  );
-
-  const confirmStageDelete = useCallback(() => {
-    if (!pendingStageDelete) return;
-    const { stageId, resolve } = pendingStageDelete;
-
-    setNodes((nds) =>
-      nds.filter((n) => n.id !== stageId && n.parentId !== stageId),
-    );
-    setEdges((eds) =>
-      eds.filter((e) => e.source !== stageId && e.target !== stageId),
-    );
-    setIsDirty(true);
-    toast.info("Stage deleted");
-
-    if (resolve) {
-      resolve(true);
-    }
-    setPendingStageDelete(null);
-  }, [pendingStageDelete, setNodes, setEdges, setIsDirty]);
-
-  const cancelStageDelete = useCallback(() => {
-    if (pendingStageDelete?.resolve) {
-      pendingStageDelete.resolve(false);
-    }
-    setPendingStageDelete(null);
-  }, [pendingStageDelete]);
-
-  // Update Config for an unwired input pin (clears dependent values when StructType changes)
+  // Update Config for an input pin
   const handleUpdateConfig = useCallback(
     (nodeId: string, pinId: string, value: any) => {
       let didStructTypeChange = false;
@@ -1020,7 +222,7 @@ export function usePipelineDraftState(
               outputs: nextOutputs,
             },
           };
-        }),
+        })
       );
 
       if (didStructTypeChange) {
@@ -1030,31 +232,27 @@ export function usePipelineDraftState(
               !(
                 e.target === nodeId &&
                 (e.targetHandle === "Target" || e.targetHandle === "target")
-              ),
-          ),
+              )
+          )
         );
       }
 
       setIsDirty(true);
     },
-    [setNodes, setEdges],
+    [setNodes, setEdges, structCatalogue]
   );
 
-  // Delete Node from inspector
+  // Delete Node
   const handleDeleteNode = useCallback(
     (nodeId: string) => {
-      setNodes((nds) =>
-        nds.filter((n) => n.id !== nodeId && n.parentId !== nodeId),
-      );
-      setEdges((eds) =>
-        eds.filter((e) => e.source !== nodeId && e.target !== nodeId),
-      );
+      setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+      setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
       if (selectedNodeId === nodeId) {
         setSelectedNodeId(null);
       }
       setIsDirty(true);
     },
-    [selectedNodeId, setEdges, setNodes],
+    [selectedNodeId, setEdges, setNodes]
   );
 
   // Rename Node Label
@@ -1064,49 +262,39 @@ export function usePipelineDraftState(
         nds.map((n) => {
           if (n.id !== nodeId) return n;
           const currentData = (n.data as any) || {};
-          const currentMeta = currentData.metadata || {};
           return {
             ...n,
             data: {
               ...currentData,
               label: newLabel,
               metadata: {
-                ...currentMeta,
+                ...currentData.metadata,
                 label: newLabel,
               },
             },
           };
-        }),
+        })
       );
       setIsDirty(true);
     },
-    [setNodes],
+    [setNodes]
   );
 
-  // Add Action Node from Palette
+  // Add Action Node from Palette directly onto Flat Canvas
   const handleSelectPaletteItem = useCallback(
     (
       item: NodePaletteItemDto,
-      targetStage: ScopeContainerNodeData | null,
-      flowCoordinates: { x: number; y: number },
+      _targetStage: any,
+      flowCoordinates: { x: number; y: number }
     ) => {
       const newNodeId = crypto.randomUUID();
-      const stageNode = targetStage
-        ? nodes.find((n) => n.id === targetStage.stageId)
-        : null;
-      const position = stageNode
-        ? {
-            x: Math.max(30, flowCoordinates.x - stageNode.position.x),
-            y: Math.max(60, flowCoordinates.y - stageNode.position.y),
-          }
-        : { x: flowCoordinates.x, y: flowCoordinates.y };
-
       const initialOutputs = (item.outputs as PinDefinition[]) || [];
+
       const newNode: Node = {
         id: newNodeId,
         type: "pipelineNode",
-        parentId: stageNode ? stageNode.id : undefined,
-        position,
+        parentId: undefined, // Flat DAG
+        position: { x: flowCoordinates.x, y: flowCoordinates.y },
         data: {
           refId: item.key,
           kind: (item.source as PipelineNodeKind) || PipelineNodeKind.Tool,
@@ -1120,84 +308,44 @@ export function usePipelineDraftState(
         } as CustomPipelineNodeData,
       };
 
-      setNodes((nds) => {
-        let baseNodes = [...nds, newNode];
-        if (stageNode) {
-          const { updatedNodes } = expandStageBoundsIfNeeded(
-            baseNodes,
-            stageNode.id,
-            newNode,
-          );
-          baseNodes = updatedNodes;
-        }
-        return baseNodes;
-      });
-
+      setNodes((nds) => [...nds, newNode]);
       setSelectedNodeId(newNodeId);
       setIsDirty(true);
     },
-    [nodes, graph.id, setNodes],
+    [graph.id, setNodes]
   );
 
-  // Create Stage from Palette
-  const handleCreateStage = useCallback(
-    (
-      stageOption: StageCreationOption,
-      flowCoordinates: { x: number; y: number },
-    ) => {
-      const stageId = crypto.randomUUID();
-      const newStageNode: Node = {
-        id: stageId,
-        type: "scopeContainer",
-        position: { x: flowCoordinates.x, y: flowCoordinates.y },
-        style: { width: 520, height: 380 },
-        data: {
-          stageId,
-          name: stageOption.name,
-          kind: stageOption.kind,
-          executorKey: stageOption.executorKey,
-          targetRunnerId: null,
-          pipelineId: graph.id,
-        } as ScopeContainerNodeData,
-      };
-
-      // Add stage at the beginning of nodes array so it's a parent container
-      setNodes((nds) => [newStageNode, ...nds]);
+  // Update Parameters (Inputs & Outputs only)
+  const handleUpdateParameters = useCallback(
+    (updatedParams: PipelineParameterDto[]) => {
+      setParameters(
+        updatedParams.filter(
+          (p) => p.kind !== "Variable" && (p.kind as any) !== 3
+        )
+      );
       setIsDirty(true);
-      toast.success(`Created ${stageOption.name}`);
     },
-    [graph.id, setNodes],
+    []
   );
 
   return {
     nodes,
     edges,
-    isDirty,
-    isSaving,
+    parameters,
     selectedNodeId,
     selectedNode,
+    isDirty,
+    isSaving,
     setNodes,
     setEdges,
-    setIsDirty,
+    setParameters: handleUpdateParameters,
     setSelectedNodeId,
-    handleNodesChange,
-    handleEdgesChange,
-    onNodeDrag,
-    onNodeDragStop,
-    onNodesDelete,
+    setIsDirty,
+    onNodesChange,
+    onEdgesChange,
     handleUpdateConfig,
     handleDeleteNode,
     handleRenameNode,
     handleSelectPaletteItem,
-    handleCreateStage,
-    parameters,
-    setParameters,
-    handleAddParameter,
-    handleUpdateParameter,
-    handleDeleteParameter,
-    pendingStageDelete,
-    handleBeforeDelete,
-    confirmStageDelete,
-    cancelStageDelete,
   };
 }

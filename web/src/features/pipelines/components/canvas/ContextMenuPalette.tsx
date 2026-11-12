@@ -1,59 +1,42 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
-import { useNodePalette } from "../../hooks/usePipelines";
+import { useState, useMemo, useEffect, useRef } from "react";
 import type { NodePaletteItemDto } from "@/gen/model";
-import { Search, Box, FileCode, Plus, X, Cpu, Server, Layers, HardDrive } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
-import type { ScopeContainerNodeData } from "./ScopeContainerNode";
-import { getStageKindName } from "./hooks/canvasUtils";
+import {
+  generateLocalStructPaletteItems,
+  generateComponentPipePaletteItems,
+} from "../../utils/structPaletteGenerator";
+import { useNodePalette } from "../../hooks/usePipelines";
+import { useLocalPaletteQuery } from "../../hooks/workspace";
+import { useLocalPipelinesQuery } from "../../hooks/workspace";
 import { isTauriRuntime } from "@/lib/platform/filePickerStrategy";
-import { useLocalWorkspaceStore } from "../../stores/useLocalWorkspaceStore";
-
-export type StageCreationOption = {
-  type: "stage";
-  name: string;
-  kind: "Worker" | "Server" | "Macro";
-  executorKey: string;
-  description: string;
-};
 
 interface ContextMenuPaletteProps {
-  projectId: string;
-  currentPipelineId?: string;
   position: { x: number; y: number } | null;
-  targetStage?: ScopeContainerNodeData | null;
   onClose: () => void;
+  projectId: string;
+  rootPath?: string | null;
+  pipelineKind?: "component" | "master";
+  componentExecutor?: string;
+  currentPipelineId?: string;
   onSelect: (item: NodePaletteItemDto) => void;
-  onCreateStage?: (stage: StageCreationOption) => void;
 }
 
 export function ContextMenuPalette({
-  projectId,
-  currentPipelineId,
   position,
-  targetStage,
   onClose,
+  projectId,
+  rootPath = null,
+  pipelineKind = "master",
+  componentExecutor,
+  currentPipelineId,
   onSelect,
-  onCreateStage,
 }: ContextMenuPaletteProps) {
   const [search, setSearch] = useState("");
-
-  const kindName = targetStage ? getStageKindName(targetStage.kind) : null;
-  const isWorkerStage = kindName === "Worker";
-  const isServerStage = kindName === "Server";
-  const isMacroStage = kindName === "Macro";
-
-  const executorParam = targetStage
-    ? isMacroStage
-      ? "macro"
-      : isServerStage
-        ? "server"
-        : targetStage.executorKey || "blender"
-    : undefined;
+  const isComponentPipe = pipelineKind === "component";
+  const executorParam = isComponentPipe ? componentExecutor || "blender" : undefined;
 
   const { data: paletteItems = [], isLoading } = useNodePalette(projectId, executorParam);
-  const { draftNodes } = useLocalWorkspaceStore();
+  const { draftNodes, localStructs } = useLocalPaletteQuery(rootPath);
+  const { pipelines: scannedDraftPipelines } = useLocalPipelinesQuery(rootPath);
   const isDesktop = isTauriRuntime();
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -91,55 +74,7 @@ export function ContextMenuPalette({
     };
   }, [position, onClose]);
 
-  // Stage Creation Options when right-clicking on empty canvas
-  const stageOptions: StageCreationOption[] = useMemo(
-    () => [
-      {
-        type: "stage",
-        name: "Python Stage",
-        kind: "Worker",
-        executorKey: "python",
-        description: "General scripting & worker operations",
-      },
-      {
-        type: "stage",
-        name: "Blender Stage",
-        kind: "Worker",
-        executorKey: "blender",
-        description: "3D scene processing, mesh & geometry",
-      },
-      {
-        type: "stage",
-        name: "Unreal Stage",
-        kind: "Worker",
-        executorKey: "unreal",
-        description: "Asset ingestion, materials & level bake",
-      },
-      {
-        type: "stage",
-        name: "Core Services",
-        kind: "Server",
-        executorKey: "dotNet",
-        description: "Native C# services, storage & database",
-      },
-      {
-        type: "stage",
-        name: "Macro Stage",
-        kind: "Macro",
-        executorKey: "dotNet",
-        description: "Reusable composite sub-pipeline scope",
-      },
-    ],
-    []
-  );
-
-  // Executor and visibility filtering use the shared definition query cache.
   const filteredItems = useMemo(() => {
-    // On root canvas (no stage selected), standalone tools are not allowed; only Stages can be spawned
-    if (!targetStage) {
-      return [];
-    }
-
     const items = paletteItems.filter(
       (item) =>
         item.key.toLowerCase() !== "start" &&
@@ -165,8 +100,8 @@ export function ContextMenuPalette({
         .map((draft) => ({
           key: `local:${draft.key}`,
           label: draft.suggestedLabel || draft.suggestedName || draft.fileName,
-          category: "Local Scripts",
-          source: "LocalDraft",
+          category: draft.executor || "Local Scripts",
+          source: "LocalDraft" as any,
           executor: draft.executor,
           inputs: draft.inputs || [],
           outputs: draft.outputs || [],
@@ -177,6 +112,21 @@ export function ContextMenuPalette({
       combined.push(...localItems);
     }
 
+    // Merge auto-generated Local Structs Make/Break companion nodes
+    if (isDesktop && localStructs && localStructs.length > 0) {
+      const structNodes = generateLocalStructPaletteItems(localStructs);
+      combined.push(...structNodes);
+    }
+
+    // Merge auto-generated Component Pipes as sub-pipeline tools
+    if (!isComponentPipe && isDesktop && scannedDraftPipelines && scannedDraftPipelines.length > 0) {
+      const componentPipes = scannedDraftPipelines.filter((p) => p.pipelineKind === "component");
+      if (componentPipes.length > 0) {
+        const compNodes = generateComponentPipePaletteItems(componentPipes);
+        combined.push(...compNodes);
+      }
+    }
+
     const q = search.trim().toLowerCase();
     if (!q) return combined;
     return combined.filter(
@@ -185,20 +135,7 @@ export function ContextMenuPalette({
         item.key.toLowerCase().includes(q) ||
         (item.category && item.category.toLowerCase().includes(q))
     );
-  }, [paletteItems, draftNodes, isDesktop, executorParam, search, targetStage, currentPipelineId]);
-
-  // Filtered stage options when adding to root canvas
-  const filteredStages = useMemo(() => {
-    if (!onCreateStage || targetStage) return [];
-    const q = search.trim().toLowerCase();
-    if (!q) return stageOptions;
-    return stageOptions.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        s.kind.toLowerCase().includes(q) ||
-        s.description.toLowerCase().includes(q)
-    );
-  }, [onCreateStage, targetStage, stageOptions, search]);
+  }, [paletteItems, draftNodes, localStructs, scannedDraftPipelines, isDesktop, executorParam, search, currentPipelineId, isComponentPipe]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, NodePaletteItemDto[]>();
@@ -209,184 +146,71 @@ export function ContextMenuPalette({
       }
       map.get(cat)!.push(item);
     }
-    return Array.from(map.entries());
+    return map;
   }, [filteredItems]);
 
   if (!position) return null;
 
-  // Keep menu within viewport
-  const style: React.CSSProperties = {
-    top: Math.min(position.y, window.innerHeight - 380),
-    left: Math.min(position.x, window.innerWidth - 340),
-  };
-
   return (
     <div
       ref={containerRef}
-      style={style}
-      className="fixed z-50 w-80 rounded-xl border border-border/80 bg-popover p-2 shadow-2xl animate-in fade-in zoom-in-95 duration-100"
+      className="fixed z-50 w-72 max-h-[420px] rounded-xl border border-border/80 bg-popover/95 p-2 shadow-2xl backdrop-blur-md flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-100"
+      style={{
+        left: Math.min(position.x, window.innerWidth - 300),
+        top: Math.min(position.y, window.innerHeight - 440),
+      }}
     >
-      {targetStage && (
-        <div className="mb-2 px-2.5 py-1.5 bg-muted/60 rounded-md flex items-center justify-between text-[11px] text-muted-foreground border border-border/40">
-          <span className="truncate">
-            Adding to: <strong className="text-foreground font-semibold">{targetStage.name}</strong>
-          </span>
-          <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-background font-mono font-semibold">
-            {isWorkerStage ? (targetStage.executorKey || "DCC").toUpperCase() : isServerStage ? "CORE" : "MACRO"}
-          </span>
-        </div>
-      )}
-
-      <div className="relative mb-2">
-        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-        <Input
+      {/* Search Input */}
+      <div className="relative">
+        <input
           ref={inputRef}
+          type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder={targetStage ? `Search tools for ${targetStage.name}...` : "Search stage scopes..."}
-          className="h-8.5 pl-8 pr-7 text-xs bg-muted/50 border-border/50 focus-visible:ring-1"
+          placeholder="Search actions or scripts..."
+          className="w-full h-8 px-3 text-xs bg-muted/60 border border-border/60 rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
         />
-        {search && (
-          <button
-            onClick={() => setSearch("")}
-            className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        )}
       </div>
 
-      <ScrollArea className="h-68 pr-1">
-        {isLoading ? (
-          <div className="py-8 text-center text-xs text-muted-foreground">Loading palette...</div>
-        ) : grouped.length === 0 && filteredStages.length === 0 ? (
-          <div className="py-8 text-center text-xs text-muted-foreground">
-            {targetStage ? "No matching tools found" : "No matching stage scopes found"}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredStages.length > 0 && (
-              <div className="space-y-1">
-                <span className="px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <Layers className="h-3 w-3" /> Stage Scopes
-                </span>
-                <div className="space-y-0.5">
-                  {filteredStages.map((stage) => {
-                    const icon =
-                      stage.kind === "Worker" ? (
-                        <Cpu className="h-3.5 w-3.5" />
-                      ) : stage.kind === "Server" ? (
-                        <Server className="h-3.5 w-3.5" />
-                      ) : (
-                        <Layers className="h-3.5 w-3.5" />
-                      );
-                    const color =
-                      stage.kind === "Worker"
-                        ? "bg-amber-500/10 text-amber-500"
-                        : stage.kind === "Server"
-                          ? "bg-emerald-500/10 text-emerald-500"
-                          : "bg-purple-500/10 text-purple-500";
-                    return (
-                      <button
-                        key={stage.name}
-                        onClick={() => {
-                          onCreateStage?.(stage);
-                          onClose();
-                        }}
-                        className="flex w-full items-center justify-between gap-2.5 rounded-lg px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent hover:text-accent-foreground group cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md", color)}>
-                            {icon}
-                          </div>
-                          <div className="min-w-0">
-                            <span className="block truncate font-medium text-foreground group-hover:text-primary">
-                              {stage.name}
-                            </span>
-                            <span className="block text-[10px] text-muted-foreground truncate leading-tight">
-                              {stage.description}
-                            </span>
-                          </div>
-                        </div>
-                        <Plus className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-primary shrink-0" />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+      {/* Content list */}
+      <div className="flex-1 overflow-y-auto pr-1 space-y-3 custom-scrollbar text-xs">
+        {isLoading && <div className="text-center py-4 text-muted-foreground">Loading actions...</div>}
 
-            {grouped.map(([category, items]) => (
-              <div key={category} className="space-y-1">
-                <span className="px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {category}
-                </span>
-                <div className="space-y-0.5">
-                  {items.map((item) => {
-                    const isTool = item.source === "Tool";
-                    const isLocal = item.source === "LocalDraft";
-                    const inCount = item.inputs?.length || 0;
-                    const outCount = item.outputs?.length || 0;
-                    const tooltipText = `${item.label} (${item.key})\nExecutor: ${item.executor}\nInputs (${inCount}): ${
-                      item.inputs?.map((p: any) => p.label || p.id).join(", ") || "None"
-                    }\nOutputs (${outCount}): ${
-                      item.outputs?.map((p: any) => p.label || p.id).join(", ") || "None"
-                    }`;
-
-                    return (
-                      <button
-                        key={item.key}
-                        title={tooltipText}
-                        onClick={() => {
-                          onSelect(item);
-                          onClose();
-                        }}
-                        className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent hover:text-accent-foreground group cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div
-                            className={cn(
-                              "flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
-                              isLocal
-                                ? "bg-emerald-500/10 text-emerald-500"
-                                : isTool
-                                  ? "bg-blue-500/10 text-blue-500"
-                                  : "bg-purple-500/10 text-purple-500"
-                            )}
-                          >
-                            {isLocal ? (
-                              <HardDrive className="h-3.5 w-3.5" />
-                            ) : isTool ? (
-                              <Box className="h-3.5 w-3.5" />
-                            ) : (
-                              <FileCode className="h-3.5 w-3.5" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <span className="block truncate font-medium text-foreground group-hover:text-primary">
-                              {item.label}
-                            </span>
-                            <span className="block text-[10px] text-muted-foreground truncate font-mono leading-tight">
-                              {item.key} • {inCount} in, {outCount} out
-                            </span>
-                          </div>
-                        </div>
-                        <Plus className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-primary shrink-0" />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
+        {!isLoading && filteredItems.length === 0 && (
+          <div className="text-center py-4 text-muted-foreground">No matching actions found</div>
         )}
-      </ScrollArea>
 
-      {!targetStage && (
-        <div className="mt-2 pt-1.5 border-t border-border/40 text-[10px] text-muted-foreground/70 px-1 text-center">
-          Right-click inside a Stage to add tools
-        </div>
-      )}
+        {Array.from(grouped.entries()).map(([category, items]) => (
+          <div key={category} className="space-y-1">
+            <div className="text-[10px] font-semibold tracking-wider uppercase text-muted-foreground px-2 py-0.5">
+              {category}
+            </div>
+            <div className="space-y-0.5">
+              {items.map((item) => (
+                <button
+                  key={item.id || item.key}
+                  type="button"
+                  onClick={() => {
+                    onSelect(item);
+                    onClose();
+                  }}
+                  className="w-full text-left px-2 py-1.5 rounded-md hover:bg-accent/80 hover:text-accent-foreground flex items-center justify-between group transition-colors cursor-pointer"
+                >
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-medium text-foreground truncate">{item.label}</span>
+                    <span className="text-[10px] text-muted-foreground truncate">{item.key}</span>
+                  </div>
+                  {item.executor && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase font-mono shrink-0 ml-2">
+                      {item.executor}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -35,6 +35,7 @@ import { Route as ProtectedLayoutSettingsProfileRouteImport } from './routes/_pr
 import { Route as ProtectedLayoutSettingsSecurityRouteImport } from './routes/_protected/_layout/settings/security'
 import { Route as ProtectedLayoutSystemAuditLogsRouteImport } from './routes/_protected/_layout/system/audit-logs'
 import { Route as ProtectedLayoutSystemSettingsRouteImport } from './routes/_protected/_layout/system/settings'
+import { Route as ProtectedLayoutSystemStudiosRouteImport } from './routes/_protected/_layout/system/studios'
 import { Route as ProtectedLayoutUsersIndexRouteImport } from './routes/_protected/_layout/users/index'
 import { Route as ProtectedLayoutUsersNewRouteImport } from './routes/_protected/_layout/users/new'
 import { Route as ProtectedLayoutSStudioSlugIndexRouteImport } from './routes/_protected/_layout/s/$studioSlug/index'
@@ -209,6 +210,12 @@ const ProtectedLayoutSystemSettingsRoute =
   ProtectedLayoutSystemSettingsRouteImport.update({
     id: '/system/settings',
     path: '/system/settings',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutSystemStudiosRoute =
+  ProtectedLayoutSystemStudiosRouteImport.update({
+    id: '/system/studios',
+    path: '/system/studios',
     getParentRoute: () => ProtectedLayoutRoute,
   } as any)
 const ProtectedLayoutUsersIndexRoute =
@@ -512,6 +519,7 @@ export interface FileRoutesByFullPath {
   '/settings/security': typeof ProtectedLayoutSettingsSecurityRoute
   '/system/audit-logs': typeof ProtectedLayoutSystemAuditLogsRouteWithChildren
   '/system/settings': typeof ProtectedLayoutSystemSettingsRoute
+  '/system/studios': typeof ProtectedLayoutSystemStudiosRoute
   '/users/new': typeof ProtectedLayoutUsersNewRoute
   '/roles/': typeof ProtectedLayoutRolesIndexRoute
   '/settings/': typeof ProtectedLayoutSettingsIndexRoute
@@ -570,6 +578,7 @@ export interface FileRoutesByTo {
   '/settings/profile': typeof ProtectedLayoutSettingsProfileRoute
   '/settings/security': typeof ProtectedLayoutSettingsSecurityRoute
   '/system/settings': typeof ProtectedLayoutSystemSettingsRoute
+  '/system/studios': typeof ProtectedLayoutSystemStudiosRoute
   '/users/new': typeof ProtectedLayoutUsersNewRoute
   '/roles': typeof ProtectedLayoutRolesIndexRoute
   '/settings': typeof ProtectedLayoutSettingsIndexRoute
@@ -631,6 +640,7 @@ export interface FileRoutesById {
   '/_protected/_layout/settings/security': typeof ProtectedLayoutSettingsSecurityRoute
   '/_protected/_layout/system/audit-logs': typeof ProtectedLayoutSystemAuditLogsRouteWithChildren
   '/_protected/_layout/system/settings': typeof ProtectedLayoutSystemSettingsRoute
+  '/_protected/_layout/system/studios': typeof ProtectedLayoutSystemStudiosRoute
   '/_protected/_layout/users/new': typeof ProtectedLayoutUsersNewRoute
   '/_protected/_layout/roles/': typeof ProtectedLayoutRolesIndexRoute
   '/_protected/_layout/settings/': typeof ProtectedLayoutSettingsIndexRoute
@@ -695,6 +705,7 @@ export interface FileRouteTypes {
     | '/settings/security'
     | '/system/audit-logs'
     | '/system/settings'
+    | '/system/studios'
     | '/users/new'
     | '/roles/'
     | '/settings/'
@@ -753,6 +764,7 @@ export interface FileRouteTypes {
     | '/settings/profile'
     | '/settings/security'
     | '/system/settings'
+    | '/system/studios'
     | '/users/new'
     | '/roles'
     | '/settings'
@@ -813,6 +825,7 @@ export interface FileRouteTypes {
     | '/_protected/_layout/settings/security'
     | '/_protected/_layout/system/audit-logs'
     | '/_protected/_layout/system/settings'
+    | '/_protected/_layout/system/studios'
     | '/_protected/_layout/users/new'
     | '/_protected/_layout/roles/'
     | '/_protected/_layout/settings/'
@@ -1041,6 +1054,13 @@ declare module '@tanstack/react-router' {
       path: '/system/settings'
       fullPath: '/system/settings'
       preLoaderRoute: typeof ProtectedLayoutSystemSettingsRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
+    }
+    '/_protected/_layout/system/studios': {
+      id: '/_protected/_layout/system/studios'
+      path: '/system/studios'
+      fullPath: '/system/studios'
+      preLoaderRoute: typeof ProtectedLayoutSystemStudiosRouteImport
       parentRoute: typeof ProtectedLayoutRoute
     }
     '/_protected/_layout/users/': {
@@ -1390,6 +1410,7 @@ interface ProtectedLayoutRouteChildren {
   ProtectedLayoutRunnersRunnerIdRoute: typeof ProtectedLayoutRunnersRunnerIdRoute
   ProtectedLayoutSystemAuditLogsRoute: typeof ProtectedLayoutSystemAuditLogsRouteWithChildren
   ProtectedLayoutSystemSettingsRoute: typeof ProtectedLayoutSystemSettingsRoute
+  ProtectedLayoutSystemStudiosRoute: typeof ProtectedLayoutSystemStudiosRoute
   ProtectedLayoutSStudioSlugRunnersRoute: typeof ProtectedLayoutSStudioSlugRunnersRoute
   ProtectedLayoutSStudioSlugStorageRoute: typeof ProtectedLayoutSStudioSlugStorageRoute
   ProtectedLayoutSStudioSlugIndexRoute: typeof ProtectedLayoutSStudioSlugIndexRoute
@@ -1411,6 +1432,7 @@ const ProtectedLayoutRouteChildren: ProtectedLayoutRouteChildren = {
   ProtectedLayoutSystemAuditLogsRoute:
     ProtectedLayoutSystemAuditLogsRouteWithChildren,
   ProtectedLayoutSystemSettingsRoute: ProtectedLayoutSystemSettingsRoute,
+  ProtectedLayoutSystemStudiosRoute: ProtectedLayoutSystemStudiosRoute,
   ProtectedLayoutSStudioSlugRunnersRoute:
     ProtectedLayoutSStudioSlugRunnersRoute,
   ProtectedLayoutSStudioSlugStorageRoute:

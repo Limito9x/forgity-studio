@@ -2,6 +2,7 @@ using FastEndpoints;
 using FluentResults;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
+using Wolverine.Attributes;
 using Automation.Files.Infrastructure.Persistence;
 using Automation.SharedKernel.Extensions.Results;
 
@@ -24,6 +25,7 @@ public class GetStorageProfilesEndpoint(IMessageBus bus) : Endpoint<GetStoragePr
     }
 }
 
+[NonTransactional]
 public class GetStorageProfilesHandler(FilesDbContext dbContext, IMessageBus bus)
 {
     public async Task<Result<IReadOnlyList<StorageProfileDto>>> HandleAsync(GetStorageProfilesQuery query, CancellationToken ct)

@@ -4,6 +4,7 @@ using FastEndpoints;
 using FluentResults;
 using FluentValidation;
 using Wolverine;
+using Wolverine.Attributes;
 using Automation.Files.Domain.Enums;
 using Automation.Files.Infrastructure.Storage;
 using Automation.SharedKernel.Extensions.Results;
@@ -49,6 +50,7 @@ public class TestStorageConnectionEndpoint(IMessageBus bus) : Endpoint<TestStora
     }
 }
 
+[NonTransactional]
 public class TestStorageConnectionHandler()
 {
     public async Task<Result<TestConnectionResultDto>> HandleAsync(TestStorageConnectionCommand command, CancellationToken ct)

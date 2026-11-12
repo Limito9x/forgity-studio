@@ -104,7 +104,7 @@ export const exportPipelineBatchBodyModeDefault = `FullBackup`;
 
 export const ExportPipelineBatchBody = /*#__PURE__*/ zod.object({
   "pipelineIds": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.uuid()),
-  "mode": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.enum(['FullBackup', 'CleanTemplate']), exportPipelineBatchBodyModeDefault)
+  "mode": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.enum(['FullBackup', 'CleanTemplate', 'TextOnly']), exportPipelineBatchBodyModeDefault)
 })
 
 export const exportPipelineBatchResponsePipelinesItemGraphEdgesItemKindDefault = `Data`;

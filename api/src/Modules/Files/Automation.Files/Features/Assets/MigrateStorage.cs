@@ -8,6 +8,7 @@ using FluentResults;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using Wolverine;
+using Wolverine.Attributes;
 
 namespace Automation.Files.Features.Assets;
 
@@ -93,6 +94,7 @@ public class GetMigrationJobStatusEndpoint(IMessageBus bus) : Endpoint<GetMigrat
     }
 }
 
+[NonTransactional]
 public class GetMigrationJobStatusHandler(IStorageMigrationJobTracker jobTracker)
 {
     public Task<Result<StorageMigrationJobState>> HandleAsync(GetMigrationJobStatusQuery query, CancellationToken ct)
@@ -108,6 +110,7 @@ public class GetMigrationJobStatusHandler(IStorageMigrationJobTracker jobTracker
 }
 
 // 3. Background Handler: Wolverine Handler xử lý tác vụ Piped Stream
+[NonTransactional]
 public class ExecuteStorageMigrationHandler(
     IAssetApi assetApi,
     IStorageMigrationJobTracker jobTracker,

@@ -20,17 +20,33 @@ export function useSplitPins(
     const rawInputs = inputs ?? [];
     const rawOutputs = outputs ?? [];
 
-    const execInputs = rawInputs.filter((p) => p.kind === PinKind.Exec);
-    const execOutputs = rawOutputs.filter((p) => p.kind === PinKind.Exec);
-    const dataInputs = rawInputs.filter((p) => p.kind === PinKind.Data);
-    const dataOutputs = rawOutputs.filter((p) => p.kind === PinKind.Data);
+    const execInputs = rawInputs.filter((p) => p.kind === PinKind.Exec || (p.kind as any) === 1 || p.id === "exec_in" || p.id === "exec");
+    const execOutputs = rawOutputs.filter((p) => p.kind === PinKind.Exec || (p.kind as any) === 1 || p.id === "exec_out" || p.id === "exec");
+    const dataInputs = rawInputs.filter((p) => p.kind !== PinKind.Exec && (p.kind as any) !== 1 && p.id !== "exec_in" && p.id !== "exec");
+    const dataOutputs = rawOutputs.filter((p) => p.kind !== PinKind.Exec && (p.kind as any) !== 1 && p.id !== "exec_out" && p.id !== "exec");
 
-    const showExecIn = forceExecIn || execInputs.length > 0;
-    const showExecOut = execOutputs.length > 0;
+    // Standard Tools default to having an Exec In and Exec Out handle unless explicitly a pure data node
+    const hasCustomExecIn = execInputs.length > 0;
+    const hasCustomExecOut = execOutputs.length > 0;
+
+    const showExecIn = forceExecIn || hasCustomExecIn || true;
+    const showExecOut = hasCustomExecOut || true;
+
+    // If no custom exec output pins defined, provide default "exec_out" pin
+    const finalExecOutputs = hasCustomExecOut
+      ? execOutputs
+      : [
+          {
+            id: "exec_out",
+            label: "Exec",
+            kind: PinKind.Exec,
+            isRequired: false,
+          } as PinDefinition,
+        ];
 
     return {
       execInputs,
-      execOutputs,
+      execOutputs: finalExecOutputs,
       dataInputs,
       dataOutputs,
       showExecIn,

@@ -12,11 +12,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import type { Node, Edge } from "@xyflow/react";
-import { useLocalWorkspaceStore } from "../../stores/useLocalWorkspaceStore";
+import { useLocalPaletteQuery } from "../../hooks/workspace";
 import { usePublishDraftPipelineMutation, type PublishLocalScriptItem } from "../../hooks/usePublishDraftPipeline";
 
 interface PublishToStudioDialogProps {
   projectId: string;
+  rootPath?: string | null;
   pipelineId?: string;
   initialName: string;
   nodes: Node[];
@@ -29,6 +30,7 @@ interface PublishToStudioDialogProps {
 
 export function PublishToStudioDialog({
   projectId,
+  rootPath = null,
   pipelineId,
   initialName,
   nodes,
@@ -40,7 +42,7 @@ export function PublishToStudioDialog({
 }: PublishToStudioDialogProps) {
   const [pipelineName, setPipelineName] = useState(initialName || "Published Pipeline");
   const [description, setDescription] = useState("");
-  const { draftNodes } = useLocalWorkspaceStore();
+  const { draftNodes } = useLocalPaletteQuery(rootPath);
   const publishMutation = usePublishDraftPipelineMutation();
 
   // Find all local draft nodes used in the current graph

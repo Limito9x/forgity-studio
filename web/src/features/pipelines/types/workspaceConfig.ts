@@ -8,6 +8,27 @@ export interface WorkspaceInitResult {
   rootPath: string;
   config: WorkspaceRootConfig;
   localPaletteJson?: string | null;
+  localStructsJson?: string | null;
+}
+
+export type LocalStructFieldType = "String" | "Number" | "Boolean" | "Asset" | "Struct";
+
+export interface LocalStructField {
+  name: string;
+  label: string;
+  type: LocalStructFieldType;
+  cardinality: "Single" | "Array";
+  structType?: string;
+  defaultValue?: any;
+  description?: string;
+}
+
+export interface LocalStructDefinition {
+  slug: string;
+  displayName: string;
+  description?: string;
+  fields: LocalStructField[];
+  updatedAt?: string;
 }
 
 export interface LocalDraftNode {
@@ -24,6 +45,7 @@ export interface LocalDraftNode {
   sourceCode?: string;
   inputs: any[];
   outputs: any[];
+  detectedStructs?: LocalStructDefinition[];
   dependencies?: { module: string; packageName: string }[];
   lastSyncedAt: string;
 }
@@ -52,6 +74,8 @@ export interface ScannedPipelineYamlItemRust {
   fullPath: string;
   content: string;
   lastModifiedMs: number;
+  pipelineKind?: "component" | "master";
+  executor?: string;
 }
 
 export interface ScriptScanSummary {

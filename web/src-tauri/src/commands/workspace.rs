@@ -15,6 +15,7 @@ pub struct WorkspaceInitResult {
     pub root_path: String,
     pub config: WorkspaceRootConfig,
     pub local_palette_json: Option<String>,
+    pub local_structs_json: Option<String>,
 }
 
 #[tauri::command]
@@ -73,10 +74,18 @@ pub fn open_or_init_workspace_root(root_path: String) -> Result<WorkspaceInitRes
         None
     };
 
+    let structs_path = forgity_dir.join("local_structs.json");
+    let local_structs_json = if structs_path.is_file() {
+        std::fs::read_to_string(&structs_path).ok()
+    } else {
+        None
+    };
+
     Ok(WorkspaceInitResult {
         root_path,
         config,
         local_palette_json,
+        local_structs_json,
     })
 }
 
@@ -121,5 +130,26 @@ pub fn load_local_palette(root_path: String) -> Result<String, String> {
     }
     std::fs::read_to_string(&palette_path)
         .map_err(|e| format!("Failed to read local_palette.json: {}", e))
+}
+
+#[tauri::command]
+pub fn save_local_structs(root_path: String, structs_json: String) -> Result<(), String> {
+    let forgity_dir = Path::new(&root_path).join(".forgity");
+    std::fs::create_dir_all(&forgity_dir)
+        .map_err(|e| format!("Failed to create .forgity directory: {}", e))?;
+
+    std::fs::write(forgity_dir.join("local_structs.json"), structs_json)
+        .map_err(|e| format!("Failed to write local_structs.json: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn load_local_structs(root_path: String) -> Result<String, String> {
+    let structs_path = Path::new(&root_path).join(".forgity").join("local_structs.json");
+    if !structs_path.is_file() {
+        return Ok("[]".to_string());
+    }
+    std::fs::read_to_string(&structs_path)
+        .map_err(|e| format!("Failed to read local_structs.json: {}", e))
 }
 

@@ -23,6 +23,7 @@ import {
 } from "../hooks/useProjectMigrations";
 import { toast } from "sonner";
 import type { ImportProjectPackageResultDto } from "@/gen/model";
+import { featureFlags } from "@/config/featureFlags";
 
 interface UnifiedMigrationWizardDialogProps {
   open: boolean;
@@ -69,12 +70,17 @@ export function UnifiedMigrationWizardDialog({
 }: UnifiedMigrationWizardDialogProps) {
   const [activeTab, setActiveTab] = useState<"export" | "import">(initialMode);
 
+  const activeDomains = AVAILABLE_DOMAINS.filter((d) => {
+    if (!featureFlags.enableStudioCatalog && (d.key === "content" || d.key === "repositories")) {
+      return false;
+    }
+    return true;
+  });
+
   // Export State
-  const [selectedDomains, setSelectedDomains] = useState<string[]>([
-    "pipelines",
-    "content",
-    "repositories",
-  ]);
+  const [selectedDomains, setSelectedDomains] = useState<string[]>(() =>
+    activeDomains.map((d) => d.key)
+  );
 
   // Import State
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -220,7 +226,7 @@ export function UnifiedMigrationWizardDialog({
             </div>
 
             <div className="flex flex-col gap-3">
-              {AVAILABLE_DOMAINS.map((domain) => {
+              {activeDomains.map((domain) => {
                 const Icon = domain.icon;
                 const isChecked = selectedDomains.includes(domain.key);
                 return (

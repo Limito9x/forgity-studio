@@ -22,11 +22,15 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  CompleteExecutionRequest,
   CreateStudioCommand,
   ErrorResponse,
   IReadOnlyListOfStudioDto,
+  ProblemDetails,
   StudioDto,
+  StudioQuotaDto,
   UpdateStudioCommand,
+  VerifyExecutionResponse,
 } from "../../model";
 
 import { customInstance } from "../../../lib/api-client";
@@ -454,3 +458,304 @@ export const useUpdateStudio = <
 > => {
   return useMutation(getUpdateStudioMutationOptions(options), queryClient);
 };
+/**
+ * Deducts execution credits from the studio after a pipeline DAG completes.
+ * @summary Deduct Execution Credits
+ */
+export const completeExecution = (
+  slug: string,
+  completeExecutionRequest: CompleteExecutionRequest,
+  signal?: AbortSignal,
+) => {
+  return customInstance<void>({
+    url: `/api/studios/${slug}/pipelines/complete-run`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: completeExecutionRequest,
+    signal,
+  });
+};
+
+export const getCompleteExecutionMutationOptions = <
+  TError = ProblemDetails | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof completeExecution>>,
+    TError,
+    { slug: string; data: CompleteExecutionRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof completeExecution>>,
+  TError,
+  { slug: string; data: CompleteExecutionRequest },
+  TContext
+> => {
+  const mutationKey = ["completeExecution"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof completeExecution>>,
+    { slug: string; data: CompleteExecutionRequest }
+  > = (props) => {
+    const { slug, data } = props ?? {};
+
+    return completeExecution(slug, data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CompleteExecutionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof completeExecution>>
+>;
+export type CompleteExecutionMutationBody = CompleteExecutionRequest;
+export type CompleteExecutionMutationError = ProblemDetails | void;
+
+/**
+ * @summary Deduct Execution Credits
+ */
+export const useCompleteExecution = <
+  TError = ProblemDetails | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof completeExecution>>,
+      TError,
+      { slug: string; data: CompleteExecutionRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof completeExecution>>,
+  TError,
+  { slug: string; data: CompleteExecutionRequest },
+  TContext
+> => {
+  return useMutation(getCompleteExecutionMutationOptions(options), queryClient);
+};
+/**
+ * Checks whether the studio has remaining execution credits before triggering a DAG run.
+ * @summary Verify Pipeline Execution Quota
+ */
+export const verifyExecution = (slug: string, signal?: AbortSignal) => {
+  return customInstance<VerifyExecutionResponse>({
+    url: `/api/studios/${slug}/pipelines/verify-run`,
+    method: "POST",
+    signal,
+  });
+};
+
+export const getVerifyExecutionMutationOptions = <
+  TError = void | ProblemDetails,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof verifyExecution>>,
+    TError,
+    { slug: string },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof verifyExecution>>,
+  TError,
+  { slug: string },
+  TContext
+> => {
+  const mutationKey = ["verifyExecution"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof verifyExecution>>,
+    { slug: string }
+  > = (props) => {
+    const { slug } = props ?? {};
+
+    return verifyExecution(slug);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type VerifyExecutionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof verifyExecution>>
+>;
+
+export type VerifyExecutionMutationError = void | ProblemDetails;
+
+/**
+ * @summary Verify Pipeline Execution Quota
+ */
+export const useVerifyExecution = <
+  TError = void | ProblemDetails,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof verifyExecution>>,
+      TError,
+      { slug: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof verifyExecution>>,
+  TError,
+  { slug: string },
+  TContext
+> => {
+  return useMutation(getVerifyExecutionMutationOptions(options), queryClient);
+};
+/**
+ * Retrieves the execution credits and managed cloud storage usage for a given studio.
+ * @summary Get Studio Quota & Usage
+ */
+export const getStudioQuota = (slug: string, signal?: AbortSignal) => {
+  return customInstance<StudioQuotaDto>({
+    url: `/api/studios/${slug}/quota`,
+    method: "GET",
+    signal,
+  });
+};
+
+export const getGetStudioQuotaQueryKey = (slug: string) => {
+  return [`/api/studios/${slug}/quota`] as const;
+};
+
+export const getGetStudioQuotaQueryOptions = <
+  TData = Awaited<ReturnType<typeof getStudioQuota>>,
+  TError = void | ProblemDetails,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getStudioQuota>>, TError, TData>
+    >;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetStudioQuotaQueryKey(slug);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getStudioQuota>>> = ({
+    signal,
+  }) => getStudioQuota(slug, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: slug !== null && slug !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getStudioQuota>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetStudioQuotaQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getStudioQuota>>
+>;
+export type GetStudioQuotaQueryError = void | ProblemDetails;
+
+export function useGetStudioQuota<
+  TData = Awaited<ReturnType<typeof getStudioQuota>>,
+  TError = void | ProblemDetails,
+>(
+  slug: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getStudioQuota>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getStudioQuota>>,
+          TError,
+          Awaited<ReturnType<typeof getStudioQuota>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetStudioQuota<
+  TData = Awaited<ReturnType<typeof getStudioQuota>>,
+  TError = void | ProblemDetails,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getStudioQuota>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getStudioQuota>>,
+          TError,
+          Awaited<ReturnType<typeof getStudioQuota>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetStudioQuota<
+  TData = Awaited<ReturnType<typeof getStudioQuota>>,
+  TError = void | ProblemDetails,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getStudioQuota>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary Get Studio Quota & Usage
+ */
+
+export function useGetStudioQuota<
+  TData = Awaited<ReturnType<typeof getStudioQuota>>,
+  TError = void | ProblemDetails,
+>(
+  slug: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getStudioQuota>>, TError, TData>
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetStudioQuotaQueryOptions(slug, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}

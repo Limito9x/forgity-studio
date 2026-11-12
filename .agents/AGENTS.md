@@ -155,6 +155,7 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 > - **Công cụ tự động hóa**: Sử dụng python .agents/scripts/backlog.py [check|archive|new|list] để kiểm tra toàn vẹn, lưu trữ kế hoạch đã xong vào rchive/YYYY-MM/ và đồng bộ chỉ mục tự động.
 
 ### Kế hoạch đang thực hiện (Active):
+- [**bl-053-pipeline-engine-de-shackling-component-pipes-and-rust-dag-scheduler (12/11/2026)**](file:///D:/FullStack/Automation/.agents/plans/2026-11-12-bl-053-pipeline-engine-de-shackling-component-pipes-and-rust-dag-scheduler.md): Tháo Gỡ Gông Cùm Core Server, Kiến Trúc 2 Tầng (Component Pipe vs Master Orchestration), Auto-Gen Companion Tools & Rust Runner DAG Maestro.
 - [**bl-050-local-first-script-authoring-multi-folder-auto-scan-draft-pipeline-lifecycle (09/11/2026)**](file:///D:/FullStack/Automation/.agents/plans/2026-11-09-bl-050-local-first-script-authoring-multi-folder-auto-scan-draft-pipeline-lifecycle.md): Local-First Script Authoring, Multi-Folder Auto-Scan & Draft Pipeline Lifecycle.
 - [**bl-046-1-click-starter-template-setup-in-engine-asset-ingestion (08/11/2026)**](file:///D:/FullStack/Automation/.agents/plans/2026-11-08-bl-046-1-click-starter-template-setup-in-engine-asset-ingestion.md): 1-Click Starter Template Setup & In-Engine Asset Ingestion.
 - [**bl-040-persistent-dcc-process-pool-and-keep-alive-worker-daemon (03/11/2026)**](file:///D:/FullStack/Automation/.agents/plans/2026-11-03-bl-040-persistent-dcc-process-pool-and-keep-alive-worker-daemon.md): Persistent DCC Process Pool and Keep-Alive Worker Daemon.

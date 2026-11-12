@@ -12,4 +12,5 @@ export type ExportPipelineMode =
 export const ExportPipelineMode = {
   FullBackup: "FullBackup",
   CleanTemplate: "CleanTemplate",
+  TextOnly: "TextOnly",
 } as const;

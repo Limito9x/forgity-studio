@@ -1,6 +1,7 @@
 import { lazy } from "react";
 import { registerDialog } from "@/lib/dialog-registry";
 import type { PipelineSummaryDto } from "@/gen/model";
+import type { LocalStructDefinition } from "../types/workspaceConfig";
 
 declare module "@/lib/dialog-registry" {
   interface GlobalDialogRegistry {
@@ -9,6 +10,10 @@ declare module "@/lib/dialog-registry" {
     "archive-pipeline": { pipeline: PipelineSummaryDto };
     "purge-pipeline": { pipeline: PipelineSummaryDto };
     "import-pipeline": { projectId: string };
+    "workspace-config": { projectId: string };
+    "workspace-pull-studio": { projectId: string };
+    "workspace-unpack-package": undefined;
+    "workspace-struct-preview": { struct: LocalStructDefinition };
   }
 }
 
@@ -41,6 +46,50 @@ const PipelineImportDialogWrapper = lazy(() =>
     default: m.PipelineImportDialogWrapper,
   }))
 );
+
+const WorkspaceConfigDialog = lazy(() =>
+  import("../components/workspace/WorkspaceConfigDialog").then((m) => ({
+    default: m.WorkspaceConfigDialog,
+  }))
+);
+
+const PullStudioPipelineDialog = lazy(() =>
+  import("../components/workspace/PullStudioPipelineDialog").then((m) => ({
+    default: m.PullStudioPipelineDialog,
+  }))
+);
+
+const UnpackLocalPackageDialog = lazy(() =>
+  import("../components/workspace/UnpackLocalPackageDialog").then((m) => ({
+    default: m.UnpackLocalPackageDialog,
+  }))
+);
+
+const LocalStructPreviewDialog = lazy(() =>
+  import("../components/workspace/LocalStructPreviewDialog").then((m) => ({
+    default: m.LocalStructPreviewDialog,
+  }))
+);
+
+registerDialog({
+  id: "workspace-config",
+  component: WorkspaceConfigDialog,
+});
+
+registerDialog({
+  id: "workspace-pull-studio",
+  component: PullStudioPipelineDialog,
+});
+
+registerDialog({
+  id: "workspace-unpack-package",
+  component: UnpackLocalPackageDialog,
+});
+
+registerDialog({
+  id: "workspace-struct-preview",
+  component: LocalStructPreviewDialog,
+});
 
 registerDialog({
   id: "create-pipeline",

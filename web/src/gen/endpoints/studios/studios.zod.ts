@@ -73,3 +73,52 @@ export const UpdateStudioResponse = /*#__PURE__*/ zod.object({
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 })
 
+/**
+ * Deducts execution credits from the studio after a pipeline DAG completes.
+ * @summary Deduct Execution Credits
+ */
+export const CompleteExecutionParams = /*#__PURE__*/ zod.object({
+  "slug": /*#__PURE__*/ zod.string()
+})
+
+export const completeExecutionBodyAmountDefault = 1;
+
+export const CompleteExecutionBody = /*#__PURE__*/ zod.object({
+  "amount": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.int(), completeExecutionBodyAmountDefault)
+})
+
+export const CompleteExecutionResponse = /*#__PURE__*/ zod.unknown()
+
+/**
+ * Checks whether the studio has remaining execution credits before triggering a DAG run.
+ * @summary Verify Pipeline Execution Quota
+ */
+export const VerifyExecutionParams = /*#__PURE__*/ zod.object({
+  "slug": /*#__PURE__*/ zod.string()
+})
+
+export const VerifyExecutionResponse = /*#__PURE__*/ zod.object({
+  "studioId": /*#__PURE__*/ zod.uuid(),
+  "allowed": /*#__PURE__*/ zod.boolean(),
+  "creditsRemaining": /*#__PURE__*/ zod.int(),
+  "planTier": /*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2)])
+})
+
+/**
+ * Retrieves the execution credits and managed cloud storage usage for a given studio.
+ * @summary Get Studio Quota & Usage
+ */
+export const GetStudioQuotaParams = /*#__PURE__*/ zod.object({
+  "slug": /*#__PURE__*/ zod.string()
+})
+
+export const GetStudioQuotaResponse = /*#__PURE__*/ zod.object({
+  "studioId": /*#__PURE__*/ zod.uuid(),
+  "name": /*#__PURE__*/ zod.string(),
+  "slug": /*#__PURE__*/ zod.string(),
+  "planTier": /*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2)]),
+  "executionCreditsRemaining": /*#__PURE__*/ zod.int(),
+  "studioManagedStorageQuotaBytes": /*#__PURE__*/ zod.int(),
+  "studioManagedStorageUsedBytes": /*#__PURE__*/ zod.int()
+})
+

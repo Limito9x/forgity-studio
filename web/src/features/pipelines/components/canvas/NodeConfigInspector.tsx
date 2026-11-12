@@ -17,6 +17,7 @@ import { NodeConfigDiagnosticsBanner } from "./inspector/NodeConfigDiagnosticsBa
 import { NodeConfigStructSelector } from "./inspector/NodeConfigStructSelector";
 import { NodeConfigModeSelector } from "./inspector/NodeConfigModeSelector";
 import { NodeConfigWiredInputs } from "./inspector/NodeConfigWiredInputs";
+import { NodeConfigBatchPanel } from "./inspector/NodeConfigBatchPanel";
 
 interface NodeConfigInspectorProps {
   pipelineId?: string;
@@ -59,6 +60,11 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
   const hasModeSelector = (definition?.capabilities?.schemaConfigKeys || []).some(
     (k) => String(k).toLowerCase() === "mode"
   );
+
+  const isComponentPipeNode =
+    data.refId?.startsWith("local:component:") ||
+    definition?.source === "SubPipeline" ||
+    (data as any).pipelineKind === "component";
 
   const inputs = data.inputs || [];
   const configValues = data.configValues || {};
@@ -213,6 +219,24 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
                 currentMode={String(configValues["Mode"] || "").trim()}
                 refId={data.refId}
                 onSelectMode={(mode) => onUpdateConfig(node.id, "Mode", mode)}
+              />
+            )}
+
+            {/* Component Pipe Parallel Batch Configuration */}
+            {isComponentPipeNode && (
+              <NodeConfigBatchPanel
+                isBatch={Boolean(configValues["_isBatch"])}
+                maxConcurrency={Number(configValues["_maxConcurrency"]) || 2}
+                iterablePin={String(configValues["_iterablePin"] || "")}
+                skipOnError={configValues["_skipOnError"] !== false}
+                availablePins={configurableInputs.map((p) => ({ id: p.id || "", label: p.label }))}
+                isReadOnly={isReadOnly}
+                onUpdateBatch={(updates) => {
+                  if (updates.isBatch !== undefined) onUpdateConfig(node.id, "_isBatch", updates.isBatch);
+                  if (updates.maxConcurrency !== undefined) onUpdateConfig(node.id, "_maxConcurrency", updates.maxConcurrency);
+                  if (updates.iterablePin !== undefined) onUpdateConfig(node.id, "_iterablePin", updates.iterablePin);
+                  if (updates.skipOnError !== undefined) onUpdateConfig(node.id, "_skipOnError", updates.skipOnError);
+                }}
               />
             )}
 

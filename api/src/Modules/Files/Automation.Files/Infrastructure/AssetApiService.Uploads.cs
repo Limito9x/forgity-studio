@@ -33,21 +33,44 @@ public partial class AssetApiService
             .Assets.Where(x => hashes.Contains(x.HashSha256) && x.StorageProfileId == storageProfileId)
             .ToListAsync(ct);
 
-        long? effectiveQuotaBytes = profile?.StorageQuotaBytes;
+        long? effectiveQuotaBytes = null;
+        long currentUsedBytes = 0L;
+
         if (profile == null || profile.ProviderType == Domain.Enums.StorageProviderType.StudioCloud)
         {
+            // Studio Cloud: Managed by Platform & Studio Quota
+            if (profile != null && studioApi != null)
+            {
+                var studioQuotaResult = await studioApi.GetStudioQuotaAsync(profile.StudioId, ct);
+                if (studioQuotaResult.IsSuccess)
+                {
+                    effectiveQuotaBytes = studioQuotaResult.Value.StudioManagedStorageQuotaBytes;
+                    currentUsedBytes = studioQuotaResult.Value.StudioManagedStorageUsedBytes;
+                }
+            }
+
             if (!effectiveQuotaBytes.HasValue)
             {
                 effectiveQuotaBytes = await GetStudioCloudDefaultQuotaBytesAsync(ct);
+                currentUsedBytes = await dbContext.Assets
+                    .Where(x => x.StorageProfileId == storageProfileId || (storageProfileId == null && x.StorageProfileId == null))
+                    .SumAsync(x => (long?)x.SizeBytes, ct) ?? 0L;
+            }
+        }
+        else
+        {
+            // Custom S3 (BYOS): Quota is optionally configured on the profile, or unlimited if null
+            effectiveQuotaBytes = profile.StorageQuotaBytes;
+            if (effectiveQuotaBytes.HasValue)
+            {
+                currentUsedBytes = await dbContext.Assets
+                    .Where(x => x.StorageProfileId == storageProfileId)
+                    .SumAsync(x => (long?)x.SizeBytes, ct) ?? 0L;
             }
         }
 
         if (effectiveQuotaBytes.HasValue)
         {
-            var currentUsedBytes = await dbContext.Assets
-                .Where(x => x.StorageProfileId == storageProfileId || (storageProfileId == null && x.StorageProfileId == null))
-                .SumAsync(x => (long?)x.SizeBytes, ct) ?? 0L;
-
             var incomingBytes = requestList
                 .Where(r => !existingAssets.Any(e => e.HashSha256 == r.HashSha256 && e.SizeBytes == r.SizeBytes && e.IsConfirmed))
                 .Sum(r => r.SizeBytes);
@@ -177,6 +200,33 @@ public partial class AssetApiService
             return Result.Fail(errors);
 
         await dbContext.SaveChangesAsync(ct);
+
+        // Update studio managed storage usage if uploaded to StudioCloud
+        if (studioApi != null)
+        {
+            var profileIds = unconfirmedAssets
+                .Where(a => a.StorageProfileId.HasValue)
+                .Select(a => a.StorageProfileId!.Value)
+                .Distinct()
+                .ToList();
+
+            var cloudProfiles = await dbContext.StorageProfiles
+                .AsNoTracking()
+                .Where(p => profileIds.Contains(p.Id) && p.ProviderType == Domain.Enums.StorageProviderType.StudioCloud)
+                .ToListAsync(ct);
+
+            foreach (var profile in cloudProfiles)
+            {
+                var addedBytes = unconfirmedAssets
+                    .Where(a => a.StorageProfileId == profile.Id)
+                    .Sum(a => a.SizeBytes);
+
+                if (addedBytes > 0)
+                {
+                    await studioApi.UpdateManagedStorageUsageAsync(profile.StudioId, addedBytes, ct);
+                }
+            }
+        }
 
         var resultAssets = unconfirmedAssets
             .Select(asset => new ConfirmAssetDto(

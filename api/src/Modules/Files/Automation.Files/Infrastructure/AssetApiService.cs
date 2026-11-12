@@ -2,6 +2,7 @@ using Automation.Files.Contracts;
 using Automation.Files.Domain.Entities;
 using Automation.Files.Infrastructure.Persistence;
 using Automation.Files.Infrastructure.Storage;
+using Automation.Studio.Contracts;
 using Automation.SystemAbstractions;
 using FluentResults;
 using Wolverine;
@@ -20,7 +21,8 @@ public partial class AssetApiService(
     FilesDbContext dbContext,
     IStorageServiceFactory storageFactory,
     AssetRegistry assetRegistry,
-    IMessageBus? bus = null
+    IMessageBus? bus = null,
+    IStudioApi? studioApi = null
 ) : IAssetApi
 {
     private static (string Code, string Message)? ValidateLinkAsset(Asset asset, AssetCategoryOptions options)

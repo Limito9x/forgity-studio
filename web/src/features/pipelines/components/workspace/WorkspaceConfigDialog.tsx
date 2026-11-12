@@ -9,24 +9,33 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { useLocalWorkspaceStore } from "../../stores/useLocalWorkspaceStore";
+import { useLocalWorkspaceConfig, useLocalPaletteQuery } from "../../hooks/workspace";
 
 interface WorkspaceConfigDialogProps {
-  projectId: string;
-  isOpen: boolean;
-  onClose: () => void;
+  projectId?: string;
+  isOpen?: boolean;
+  onClose?: () => void;
+  // Standard DialogProps support
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  data?: { projectId: string };
 }
 
-export function WorkspaceConfigDialog({
-  isOpen,
-  onClose,
-}: WorkspaceConfigDialogProps) {
+export function WorkspaceConfigDialog(props: WorkspaceConfigDialogProps) {
+  const projectId = props.data?.projectId || props.projectId || "";
+  const isDialogActive = props.open ?? props.isOpen ?? false;
+  const handleClose = () => {
+    props.onOpenChange?.(false);
+    props.onClose?.();
+  };
+
   const {
     rootPath,
     config,
-    updateWorkspaceConfig,
-    clearLocalPalette,
-  } = useLocalWorkspaceStore();
+    updateConfig,
+  } = useLocalWorkspaceConfig(projectId);
+
+  const { clearPalette } = useLocalPaletteQuery(rootPath);
 
   const [scriptsDir, setScriptsDir] = useState("");
   const [pipelinesDir, setPipelinesDir] = useState("");
@@ -34,7 +43,7 @@ export function WorkspaceConfigDialog({
 
   useEffect(() => {
     if (config) {
-      setScriptsDir(config.scriptsDir || "pipeline-scripts");
+      setScriptsDir(config.scriptsDir || "scripts");
       setPipelinesDir(config.pipelinesDir || "pipelines");
     }
   }, [config]);
@@ -42,11 +51,14 @@ export function WorkspaceConfigDialog({
   const handleSave = async () => {
     try {
       setIsSaving(true);
-      await updateWorkspaceConfig(scriptsDir.trim() || "pipeline-scripts", pipelinesDir.trim() || "pipelines");
-      toast.success("Workspace configuration updated on disk!");
-      onClose();
+      await updateConfig({
+        scriptsDir: scriptsDir.trim() || "scripts",
+        pipelinesDir: pipelinesDir.trim() || "pipelines",
+      });
+      toast.success("Workspace folder configuration saved!");
+      handleClose();
     } catch (err: any) {
-      toast.error("Failed to save workspace configuration", { description: err?.message });
+      toast.error("Failed to save config", { description: err?.message });
     } finally {
       setIsSaving(false);
     }
@@ -54,15 +66,15 @@ export function WorkspaceConfigDialog({
 
   const handleClearPalette = async () => {
     try {
-      await clearLocalPalette();
-      toast.success("Local palette cleared from disk!");
+      await clearPalette();
+      toast.success("Local palette cache cleared from disk!");
     } catch (err: any) {
       toast.error("Failed to clear palette", { description: err?.message });
     }
   };
 
   return (
-    <Dialog isOpen={isOpen} onOpenChange={(open: boolean) => !open && onClose()} className="sm:max-w-lg">
+    <Dialog isOpen={isDialogActive} onOpenChange={(open: boolean) => !open && handleClose()} className="sm:max-w-lg">
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
           <HardDrive className="h-4 w-4 text-emerald-500" />
@@ -125,7 +137,7 @@ export function WorkspaceConfigDialog({
       </div>
 
       <DialogFooter className="flex items-center justify-end gap-2 pt-3 border-t">
-        <Button type="button" variant="outline" size="sm" onPress={onClose} className="h-8 text-xs">
+        <Button type="button" variant="outline" size="sm" onPress={handleClose} className="h-8 text-xs">
           Cancel
         </Button>
         <Button

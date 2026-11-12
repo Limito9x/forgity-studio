@@ -12,53 +12,47 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { toast } from "sonner";
-import { ExecutionStatus } from "@/gen/model/executionStatus";
 
 import { PipelineNodeRouter } from "./nodes/PipelineNodeRouter";
 import { NodeDefinitionsProvider } from "./NodeDefinitions";
-import { ScopeContainerNode } from "./ScopeContainerNode";
 import { CapsuleNode } from "./CapsuleNode";
 import { ContextMenuPalette } from "./ContextMenuPalette";
 import { NodeConfigInspector } from "./NodeConfigInspector";
 import { CanvasToolbar } from "./CanvasToolbar";
-import { PipelineSnapshotHistoryDialog } from "../../dialogs/PipelineSnapshotHistoryDialog";
-import { PublishToStudioDialog } from "./PublishToStudioDialog";
 import { CanvasDiagnosticsPanel } from "./CanvasDiagnosticsPanel";
 import { PipelineParametersPanel, type ParameterTab } from "./PipelineParametersPanel";
-import { VariableDropMenu } from "./VariableDropMenu";
-import { RunPipelineModal } from "../../dialogs/RunPipelineModal";
 import { LiveExecutionDrawer } from "./LiveExecutionDrawer";
 import { ExecutionStatusBanner } from "./ExecutionStatusBanner";
-import { DeleteStageConfirmDialog } from "./DeleteStageConfirmDialog";
 import { PipelineFormScopeProvider } from "../../form-scope/PipelineFormScope";
 import { useNodePalette, useCancelPipelineExecution } from "../../hooks/usePipelines";
 import { useGetStructCatalogue } from "@/gen/endpoints/pipelines/pipelines";
+import { useLocalPaletteQuery } from "../../hooks/workspace";
+import { localStructsToCatalogue } from "../../utils/structPaletteGenerator";
 import type { ExtendedPipelineGraphDto } from "../../hooks/usePipelineGraph";
 import {
   usePipelineDraftState,
   usePipelineLiveTracking,
   useCanvasConnectionRules,
-  useVariableDropHandler,
   useCanvasContextMenu,
   usePipelineDiagnostics,
 } from "./hooks";
+import { usePipelineWorkspace } from "../../context/PipelineWorkspaceContext";
+import type { IPipelineStorageAdapter } from "../../adapters/pipelineStorageAdapter";
 
 interface PipelineCanvasProps {
   projectId: string;
+  rootPath?: string | null;
   graph: ExtendedPipelineGraphDto;
-  isLocalMode?: boolean;
+  storage?: IPipelineStorageAdapter;
+  pipelineKind?: "component" | "master";
+  componentExecutor?: string;
   viewMode?: "visual" | "yaml";
   onToggleViewMode?: (mode: "visual" | "yaml") => void;
-  onSaveLocalDraft?: (yamlContent: string) => Promise<void>;
-  onSaveLocalSnapshot?: (snapshotDto: ExtendedPipelineGraphDto) => Promise<void>;
-  onRunDraft?: () => void;
-  isRunningDraft?: boolean;
   onOpenPublishModal?: () => void;
 }
 
 const nodeTypes = {
   pipelineNode: PipelineNodeRouter,
-  scopeContainer: ScopeContainerNode,
   capsuleNode: CapsuleNode,
 };
 
@@ -71,14 +65,43 @@ const defaultEdgeOptions = {
 
 export function PipelineCanvas(props: PipelineCanvasProps) {
   const definitions = useNodePalette(props.projectId);
-  if (!definitions.data) {
-    if (definitions.isError) return <div role="alert">Failed to load node definitions. <button onClick={() => void definitions.refetch()}>Retry</button></div>;
-    return <div role="status">Loading node definitions...</div>;
-  }
+  const { draftNodes } = useLocalPaletteQuery(props.rootPath ?? null);
+
+  // Combine server palette items with local draft nodes
+  const allDefinitions = useMemo(() => {
+    const list: NodePaletteItemDto[] = [...(definitions.data || [])];
+    if (draftNodes) {
+      for (const draft of Object.values(draftNodes)) {
+        const item: NodePaletteItemDto = {
+          key: draft.key,
+          label: draft.suggestedLabel || draft.suggestedName || draft.fileName,
+          category: draft.executor || "Local Scripts",
+          source: "Custom" as any,
+          executor: draft.executor,
+          inputs: (draft.inputs || []) as any,
+          outputs: (draft.outputs || []) as any,
+          description: draft.description || draft.fullPath,
+          id: draft.key,
+          isVisibleInPalette: true,
+        };
+        list.push(item);
+        list.push({
+          ...item,
+          key: `local:${draft.key}`,
+          id: `local:${draft.key}`,
+        });
+      }
+    }
+    return list;
+  }, [definitions.data, draftNodes]);
+
   return (
     <ReactFlowProvider>
-      <NodeDefinitionsProvider items={definitions.data}>
-        <PipelineCanvasContent key={`${props.projectId}:${props.graph.id}:${(props.graph as any).activeSnapshotId || (props.graph as any).graphHash || ""}`} {...props} />
+      <NodeDefinitionsProvider items={allDefinitions}>
+        <PipelineCanvasContent
+          key={`${props.projectId}:${props.graph.id}:${(props.graph as any).activeSnapshotId || (props.graph as any).graphHash || ""}`}
+          {...props}
+        />
       </NodeDefinitionsProvider>
     </ReactFlowProvider>
   );
@@ -86,26 +109,41 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
 
 function PipelineCanvasContent({
   projectId,
+  rootPath = null,
   graph,
-  isLocalMode = false,
+  storage: directStorage,
+  pipelineKind = "master",
+  componentExecutor,
   viewMode = "visual",
   onToggleViewMode,
-  onSaveLocalDraft,
-  onSaveLocalSnapshot,
-  onRunDraft,
-  isRunningDraft = false,
   onOpenPublishModal,
 }: PipelineCanvasProps) {
   const { screenToFlowPosition, setCenter } = useReactFlow();
-  const { data: paletteItems = [] } = useNodePalette(projectId);
-  const { data: structCatalogue = [] } = useGetStructCatalogue({ projectId });
+  const workspaceCtx = usePipelineWorkspace();
+  const storage = directStorage || workspaceCtx.storage;
+  const isLocalMode = storage.mode === "local";
+
+  const { data: serverStructCatalogue = [] } = useGetStructCatalogue({ projectId });
+  const { localStructs } = useLocalPaletteQuery(rootPath);
   const [isAutoFollow, setIsAutoFollow] = useState(true);
 
-  // 1. Headless Draft State & Auto-save (with Stage Auto-expanding)
+  // Merge server structs with locally detected structs
+  const structCatalogue = useMemo(() => {
+    const combined = [...(serverStructCatalogue || [])];
+    if (isLocalMode && localStructs && localStructs.length > 0) {
+      const localCat = localStructsToCatalogue(localStructs);
+      for (const item of localCat) {
+        if (!combined.some((c) => c.structType?.toLowerCase() === item.structType?.toLowerCase())) {
+          combined.push(item);
+        }
+      }
+    }
+    return combined;
+  }, [serverStructCatalogue, localStructs, isLocalMode]);
+
+  // 1. Headless Draft State & Flat Storage Strategy (NO STAGES)
   const draft = usePipelineDraftState(graph, structCatalogue, {
-    isLocalMode,
-    onSaveLocalDraft,
-    onSaveLocalSnapshot,
+    storage,
   });
 
   // 1b. Real-time Diagnostics Scope
@@ -123,29 +161,19 @@ function PipelineCanvasContent({
   const handleFocusNode = (nodeId: string) => {
     const targetNode = draft.nodes.find((n) => n.id === nodeId);
     if (!targetNode) return;
-
-    let posX = targetNode.position.x;
-    let posY = targetNode.position.y;
-    if (targetNode.parentId) {
-      const parent = draft.nodes.find((n) => n.id === targetNode.parentId);
-      if (parent) {
-        posX += parent.position.x;
-        posY += parent.position.y;
-      }
-    }
     const width = (targetNode.measured?.width ?? targetNode.width ?? 240) as number;
     const height = (targetNode.measured?.height ?? targetNode.height ?? 120) as number;
-    setCenter(posX + width / 2, posY + height / 2, { zoom: 1.2, duration: 500 });
+    setCenter(targetNode.position.x + width / 2, targetNode.position.y + height / 2, { zoom: 1.2, duration: 500 });
     draft.setSelectedNodeId(nodeId);
   };
 
-  // 2. Real-time Live Execution Tracking & SignalR (only for server pipelines)
+  // 2. Real-time Live Execution Tracking (SignalR in Cloud Mode)
   const live = usePipelineLiveTracking({
     pipelineId: isLocalMode ? "" : graph.id,
     setNodes: draft.setNodes,
   });
 
-  // 3. Two-tier Connection Rules & Edge Events
+  // 3. Connection Rules
   const conn = useCanvasConnectionRules({
     nodes: draft.nodes,
     edges: draft.edges,
@@ -155,57 +183,15 @@ function PipelineCanvasContent({
     structCatalogue,
   });
 
-  // 4. Blackboard Variable Drag & Drop
-  const dnd = useVariableDropHandler({
-    nodes: draft.nodes,
-    paletteItems,
-    graphId: graph.id,
-    setNodes: draft.setNodes,
-    setSelectedNodeId: draft.setSelectedNodeId,
-    setIsDirty: draft.setIsDirty,
-    screenToFlowPosition,
-  });
-
-  // 5. Canvas Context Menu, Hit-testing & Coordinates
+  // 4. Flat Canvas Context Menu
   const ctxMenu = useCanvasContextMenu({
-    nodes: draft.nodes,
     screenToFlowPosition,
   });
 
-  // Handle Palette Script node drag & drop directly onto Canvas
-  const handleCanvasDragOver = useCallback(
-    (e: React.DragEvent) => {
-      if (e.dataTransfer.types.includes("application/forgity-node")) {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "copy";
-        return;
-      }
-      dnd.onDragOver(e);
-    },
-    [dnd]
-  );
-
-  const handleCanvasDrop = useCallback(
-    (e: React.DragEvent) => {
-      const nodeData = e.dataTransfer.getData("application/forgity-node");
-      if (nodeData) {
-        e.preventDefault();
-        try {
-          const item = JSON.parse(nodeData) as NodePaletteItemDto;
-          const flowPos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-          draft.handleSelectPaletteItem(item, null, flowPos);
-          return;
-        } catch (err) {
-          console.warn("Failed to drop palette item onto canvas:", err);
-        }
-      }
-      dnd.onDrop(e);
-    },
-    [screenToFlowPosition, draft, dnd]
-  );
-
-  // Parameters panel tab state (Inputs | Outputs | Variables | Context)
-  const [paramTab, setParamTab] = useState<ParameterTab>("variables");
+  // Parameters panel tab state (Inputs | Outputs)
+  const [paramTab, setParamTab] = useState<ParameterTab>("inputs");
+  const [isParametersOpen, setIsParametersOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   // Auto-switch to Inputs tab when Start node is selected, or Outputs tab when Return node is selected
   useEffect(() => {
@@ -214,19 +200,12 @@ function PipelineCanvasContent({
     const refId = String(draft.selectedNode.data?.refId || "").toLowerCase();
     if (kind === "start" || refId === "start") {
       setParamTab("inputs");
-      dnd.setIsVariablesOpen(true);
+      setIsParametersOpen(true);
     } else if (kind === "return" || refId === "return") {
       setParamTab("outputs");
-      dnd.setIsVariablesOpen(true);
+      setIsParametersOpen(true);
     }
   }, [draft.selectedNodeId]);
-
-  // Run modal state & Validation
-  const [isRunModalOpen, setIsRunModalOpen] = useState(false);
-  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
-  const [isSnapshotsOpen, setIsSnapshotsOpen] = useState(false);
-
-
 
   const cancelMutation = useCancelPipelineExecution(graph.id);
   const handleCancelExecution = async () => {
@@ -244,7 +223,7 @@ function PipelineCanvasContent({
       pipelineId: graph.id,
       projectId,
       parameters: draft.parameters,
-      variables: draft.parameters.filter((p) => p.kind === "Variable" || (p.kind as any) === 3),
+      variables: [],
       edges: draft.edges,
       nodes: draft.nodes,
       diagnosticsScope,
@@ -252,32 +231,42 @@ function PipelineCanvasContent({
     [graph.id, projectId, draft.parameters, draft.edges, draft.nodes, diagnosticsScope]
   );
 
-  // A completed execution remains visible, but must not keep the draft locked.
   const isLocked = live.isExecutionRunning;
 
-  // Camera Auto-Follow: Smoothly center on the active running node during execution
+  // Camera Auto-Follow during live execution
   useEffect(() => {
     if (!isAutoFollow || !live.activeRunningNodeId) return;
-
     const targetNode = draft.nodes.find((n) => n.id === live.activeRunningNodeId);
     if (!targetNode) return;
-
-    let posX = targetNode.position.x;
-    let posY = targetNode.position.y;
-
-    if (targetNode.parentId) {
-      const parent = draft.nodes.find((n) => n.id === targetNode.parentId);
-      if (parent) {
-        posX += parent.position.x;
-        posY += parent.position.y;
-      }
-    }
-
     const width = (targetNode.measured?.width ?? targetNode.width ?? 240) as number;
     const height = (targetNode.measured?.height ?? targetNode.height ?? 120) as number;
-
-    setCenter(posX + width / 2, posY + height / 2, { zoom: 1.25, duration: 650 });
+    setCenter(targetNode.position.x + width / 2, targetNode.position.y + height / 2, { zoom: 1.25, duration: 650 });
   }, [live.activeRunningNodeId, isAutoFollow, draft.nodes, setCenter]);
+
+  // Handle Palette Script node drag & drop directly onto Canvas
+  const handleCanvasDragOver = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes("application/forgity-node")) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    }
+  }, []);
+
+  const handleCanvasDrop = useCallback(
+    (e: React.DragEvent) => {
+      const nodeData = e.dataTransfer.getData("application/forgity-node");
+      if (nodeData) {
+        e.preventDefault();
+        try {
+          const item = JSON.parse(nodeData) as NodePaletteItemDto;
+          const flowPos = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+          draft.handleSelectPaletteItem(item, null, flowPos);
+        } catch (err) {
+          console.warn("Failed to drop palette item onto canvas:", err);
+        }
+      }
+    },
+    [screenToFlowPosition, draft]
+  );
 
   return (
     <PipelineFormScopeProvider value={scopeValue}>
@@ -292,17 +281,17 @@ function PipelineCanvasContent({
           isLocalMode={isLocalMode}
           viewMode={viewMode}
           onToggleViewMode={onToggleViewMode}
-          isRunningDraft={isRunningDraft}
-          onOpenRunModal={isLocalMode && onRunDraft ? onRunDraft : () => setIsRunModalOpen(true)}
+          isRunningDraft={false}
+          onOpenRunModal={() => storage.run({ projectId, pipelineId: graph.id })}
           onOpenHistory={
             isLocalMode
               ? undefined
               : () => {
                   live.setDrawerDefaultTab("history");
-                  live.setIsDrawerOpen(true);
+                  setIsDrawerOpen(true);
                 }
           }
-          onOpenSnapshots={isLocalMode ? undefined : () => setIsSnapshotsOpen(true)}
+          onOpenSnapshots={undefined}
           onValidate={diagnosticsScope.validateDraft}
           isValidating={diagnosticsScope.isValidating}
           validationStatus={diagnosticsScope.validationStatus}
@@ -311,10 +300,10 @@ function PipelineCanvasContent({
           isStale={diagnosticsScope.isStale}
           isDiagnosticsPanelOpen={isDiagnosticsPanelOpen}
           onToggleDiagnosticsPanel={() => setIsDiagnosticsPanelOpen((prev) => !prev)}
-          isExecuting={isLocalMode ? isRunningDraft || live.isExecutionRunning : live.isExecutionRunning}
+          isExecuting={live.isExecutionRunning}
           isAutoFollow={isAutoFollow}
           onToggleAutoFollow={() => setIsAutoFollow((prev) => !prev)}
-          onOpenPublishModal={onOpenPublishModal || (() => setIsPublishModalOpen(true))}
+          onOpenPublishModal={onOpenPublishModal}
         />
 
         {/* Main Canvas & Inspector Layout */}
@@ -325,124 +314,40 @@ function PipelineCanvasContent({
               <ExecutionStatusBanner
                 executionId={live.activeExecutionId}
                 isRunning={live.isExecutionRunning}
-                isFailed={live.currentExecution?.status === ExecutionStatus.Failed}
-                isSucceeded={live.currentExecution?.status === ExecutionStatus.Succeeded}
-                errorMessage={live.currentExecution?.errorMessage}
+                isFailed={String(live.currentExecution?.status).toLowerCase() === "failed"}
+                isSucceeded={String(live.currentExecution?.status).toLowerCase() === "completed"}
                 onOpenLogs={() => {
                   live.setDrawerDefaultTab("logs");
-                  live.setIsDrawerOpen(true);
                 }}
                 onExitView={live.clearActiveExecution}
                 onCancel={handleCancelExecution}
-                isCancelling={cancelMutation.isPending}
               />
             )}
 
-            <ReactFlow
-              nodes={draft.nodes}
-              edges={draft.edges}
-              nodesDraggable={!isLocked}
-              nodesConnectable={!isLocked}
-              elementsSelectable={true}
-              onNodesChange={isLocked ? undefined : draft.handleNodesChange}
-              onEdgesChange={isLocked ? undefined : draft.handleEdgesChange}
-              onNodeDrag={isLocked ? undefined : draft.onNodeDrag}
-              onNodeDragStop={isLocked ? undefined : draft.onNodeDragStop}
-              onNodesDelete={isLocked ? undefined : draft.onNodesDelete}
-              onBeforeDelete={isLocked ? undefined : draft.handleBeforeDelete}
-              onEdgesDelete={isLocked ? undefined : conn.onEdgesDelete}
-              onEdgeContextMenu={conn.onEdgeContextMenu}
-              onNodeContextMenu={ctxMenu.onNodeContextMenu}
-              onConnect={isLocked ? undefined : conn.onConnect}
-              isValidConnection={conn.isValidConnection}
-              nodeTypes={nodeTypes}
-              defaultEdgeOptions={defaultEdgeOptions}
-              connectionLineType={ConnectionLineType.SmoothStep}
-              deleteKeyCode={isLocked ? null : ["Backspace", "Delete"]}
-              onNodeClick={(_, node) => {
-                if (node.type !== "scopeContainer") {
-                  draft.setSelectedNodeId(node.id);
-                } else {
-                  draft.setSelectedNodeId(null);
-                }
-              }}
-              onPaneClick={() => draft.setSelectedNodeId(null)}
-              onPaneContextMenu={isLocked ? undefined : ctxMenu.onPaneContextMenu}
-              onDragOver={isLocked ? undefined : handleCanvasDragOver}
-              onDrop={isLocked ? undefined : handleCanvasDrop}
-              fitView
-              fitViewOptions={{ padding: 0.2 }}
-              onlyRenderVisibleElements={false}
-              proOptions={{ hideAttribution: true }}
-              className="bg-dot-grid"
-            >
-              <Background variant={BackgroundVariant.Dots} gap={16} size={1} className="opacity-40" />
-              <Controls />
-              <MiniMap
-                zoomable
-                pannable
-                nodeColor={(node) => {
-                  if (node.type === "scopeContainer") return "transparent";
-                  const kind = String((node.data as any)?.kind || "").toLowerCase();
-                  if (kind === "start") return "#10b981";
-                  if (kind === "tool") return "#3b82f6";
-                  return "#a855f7";
-                }}
-              />
-            </ReactFlow>
-
-            {/* Right-click Context Palette Popover */}
-            <ContextMenuPalette
-              projectId={projectId}
-              currentPipelineId={isLocalMode ? undefined : graph.id}
-              position={ctxMenu.palettePosition}
-              targetStage={ctxMenu.targetStage}
-              onClose={ctxMenu.closePalette}
-              onSelect={(item) => {
-                draft.handleSelectPaletteItem(item, ctxMenu.targetStage, ctxMenu.flowCoordinates);
-                ctxMenu.closePalette();
-              }}
-              onCreateStage={(stage) => {
-                draft.handleCreateStage(stage, ctxMenu.flowCoordinates);
-                ctxMenu.closePalette();
-              }}
-            />
-
-            {/* Unreal-style Variable Drop Context Menu */}
-            {dnd.varDropState && (() => {
-              const currentVarDrop = dnd.varDropState;
-              return (
-                <VariableDropMenu
-                  varName={currentVarDrop.varName}
-                  position={currentVarDrop.screenPos}
-                  isInsideWorkerStage={currentVarDrop.isInsideWorkerStage}
-                  stageKindName={currentVarDrop.stageKindName}
-                  onSelect={(action) => {
-                    const toolKey = action === "Get" ? "GetVariable" : "SetVariable";
-                    dnd.handleSpawnVariableNodeAt(toolKey, currentVarDrop.varName, currentVarDrop.flowPos);
-                    dnd.setVarDropState(null);
-                  }}
-                  onClose={() => dnd.setVarDropState(null)}
-                />
-              );
-            })()}
-
-            {/* Left-side Parameters Panel (Inputs | Outputs | Variables | Context) */}
+            {/* Blackboard Parameters Slide-Over Panel (Inputs & Outputs Only) */}
             <PipelineParametersPanel
               pipelineId={graph.id}
               parameters={draft.parameters}
-              onAddParameter={draft.handleAddParameter}
-              onUpdateParameter={draft.handleUpdateParameter}
-              onDeleteParameter={draft.handleDeleteParameter}
-              onSpawnCapsule={dnd.handleSpawnCapsule}
-              onSpawnAction={(toolKey, varName) => dnd.handleSpawnVariableNode(toolKey, varName)}
-              isOpen={dnd.isVariablesOpen}
-              onToggle={() => dnd.setIsVariablesOpen((prev) => !prev)}
+              isOpen={isParametersOpen}
+              onToggle={() => setIsParametersOpen((prev) => !prev)}
               activeTab={paramTab}
               onTabChange={setParamTab}
+              onAddParameter={(param) => {
+                draft.setParameters([...draft.parameters, param]);
+              }}
+              onUpdateParameter={(key, partial) => {
+                draft.setParameters(
+                  draft.parameters.map((p) => (p.key === key ? { ...p, ...partial } : p))
+                );
+              }}
+              onDeleteParameter={(key) => {
+                draft.setParameters(draft.parameters.filter((p) => p.key !== key));
+              }}
+              onSpawnCapsule={() => {}}
+              onSpawnAction={() => {}}
             />
 
-            {/* Floating Graph Diagnostics Panel */}
+            {/* Diagnostics Overlay Panel */}
             {isDiagnosticsPanelOpen && (
               <CanvasDiagnosticsPanel
                 diagnostics={diagnosticsScope.diagnostics}
@@ -457,89 +362,99 @@ function PipelineCanvasContent({
               />
             )}
 
-            {/* Live Execution Run & History Drawer */}
-            {live.isDrawerOpen && (
-              <LiveExecutionDrawer
-                pipelineId={graph.id}
-                executionId={live.activeExecutionId}
-                defaultTab={live.drawerDefaultTab}
-                onSelectExecution={(id) => {
-                  live.setActiveExecutionId(id);
-                  live.setDrawerDefaultTab("inspect");
-                }}
-                onClose={() => live.setIsDrawerOpen(false)}
+            {/* ReactFlow Flat Canvas */}
+            <ReactFlow
+              nodes={draft.nodes}
+              edges={draft.edges}
+              onNodesChange={isLocked ? undefined : draft.onNodesChange}
+              onEdgesChange={isLocked ? undefined : draft.onEdgesChange}
+              onConnect={isLocked ? undefined : conn.onConnect}
+              isValidConnection={conn.isValidConnection}
+              nodeTypes={nodeTypes}
+              defaultEdgeOptions={defaultEdgeOptions}
+              connectionLineType={ConnectionLineType.SmoothStep}
+              onNodeClick={(_event, node) => {
+                draft.setSelectedNodeId(node.id);
+              }}
+              onPaneClick={() => {
+                draft.setSelectedNodeId(null);
+                ctxMenu.closePalette();
+              }}
+              onPaneContextMenu={ctxMenu.onPaneContextMenu}
+              onDragOver={handleCanvasDragOver}
+              onDrop={handleCanvasDrop}
+              fitView
+              fitViewOptions={{ padding: 0.2 }}
+              minZoom={0.2}
+              maxZoom={2}
+              nodesDraggable={!isLocked}
+              nodesConnectable={!isLocked}
+              elementsSelectable={!isLocked}
+              className="bg-dot-pattern"
+            >
+              <Background
+                variant={BackgroundVariant.Dots}
+                gap={24}
+                size={1.5}
+                color="#27272a"
+                className="opacity-75"
               />
-            )}
+              <Controls
+                position="bottom-left"
+                className="!bg-background/80 !border-border/60 !shadow-lg backdrop-blur-md rounded-xl overflow-hidden"
+              />
+              <MiniMap
+                position="bottom-right"
+                nodeStrokeWidth={3}
+                zoomable
+                pannable
+                className="!bg-background/80 !border-border/60 !shadow-lg backdrop-blur-md rounded-xl overflow-hidden"
+                nodeColor={(n) => {
+                  if (n.data?.kind === "Start") return "#10b981";
+                  if (n.data?.kind === "Return") return "#f43f5e";
+                  return "#3b82f6";
+                }}
+              />
+            </ReactFlow>
+
+            {/* Context Menu Palette on Flat Canvas */}
+            <ContextMenuPalette
+              position={ctxMenu.palettePosition}
+              onClose={ctxMenu.closePalette}
+              projectId={projectId}
+              rootPath={rootPath}
+              pipelineKind={pipelineKind}
+              componentExecutor={componentExecutor}
+              currentPipelineId={graph.id}
+              onSelect={(item) => {
+                draft.handleSelectPaletteItem(item, null, ctxMenu.flowCoordinates);
+              }}
+            />
           </div>
 
-          {/* Selected Node Config Inspector Side Panel */}
-          {draft.selectedNode && draft.selectedNode.type !== "scopeContainer" && (
+          {/* Node Config Inspector Panel */}
+          {draft.selectedNode && (
             <NodeConfigInspector
-              pipelineId={isLocalMode ? "" : graph.id}
+              pipelineId={graph.id}
               node={draft.selectedNode}
               triggerType={graph.triggerType}
-              triggerConfig={graph.triggerConfig}
               onClose={() => draft.setSelectedNodeId(null)}
-              onUpdateConfig={draft.handleUpdateConfig}
-              onDeleteNode={draft.handleDeleteNode}
-              onRenameNode={draft.handleRenameNode}
-              isReadOnly={isLocked}
+              onUpdateConfig={(pinId, val) => draft.handleUpdateConfig(draft.selectedNode!.id, pinId, val)}
+              onDeleteNode={() => draft.handleDeleteNode(draft.selectedNode!.id)}
+              onRenameNode={(newLabel) => draft.handleRenameNode(draft.selectedNode!.id, newLabel)}
             />
           )}
         </div>
 
-        {/* Run Pipeline Modal */}
-        {isRunModalOpen && (
-          <RunPipelineModal
+        {/* Live Execution Drawer */}
+        {isDrawerOpen && (
+          <LiveExecutionDrawer
             pipelineId={graph.id}
-            pipelineName={graph.name}
-            projectId={projectId}
-            nodes={draft.nodes}
-            edges={draft.edges}
-            parameters={draft.parameters}
-            isOpen={isRunModalOpen}
-            onClose={() => setIsRunModalOpen(false)}
-            onExecutionStarted={(execId) => {
-              live.setActiveExecutionId(execId);
-              live.setDrawerDefaultTab("logs");
-              live.setIsDrawerOpen(true);
-            }}
+            executionId={live.activeExecutionId}
+            onClose={() => setIsDrawerOpen(false)}
+            defaultTab={live.drawerDefaultTab}
           />
         )}
-
-        {/* Delete Stage Scope Confirmation Dialog */}
-        <DeleteStageConfirmDialog
-          open={Boolean(draft.pendingStageDelete)}
-          onOpenChange={(open) => {
-            if (!open) draft.cancelStageDelete();
-          }}
-          stageName={draft.pendingStageDelete?.stageName || ""}
-          childCount={draft.pendingStageDelete?.childCount || 0}
-          onConfirm={draft.confirmStageDelete}
-          onCancel={draft.cancelStageDelete}
-        />
-
-        {/* Snapshot / Version History Dialog */}
-        {!isLocalMode && (
-          <PipelineSnapshotHistoryDialog
-            open={isSnapshotsOpen}
-            onOpenChange={setIsSnapshotsOpen}
-            pipelineId={graph.id}
-            pipelineName={graph.name}
-          />
-        )}
-
-        {/* Publish to Studio Cloud Dialog */}
-        <PublishToStudioDialog
-          projectId={projectId}
-          pipelineId={graph.id}
-          initialName={graph.name}
-          nodes={draft.nodes}
-          edges={draft.edges}
-          parameters={draft.parameters}
-          isOpen={isPublishModalOpen}
-          onClose={() => setIsPublishModalOpen(false)}
-        />
       </div>
     </PipelineFormScopeProvider>
   );

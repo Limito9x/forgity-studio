@@ -54,6 +54,34 @@ pub struct ScriptDependencyDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LocalStructFieldDto {
+    pub name: String,
+    pub label: String,
+    #[serde(rename = "type")]
+    pub field_type: String,
+    pub cardinality: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub struct_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_value: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalStructDefinitionDto {
+    pub slug: String,
+    pub display_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub fields: Vec<LocalStructFieldDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AnalyzedLocalScriptItem {
     pub key: String,
     pub file_name: String,
@@ -69,6 +97,7 @@ pub struct AnalyzedLocalScriptItem {
     pub source_code: String,
     pub inputs: Vec<PinDefinitionDto>,
     pub outputs: Vec<PinDefinitionDto>,
+    pub detected_structs: Vec<LocalStructDefinitionDto>,
     pub dependencies: Vec<ScriptDependencyDto>,
     pub last_modified_ms: u64,
 }
@@ -423,6 +452,8 @@ pub fn analyze_local_scripts_native(folders: Vec<ScriptFolderInput>) -> Result<V
     let mut command = std::process::Command::new(&python_cmd);
     #[cfg(target_os = "windows")]
     command.creation_flags(0x08000000);
+    command.env("PYTHONIOENCODING", "utf-8");
+    command.env("PYTHONUTF8", "1");
 
     let mut child = command
         .arg(&analyzer_path)
@@ -489,6 +520,45 @@ pub fn analyze_local_scripts_native(folders: Vec<ScriptFolderInput>) -> Result<V
                 .map(|arr| arr.iter().map(|p| map_raw_pin(p, false)).collect())
                 .unwrap_or_default();
 
+            let detected_structs: Vec<LocalStructDefinitionDto> = raw.get("detectedStructs")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter().filter_map(|s| {
+                        let slug = s.get("slug")?.as_str()?.to_string();
+                        let display_name = s.get("displayName")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or(&slug)
+                            .to_string();
+                        let description = s.get("description")
+                            .and_then(|v| v.as_str())
+                            .map(|v| v.to_string());
+                        let fields = s.get("fields")
+                            .and_then(|v| v.as_array())
+                            .map(|f_arr| {
+                                f_arr.iter().filter_map(|f| {
+                                    Some(LocalStructFieldDto {
+                                        name: f.get("name")?.as_str()?.to_string(),
+                                        label: f.get("label").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                                        field_type: f.get("type").and_then(|v| v.as_str()).unwrap_or("String").to_string(),
+                                        cardinality: f.get("cardinality").and_then(|v| v.as_str()).unwrap_or("Single").to_string(),
+                                        struct_type: f.get("structType").and_then(|v| v.as_str()).map(|v| v.to_string()),
+                                        default_value: f.get("defaultValue").cloned(),
+                                        description: f.get("description").and_then(|v| v.as_str()).map(|v| v.to_string()),
+                                    })
+                                }).collect()
+                            })
+                            .unwrap_or_default();
+                        Some(LocalStructDefinitionDto {
+                            slug,
+                            display_name,
+                            description,
+                            fields,
+                            updated_at: None,
+                        })
+                    }).collect()
+                })
+                .unwrap_or_default();
+
             let dependencies = raw.get("dependencies")
                 .and_then(|v| v.as_array())
                 .map(|arr| {
@@ -514,6 +584,7 @@ pub fn analyze_local_scripts_native(folders: Vec<ScriptFolderInput>) -> Result<V
                 source_code: scanned.content,
                 inputs,
                 outputs,
+                detected_structs,
                 dependencies,
                 last_modified_ms: scanned.last_modified_ms,
             });

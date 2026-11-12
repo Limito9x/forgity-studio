@@ -10,7 +10,7 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { useLocalWorkspaceStore } from "../../stores/useLocalWorkspaceStore";
+import { useLocalPaletteQuery } from "../../hooks/workspace";
 import { DeckSidebar } from "../script-ingestion/deck-sidebar/DeckSidebar";
 import {
   WorkspaceHeader,
@@ -19,27 +19,32 @@ import {
 import { VisualPinMapperTab } from "../script-ingestion/deck-workspace/VisualPinMapperTab";
 import { ScriptCodeViewerTab } from "../script-ingestion/deck-workspace/ScriptCodeViewerTab";
 import { ImpactReconciliationTab } from "../script-ingestion/deck-workspace/ImpactReconciliationTab";
-import type { StagedScriptItem } from "../../types/workspaceConfig";
+import type { StagedScriptItem, LocalDraftNode, LocalStructDefinition } from "../../types/workspaceConfig";
 import type { AnalyzedCustomNodeDto } from "@/gen/model";
 
 interface LocalScriptSyncSheetProps {
+  rootPath?: string | null;
+  scriptsDir?: string;
   isOpen: boolean;
   onClose: () => void;
   initialScriptKey?: string;
 }
 
 export function LocalScriptSyncSheet({
+  rootPath = null,
+  scriptsDir,
   isOpen,
   onClose,
-  initialScriptKey,
+  initialScriptKey: _initialScriptKey,
 }: LocalScriptSyncSheetProps) {
   const {
-    scanLocalScriptsNative,
-    applyStagedNodesToPalette,
-    clearLocalPalette,
-  } = useLocalWorkspaceStore();
+    previewScanScripts,
+    applyPalette,
+    clearPalette,
+  } = useLocalPaletteQuery(rootPath, scriptsDir);
 
   const [stagedNodes, setStagedNodes] = useState<StagedScriptItem[]>([]);
+  const [stagedStructs, setStagedStructs] = useState<LocalStructDefinition[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const [activeTab, setActiveTab] = useState<IngestionActiveTab>("pins");
@@ -47,13 +52,35 @@ export function LocalScriptSyncSheet({
   const loadNativeScripts = async () => {
     setIsAnalyzing(true);
     try {
-      const items = await scanLocalScriptsNative();
-      setStagedNodes(items);
-      if (initialScriptKey) {
-        const foundIdx = items.findIndex((i) => i.key === initialScriptKey);
-        if (foundIdx >= 0) {
-          setSelectedIndex(foundIdx);
+      const result = await previewScanScripts();
+      if (result) {
+        setStagedStructs(result.localStructs || []);
+        const nodesMap = result.draftNodes;
+        const items: StagedScriptItem[] = Object.values(nodesMap).map((node) => ({
+          key: node.key,
+          fileName: node.fileName,
+          fullPath: node.fullPath,
+          folderRoot: node.folderRoot || "",
+          executor: node.executor,
+          suggestedName: node.suggestedName,
+          suggestedLabel: node.suggestedLabel,
+          description: node.description,
+          contentHash: node.contentHash,
+          inputs: node.inputs || [],
+          outputs: node.outputs || [],
+          dependencies: node.dependencies || [],
+          sourceCode: node.sourceCode || "",
+          status: "unchanged",
+          lastSyncedAt: node.lastSyncedAt || "",
+        }));
+        setStagedNodes(items);
+        if (_initialScriptKey) {
+          const foundIdx = items.findIndex((i) => i.key === _initialScriptKey);
+          if (foundIdx >= 0) setSelectedIndex(foundIdx);
         }
+        toast.success(
+          `Discovered ${result.scanSummary?.total || items.length} scripts ready for review!`,
+        );
       }
     } catch (err: any) {
       toast.error("Failed to analyze local scripts", {
@@ -128,20 +155,47 @@ export function LocalScriptSyncSheet({
 
   const handleApplyPalette = async () => {
     try {
-      await applyStagedNodesToPalette(stagedNodes);
-      toast.success(`${stagedNodes.length} local tools applied to palette!`);
+      const updatedRecord: Record<string, LocalDraftNode> = {};
+      const now = new Date().toISOString();
+      for (const item of stagedNodes) {
+        updatedRecord[item.key] = {
+          key: item.key,
+          fileName: item.fileName,
+          fullPath: item.fullPath,
+          folderRoot: "",
+          namespace: "",
+          suggestedName: item.suggestedName,
+          suggestedLabel: item.suggestedLabel,
+          executor: item.executor,
+          description: item.description,
+          contentHash: item.contentHash,
+          sourceCode: item.sourceCode || "",
+          inputs: item.inputs || [],
+          outputs: item.outputs || [],
+          detectedStructs: [],
+          dependencies: item.dependencies || [],
+          lastSyncedAt: now,
+        };
+      }
+      await applyPalette({
+        nodes: updatedRecord,
+        structs: stagedStructs,
+      });
+      toast.success(`Applied ${stagedNodes.length} tools to Local Palette!`);
       onClose();
     } catch (err: any) {
-      toast.error("Failed to apply tools to palette", {
-        description: err?.message,
-      });
+      toast.error("Failed to save palette", { description: err?.message });
     }
   };
 
   const handlePurgePalette = async () => {
     try {
-      await clearLocalPalette();
-      toast.success("Palette purged! Click 'Apply to Palette' to load only verified fresh scripts.");
+      await clearPalette();
+      setStagedNodes([]);
+      setSelectedIndex(0);
+      toast.success(
+        "Palette purged! Click 'Rescan Disk' to load fresh scripts.",
+      );
     } catch (err: any) {
       toast.error("Failed to purge palette", { description: err?.message });
     }

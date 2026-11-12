@@ -6,19 +6,30 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { useLocalWorkspaceStore } from "../stores/useLocalWorkspaceStore";
+import {
+  useLocalWorkspaceConfig,
+  useLocalPaletteQuery,
+  useLocalPipelinesQuery,
+  loadLocalPipelineSnapshot,
+  saveLocalPipelineSnapshot,
+} from "../hooks/workspace";
 import { LocalWorkspaceEmptyState } from "../components/workspace/LocalWorkspaceEmptyState";
 import { LocalWorkspaceWelcomeState } from "../components/workspace/LocalWorkspaceWelcomeState";
 import { LocalWorkspaceOutliner } from "../components/workspace/LocalWorkspaceOutliner";
 import { LocalNodeDetailDrawer } from "../components/workspace/LocalNodeDetailDrawer";
-import { PullStudioPipelineDialog } from "../components/workspace/PullStudioPipelineDialog";
-import { UnpackLocalPackageDialog } from "../components/workspace/UnpackLocalPackageDialog";
-import { WorkspaceConfigDialog } from "../components/workspace/WorkspaceConfigDialog";
 import { LocalScriptSyncSheet } from "../components/workspace/LocalScriptSyncSheet";
-import { PublishToStudioDialog } from "../components/canvas/PublishToStudioDialog";
+import { LocalPipelineStorageAdapter } from "../adapters/LocalPipelineStorageAdapter";
+import { PipelineWorkspaceProvider } from "../context/PipelineWorkspaceContext";
 import { PipelineCanvas } from "../components/canvas/PipelineCanvas";
+import { useDialogStore } from "@/stores/dialogStore";
 import { pipelineYamlToGraph, graphToPipelineYaml } from "../utils/pipelineDslConverter";
 import { useRunDraftPipeline } from "@/gen/endpoints/pipelines/pipelines";
+import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
+import {
+  useStudioQuota,
+  useVerifyPipelineExecution,
+  useCompletePipelineExecution,
+} from "@/features/studios/hooks/useStudioQuota";
 import { getLocalMachineInfo } from "@/lib/platform/filePickerStrategy";
 import { PipelineTriggerType } from "@/gen/model/pipelineTriggerType";
 import type { LocalDraftNode, ScannedPipelineYamlItemRust } from "../types/workspaceConfig";
@@ -32,76 +43,89 @@ interface LocalWorkspacePageProps {
 export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
   const {
     rootPath,
-    draftNodes,
-    isLoading,
-    initWorkspace,
-    scanDraftPipelines,
-    activeDraftPipeline,
-    setActiveDraftPipeline,
-    savePipelineDraft,
-    savePipelineSnapshotOnDisk,
-    loadPipelineSnapshotFromDisk,
-  } = useLocalWorkspaceStore();
+    config,
+    isLoading: isConfigLoading,
+    switchRootFolder,
+  } = useLocalWorkspaceConfig(projectId);
 
-  const [configDialogOpen, setConfigDialogOpen] = useState(false);
-  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
-  const [pullDialogOpen, setPullDialogOpen] = useState(false);
-  const [unpackDialogOpen, setUnpackDialogOpen] = useState(false);
+  const { draftNodes } = useLocalPaletteQuery(rootPath, config?.scriptsDir);
+
+  const {
+    pipelines: scannedDraftPipelines,
+    savePipelineDraft,
+  } = useLocalPipelinesQuery(rootPath, config?.pipelinesDir);
+
+  const [activeDraftPipelinePath, setActiveDraftPipelinePath] = useState<string | null>(null);
+
+  const activeDraftPipeline = useMemo(() => {
+    if (!activeDraftPipelinePath) return null;
+    return (
+      scannedDraftPipelines.find((p) => p.fullPath === activeDraftPipelinePath) ||
+      null
+    );
+  }, [scannedDraftPipelines, activeDraftPipelinePath]);
+
   const [syncSheetOpen, setSyncSheetOpen] = useState(false);
   const [syncSheetInitialKey, setSyncSheetInitialKey] = useState<string | undefined>();
   const [selectedScript, setSelectedScript] = useState<LocalDraftNode | null>(null);
   const [isScriptDrawerOpen, setIsScriptDrawerOpen] = useState(false);
-  const [triggerCreatePipelineFn, setTriggerCreatePipelineFn] = useState<(() => void) | null>(null);
+  const [isCreatingPipeline, setIsCreatingPipeline] = useState(false);
   const [viewMode, setViewMode] = useState<"visual" | "yaml">("visual");
   const [rawYamlContent, setRawYamlContent] = useState("");
   const [loadedGraph, setLoadedGraph] = useState<ExtendedPipelineGraphDto | null>(null);
   const [graphRevision, setGraphRevision] = useState<number>(0);
 
-  const runDraftMutation = useRunDraftPipeline();
+  const { studioSlug } = useCurrentStudio();
+  const { data: studioQuota } = useStudioQuota(studioSlug);
+  const verifyExecutionMutation = useVerifyPipelineExecution(studioSlug);
+  const completeExecutionMutation = useCompletePipelineExecution(studioSlug);
 
-  useEffect(() => {
-    if (projectId) {
-      initWorkspace(projectId).then(() => {
-        scanDraftPipelines();
-      });
-    }
-  }, [projectId, initWorkspace, scanDraftPipelines]);
+  const runDraftMutation = useRunDraftPipeline();
 
   const pipelineSlug = useMemo(() => {
     if (!activeDraftPipeline) return "";
-    return activeDraftPipeline.fileName.replace(/\.pipeline\.(yaml|yml)$/, "");
+    return activeDraftPipeline.fileName.replace(/\.(pipeline|component)\.(yaml|yml)$/i, "");
   }, [activeDraftPipeline?.fileName]);
 
   useEffect(() => {
-    if (!activeDraftPipeline || !pipelineSlug) {
+    if (!activeDraftPipeline || !pipelineSlug || !rootPath) {
       setLoadedGraph(null);
       return;
     }
     setRawYamlContent(activeDraftPipeline.content);
 
-    // Load graph from .forgity/snapshots/<pipelineSlug>.snap.json (acting like local database)
     let isCancelled = false;
-    loadPipelineSnapshotFromDisk(pipelineSlug).then((snapJson) => {
-      if (isCancelled) return;
-      if (snapJson) {
-        try {
+    const currentActivePipeline = activeDraftPipeline;
+    const currentRootPath = rootPath;
+
+    async function loadGraphData() {
+      if (!currentRootPath || !pipelineSlug || !currentActivePipeline) return;
+
+      // 1. Thử load từ snapshot cache trên đĩa (.forgity/snapshots/<pipelineSlug>.snap.json)
+      try {
+        const snapJson = await loadLocalPipelineSnapshot(currentRootPath, pipelineSlug);
+        if (isCancelled) return;
+
+        if (snapJson) {
           const parsedDto = JSON.parse(snapJson) as ExtendedPipelineGraphDto;
-          if (parsedDto && parsedDto.nodes && parsedDto.nodes.length > 0) {
+          if (parsedDto && Array.isArray(parsedDto.nodes) && parsedDto.nodes.length > 0) {
             setLoadedGraph(parsedDto);
             setGraphRevision((v) => v + 1);
             return;
           }
-        } catch (e) {
-          console.warn("[LocalWorkspacePage] Failed to parse snapshot json:", e);
         }
+      } catch (snapErr) {
+        console.warn("[LocalWorkspacePage] Snapshot load skipped or unparseable:", snapErr);
       }
 
-      // Fallback: parse YAML if snapshot does not exist yet
+      if (isCancelled) return;
+
+      // 2. Fallback: Parse trực tiếp từ file YAML sang Graph DTO
       try {
-        const parsed = pipelineYamlToGraph(activeDraftPipeline.content);
+        const parsed = pipelineYamlToGraph(currentActivePipeline.content);
         const graphDto: ExtendedPipelineGraphDto = {
-          id: activeDraftPipeline.fullPath,
-          name: parsed.name || activeDraftPipeline.fileName,
+          id: currentActivePipeline.fullPath,
+          name: parsed.name || currentActivePipeline.fileName,
           projectId,
           triggerType: PipelineTriggerType.Manual,
           nodes: parsed.nodes.map((n) => {
@@ -151,18 +175,24 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
           })),
           parameters: [],
         };
+
         setLoadedGraph(graphDto);
         setGraphRevision((v) => v + 1);
-      } catch (err) {
-        console.warn("[LocalWorkspacePage] Failed to parse pipeline YAML:", err);
+
+        // Lưu ngược lại snapshot ban đầu để các lần sau mở tức thì
+        void saveLocalPipelineSnapshot(currentRootPath, pipelineSlug, JSON.stringify(graphDto, null, 2));
+      } catch (yamlErr) {
+        console.error("[LocalWorkspacePage] Failed to parse pipeline YAML:", yamlErr);
         setLoadedGraph(null);
       }
-    });
+    }
+
+    loadGraphData();
 
     return () => {
       isCancelled = true;
     };
-  }, [activeDraftPipeline?.fullPath, pipelineSlug, loadPipelineSnapshotFromDisk, projectId]);
+  }, [activeDraftPipeline?.fullPath, pipelineSlug, rootPath, projectId]);
 
   const handleSelectScript = (node: LocalDraftNode) => {
     setSelectedScript(node);
@@ -175,18 +205,21 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
   };
 
   const handleSelectDraft = (draft: ScannedPipelineYamlItemRust) => {
-    setActiveDraftPipeline(draft);
+    setActiveDraftPipelinePath(draft.fullPath);
   };
 
   const handleSaveRawYaml = async () => {
-    if (!activeDraftPipeline) return;
+    if (!activeDraftPipeline || !rootPath) return;
     try {
-      await savePipelineDraft(activeDraftPipeline.fullPath, rawYamlContent);
+      await savePipelineDraft({
+        filePath: activeDraftPipeline.fullPath,
+        content: rawYamlContent,
+      });
       // Synchronize with snapshot: merge updated YAML nodes/edges while preserving existing coordinates
       if (pipelineSlug) {
         try {
           const parsed = pipelineYamlToGraph(rawYamlContent);
-          const currentSnapStr = await loadPipelineSnapshotFromDisk(pipelineSlug);
+          const currentSnapStr = await loadLocalPipelineSnapshot(rootPath, pipelineSlug);
           const currentSnap = currentSnapStr ? (JSON.parse(currentSnapStr) as ExtendedPipelineGraphDto) : null;
           const posMap = new Map<string, { x: number; y: number }>();
           const sizeMap = new Map<string, { width: number; height: number }>();
@@ -253,7 +286,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
             parameters: currentSnap?.parameters || [],
           };
 
-          await savePipelineSnapshotOnDisk(pipelineSlug, JSON.stringify(updatedSnapDto, null, 2));
+          await saveLocalPipelineSnapshot(rootPath, pipelineSlug, JSON.stringify(updatedSnapDto, null, 2));
           setLoadedGraph(updatedSnapDto);
           setGraphRevision((v) => v + 1);
         } catch (snapErr) {
@@ -269,7 +302,28 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
   const handleRunDraft = async () => {
     if (!activeDraftPipeline) return;
 
+    // Check execution credits gate
+    if (studioQuota && studioQuota.executionCreditsRemaining <= 0) {
+      useDialogStore.getState().openDialog("upgrade-plan", { quota: studioQuota });
+      toast.error("Execution limit reached", {
+        description: "Your 50 free preview runs have been exhausted. Please upgrade to Indie Pro.",
+      });
+      return;
+    }
+
     try {
+      if (studioSlug) {
+        try {
+          await verifyExecutionMutation.mutateAsync();
+        } catch (verifyErr: any) {
+          useDialogStore.getState().openDialog("upgrade-plan", { quota: studioQuota });
+          toast.error("Execution limit reached", {
+            description: verifyErr?.message || "Credits exhausted. Please upgrade to Indie Pro.",
+          });
+          return;
+        }
+      }
+
       const parsed = pipelineYamlToGraph(activeDraftPipeline.content);
       const machineInfo = await getLocalMachineInfo();
       const saveNodes: SavePipelineNodeItem[] = parsed.nodes.map((n, idx) => ({
@@ -313,6 +367,11 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
         },
       });
 
+      // Deduct 1 credit upon successful dispatch
+      if (studioSlug) {
+        completeExecutionMutation.mutate(1);
+      }
+
       toast.success(`Draft Pipeline Dispatched!`, {
         description: `Status: ${(res as any)?.status || "Running"} (Zero-DB Ephemeral State)`,
       });
@@ -323,7 +382,16 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     }
   };
 
-  if (isLoading) {
+  const storageAdapter = useMemo(() => {
+    return new LocalPipelineStorageAdapter({
+      rootPath: rootPath || "",
+      pipelineSlug,
+      filePath: activeDraftPipeline?.fullPath || "",
+      onRunDraft: handleRunDraft,
+    });
+  }, [rootPath, pipelineSlug, activeDraftPipeline?.fullPath]);
+
+  if (isConfigLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -334,24 +402,33 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
   if (!rootPath) {
     return (
       <div className="page-container">
-        <LocalWorkspaceEmptyState />
+        <LocalWorkspaceEmptyState onOpenWorkspaceRoot={switchRootFolder} />
       </div>
     );
   }
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] w-full overflow-hidden bg-background">
+    <PipelineWorkspaceProvider
+      mode="local"
+      projectId={projectId}
+      rootPath={rootPath}
+      storage={storageAdapter}
+    >
+      <div className="flex h-[calc(100vh-3.5rem)] w-full overflow-hidden bg-background">
       {/* Left Outliner Panel */}
       <LocalWorkspaceOutliner
+        projectId={projectId}
+        activeDraftPipeline={activeDraftPipeline}
         onSelectScript={(node) => {
           handleSelectScript(node);
         }}
         onSelectDraft={handleSelectDraft}
         onOpenSyncSheet={() => handleOpenSyncAndReview()}
-        onOpenConfig={() => setConfigDialogOpen(true)}
-        onRequestCreatePipeline={(fn) => setTriggerCreatePipelineFn(() => fn)}
-        onOpenPullDialog={() => setPullDialogOpen(true)}
-        onOpenUnpackDialog={() => setUnpackDialogOpen(true)}
+        onOpenConfig={() => useDialogStore.getState().openDialog("workspace-config", { projectId })}
+        isCreatingPipelineExternal={isCreatingPipeline}
+        onCreatingPipelineChange={setIsCreatingPipeline}
+        onOpenPullDialog={() => useDialogStore.getState().openDialog("workspace-pull-studio", { projectId })}
+        onOpenUnpackDialog={() => useDialogStore.getState().openDialog("workspace-unpack-package")}
       />
 
       {/* Main Workbench Area */}
@@ -415,12 +492,15 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                 <PipelineCanvas
                   key={`${activeDraftPipeline.fullPath}:${graphRevision}`}
                   projectId={projectId}
+                  rootPath={rootPath}
                   graph={loadedGraph}
-                  isLocalMode={true}
+                  storage={storageAdapter}
+                  pipelineKind={activeDraftPipeline.pipelineKind || "master"}
+                  componentExecutor={activeDraftPipeline.executor || undefined}
                   viewMode={viewMode}
                   onToggleViewMode={async (mode) => {
-                    if (mode === "yaml" && pipelineSlug) {
-                      const snapJson = await loadPipelineSnapshotFromDisk(pipelineSlug);
+                    if (mode === "yaml" && pipelineSlug && rootPath) {
+                      const snapJson = await loadLocalPipelineSnapshot(rootPath, pipelineSlug);
                       if (snapJson) {
                         try {
                           const parsedDto = JSON.parse(snapJson) as ExtendedPipelineGraphDto;
@@ -437,19 +517,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                     }
                     setViewMode(mode);
                   }}
-                  isRunningDraft={runDraftMutation.isPending}
-                  onRunDraft={handleRunDraft}
-                  onOpenPublishModal={() => setPublishDialogOpen(true)}
-                  onSaveLocalDraft={async (yamlContent) => {
-                    if (activeDraftPipeline) {
-                      await savePipelineDraft(activeDraftPipeline.fullPath, yamlContent);
-                    }
-                  }}
-                  onSaveLocalSnapshot={async (snapshotDto) => {
-                    if (pipelineSlug) {
-                      await savePipelineSnapshotOnDisk(pipelineSlug, JSON.stringify(snapshotDto, null, 2));
-                    }
-                  }}
+                  onOpenPublishModal={() => useDialogStore.getState().openDialog("workspace-publish-studio" as any, { graph: loadedGraph })}
                 />
               </div>
             ) : (
@@ -460,13 +528,9 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
           ) : (
             <LocalWorkspaceWelcomeState
               rootPath={rootPath}
-              onCreatePipeline={() => {
-                if (triggerCreatePipelineFn) {
-                  triggerCreatePipelineFn();
-                }
-              }}
-              onPullFromStudio={() => setPullDialogOpen(true)}
-              onUnpackPackage={() => setUnpackDialogOpen(true)}
+              onCreatePipeline={() => setIsCreatingPipeline(true)}
+              onPullFromStudio={() => useDialogStore.getState().openDialog("workspace-pull-studio", { projectId })}
+              onUnpackPackage={() => useDialogStore.getState().openDialog("workspace-unpack-package")}
             />
           )}
         </div>
@@ -483,48 +547,15 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
         }}
       />
 
-      {/* Config Dialog */}
-      <WorkspaceConfigDialog
-        projectId={projectId}
-        isOpen={configDialogOpen}
-        onClose={() => setConfigDialogOpen(false)}
-      />
-
       {/* Slide-Over Script Review Sheet */}
       <LocalScriptSyncSheet
+        rootPath={rootPath}
+        scriptsDir={config?.scriptsDir}
         isOpen={syncSheetOpen}
         onClose={() => setSyncSheetOpen(false)}
         initialScriptKey={syncSheetInitialKey}
       />
-
-      {/* Publish to Studio Dialog */}
-      {loadedGraph && (
-        <PublishToStudioDialog
-          projectId={projectId}
-          initialName={loadedGraph.name || "Draft Pipeline"}
-          nodes={loadedGraph.nodes as any}
-          edges={loadedGraph.edges as any}
-          isOpen={publishDialogOpen}
-          onClose={() => setPublishDialogOpen(false)}
-          onPublished={() => {
-            setPublishDialogOpen(false);
-            toast.success("Pipeline published to Studio Central successfully!");
-          }}
-        />
-      )}
-
-      {/* Pull from Studio Cloud Dialog */}
-      <PullStudioPipelineDialog
-        projectId={projectId}
-        isOpen={pullDialogOpen}
-        onClose={() => setPullDialogOpen(false)}
-      />
-
-      {/* Unpack Local Package Dialog */}
-      <UnpackLocalPackageDialog
-        isOpen={unpackDialogOpen}
-        onClose={() => setUnpackDialogOpen(false)}
-      />
     </div>
+  </PipelineWorkspaceProvider>
   );
 }

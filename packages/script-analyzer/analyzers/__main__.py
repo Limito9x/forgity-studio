@@ -38,6 +38,9 @@ def main():
             try:
                 analysis = analyzer.analyze(content, file_name=file_name)
             except Exception as ex:
+                import traceback
+                error_trace = traceback.format_exc()
+                print(f"[__main__] Exception on {file_name}: {ex}\n{error_trace}", file=sys.stderr)
                 base_name = os.path.splitext(file_name)[0]
                 analysis = {
                     "error": str(ex),

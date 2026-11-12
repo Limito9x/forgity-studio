@@ -24,6 +24,8 @@ pub fn run() {
             save_workspace_root_config,
             save_local_palette,
             load_local_palette,
+            save_local_structs,
+            load_local_structs,
             create_local_pipeline_draft,
             save_local_pipeline_draft,
             rename_local_pipeline_draft,
@@ -33,7 +35,8 @@ pub fn run() {
             load_local_pipeline_snapshot,
             scan_local_script_folders,
             scan_local_pipeline_drafts,
-            analyze_local_scripts_native
+            analyze_local_scripts_native,
+            run_local_pipeline_draft_native
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

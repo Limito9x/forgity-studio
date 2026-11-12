@@ -33,11 +33,22 @@ public class GetNodePaletteEndpoint(IMessageBus bus)
 [NonTransactional]
 public class GetNodePaletteHandler(IToolRegistry toolRegistry, PipelineDbContext db)
 {
-        private static readonly HashSet<string> HiddenToolKeys = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> HiddenToolKeys = new(StringComparer.OrdinalIgnoreCase)
     {
         "Start",
         "GetVariable",
-        "SetVariable"
+        "SetVariable",
+        // Legacy Server & Database-coupled tools (hidden from canvas palette in favor of DCC scripts & pure local structs)
+        "QueryWorkstationResources",
+        "FilterResources",
+        "ResolveResources",
+        "SyncLocalChangeToRepository",
+        "SyncLocalChanges",
+        "UpdateResourceMetadata",
+        "AssignResourcesToContent",
+        "LookupContentMap",
+        "FormatString",
+        "BreakStruct"
     };
 
     public async Task<Result<IReadOnlyList<NodePaletteItemDto>>> HandleAsync(

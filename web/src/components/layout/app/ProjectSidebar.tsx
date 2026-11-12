@@ -39,6 +39,7 @@ import { useProjectNav } from "@/lib/navigation/useProjectNav";
 import { useContentTypes } from "@/features/contentTypes/hooks/useContentTypes";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { DynamicIcon } from "@/components/custom-ui/DynamicIcon";
+import { featureFlags } from "@/config/featureFlags";
 
 export function ProjectSidebar() {
   const { project, projectId } = useProject();
@@ -154,20 +155,22 @@ export function ProjectSidebar() {
                 )}
               </SidebarMenuItem>
 
-              {/* Repositories */}
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={pathname.startsWith(nav.urls.repositories())}
-                  tooltip="Repositories"
-                  onPress={() => nav.toRepositories()}
-                >
-                  <FolderGit2 />
-                  <span>Repositories</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {/* Repositories (Studio Catalog Feature Flag) */}
+              {featureFlags.enableStudioCatalog && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={pathname.startsWith(nav.urls.repositories())}
+                    tooltip="Repositories"
+                    onPress={() => nav.toRepositories()}
+                  >
+                    <FolderGit2 />
+                    <span>Repositories</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
 
-              {/* Dynamic Contents & Content Types Group */}
-              {contentTypesData?.items && contentTypesData.items.length > 0 && (
+              {/* Dynamic Contents & Content Types Group (Studio Catalog Feature Flag) */}
+              {featureFlags.enableStudioCatalog && contentTypesData?.items && contentTypesData.items.length > 0 && (
                 <SidebarMenuItem>
                   {isCollapsed ? (
                     <DropdownMenuTrigger>
@@ -226,17 +229,19 @@ export function ProjectSidebar() {
                 </SidebarMenuItem>
               )}
 
-              {/* Content Types (Schema Config) - Nằm ngay dưới Contents */}
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={pathname.startsWith(nav.urls.contentTypes())}
-                  tooltip="Content Types"
-                  onPress={() => nav.toContentTypes()}
-                >
-                  <Settings />
-                  <span>Content Types</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {/* Content Types (Schema Config) - Studio Catalog Feature Flag */}
+              {featureFlags.enableStudioCatalog && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={pathname.startsWith(nav.urls.contentTypes())}
+                    tooltip="Content Types"
+                    onPress={() => nav.toContentTypes()}
+                  >
+                    <Settings />
+                    <span>Content Types</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
 
               {/* Migrations & Packages */}
               <SidebarMenuItem>

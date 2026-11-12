@@ -6,12 +6,22 @@ public class SystemPermissions
 {
     public static AuditLogFeature AuditLogs { get; } = new();
     public static SystemSettingsFeature SystemSettings { get; } = new();
+    public static StudiosFeature Studios { get; } = new();
 
     public Dictionary<string, IReadOnlyList<string>> GetPermissions() => new()
     {
         { "AuditLogs", AuditLogs.All },
-        { "SystemSettings", SystemSettings.All }
+        { "SystemSettings", SystemSettings.All },
+        { "Studios", Studios.All }
     };
+
+    public class StudiosFeature() : BasePermission("system-studios")
+    {
+        public string GetAll => $"{Feature}:get-all";
+        public string UpdateQuota => $"{Feature}:update-quota";
+
+        public IReadOnlyList<string> All => [GetAll, UpdateQuota];
+    }
 
     public class AuditLogFeature() : BasePermission("auditlogs")
     {

@@ -18,33 +18,32 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { useLocalWorkspaceStore } from "../../stores/useLocalWorkspaceStore";
 import { graphToPipelineYaml } from "../../utils/pipelineDslConverter";
 import type { PipelinePackageDto } from "../../hooks/usePipelineExportImport";
 import type { ScannedPipelineYamlItemRust } from "../../types/workspaceConfig";
 
 interface UnpackLocalPackageDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onUnpacked?: (firstDraft: ScannedPipelineYamlItemRust) => void;
+  rootPath?: string | null;
+  isOpen?: boolean;
+  onClose?: () => void;
+  onUnpacked?: (firstDraft?: ScannedPipelineYamlItemRust) => void;
+  // Standard DialogProps support
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  data?: any;
 }
 
-export function UnpackLocalPackageDialog({
-  isOpen,
-  onClose,
-  onUnpacked,
-}: UnpackLocalPackageDialogProps) {
+export function UnpackLocalPackageDialog(props: UnpackLocalPackageDialogProps) {
+  const rootPath = props.rootPath || null;
+  const isDialogActive = props.open ?? props.isOpen ?? false;
+  const handleClose = () => {
+    props.onOpenChange?.(false);
+    props.onClose?.();
+  };
+  const onUnpacked = props.onUnpacked;
   const [file, setFile] = useState<File | null>(null);
   const [packageData, setPackageData] = useState<PipelinePackageDto | null>(null);
   const [isUnpacking, setIsUnpacking] = useState(false);
-
-  const {
-    config,
-    savePipelineDraft,
-    savePipelineSnapshotOnDisk,
-    scanDraftPipelines,
-    setActiveDraftPipeline,
-  } = useLocalWorkspaceStore();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const f = acceptedFiles[0];
@@ -86,7 +85,6 @@ export function UnpackLocalPackageDialog({
     if (!packageData) return;
     setIsUnpacking(true);
 
-    const pipelinesDir = config?.pipelinesDir || "pipelines";
     let successCount = 0;
 
     try {
@@ -127,8 +125,15 @@ export function UnpackLocalPackageDialog({
           })),
         };
 
-        // 1. Save Snapshot (.forgity/snapshots/<slug>.snap.json)
-        await savePipelineSnapshotOnDisk(fileSlug, JSON.stringify(snapshotGraph, null, 2));
+        // 1. Save Snapshot via Tauri IPC (.forgity/snapshots/<slug>.snap.json)
+        const { invoke } = await import("@tauri-apps/api/core");
+        if (rootPath) {
+          await invoke("save_pipeline_snapshot", {
+            rootPath,
+            pipelineSlug: fileSlug,
+            snapshotJson: JSON.stringify(snapshotGraph, null, 2),
+          });
+        }
 
         // 2. Compile to Declarative YAML DSL
         const yamlContent = graphToPipelineYaml(
@@ -138,23 +143,13 @@ export function UnpackLocalPackageDialog({
         );
 
         // 3. Save .pipeline.yaml
+        const pipelinesDir = rootPath ? `${rootPath}/pipelines` : "pipelines";
         const fullPath = `${pipelinesDir}/${fileSlug}.pipeline.yaml`.replace(/\\/g, "/");
-        await savePipelineDraft(fullPath, yamlContent);
+        await invoke("save_local_pipeline_draft", {
+          filePath: fullPath,
+          content: yamlContent,
+        });
         successCount++;
-      }
-
-      const updatedDrafts = await scanDraftPipelines();
-      if (updatedDrafts.length > 0) {
-        const target = updatedDrafts.find((d) =>
-          d.fileName.toLowerCase().includes(
-            (packageData.pipelines[0]?.name || "")
-              .toLowerCase()
-              .replace(/[^a-z0-9]/g, "_")
-          )
-        ) || updatedDrafts[0];
-
-        setActiveDraftPipeline(target);
-        onUnpacked?.(target);
       }
 
       toast.success(
@@ -162,7 +157,8 @@ export function UnpackLocalPackageDialog({
           ? `Package unpacked successfully into "${packageData.pipelines[0]?.name}"!`
           : `Unpacked ${successCount} pipelines into workspace!`
       );
-      onClose();
+      onUnpacked?.();
+      handleClose();
     } catch (err: any) {
       toast.error("Failed to unpack package into workspace", {
         description: err.message,
@@ -178,7 +174,7 @@ export function UnpackLocalPackageDialog({
   };
 
   return (
-    <Dialog isOpen={isOpen} onOpenChange={(open: boolean) => !open && onClose()} className="sm:max-w-lg">
+    <Dialog isOpen={isDialogActive} onOpenChange={(open: boolean) => !open && handleClose()} className="sm:max-w-lg">
       <DialogHeader>
         <div className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
@@ -262,7 +258,7 @@ export function UnpackLocalPackageDialog({
       </div>
 
       <DialogFooter className="gap-2 sm:gap-0">
-        <Button variant="ghost" size="sm" onPress={onClose} isDisabled={isUnpacking}>
+        <Button variant="ghost" size="sm" onPress={handleClose} isDisabled={isUnpacking}>
           Cancel
         </Button>
         <Button

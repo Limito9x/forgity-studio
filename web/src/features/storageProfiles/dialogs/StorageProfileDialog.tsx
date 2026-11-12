@@ -422,17 +422,24 @@ export function StorageProfileDialog({
         )}
 
         {isStudioCloud && (
-          <div className="space-y-1.5">
-            <Label htmlFor="sp-cloud-quota">Storage Quota Capacity (MB)</Label>
+          <div className="space-y-1.5 rounded-lg border border-border/50 bg-muted/20 p-3">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="sp-cloud-quota" className="font-medium text-foreground">Studio Cloud Storage Quota</Label>
+              <span className="text-[11px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                Managed by Plan Tier
+              </span>
+            </div>
             <Input
               id="sp-cloud-quota"
-              type="number"
-              placeholder="Default is 200MB"
-              value={storageQuotaMb}
-              onChange={(e) => setStorageQuotaMb(e.target.value)}
+              type="text"
+              readOnly
+              disabled
+              value={`${storageQuotaMb || "200"} MB`}
+              className="bg-muted/40 cursor-not-allowed font-mono text-sm"
             />
-            <p className="text-xs text-muted-foreground">
-              Total storage capacity allocated for this studio. Default is 200 MB.
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5 pt-1">
+              <Info className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
+              Studio Cloud capacity is governed by your plan (200 MB for Community). Bring Your Own Storage (Custom S3) has no platform quota limits.
             </p>
           </div>
         )}

@@ -13,34 +13,36 @@ import { toast } from "sonner";
 import { usePipelines } from "../../hooks/usePipelines";
 import { getPipelineGraph } from "@/gen/endpoints/pipelines/pipelines";
 import { graphToPipelineYaml } from "../../utils/pipelineDslConverter";
-import { useLocalWorkspaceStore } from "../../stores/useLocalWorkspaceStore";
+import { useLocalWorkspaceConfig, useLocalPipelinesQuery, saveLocalPipelineSnapshot } from "../../hooks/workspace";
 import type { ExtendedPipelineGraphDto } from "../../hooks/usePipelineGraph";
 import type { ScannedPipelineYamlItemRust } from "../../types/workspaceConfig";
 
 interface PullStudioPipelineDialogProps {
-  projectId: string;
-  isOpen: boolean;
-  onClose: () => void;
+  projectId?: string;
+  isOpen?: boolean;
+  onClose?: () => void;
   onPulled?: (draft: ScannedPipelineYamlItemRust) => void;
+  // Standard DialogProps support
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  data?: { projectId: string };
 }
 
-export function PullStudioPipelineDialog({
-  projectId,
-  isOpen,
-  onClose,
-  onPulled,
-}: PullStudioPipelineDialogProps) {
+export function PullStudioPipelineDialog(props: PullStudioPipelineDialogProps) {
+  const projectId = props.data?.projectId || props.projectId || "";
+  const isDialogActive = props.open ?? props.isOpen ?? false;
+  const handleClose = () => {
+    props.onOpenChange?.(false);
+    props.onClose?.();
+  };
+  const onPulled = props.onPulled;
+
   const { data: pipelines = [], isLoading: isLoadingList, error } = usePipelines(projectId);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isPulling, setIsPulling] = useState(false);
 
-  const {
-    config,
-    savePipelineDraft,
-    savePipelineSnapshotOnDisk,
-    scanDraftPipelines,
-    setActiveDraftPipeline,
-  } = useLocalWorkspaceStore();
+  const { rootPath, config } = useLocalWorkspaceConfig(projectId);
+  const { refetch: refetchPipelines } = useLocalPipelinesQuery(rootPath, config?.pipelinesDir);
 
   const handleToggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -60,7 +62,7 @@ export function PullStudioPipelineDialog({
   };
 
   const handlePullPipelines = async () => {
-    if (selectedIds.size === 0) return;
+    if (selectedIds.size === 0 || !rootPath) return;
     setIsPulling(true);
 
     const pipelinesDir = config?.pipelinesDir || "pipelines";
@@ -84,7 +86,7 @@ export function PullStudioPipelineDialog({
                 .replace(/^_|_$/g, "") || "pipeline";
 
             // Save Snapshot (.forgity/snapshots/<slug>.snap.json)
-            await savePipelineSnapshotOnDisk(fileSlug, JSON.stringify(graphDto, null, 2));
+            await saveLocalPipelineSnapshot(rootPath, fileSlug, JSON.stringify(graphDto, null, 2));
 
             // Compile to Declarative YAML DSL
             const yamlContent = graphToPipelineYaml(
@@ -93,9 +95,25 @@ export function PullStudioPipelineDialog({
               graphDto.edges as any
             );
 
-            // Save .pipeline.yaml
-            const fullPath = `${pipelinesDir}/${fileSlug}.pipeline.yaml`.replace(/\\/g, "/");
-            await savePipelineDraft(fullPath, yamlContent);
+            // Save .pipeline.yaml via Tauri IPC
+            const normalizedRoot = rootPath.replace(/[/\\]+$/, "");
+            const normalizedDir = pipelinesDir === "." ? "" : `/${pipelinesDir.replace(/^[/\\]+/, "")}`;
+            const fullPath = `${normalizedRoot}${normalizedDir}/${fileSlug}.pipeline.yaml`.replace(/\\/g, "/");
+            const { invoke } = await import("@tauri-apps/api/core");
+            await invoke("save_local_pipeline_draft", {
+              filePath: fullPath,
+              content: yamlContent,
+            });
+
+            lastPulledDraft = {
+              fileName: `${fileSlug}.pipeline.yaml`,
+              relativePath: `${pipelinesDir}/${fileSlug}.pipeline.yaml`,
+              fullPath,
+              content: yamlContent,
+              lastModifiedMs: Date.now(),
+              pipelineKind: "master",
+              executor: undefined,
+            };
             successCount++;
           } catch (itemErr) {
             console.error(`Failed to pull pipeline "${meta.name}":`, itemErr);
@@ -103,10 +121,8 @@ export function PullStudioPipelineDialog({
         })
       );
 
-      const updatedDrafts = await scanDraftPipelines();
-      if (updatedDrafts.length > 0) {
-        lastPulledDraft = updatedDrafts[0];
-        setActiveDraftPipeline(lastPulledDraft);
+      await refetchPipelines();
+      if (lastPulledDraft) {
         onPulled?.(lastPulledDraft);
       }
 
@@ -116,7 +132,7 @@ export function PullStudioPipelineDialog({
           : `Pulled ${successCount} pipelines into local workspace!`
       );
       setSelectedIds(new Set());
-      onClose();
+      handleClose();
     } catch (err: any) {
       toast.error("Failed to pull pipelines", {
         description: err?.message || "Unknown error",
@@ -129,7 +145,7 @@ export function PullStudioPipelineDialog({
   const allSelected = pipelines.length > 0 && selectedIds.size === pipelines.length;
 
   return (
-    <Dialog isOpen={isOpen} onOpenChange={(open: boolean) => !open && onClose()} className="sm:max-w-md">
+    <Dialog isOpen={isDialogActive} onOpenChange={(open: boolean) => !open && handleClose()} className="sm:max-w-md">
       <DialogHeader>
         <div className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -214,7 +230,7 @@ export function PullStudioPipelineDialog({
         </span>
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onPress={onClose} isDisabled={isPulling} className="h-8 text-xs">
+          <Button variant="ghost" size="sm" onPress={handleClose} isDisabled={isPulling} className="h-8 text-xs">
             Cancel
           </Button>
           <Button
