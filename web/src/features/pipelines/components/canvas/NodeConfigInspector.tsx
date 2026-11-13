@@ -1,7 +1,7 @@
 import { useMemo, memo, useEffect } from "react";
 import type { Node } from "@xyflow/react";
 import { useForm } from "react-hook-form";
-import { Sliders, CheckCircle2 } from "lucide-react";
+import { Sliders, CheckCircle2, Key } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FormRenderer } from "@/components/dynamic-form/FormRenderer";
 import { useNodeDefinition } from "./NodeDefinitions";
@@ -65,6 +65,9 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
     data.refId?.startsWith("local:component:") ||
     definition?.source === "SubPipeline" ||
     (data as any).pipelineKind === "component";
+
+  const isConstantNode = Boolean((definition?.capabilities as any)?.isConstantNode);
+  const constCaps = (definition?.capabilities as any) || {};
 
   const inputs = data.inputs || [];
   const configValues = data.configValues || {};
@@ -238,6 +241,43 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
                   if (updates.skipOnError !== undefined) onUpdateConfig(node.id, "_skipOnError", updates.skipOnError);
                 }}
               />
+            )}
+
+            {/* Constant Node Details */}
+            {isConstantNode && (
+              <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Key className="h-4 w-4 text-amber-500" />
+                  <span className="text-xs font-semibold text-foreground">
+                    Local Constant Details
+                  </span>
+                </div>
+                <div className="text-xs space-y-1 font-mono text-muted-foreground">
+                  <div>
+                    <span className="text-foreground/80">Key:</span> {constCaps.constantKey}
+                  </div>
+                  <div>
+                    <span className="text-foreground/80">Scope:</span> {constCaps.scope}
+                  </div>
+                  <div>
+                    <span className="text-foreground/80">Type:</span> {constCaps.dataType}
+                  </div>
+                  <div className="pt-1">
+                    <span className="text-foreground/80 block">Resolved Value:</span>
+                    <div className="bg-background/80 p-2 rounded border border-border/50 text-[11px] text-amber-400 break-all select-all">
+                      {String(constCaps.resolvedValue ?? "")}
+                    </div>
+                  </div>
+                  {constCaps.resolvedUnrealPath && (
+                    <div className="pt-1">
+                      <span className="text-foreground/80 block">Virtual Path (/Game/...):</span>
+                      <div className="bg-background/80 p-2 rounded border border-border/50 text-[11px] text-indigo-400 break-all select-all">
+                        {String(constCaps.resolvedUnrealPath)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
 
             {/* Input Properties Section */}

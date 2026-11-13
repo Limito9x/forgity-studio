@@ -93,6 +93,27 @@ export function MyCustomPage() {
 
 ---
 
+### Khuôn Mẫu 4: Desktop DCC Tooling Workspace (Full-Bleed Flat Layout)
+Áp dụng cho: *Workspace Constants, Structs Manager, Content Browsers, Tooling Drawers & Inspectors.*
+* **Đặc tính**: Dành riêng cho trải nghiệm Desktop gamedev/DCC kỹ thuật (Unreal, Blender style). Khác hoàn toàn với Web SaaS Admin bọc Card lọt thỏm.
+* **Quy chuẩn cốt tử**:
+  1. **Full-bleed tràn viền (Zero Card Containment)**:
+     - ❌ **CẤM** bọc nội dung danh sách trong `<Card>` bo góc lọt thỏm giữa màn hình.
+     - ✅ Bắt buộc dùng `flex-1 flex flex-col h-full bg-background overflow-hidden`.
+  2. **Bảng phẳng chia dòng (`divide-y divide-border/40`)**:
+     - Danh sách items trải rộng từ mép này sang mép kia, dùng `sticky header` khi cuộn.
+  3. **Zero HTML Primitive Elements**:
+     - ❌ **CẤM** dùng `<select>` HTML thô kệch.
+     - ✅ Luôn dùng bộ `Select` / `Combobox` của React Aria Components (`@/components/ui/select`) kèm nền kính mờ `backdrop-blur-md`.
+  4. **React Stable Item Identity**:
+     - ❌ **CẤM** dùng giá trị input thay đổi được (`item.key`, `item.name`) làm React `key`. Việc này sẽ destroy DOM node và làm mất focus sau mỗi ký tự gõ/xóa!
+     - ✅ Luôn cấp một `id` nội bộ cố định cho item (`item.id`).
+  5. **Component Scoping & Tách Biệt Trách Nhiệm**:
+     - Không viết dồn toàn bộ logic của các tab vào một component quản trị khổng lồ.
+     - Tách riêng thành các Workspace con độc lập (`GeneralConstantsWorkspace`, `UnrealContentVaultWorkspace`).
+
+---
+
 ## 3. Hệ Nhịp Điệu Khoảng Cách (Spacing Rhythm System)
 
 Tuân thủ nghiêm ngặt hệ số **4px / 8px**:

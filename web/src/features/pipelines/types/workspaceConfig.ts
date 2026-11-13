@@ -10,6 +10,21 @@ export interface WorkspaceInitResult {
   config: WorkspaceRootConfig;
   localPaletteJson?: string | null;
   localStructsJson?: string | null;
+  localConstantsJson?: string | null;
+}
+
+export type ConstantDataType = "String" | "Array" | "Path" | "Number" | "Boolean";
+export type ConstantScope = "General" | "Unreal" | "Blender";
+
+export interface WorkspaceConstantItem {
+  id?: string;
+  key: string;
+  value: any;
+  dataType: ConstantDataType;
+  scope: ConstantScope;
+  unrealPath?: string | null;
+  description?: string | null;
+  updatedAt?: string;
 }
 
 export type LocalStructFieldType = "String" | "Number" | "Boolean" | "Asset" | "Struct";

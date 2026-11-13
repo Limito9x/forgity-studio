@@ -92,10 +92,12 @@ Quy tắc áp dụng bắt buộc khi xây dựng hoặc sửa đổi mã nguồ
 
 ## 9. Quy Chuẩn Page Layout & Design System (MANDATORY)
 - **Nguồn chân lý duy nhất (Single Source of Truth):** Đọc và tuân thủ tuyệt đối [docs/frontend/design.md](file:///d:/FullStack/Automation/docs/frontend/design.md).
-- **Quy chuẩn 3 Khuôn mẫu bố cục:**
+- **Quy chuẩn 4 Khuôn mẫu bố cục:**
   1. **Trang Quản lý / CRUD Table:** BẮT BUỘC dùng `<ResourcePageShell>` ([ResourcePageShell.tsx](file:///d:/FullStack/Automation/web/src/components/layout/shells/ResourcePageShell.tsx)).
   2. **Trang Hub / Custom Dashboard / Settings:** BẮT BUỘC dùng `<div className="page-container space-y-6">` (class `page-container` định nghĩa trong `index.css`).
   3. **Trang Canvas / Visual Editor:** Dùng `w-full h-[calc(100vh-3.5rem)] overflow-hidden relative`.
+  4. **Desktop DCC Tooling Workspace (Constants, Structs, Content Browser):** Dùng layout Full-bleed tràn viền `flex-1 flex flex-col h-full bg-background overflow-hidden`. Tuyệt đối KHÔNG bọc thẻ `<Card>` lọt thỏm giữa màn hình; danh sách dạng phẳng `divide-y divide-border/40`; CẤM dùng thẻ `<select>` HTML thô; React `key` của hàng bắt buộc dùng `id` ổn định, không dùng `key`/`name` input để tránh mất focus.
+- **Tách component con cho từng Tab:** Mỗi phân hệ/tab phức tạp (như General vs Unreal) bắt buộc tách thành component con riêng (`GeneralConstantsWorkspace`, `UnrealContentVaultWorkspace`), không dồn tất cả vào một file cha.
 - **CẤM TỰ Ý DÙNG `max-w-*` VÀ PADDING TÙY TIỆN TRÊN PAGE:**
   - Tuyệt đối **KHÔNG** bọc toàn trang bằng `max-w-4xl`, `max-w-5xl`, `max-w-7xl mx-auto`. Việc này làm cho trang bị co rúm vào giữa và lệch lề hoàn toàn so với Header/Sidebar.
   - Tuyệt đối **KHÔNG** dùng `p-4 md:p-6 lg:p-8` ở cấp độ trang (gây thụt lề 32px trên màn hình lớn). Luôn dùng chuẩn `page-container` (24px / 1.5rem).

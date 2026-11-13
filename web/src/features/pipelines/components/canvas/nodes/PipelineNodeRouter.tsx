@@ -8,6 +8,7 @@ import { useNodePinResolver } from "./hooks/useNodePinResolver";
 import { StartPipelineNodeView } from "./StartPipelineNodeView";
 import { ReturnNodeView } from "./views/ReturnNodeView";
 import { StructNodeView } from "./views/StructNodeView";
+import { ConstantNodeView } from "./views/ConstantNodeView";
 import { FlowControlNodeView } from "./FlowControlNodeView";
 import { CollectionNodeView } from "./CollectionNodeView";
 import { StandardToolNodeView } from "./StandardToolNodeView";
@@ -16,6 +17,7 @@ const views: Record<string, ComponentType<NodeProps>> = {
   Standard: StandardToolNodeView,
   Collection: CollectionNodeView,
   Struct: StructNodeView,
+  Constant: ConstantNodeView,
 };
 
 export const PipelineNodeRouter = memo((props: NodeProps) => {

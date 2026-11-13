@@ -4,9 +4,9 @@ import {
   generateLocalStructPaletteItems,
   generateComponentPipePaletteItems,
 } from "../../utils/structPaletteGenerator";
+import { generateConstantPaletteItems } from "../../utils/constantPaletteGenerator";
 import { useNodePalette } from "../../hooks/usePipelines";
-import { useLocalPaletteQuery } from "../../hooks/workspace";
-import { useLocalPipelinesQuery } from "../../hooks/workspace";
+import { useLocalPaletteQuery, useLocalPipelinesQuery, useLocalConstantsQuery } from "../../hooks/workspace";
 import { isTauriRuntime } from "@/lib/platform/filePickerStrategy";
 
 interface ContextMenuPaletteProps {
@@ -37,6 +37,7 @@ export function ContextMenuPalette({
   const { data: paletteItems = [], isLoading } = useNodePalette(projectId, executorParam);
   const { draftNodes, localStructs } = useLocalPaletteQuery(rootPath);
   const { pipelines: scannedDraftPipelines } = useLocalPipelinesQuery(rootPath);
+  const { constants, resolvedConstants } = useLocalConstantsQuery(rootPath);
   const isDesktop = isTauriRuntime();
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -127,6 +128,12 @@ export function ContextMenuPalette({
         const compNodes = generateComponentPipePaletteItems(componentPipes);
         combined.push(...compNodes);
       }
+    }
+
+    // Merge local machine constants as pure data nodes
+    if (isDesktop && constants && constants.length > 0) {
+      const constNodes = generateConstantPaletteItems(constants, resolvedConstants);
+      combined.push(...constNodes);
     }
 
     const q = search.trim().toLowerCase();

@@ -16,6 +16,8 @@ import {
 import { LocalWorkspaceEmptyState } from "../components/workspace/LocalWorkspaceEmptyState";
 import { LocalWorkspaceWelcomeState } from "../components/workspace/LocalWorkspaceWelcomeState";
 import { LocalWorkspaceOutliner } from "../components/workspace/LocalWorkspaceOutliner";
+import { LocalConstantsManagerPage } from "../components/workspace/LocalConstantsManagerPage";
+import { LocalStructsManagerPage } from "../components/workspace/LocalStructsManagerPage";
 import { LocalNodeDetailDrawer } from "../components/workspace/LocalNodeDetailDrawer";
 import { LocalScriptSyncSheet } from "../components/workspace/LocalScriptSyncSheet";
 import { LocalPipelineStorageAdapter } from "../adapters/LocalPipelineStorageAdapter";
@@ -74,7 +76,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
   const [selectedScript, setSelectedScript] = useState<LocalDraftNode | null>(null);
   const [isScriptDrawerOpen, setIsScriptDrawerOpen] = useState(false);
   const [isCreatingPipeline, setIsCreatingPipeline] = useState(false);
-  const [viewMode, setViewMode] = useState<"visual" | "yaml">("visual");
+  const [viewMode, setViewMode] = useState<"visual" | "yaml" | "structs" | "constants">("visual");
   const [rawYamlContent, setRawYamlContent] = useState("");
   const [loadedGraph, setLoadedGraph] = useState<ExtendedPipelineGraphDto | null>(null);
   const [graphRevision, setGraphRevision] = useState<number>(0);
@@ -429,6 +431,8 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
         onSelectDraft={handleSelectDraft}
         onOpenSyncSheet={() => handleOpenSyncAndReview()}
         onOpenConfig={() => useDialogStore.getState().openDialog("workspace-config", { projectId })}
+        onOpenConstants={() => setViewMode("constants")}
+        onOpenStructs={() => setViewMode("structs")}
         isCreatingPipelineExternal={isCreatingPipeline}
         onCreatingPipelineChange={setIsCreatingPipeline}
         onOpenPullDialog={() => useDialogStore.getState().openDialog("workspace-pull-studio", { projectId })}
@@ -439,7 +443,18 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
       <div className="flex flex-col flex-1 min-w-0 h-full overflow-hidden">
         {/* Center Content / Workbench Canvas Area */}
         <div className="flex-1 min-h-0 relative bg-background/50 overflow-hidden">
-          {activeDraftPipeline ? (
+          {viewMode === "constants" ? (
+            <LocalConstantsManagerPage
+              projectId={projectId}
+              rootPath={rootPath}
+              onBackToCanvas={() => setViewMode("visual")}
+            />
+          ) : viewMode === "structs" ? (
+            <LocalStructsManagerPage
+              rootPath={rootPath}
+              onBackToCanvas={() => setViewMode("visual")}
+            />
+          ) : activeDraftPipeline ? (
             viewMode === "yaml" ? (
               <div className="h-full w-full flex flex-col overflow-hidden bg-background">
                 {/* YAML Sub-header */}
@@ -467,6 +482,20 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                         className="px-2.5 py-1 text-xs rounded-md font-medium bg-background text-foreground shadow-xs font-semibold transition-all cursor-pointer"
                       >
                         YAML
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setViewMode("structs")}
+                        className="px-2.5 py-1 text-xs rounded-md font-medium text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+                      >
+                        Structs
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setViewMode("constants")}
+                        className="px-2.5 py-1 text-xs rounded-md font-medium text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+                      >
+                        Constants
                       </button>
                     </div>
                     <Button

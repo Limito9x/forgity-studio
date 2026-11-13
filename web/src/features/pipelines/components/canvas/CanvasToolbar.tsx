@@ -21,6 +21,7 @@ import {
   GitCommit,
   UploadCloud,
   Laptop,
+  Key,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useReactFlow } from "@xyflow/react";
@@ -52,8 +53,8 @@ interface CanvasToolbarProps {
   onToggleAutoFollow?: () => void;
   onOpenPublishModal?: () => void;
   isLocalMode?: boolean;
-  viewMode?: "visual" | "yaml";
-  onToggleViewMode?: (mode: "visual" | "yaml") => void;
+  viewMode?: "visual" | "yaml" | "structs" | "constants";
+  onToggleViewMode?: (mode: "visual" | "yaml" | "structs" | "constants") => void;
   isRunningDraft?: boolean;
 }
 
@@ -266,6 +267,31 @@ export function CanvasToolbar({
               )}
             >
               YAML
+            </button>
+            <button
+              type="button"
+              onClick={() => onToggleViewMode("structs")}
+              className={cn(
+                "px-2.5 py-1 text-xs rounded-md font-medium transition-all cursor-pointer flex items-center gap-1",
+                viewMode === "structs"
+                  ? "bg-background text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <span>Structs</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onToggleViewMode("constants")}
+              className={cn(
+                "px-2.5 py-1 text-xs rounded-md font-medium transition-all cursor-pointer flex items-center gap-1",
+                viewMode === "constants"
+                  ? "bg-background text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Key className="h-3 w-3 text-amber-500" />
+              <span>Constants</span>
             </button>
           </div>
         )}

@@ -27,6 +27,7 @@ Khác với tài liệu mô tả cấu trúc chung (`docs/`) hay cẩm nang vậ
 | [**ADR-004**](file:///d:/FullStack/Automation/docs/adr/ADR-004-unified-node-contract-resolver.md) | **Unified Node Contract Resolver (SSOT)** | `Accepted` | 2026-10-23 | Hợp nhất 4 nơi tự tính toán chân pin về một cổng `INodeContractResolver` duy nhất; sửa lỗi StructType; loại bỏ Type Path; O(1) runtime pin lookup. |
 | [**ADR-005**](file:///d:/FullStack/Automation/docs/adr/ADR-005-transient-graph-ingestion-and-structural-gate.md) | **Transient Graph Ingestion & Preflight Validation Gates** | `Accepted` | 2026-10-24 | Dựng đồ thị in-memory qua `TransientPipelineGraphFactory`; ranh giới chặn cứng lỗi cấu trúc và cảnh báo cấu hình dạng Draft; HTTP 422 preflight run gate. |
 | [**ADR-006**](file:///d:/FullStack/Automation/docs/adr/ADR-006-local-first-script-authoring-and-ephemeral-draft-lifecycle.md) | **Local-First Script Authoring & Ephemeral Draft Pipeline Lifecycle** | `Accepted` | 2026-11-10 | Tách biệt Local Workspace vs Studio Central; In-memory Draft Execution (0-byte DB pollution); Direct Disk S3 Bypass; Declarative YAML DSL; Headless CLI & AI MCP Server. |
+| [**ADR-007**](file:///d:/FullStack/Automation/docs/adr/ADR-007-two-tier-component-master-pipeline-and-local-sqlite-index.md) | **Two-Tier Pipeline (Component vs Master) & Local SQLite Index** | `Accepted` | 2026-11-13 | Loại bỏ Server DB Nodes; Quy hoạch 2 tầng Component Pipe vs Master Pipeline; Portable Declarative Files (`*.py`, `*.pipeline.yaml`, `contracts.yaml`) + SQLite WAL (`workspace.db`, `runner_state.db`). |
 
 ---
 

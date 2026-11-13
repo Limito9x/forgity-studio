@@ -31,8 +31,9 @@ export function indexDefinitions(items: NodePaletteItemDto[]) {
 export function nodeView(kind: string, definition?: NodePaletteItemDto) {
   if (["Start", "Return", "FlowControl"].includes(kind)) return kind;
   if (!definition) return "Missing";
+  if ((definition.capabilities as any)?.isConstantNode) return "Constant";
   const variant = definition.capabilities?.viewVariant;
-  return variant === "Collection" || variant === "Struct" ? variant : "Standard";
+  return variant === "Collection" || variant === "Struct" || variant === "Constant" ? variant : "Standard";
 }
 
 export function filterPalette(items: NodePaletteItemDto[], executor?: string) {

@@ -27,6 +27,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-shell = "2"
 sha2 = "0.10"
+toml = "0.8"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"

@@ -14,8 +14,6 @@ import {
   Settings2,
   CloudDownload,
   Package,
-  Layers,
-  Sparkles,
   Boxes,
   Zap,
 } from "lucide-react";
@@ -28,13 +26,19 @@ import { openNativeFileOrFolderDialog, isTauriRuntime } from "@/lib/platform/fil
 import { useDialogStore } from "@/stores/dialogStore";
 import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 import { useStudioQuota } from "@/features/studios/hooks/useStudioQuota";
-import { generateLocalStructPaletteItems } from "../../utils/structPaletteGenerator";
 import { featureFlags } from "@/config/featureFlags";
 import { SUPPORTED_EXECUTOR_KEYS, getSoftwareMetadata } from "@/features/runners/constants/dccEngines";
 import { ExecutorIcon } from "@/features/runners/components/ExecutorIcon";
-import { useLocalWorkspaceConfig, useLocalPaletteQuery, useLocalPipelinesQuery } from "../../hooks/workspace";
+import {
+  useLocalWorkspaceConfig,
+  useLocalPaletteQuery,
+  useLocalPipelinesQuery,
+} from "../../hooks/workspace";
 import { formatNodeLabel } from "../../utils/labelFormatter";
-import type { LocalDraftNode, ScannedPipelineYamlItemRust } from "../../types/workspaceConfig";
+import type {
+  LocalDraftNode,
+  ScannedPipelineYamlItemRust,
+} from "../../types/workspaceConfig";
 
 interface LocalWorkspaceOutlinerProps {
   projectId: string;
@@ -43,6 +47,8 @@ interface LocalWorkspaceOutlinerProps {
   onSelectDraft?: (draft: ScannedPipelineYamlItemRust) => void;
   onOpenSyncSheet?: () => void;
   onOpenConfig?: () => void;
+  onOpenConstants?: () => void;
+  onOpenStructs?: () => void;
   onOpenPullDialog?: () => void;
   onOpenUnpackDialog?: () => void;
   isCreatingPipelineExternal?: boolean;
@@ -69,11 +75,9 @@ export function LocalWorkspaceOutliner({
 
   const {
     draftNodes,
-    localStructs,
     isScanning,
     scanAndSyncScripts,
     removeNodeFromPalette,
-    deleteLocalStruct,
   } = useLocalPaletteQuery(rootPath, config?.scriptsDir, config?.ignorePatterns);
 
   const {
@@ -88,7 +92,6 @@ export function LocalWorkspaceOutliner({
   const [scriptsExpanded, setScriptsExpanded] = useState(true);
   const [componentsExpanded, setComponentsExpanded] = useState(true);
   const [masterExpanded, setMasterExpanded] = useState(true);
-  const [structsExpanded, setStructsExpanded] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
   // Pipeline rename dialog state
@@ -414,9 +417,8 @@ export function LocalWorkspaceOutliner({
                     <div
                       key={draft.fullPath}
                       onClick={() => onSelectDraft?.(draft)}
-                      className={`flex items-center justify-between px-2 py-1.5 rounded-md cursor-pointer text-xs group transition-colors ${
-                        isActive ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted/50 text-foreground"
-                      }`}
+                      className={`flex items-center justify-between px-2 py-1.5 rounded-md cursor-pointer text-xs group transition-colors ${isActive ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted/50 text-foreground"
+                        }`}
                     >
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <Boxes className="h-3.5 w-3.5 shrink-0 text-amber-500 group-hover:text-primary" />
@@ -583,9 +585,8 @@ export function LocalWorkspaceOutliner({
                     <div
                       key={draft.fullPath}
                       onClick={() => onSelectDraft?.(draft)}
-                      className={`flex items-center justify-between px-2 py-1.5 rounded-md cursor-pointer text-xs group transition-colors ${
-                        isActive ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted/50 text-foreground"
-                      }`}
+                      className={`flex items-center justify-between px-2 py-1.5 rounded-md cursor-pointer text-xs group transition-colors ${isActive ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted/50 text-foreground"
+                        }`}
                     >
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <Workflow className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-primary" />
@@ -707,121 +708,6 @@ export function LocalWorkspaceOutliner({
                     </div>
                   </div>
                 ))
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Section 3: Local Structs (.forgity/local_structs.json) */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-xs font-medium text-foreground px-1 py-1">
-            <button
-              onClick={() => setStructsExpanded(!structsExpanded)}
-              className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {structsExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-              <span>Local Structs ({localStructs.length})</span>
-            </button>
-            <div className="flex items-center gap-1">
-              <span title="Auto-detected from script TypedDict / @dataclass schemas">
-                <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 bg-primary/10 text-primary border-primary/20">
-                  <Sparkles className="h-2.5 w-2.5 mr-0.5 inline" /> Pure
-                </Badge>
-              </span>
-            </div>
-          </div>
-
-          {structsExpanded && (
-            <div className="space-y-1.5 pl-1">
-              {localStructs.length === 0 ? (
-                <p className="text-[11px] text-muted-foreground px-2 py-1 italic">
-                  No structs detected. Define TypedDict or @dataclass in scripts and click Sync.
-                </p>
-              ) : (
-                localStructs.map((struct) => {
-                  const paletteItems = generateLocalStructPaletteItems([struct]);
-                  const makeNode = paletteItems.find((p) => p.key.includes(":make:"));
-                  const breakNode = paletteItems.find((p) => p.key.includes(":break:"));
-
-                  return (
-                    <div
-                      key={struct.slug}
-                      className="p-2 rounded-lg border border-border/60 bg-muted/20 hover:bg-muted/40 transition-colors space-y-1.5"
-                    >
-                      <div className="flex items-center justify-between">
-                        <button
-                          type="button"
-                          onClick={() => useDialogStore.getState().openDialog("workspace-struct-preview", { struct })}
-                          className="flex items-center gap-1.5 min-w-0 text-left hover:text-primary transition-colors"
-                        >
-                          <Layers className="h-3.5 w-3.5 text-primary shrink-0" />
-                          <span className="text-xs font-semibold text-foreground truncate">
-                            {struct.displayName || struct.slug}
-                          </span>
-                        </button>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[10px] text-muted-foreground font-mono">
-                            {struct.fields.length} {struct.fields.length === 1 ? "field" : "fields"}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onPress={async () => {
-                              try {
-                                await deleteLocalStruct(struct.slug);
-                                toast.success(`Deleted struct ${struct.slug}`);
-                              } catch (err: any) {
-                                toast.error("Failed to delete struct", { description: err?.message });
-                              }
-                            }}
-                            className="h-4 w-4 p-0 text-muted-foreground hover:text-destructive transition-colors ml-1"
-                            aria-label="Delete Struct"
-                          >
-                            <Trash2 className="h-2.5 w-2.5" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Drag-drop pure companion chips */}
-                      <div className="flex items-center gap-1.5 pt-0.5">
-                        {makeNode && (
-                          <div
-                            draggable
-                            onDragStart={(e) => {
-                              e.dataTransfer.setData(
-                                "application/forgity-node",
-                                JSON.stringify(makeNode)
-                              );
-                              e.dataTransfer.effectAllowed = "copy";
-                            }}
-                            className="flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-[10px] font-medium cursor-grab active:cursor-grabbing select-none transition-colors"
-                            title="Drag onto Canvas to pack fields into struct"
-                          >
-                            <Plus className="h-2.5 w-2.5" />
-                            <span>Make</span>
-                          </div>
-                        )}
-                        {breakNode && (
-                          <div
-                            draggable
-                            onDragStart={(e) => {
-                              e.dataTransfer.setData(
-                                "application/forgity-node",
-                                JSON.stringify(breakNode)
-                              );
-                              e.dataTransfer.effectAllowed = "copy";
-                            }}
-                            className="flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20 text-[10px] font-medium cursor-grab active:cursor-grabbing select-none transition-colors"
-                            title="Drag onto Canvas to unpack struct into fields"
-                          >
-                            <Plus className="h-2.5 w-2.5" />
-                            <span>Break</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
               )}
             </div>
           )}

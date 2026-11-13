@@ -26,12 +26,13 @@ import { ExecutionStatusBanner } from "./ExecutionStatusBanner";
 import { PipelineFormScopeProvider } from "../../form-scope/PipelineFormScope";
 import { useNodePalette, useCancelPipelineExecution } from "../../hooks/usePipelines";
 import { useGetStructCatalogue } from "@/gen/endpoints/pipelines/pipelines";
-import { useLocalPaletteQuery, useLocalPipelinesQuery } from "../../hooks/workspace";
+import { useLocalPaletteQuery, useLocalPipelinesQuery, useLocalConstantsQuery } from "../../hooks/workspace";
 import {
   localStructsToCatalogue,
   generateLocalStructPaletteItems,
   generateComponentPipePaletteItems,
 } from "../../utils/structPaletteGenerator";
+import { generateConstantPaletteItems } from "../../utils/constantPaletteGenerator";
 import type { ExtendedPipelineGraphDto } from "../../hooks/usePipelineGraph";
 import {
   usePipelineDraftState,
@@ -50,8 +51,8 @@ interface PipelineCanvasProps {
   storage?: IPipelineStorageAdapter;
   pipelineKind?: "component" | "master";
   componentExecutor?: string;
-  viewMode?: "visual" | "yaml";
-  onToggleViewMode?: (mode: "visual" | "yaml") => void;
+  viewMode?: "visual" | "yaml" | "structs" | "constants";
+  onToggleViewMode?: (mode: "visual" | "yaml" | "structs" | "constants") => void;
   onOpenPublishModal?: () => void;
 }
 
@@ -72,6 +73,7 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
   const definitions = useNodePalette(props.projectId);
   const { draftNodes, localStructs } = useLocalPaletteQuery(props.rootPath ?? null);
   const { pipelines: scannedPipelines } = useLocalPipelinesQuery(props.rootPath ?? null);
+  const { constants, resolvedConstants } = useLocalConstantsQuery(props.rootPath ?? null);
 
   // Combine server palette items (only in Cloud mode) with local definitions
   const allDefinitions = useMemo(() => {
@@ -119,8 +121,14 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
       }
     }
 
+    // Nạp Local Machine Constants dưới dạng Pure Data nodes
+    if (constants && constants.length > 0) {
+      const constItems = generateConstantPaletteItems(constants, resolvedConstants);
+      list.push(...constItems);
+    }
+
     return list;
-  }, [isLocal, definitions.data, draftNodes, localStructs, scannedPipelines]);
+  }, [isLocal, definitions.data, draftNodes, localStructs, scannedPipelines, constants, resolvedConstants]);
 
   return (
     <ReactFlowProvider>

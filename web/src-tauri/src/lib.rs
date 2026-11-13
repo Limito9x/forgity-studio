@@ -26,6 +26,9 @@ pub fn run() {
             load_local_palette,
             save_local_structs,
             load_local_structs,
+            save_local_constants,
+            load_local_constants,
+            list_unreal_content_items,
             create_local_pipeline_draft,
             save_local_pipeline_draft,
             rename_local_pipeline_draft,
@@ -36,7 +39,9 @@ pub fn run() {
             scan_local_script_folders,
             scan_local_pipeline_drafts,
             analyze_local_scripts_native,
-            run_local_pipeline_draft_native
+            run_local_pipeline_draft_native,
+            get_runner_unreal_project,
+            set_runner_unreal_project
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
