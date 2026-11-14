@@ -44,6 +44,7 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 zip = { version = "2.2", default-features = false, features = ["deflate"] }
 serde_yaml = "0.9"
 dashmap = "6.1"
+rusqlite = { version = "0.32", features = ["bundled"] }
 
 [build-dependencies]
 tonic-build = "0.12"

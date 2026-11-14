@@ -4,6 +4,22 @@ import type { WorkspaceConstantItem } from "../types/workspaceConfig";
 import type { ResolvedConstant } from "../hooks/workspace/useLocalConstantsQuery";
 
 /**
+ * Extracts unique `{var_name}` placeholders from constant template values.
+ */
+export function extractTemplateVars(values: unknown[]): string[] {
+  const vars = new Set<string>();
+  const regex = /\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g;
+  for (const val of values) {
+    if (typeof val !== "string") continue;
+    let match: RegExpExecArray | null;
+    while ((match = regex.exec(val)) !== null) {
+      vars.add(match[1]);
+    }
+  }
+  return Array.from(vars);
+}
+
+/**
  * Generates pure Data Constant nodes for the Canvas Palette.
  * Pure nodes have 0 Exec inputs/outputs, providing only resolved constant values to downstream tools.
  */
@@ -59,6 +75,25 @@ export function generateConstantPaletteItems(
       });
     }
 
+    const templateVars = extractTemplateVars([
+      resolved?.resolvedValue ?? item.value,
+      resolved?.resolvedUnrealPath ?? item.unrealPath,
+    ]);
+
+    const inputs: PinDefinition[] = templateVars.map((varName) => ({
+      id: varName,
+      label: varName
+        .split("_")
+        .filter(Boolean)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" "),
+      kind: PinKind.Data,
+      primitiveType: PinPrimitiveType.String,
+      cardinality: "Single" as any,
+      isRequired: true,
+      description: `Template variable '{${varName}}' for ${item.key}`,
+    }));
+
     return {
       key: `local:constant:${item.key}`,
       name: item.key,
@@ -67,7 +102,7 @@ export function generateConstantPaletteItems(
       source: "Custom" as any,
       description: item.description || `Local Machine Constant: ${item.key} (${item.scope} - ${item.dataType})`,
       executor: "server",
-      inputs: [], // Pure node: 0 Exec, 0 Data inputs
+      inputs, // Pure node: 0 Exec, dynamic Data inputs if template vars exist
       outputs,
       isStateless: true,
       hasDynamicPins: false,

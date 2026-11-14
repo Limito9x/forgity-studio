@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import {
   Save,
   RefreshCw,
@@ -16,26 +16,30 @@ import {
 import { LocalWorkspaceEmptyState } from "../components/workspace/LocalWorkspaceEmptyState";
 import { LocalWorkspaceWelcomeState } from "../components/workspace/LocalWorkspaceWelcomeState";
 import { LocalWorkspaceOutliner } from "../components/workspace/LocalWorkspaceOutliner";
+import { WorkspaceTabBar } from "../components/workspace/WorkspaceTabBar";
 import { LocalConstantsManagerPage } from "../components/workspace/LocalConstantsManagerPage";
 import { LocalStructsManagerPage } from "../components/workspace/LocalStructsManagerPage";
+import { useWorkspaceTabsStore } from "../stores/useWorkspaceTabsStore";
+import {
+  useWorkspaceUiPrefsStore,
+  useProjectUiPrefs,
+} from "../stores/useWorkspaceUiPrefsStore";
 import { LocalNodeDetailDrawer } from "../components/workspace/LocalNodeDetailDrawer";
-import { LocalScriptSyncSheet } from "../components/workspace/LocalScriptSyncSheet";
+import { LocalNodePaletteWorkbench } from "../components/workspace/LocalNodePaletteWorkbench";
 import { LocalPipelineStorageAdapter } from "../adapters/LocalPipelineStorageAdapter";
 import { PipelineWorkspaceProvider } from "../context/PipelineWorkspaceContext";
 import { PipelineCanvas } from "../components/canvas/PipelineCanvas";
 import { useDialogStore } from "@/stores/dialogStore";
 import { pipelineYamlToGraph, graphToPipelineYaml } from "../utils/pipelineDslConverter";
-import { useRunDraftPipeline } from "@/gen/endpoints/pipelines/pipelines";
 import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 import {
   useStudioQuota,
   useVerifyPipelineExecution,
   useCompletePipelineExecution,
 } from "@/features/studios/hooks/useStudioQuota";
-import { getLocalMachineInfo } from "@/lib/platform/filePickerStrategy";
 import { PipelineTriggerType } from "@/gen/model/pipelineTriggerType";
 import type { LocalDraftNode, ScannedPipelineYamlItemRust } from "../types/workspaceConfig";
-import type { ExtendedPipelineGraphDto, SavePipelineNodeItem, SavePipelineEdgeItem } from "../hooks/usePipelineGraph";
+import type { ExtendedPipelineGraphDto } from "../hooks/usePipelineGraph";
 import { PipelineNodeKind } from "../hooks/usePipelineGraph";
 
 interface LocalWorkspacePageProps {
@@ -61,7 +65,47 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     savePipelineDraft,
   } = useLocalPipelinesQuery(rootPath, config?.pipelinesDir);
 
+  const {
+    getProjectState,
+    openPipelineTab,
+    openSingletonTab,
+    closeTab,
+    setActiveTab,
+    paletteScanRequest,
+    paletteInitialScriptKey,
+    requestPaletteScan,
+  } = useWorkspaceTabsStore();
+
+  const uiPrefs = useProjectUiPrefs(projectId);
+  const toggleSidebar = useWorkspaceUiPrefsStore((s) => s.toggleSidebar);
+  const setCanvasViewMode = useWorkspaceUiPrefsStore((s) => s.setCanvasViewMode);
+
+  const workbenchState = getProjectState(projectId);
+  const activeTab = useMemo(
+    () => workbenchState.tabs.find((t) => t.id === workbenchState.activeTabId) || null,
+    [workbenchState.tabs, workbenchState.activeTabId],
+  );
+
   const [activeDraftPipelinePath, setActiveDraftPipelinePath] = useState<string | null>(null);
+
+  // Sync activeDraftPipelinePath with active pipeline tab
+  useEffect(() => {
+    if (activeTab?.kind === "pipeline" && activeTab.filePath) {
+      setActiveDraftPipelinePath(activeTab.filePath);
+    }
+  }, [activeTab?.id, activeTab?.kind, activeTab?.filePath]);
+
+  // Ctrl+B shortcut to toggle Sidebar
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        toggleSidebar(projectId);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [projectId, toggleSidebar]);
 
   const activeDraftPipeline = useMemo(() => {
     if (!activeDraftPipelinePath) return null;
@@ -71,12 +115,11 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     );
   }, [scannedDraftPipelines, activeDraftPipelinePath]);
 
-  const [syncSheetOpen, setSyncSheetOpen] = useState(false);
-  const [syncSheetInitialKey, setSyncSheetInitialKey] = useState<string | undefined>();
   const [selectedScript, setSelectedScript] = useState<LocalDraftNode | null>(null);
   const [isScriptDrawerOpen, setIsScriptDrawerOpen] = useState(false);
   const [isCreatingPipeline, setIsCreatingPipeline] = useState(false);
-  const [viewMode, setViewMode] = useState<"visual" | "yaml" | "structs" | "constants">("visual");
+  const viewMode = uiPrefs.canvasViewMode;
+  const setViewMode = (mode: "visual" | "yaml") => setCanvasViewMode(projectId, mode);
   const [rawYamlContent, setRawYamlContent] = useState("");
   const [loadedGraph, setLoadedGraph] = useState<ExtendedPipelineGraphDto | null>(null);
   const [graphRevision, setGraphRevision] = useState<number>(0);
@@ -85,8 +128,6 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
   const { data: studioQuota } = useStudioQuota(studioSlug);
   const verifyExecutionMutation = useVerifyPipelineExecution(studioSlug);
   const completeExecutionMutation = useCompletePipelineExecution(studioSlug);
-
-  const runDraftMutation = useRunDraftPipeline();
 
   const pipelineSlug = useMemo(() => {
     if (!activeDraftPipeline) return "";
@@ -205,11 +246,6 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     setIsScriptDrawerOpen(true);
   };
 
-  const handleOpenSyncAndReview = (scriptKey?: string) => {
-    setSyncSheetInitialKey(scriptKey);
-    setSyncSheetOpen(true);
-  };
-
   const handleSelectDraft = (draft: ScannedPipelineYamlItemRust) => {
     setActiveDraftPipelinePath(draft.fullPath);
   };
@@ -306,7 +342,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
   };
 
   const handleRunDraft = async () => {
-    if (!activeDraftPipeline) return;
+    if (!activeDraftPipeline || !rootPath) return;
 
     // Check execution credits gate
     if (studioQuota && studioQuota.executionCreditsRemaining <= 0) {
@@ -330,70 +366,47 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
         }
       }
 
-      const parsed = pipelineYamlToGraph(activeDraftPipeline.content);
-      const machineInfo = await getLocalMachineInfo();
-      const saveNodes: SavePipelineNodeItem[] = parsed.nodes.map((n, idx) => ({
-        id: n.id,
-        refId: String(n.data?.refId || n.id),
-        kind: n.data?.isLocalDraft ? PipelineNodeKind.Custom : PipelineNodeKind.Tool,
-        positionX: n.position.x || idx * 250,
-        positionY: n.position.y || 100,
-        configValues: (n.data?.configValues as any) || {},
-      }));
+      const { invoke } = await import("@tauri-apps/api/core");
+      const lowerName = activeDraftPipeline.fileName.toLowerCase();
+      const pipelineKind =
+        lowerName.endsWith(".component.yaml") || lowerName.endsWith(".component.yml")
+          ? "component"
+          : "master";
 
-      const saveEdges: SavePipelineEdgeItem[] = parsed.edges.map((e) => ({
-        id: e.id,
-        sourceNodeId: e.source,
-        sourcePin: e.sourceHandle || "out",
-        targetNodeId: e.target,
-        targetPin: e.targetHandle || "in",
-      }));
-
-      const localScripts = Object.values(draftNodes).map((d) => ({
-        key: d.key,
-        fileName: d.fileName,
-        fullPath: d.fullPath,
-        scriptContent: d.sourceCode || "",
-        contentHash: d.contentHash,
-        executor: d.executor,
-        inputs: (d.inputs || []) as any,
-        outputs: (d.outputs || []) as any,
-      }));
-
-      const res = await runDraftMutation.mutateAsync({
-        data: {
-          projectId,
-          name: parsed.name || activeDraftPipeline.fileName,
-          preferredRunnerId: machineInfo.machineKey,
-          localScripts,
-          graphData: {
-            nodes: saveNodes,
-            edges: saveEdges,
-          },
+      const res = await invoke<{ runId: string; runnerPath: string }>(
+        "run_local_pipeline",
+        {
+          rootPath,
+          pipelineYamlContent: activeDraftPipeline.content,
+          pipelineKind,
+          runtimeInputs: {},
         },
-      });
+      );
 
       // Deduct 1 credit upon successful dispatch
       if (studioSlug) {
         completeExecutionMutation.mutate(1);
       }
 
-      toast.success(`Draft Pipeline Dispatched!`, {
-        description: `Status: ${(res as any)?.status || "Running"} (Zero-DB Ephemeral State)`,
+      toast.success("Local Pipeline Started!", {
+        description: `Run ID: ${res.runId} (${pipelineKind})`,
       });
     } catch (err: any) {
-      toast.error("Failed to run draft pipeline", {
-        description: err?.message || "Error during headless draft execution",
+      toast.error("Failed to run local pipeline", {
+        description: err?.message || String(err) || "Error during local runner execution",
       });
     }
   };
+
+  const handleRunDraftRef = useRef(handleRunDraft);
+  handleRunDraftRef.current = handleRunDraft;
 
   const storageAdapter = useMemo(() => {
     return new LocalPipelineStorageAdapter({
       rootPath: rootPath || "",
       pipelineSlug,
       filePath: activeDraftPipeline?.fullPath || "",
-      onRunDraft: handleRunDraft,
+      onRunDraft: () => handleRunDraftRef.current(),
     });
   }, [rootPath, pipelineSlug, activeDraftPipeline?.fullPath]);
 
@@ -421,151 +434,161 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
       storage={storageAdapter}
     >
       <div className="flex h-[calc(100vh-3.5rem)] w-full overflow-hidden bg-background">
-      {/* Left Outliner Panel */}
-      <LocalWorkspaceOutliner
-        projectId={projectId}
-        activeDraftPipeline={activeDraftPipeline}
-        onSelectScript={(node) => {
-          handleSelectScript(node);
-        }}
-        onSelectDraft={handleSelectDraft}
-        onOpenSyncSheet={() => handleOpenSyncAndReview()}
-        onOpenConfig={() => useDialogStore.getState().openDialog("workspace-config", { projectId })}
-        onOpenConstants={() => setViewMode("constants")}
-        onOpenStructs={() => setViewMode("structs")}
-        isCreatingPipelineExternal={isCreatingPipeline}
-        onCreatingPipelineChange={setIsCreatingPipeline}
-        onOpenPullDialog={() => useDialogStore.getState().openDialog("workspace-pull-studio", { projectId })}
-        onOpenUnpackDialog={() => useDialogStore.getState().openDialog("workspace-unpack-package")}
-      />
+        {/* Docked Left Sidebar */}
+        <LocalWorkspaceOutliner
+          projectId={projectId}
+          activeDraftPipeline={activeDraftPipeline}
+          activeTabId={activeTab?.id}
+          collapsed={uiPrefs.sidebarCollapsed}
+          onToggleCollapse={() => toggleSidebar(projectId)}
+          onSelectScript={(node) => {
+            handleSelectScript(node);
+          }}
+          onSelectDraft={(draft) => {
+            handleSelectDraft(draft);
+            openPipelineTab(projectId, draft);
+          }}
+          onOpenPalette={() => openSingletonTab(projectId, "palette")}
+          onSyncPalette={() => requestPaletteScan(projectId)}
+          onOpenConfig={() => useDialogStore.getState().openDialog("workspace-config", { projectId })}
+          onOpenConstants={() => openSingletonTab(projectId, "constants")}
+          onOpenStructs={() => openSingletonTab(projectId, "structs")}
+          isCreatingPipelineExternal={isCreatingPipeline}
+          onCreatingPipelineChange={setIsCreatingPipeline}
+          onOpenPullDialog={() => useDialogStore.getState().openDialog("workspace-pull-studio", { projectId })}
+          onOpenUnpackDialog={() => useDialogStore.getState().openDialog("workspace-unpack-package")}
+        />
 
-      {/* Main Workbench Area */}
-      <div className="flex flex-col flex-1 min-w-0 h-full overflow-hidden">
-        {/* Center Content / Workbench Canvas Area */}
-        <div className="flex-1 min-h-0 relative bg-background/50 overflow-hidden">
-          {viewMode === "constants" ? (
-            <LocalConstantsManagerPage
-              projectId={projectId}
-              rootPath={rootPath}
-              onBackToCanvas={() => setViewMode("visual")}
-            />
-          ) : viewMode === "structs" ? (
-            <LocalStructsManagerPage
-              rootPath={rootPath}
-              onBackToCanvas={() => setViewMode("visual")}
-            />
-          ) : activeDraftPipeline ? (
-            viewMode === "yaml" ? (
-              <div className="h-full w-full flex flex-col overflow-hidden bg-background">
-                {/* YAML Sub-header */}
-                <div className="flex h-14 w-full items-center justify-between border-b border-border/80 bg-background px-4 shadow-sm z-30 shrink-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-foreground">
-                      {activeDraftPipeline.fileName}
-                    </span>
-                    <Badge variant="outline" className="text-[10px] font-mono">
-                      YAML DSL
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border/60">
-                      <button
-                        type="button"
-                        onClick={() => setViewMode("visual")}
-                        className="px-2.5 py-1 text-xs rounded-md font-medium text-muted-foreground hover:text-foreground transition-all cursor-pointer"
-                      >
-                        Canvas
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setViewMode("yaml")}
-                        className="px-2.5 py-1 text-xs rounded-md font-medium bg-background text-foreground shadow-xs font-semibold transition-all cursor-pointer"
-                      >
-                        YAML
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setViewMode("structs")}
-                        className="px-2.5 py-1 text-xs rounded-md font-medium text-muted-foreground hover:text-foreground transition-all cursor-pointer"
-                      >
-                        Structs
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setViewMode("constants")}
-                        className="px-2.5 py-1 text-xs rounded-md font-medium text-muted-foreground hover:text-foreground transition-all cursor-pointer"
-                      >
-                        Constants
-                      </button>
+        {/* Right Column: Tab Bar + Main Workbench Area */}
+        <div className="flex flex-col flex-1 min-w-0 h-full overflow-hidden">
+          <WorkspaceTabBar
+            tabs={workbenchState.tabs}
+            activeTabId={workbenchState.activeTabId}
+            onSelectTab={(tabId) => setActiveTab(projectId, tabId)}
+            onCloseTab={(tabId) => closeTab(projectId, tabId)}
+          />
+
+          {/* Center Content / Workbench Canvas Area */}
+          <div className="flex-1 min-h-0 relative bg-background/50 overflow-hidden">
+            {activeTab?.kind === "palette" ? (
+              <LocalNodePaletteWorkbench
+                projectId={projectId}
+                rootPath={rootPath}
+                scriptsDir={config?.scriptsDir}
+                customIgnores={config?.ignorePatterns}
+                scanRequest={paletteScanRequest}
+                initialScriptKey={paletteInitialScriptKey}
+              />
+            ) : activeTab?.kind === "constants" ? (
+              <LocalConstantsManagerPage
+                projectId={projectId}
+                rootPath={rootPath}
+              />
+            ) : activeTab?.kind === "structs" ? (
+              <LocalStructsManagerPage
+                rootPath={rootPath}
+              />
+            ) : activeDraftPipeline ? (
+              viewMode === "yaml" ? (
+                <div className="h-full w-full flex flex-col overflow-hidden bg-background">
+                  {/* YAML Sub-header */}
+                  <div className="flex h-14 w-full items-center justify-between border-b border-border/80 bg-background px-4 shadow-sm z-30 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-foreground">
+                        {activeDraftPipeline.fileName}
+                      </span>
+                      <Badge variant="outline" className="text-[10px] font-mono">
+                        YAML DSL
+                      </Badge>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onPress={handleSaveRawYaml}
-                      className="gap-1.5 text-xs h-8 text-foreground"
-                    >
-                      <Save className="h-3.5 w-3.5" />
-                      Save YAML
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border/60">
+                        <button
+                          type="button"
+                          onClick={() => setViewMode("visual")}
+                          className="px-2.5 py-1 text-xs rounded-md font-medium text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+                        >
+                          Canvas
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setViewMode("yaml")}
+                          className="px-2.5 py-1 text-xs rounded-md font-medium bg-background text-foreground shadow-xs font-semibold transition-all cursor-pointer"
+                        >
+                          YAML
+                        </button>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onPress={handleSaveRawYaml}
+                        className="gap-1.5 text-xs h-8 text-foreground"
+                      >
+                        <Save className="h-3.5 w-3.5" />
+                        Save YAML
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 p-4 overflow-hidden flex flex-col">
+                    <textarea
+                      value={rawYamlContent}
+                      onChange={(e) => setRawYamlContent(e.target.value)}
+                      className="flex-1 w-full bg-card rounded-xl border border-border/60 p-4 font-mono text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary leading-relaxed resize-none shadow-sm"
+                      placeholder="Declarative pipeline YAML content..."
+                      spellCheck={false}
+                    />
                   </div>
                 </div>
-
-                <div className="flex-1 p-4 overflow-hidden flex flex-col">
-                  <textarea
-                    value={rawYamlContent}
-                    onChange={(e) => setRawYamlContent(e.target.value)}
-                    className="flex-1 w-full bg-card rounded-xl border border-border/60 p-4 font-mono text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary leading-relaxed resize-none shadow-sm"
-                    placeholder="Declarative pipeline YAML content..."
-                    spellCheck={false}
-                  />
-                </div>
-              </div>
-            ) : loadedGraph ? (
-              <div className="h-full w-full">
-                <PipelineCanvas
-                  key={`${activeDraftPipeline.fullPath}:${graphRevision}`}
-                  projectId={projectId}
-                  rootPath={rootPath}
-                  graph={loadedGraph}
-                  storage={storageAdapter}
-                  pipelineKind={activeDraftPipeline.pipelineKind || "master"}
-                  componentExecutor={activeDraftPipeline.executor || undefined}
-                  viewMode={viewMode}
-                  onToggleViewMode={async (mode) => {
-                    if (mode === "yaml" && pipelineSlug && rootPath) {
-                      const snapJson = await loadLocalPipelineSnapshot(rootPath, pipelineSlug);
-                      if (snapJson) {
-                        try {
-                          const parsedDto = JSON.parse(snapJson) as ExtendedPipelineGraphDto;
-                          const yamlStr = graphToPipelineYaml(
-                            parsedDto.name,
-                            parsedDto.nodes as any,
-                            parsedDto.edges as any
-                          );
-                          setRawYamlContent(yamlStr);
-                        } catch (e) {
-                          console.warn("Failed to generate raw yaml from current snapshot", e);
+              ) : loadedGraph ? (
+                <div className="h-full w-full">
+                  <PipelineCanvas
+                    key={`${activeDraftPipeline.fullPath}:${graphRevision}`}
+                    projectId={projectId}
+                    rootPath={rootPath}
+                    graph={loadedGraph}
+                    storage={storageAdapter}
+                    pipelineKind={activeDraftPipeline.pipelineKind || "master"}
+                    componentExecutor={activeDraftPipeline.executor || undefined}
+                    viewMode={viewMode}
+                    onToggleViewMode={async (mode) => {
+                      if (mode === "yaml" && pipelineSlug && rootPath) {
+                        const snapJson = await loadLocalPipelineSnapshot(rootPath, pipelineSlug);
+                        if (snapJson) {
+                          try {
+                            const parsedDto = JSON.parse(snapJson) as ExtendedPipelineGraphDto;
+                            const yamlStr = graphToPipelineYaml(
+                              parsedDto.name,
+                              parsedDto.nodes as any,
+                              parsedDto.edges as any
+                            );
+                            setRawYamlContent(yamlStr);
+                          } catch (e) {
+                            console.warn("Failed to generate raw yaml from current snapshot", e);
+                          }
                         }
                       }
-                    }
-                    setViewMode(mode);
-                  }}
-                  onOpenPublishModal={() => useDialogStore.getState().openDialog("workspace-publish-studio" as any, { graph: loadedGraph })}
-                />
-              </div>
+                      if (mode === "visual" || mode === "yaml") {
+                        setViewMode(mode);
+                      }
+                    }}
+                    onOpenPublishModal={() => useDialogStore.getState().openDialog("workspace-publish-studio" as any, { graph: loadedGraph })}
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full text-xs text-destructive">
+                  Failed to parse pipeline YAML for Visual Canvas.
+                </div>
+              )
             ) : (
-              <div className="flex items-center justify-center h-full text-xs text-destructive">
-                Failed to parse pipeline YAML for Visual Canvas.
-              </div>
-            )
-          ) : (
-            <LocalWorkspaceWelcomeState
-              rootPath={rootPath}
-              onCreatePipeline={() => setIsCreatingPipeline(true)}
-              onPullFromStudio={() => useDialogStore.getState().openDialog("workspace-pull-studio", { projectId })}
-              onUnpackPackage={() => useDialogStore.getState().openDialog("workspace-unpack-package")}
-            />
-          )}
+              <LocalWorkspaceWelcomeState
+                rootPath={rootPath}
+                onCreatePipeline={() => setIsCreatingPipeline(true)}
+                onPullFromStudio={() => useDialogStore.getState().openDialog("workspace-pull-studio", { projectId })}
+                onUnpackPackage={() => useDialogStore.getState().openDialog("workspace-unpack-package")}
+              />
+            )}
+          </div>
         </div>
       </div>
 
@@ -587,17 +610,6 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
           setSelectedScript(null);
         }}
       />
-
-      {/* Slide-Over Script Review Sheet */}
-      <LocalScriptSyncSheet
-        rootPath={rootPath}
-        scriptsDir={config?.scriptsDir}
-        customIgnores={config?.ignorePatterns}
-        isOpen={syncSheetOpen}
-        onClose={() => setSyncSheetOpen(false)}
-        initialScriptKey={syncSheetInitialKey}
-      />
-    </div>
-  </PipelineWorkspaceProvider>
+    </PipelineWorkspaceProvider>
   );
 }

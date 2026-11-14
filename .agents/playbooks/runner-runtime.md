@@ -60,7 +60,7 @@ Storage của Runner được quản lý tập trung và an toàn:
 
 ```
 runner/ (hoặc %LOCALAPPDATA%/Forgity/runner/)
-├── .storage.lock                  # Mutex lock chống tranh chấp IO đa tiến trình
+├── runner_state.db                # SQLite WAL index quản lý cache & LRU (thay thế .storage.lock)
 ├── cache/
 │   ├── assets/                    # File nhị phân tải từ S3 (CAS theo SHA-256)
 │   ├── scripts/                   # Script Python tải từ Studio (theo SHA-256)

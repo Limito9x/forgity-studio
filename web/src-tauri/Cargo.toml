@@ -28,6 +28,9 @@ tauri-plugin-fs = "2"
 tauri-plugin-shell = "2"
 sha2 = "0.10"
 toml = "0.8"
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde_yaml = "0.9"
+hex = "0.4"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"

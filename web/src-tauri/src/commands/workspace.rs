@@ -72,26 +72,12 @@ pub fn open_or_init_workspace_root(root_path: String) -> Result<WorkspaceInitRes
         let _ = std::fs::create_dir_all(&pipelines_full_dir);
     }
 
-    let palette_path = forgity_dir.join("local_palette.json");
-    let local_palette_json = if palette_path.is_file() {
-        std::fs::read_to_string(&palette_path).ok()
-    } else {
-        None
-    };
+    let db = super::workspace_db::WorkspaceDb::open(root)?;
+    db.migrate_legacy_json_if_needed(root)?;
 
-    let structs_path = forgity_dir.join("local_structs.json");
-    let local_structs_json = if structs_path.is_file() {
-        std::fs::read_to_string(&structs_path).ok()
-    } else {
-        None
-    };
-
-    let constants_path = forgity_dir.join("constants.json");
-    let local_constants_json = if constants_path.is_file() {
-        std::fs::read_to_string(&constants_path).ok()
-    } else {
-        None
-    };
+    let local_palette_json = db.load_palette_json().ok().filter(|s| s != "{}");
+    let local_structs_json = db.load_structs_json().ok().filter(|s| s != "[]");
+    let local_constants_json = db.load_constants_json().ok().filter(|s| s != "[]");
 
     Ok(WorkspaceInitResult {
         root_path,
@@ -128,65 +114,75 @@ pub fn save_workspace_root_config(
 
 #[tauri::command]
 pub fn save_local_palette(root_path: String, palette_json: String) -> Result<(), String> {
-    let forgity_dir = Path::new(&root_path).join(".forgity");
-    std::fs::create_dir_all(&forgity_dir)
-        .map_err(|e| format!("Failed to create .forgity directory: {}", e))?;
-
-    std::fs::write(forgity_dir.join("local_palette.json"), palette_json)
-        .map_err(|e| format!("Failed to write local_palette.json: {}", e))?;
-    Ok(())
+    let root = Path::new(&root_path);
+    let db = super::workspace_db::WorkspaceDb::open(root)?;
+    db.save_palette_json(&palette_json)
 }
 
 #[tauri::command]
 pub fn load_local_palette(root_path: String) -> Result<String, String> {
-    let palette_path = Path::new(&root_path).join(".forgity").join("local_palette.json");
-    if !palette_path.is_file() {
-        return Ok("{}".to_string());
-    }
-    std::fs::read_to_string(&palette_path)
-        .map_err(|e| format!("Failed to read local_palette.json: {}", e))
+    let root = Path::new(&root_path);
+    let db = super::workspace_db::WorkspaceDb::open(root)?;
+    db.migrate_legacy_json_if_needed(root)?;
+    db.load_palette_json()
 }
 
 #[tauri::command]
 pub fn save_local_structs(root_path: String, structs_json: String) -> Result<(), String> {
-    let forgity_dir = Path::new(&root_path).join(".forgity");
-    std::fs::create_dir_all(&forgity_dir)
-        .map_err(|e| format!("Failed to create .forgity directory: {}", e))?;
+    let root = Path::new(&root_path);
+    let db = super::workspace_db::WorkspaceDb::open(root)?;
+    db.save_structs_json(&structs_json)?;
 
-    std::fs::write(forgity_dir.join("local_structs.json"), structs_json)
-        .map_err(|e| format!("Failed to write local_structs.json: {}", e))?;
+    let mut contracts = super::contracts::load_contracts_file(root);
+    if let Ok(arr) = serde_json::from_str::<Vec<serde_json::Value>>(&structs_json) {
+        contracts.structs = arr;
+        let _ = super::contracts::save_contracts_file(root, &contracts);
+    }
     Ok(())
 }
 
 #[tauri::command]
 pub fn load_local_structs(root_path: String) -> Result<String, String> {
-    let structs_path = Path::new(&root_path).join(".forgity").join("local_structs.json");
-    if !structs_path.is_file() {
-        return Ok("[]".to_string());
-    }
-    std::fs::read_to_string(&structs_path)
-        .map_err(|e| format!("Failed to read local_structs.json: {}", e))
+    let root = Path::new(&root_path);
+    let db = super::workspace_db::WorkspaceDb::open(root)?;
+    db.migrate_legacy_json_if_needed(root)?;
+    db.load_structs_json()
 }
 
 #[tauri::command]
 pub fn save_local_constants(root_path: String, constants_json: String) -> Result<(), String> {
-    let forgity_dir = Path::new(&root_path).join(".forgity");
-    std::fs::create_dir_all(&forgity_dir)
-        .map_err(|e| format!("Failed to create .forgity directory: {}", e))?;
+    let root = Path::new(&root_path);
+    let db = super::workspace_db::WorkspaceDb::open(root)?;
+    db.save_constants_json(&constants_json)?;
 
-    std::fs::write(forgity_dir.join("constants.json"), constants_json)
-        .map_err(|e| format!("Failed to write constants.json: {}", e))?;
+    let mut contracts = super::contracts::load_contracts_file(root);
+    if let Ok(arr) = serde_json::from_str::<Vec<serde_json::Value>>(&constants_json) {
+        contracts.constants = arr;
+        let _ = super::contracts::save_contracts_file(root, &contracts);
+    }
     Ok(())
 }
 
 #[tauri::command]
 pub fn load_local_constants(root_path: String) -> Result<String, String> {
-    let constants_path = Path::new(&root_path).join(".forgity").join("constants.json");
-    if !constants_path.is_file() {
-        return Ok("[]".to_string());
-    }
-    std::fs::read_to_string(&constants_path)
-        .map_err(|e| format!("Failed to read constants.json: {}", e))
+    let root = Path::new(&root_path);
+    let db = super::workspace_db::WorkspaceDb::open(root)?;
+    db.migrate_legacy_json_if_needed(root)?;
+    db.load_constants_json()
+}
+
+#[tauri::command]
+pub fn save_local_script_override(
+    root_path: String,
+    script_key: String,
+    override_json: String,
+) -> Result<(), String> {
+    let root = Path::new(&root_path);
+    let ov: super::contracts::ScriptOverride = serde_json::from_str(&override_json)
+        .map_err(|e| format!("Invalid script override JSON: {}", e))?;
+    let mut contracts = super::contracts::load_contracts_file(root);
+    contracts.script_overrides.insert(script_key, ov);
+    super::contracts::save_contracts_file(root, &contracts)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

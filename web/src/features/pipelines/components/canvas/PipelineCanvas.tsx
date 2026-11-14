@@ -51,8 +51,8 @@ interface PipelineCanvasProps {
   storage?: IPipelineStorageAdapter;
   pipelineKind?: "component" | "master";
   componentExecutor?: string;
-  viewMode?: "visual" | "yaml" | "structs" | "constants";
-  onToggleViewMode?: (mode: "visual" | "yaml" | "structs" | "constants") => void;
+  viewMode?: "visual" | "yaml";
+  onToggleViewMode?: (mode: "visual" | "yaml") => void;
   onOpenPublishModal?: () => void;
 }
 
@@ -202,9 +202,10 @@ function PipelineCanvasContent({
     draft.setSelectedNodeId(nodeId);
   };
 
-  // 2. Real-time Live Execution Tracking (SignalR in Cloud Mode)
+  // 2. Real-time Live Execution Tracking (SignalR in Cloud Mode, Tauri stdout in Local Mode)
   const live = usePipelineLiveTracking({
     pipelineId: isLocalMode ? "" : graph.id,
+    isLocalMode,
     setNodes: draft.setNodes,
   });
 
@@ -474,7 +475,7 @@ function PipelineCanvasContent({
               node={draft.selectedNode}
               triggerType={graph.triggerType}
               onClose={() => draft.setSelectedNodeId(null)}
-              onUpdateConfig={(pinId, val) => draft.handleUpdateConfig(draft.selectedNode!.id, pinId, val)}
+              onUpdateConfig={(nodeId, pinId, val) => draft.handleUpdateConfig(nodeId, pinId, val)}
               onDeleteNode={() => draft.handleDeleteNode(draft.selectedNode!.id)}
               onRenameNode={(newLabel) => draft.handleRenameNode(draft.selectedNode!.id, newLabel)}
             />

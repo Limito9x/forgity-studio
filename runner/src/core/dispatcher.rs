@@ -8,16 +8,15 @@ use tracing::{debug, error, info, warn};
 
 use super::contracts::{StageResultMessage, StageTaskMessage, StepProgressMessage, StepResult};
 use super::executors::{ExecutionContext, ExecutorRegistry};
+use super::traits::EventSink;
 use crate::ipc::pipe_server::PipeServer;
 use crate::ipc::protocol::{GuestToHostMessage, HostToGuestMessage, HostToResidentMessage, ResidentToHostMessage};
 use crate::process::active_stage::ActiveStageManager;
 use crate::process::dcc_pool::DccPool;
 use crate::process::job_object::JobObject;
 use crate::process::subprocess::SubprocessRunner;
-use crate::queue::rabbitmq::RabbitMqClient;
 use crate::storage::cache::StorageManager;
 use crate::storage::downloader::StreamDownloader;
-use crate::storage::lock::StorageLockGuard;
 use crate::system::dcc::resolve_executor_executable;
 
 use std::collections::HashMap;
@@ -64,7 +63,7 @@ pub fn ensure_guest_script() -> Result<PathBuf> {
 }
 
 pub struct StageDispatcher {
-    rabbitmq: RabbitMqClient,
+    event_sink: Arc<dyn EventSink>,
     storage: StorageManager,
     downloader: StreamDownloader,
     active_stages: Arc<ActiveStageManager>,
@@ -75,7 +74,7 @@ pub struct StageDispatcher {
 
 impl StageDispatcher {
     pub fn new(
-        rabbitmq: RabbitMqClient,
+        event_sink: Arc<dyn EventSink>,
         active_stages: Arc<ActiveStageManager>,
         dcc_pool: Arc<DccPool>,
         custom_env: Option<HashMap<String, String>>,
@@ -84,7 +83,7 @@ impl StageDispatcher {
         let downloader = StreamDownloader::new(StorageManager::new(None));
         let executor_registry = Arc::new(ExecutorRegistry::new());
         Self {
-            rabbitmq,
+            event_sink,
             storage,
             downloader,
             active_stages,
@@ -107,7 +106,7 @@ impl StageDispatcher {
         );
 
         // 1. Acquire Storage Lock
-        let _storage_lock = StorageLockGuard::acquire(None).await.ok();
+        // SQLite WAL in StorageManager handles concurrent cache access without a global lockfile.
 
         // 2. Resolve & pre-cache Script Nodes
         for step in &mut task.steps {
@@ -418,7 +417,7 @@ impl StageDispatcher {
                                     outputs,
                                     error_message: None,
                                 };
-                                if let Err(e) = self.rabbitmq.send_progress(&progress_msg).await {
+                                if let Err(e) = self.event_sink.emit_step_progress(&progress_msg).await {
                                     warn!("[Dispatcher] Failed to publish StepProgressMessage: {}", e);
                                 }
                             }
@@ -442,7 +441,7 @@ impl StageDispatcher {
                                     outputs: Some(outputs),
                                     error_message: if succeeded { None } else { error_message },
                                 };
-                                let _ = self.rabbitmq.send_progress(&progress_msg).await;
+                                let _ = self.event_sink.emit_step_progress(&progress_msg).await;
                             }
                             GuestToHostMessage::StageCompleted { succeeded, error_message } => {
                                 guest_completed = true;
@@ -582,7 +581,7 @@ impl StageDispatcher {
                                     outputs,
                                     error_message: None,
                                 };
-                                if let Err(e) = self.rabbitmq.send_progress(&progress_msg).await {
+                                if let Err(e) = self.event_sink.emit_step_progress(&progress_msg).await {
                                     warn!("[Dispatcher] Failed to publish StepProgressMessage: {}", e);
                                 }
                             }
@@ -606,7 +605,7 @@ impl StageDispatcher {
                                     outputs: Some(outputs),
                                     error_message: if succeeded { None } else { error_message },
                                 };
-                                let _ = self.rabbitmq.send_progress(&progress_msg).await;
+                                let _ = self.event_sink.emit_step_progress(&progress_msg).await;
                             }
                             GuestToHostMessage::StageCompleted { succeeded, error_message } => {
                                 info!("[IPC] Stage Completed signal: succeeded={}", succeeded);
@@ -721,7 +720,7 @@ impl StageDispatcher {
             stage_id, result.succeeded
         );
 
-        self.rabbitmq.send_result(&result).await?;
+        self.event_sink.emit_stage_result(&result).await?;
 
         Ok(result)
     }

@@ -5,6 +5,7 @@ use commands::*;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(commands::local_execution::LocalExecutionState::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
@@ -23,11 +24,14 @@ pub fn run() {
             open_or_init_workspace_root,
             save_workspace_root_config,
             save_local_palette,
+            commands::contracts::save_script_override,
+            commands::contracts::clear_script_override,
             load_local_palette,
             save_local_structs,
             load_local_structs,
             save_local_constants,
             load_local_constants,
+            save_local_script_override,
             list_unreal_content_items,
             create_local_pipeline_draft,
             save_local_pipeline_draft,
@@ -40,6 +44,8 @@ pub fn run() {
             scan_local_pipeline_drafts,
             analyze_local_scripts_native,
             run_local_pipeline_draft_native,
+            run_local_pipeline,
+            cancel_local_pipeline,
             get_runner_unreal_project,
             set_runner_unreal_project
         ])

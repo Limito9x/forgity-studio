@@ -81,6 +81,31 @@ pub fn execute_pure_node(
         return PureNodeResult::Outputs(outputs);
     }
 
+    // 4. Constant Template: local:constant:<key>
+    if lower_tool.starts_with("local:constant:") {
+        debug!(tool = %tool_key, "Executing pure Constant Template in-memory");
+        let mut outputs = HashMap::new();
+        for template_key in ["value", "disk_path", "virtual_path"] {
+            if let Some(Value::String(tmpl)) = inputs.get(template_key) {
+                let mut rendered = tmpl.clone();
+                for (k, v) in inputs {
+                    if k == "value" || k == "disk_path" || k == "virtual_path" {
+                        continue;
+                    }
+                    let val_str = match v {
+                        Value::String(s) => s.clone(),
+                        Value::Number(n) => n.to_string(),
+                        Value::Bool(b) => b.to_string(),
+                        _ => v.to_string(),
+                    };
+                    rendered = rendered.replace(&format!("{{{}}}", k), &val_str);
+                }
+                outputs.insert(template_key.to_string(), Value::String(rendered));
+            }
+        }
+        return PureNodeResult::Outputs(outputs);
+    }
+
     PureNodeResult::NotPure
 }
 

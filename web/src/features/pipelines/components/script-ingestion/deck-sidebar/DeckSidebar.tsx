@@ -11,7 +11,8 @@ interface DeckSidebarProps {
   selectedIndex: number;
   onSelectIndex: (index: number) => void;
   onRemoveNode: (key: string) => void;
-  onAddMoreFiles: (files: File[]) => void;
+  onAddMoreFiles?: (files: File[]) => void;
+  showStatusFilters?: boolean;
 }
 
 type FilterType = "all" | "new" | "modified" | "breaking";
@@ -22,6 +23,7 @@ export function DeckSidebar({
   onSelectIndex,
   onRemoveNode,
   onAddMoreFiles,
+  showStatusFilters = true,
 }: DeckSidebarProps) {
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<FilterType>("all");
@@ -61,7 +63,7 @@ export function DeckSidebar({
   }, [nodes, filterType, search]);
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
+    if (e.target.files && e.target.files.length > 0 && onAddMoreFiles) {
       onAddMoreFiles(Array.from(e.target.files));
       e.target.value = "";
     }
@@ -79,23 +81,27 @@ export function DeckSidebar({
             </h2>
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs gap-1 px-2"
-            onPress={() => fileInputRef.current?.click()}
-          >
-            <Plus className="size-3.5" />
-            Add .py
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept=".py"
-            className="hidden"
-            onChange={handleFileInputChange}
-          />
+          {onAddMoreFiles && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1 px-2"
+                onPress={() => fileInputRef.current?.click()}
+              >
+                <Plus className="size-3.5" />
+                Add .py
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".py"
+                className="hidden"
+                onChange={handleFileInputChange}
+              />
+            </>
+          )}
         </div>
 
         {/* Search Input */}
@@ -110,7 +116,8 @@ export function DeckSidebar({
         </div>
 
         {/* Filter Pills */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-0.5 text-[11px]">
+        {showStatusFilters && (
+          <div className="flex items-center gap-1 overflow-x-auto pb-0.5 text-[11px]">
           <Button
             variant={filterType === "all" ? "secondary" : "ghost"}
             size="sm"
@@ -158,7 +165,8 @@ export function DeckSidebar({
               Impact ({stats.breakingCount})
             </Button>
           )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Slide Thumbnails Scroll Area */}

@@ -379,6 +379,49 @@ export function useLocalPaletteQuery(
     },
   });
 
+  const saveScriptOverrideMutation = useMutation({
+    mutationFn: async (params: {
+      scriptKey: string;
+      overrideCfg: Record<string, any>;
+    }) => {
+      if (!isTauriRuntime() || !rootPath) return null;
+      const { invoke } = await import("@tauri-apps/api/core");
+      const updatedNodeJson = await invoke<string>("save_script_override", {
+        rootPath,
+        scriptKey: params.scriptKey,
+        overrideJson: JSON.stringify(params.overrideCfg),
+      });
+      const currentPalette = { ...(query.data?.draftNodes || {}) };
+      if (updatedNodeJson && updatedNodeJson !== "{}") {
+        currentPalette[params.scriptKey] = JSON.parse(updatedNodeJson);
+      }
+      return {
+        draftNodes: currentPalette,
+        localStructs: query.data?.localStructs || [],
+        scanSummary: query.data?.scanSummary || null,
+      };
+    },
+    onSuccess: (updated) => {
+      if (!updated) return;
+      queryClient.setQueryData(LOCAL_PALETTE_QUERY_KEY(rootPath), updated);
+    },
+  });
+
+  const clearScriptOverrideMutation = useMutation({
+    mutationFn: async (params: { scriptKey: string; pinId?: string }) => {
+      if (!isTauriRuntime() || !rootPath) return;
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("clear_script_override", {
+        rootPath,
+        scriptKey: params.scriptKey,
+        pinId: params.pinId ?? null,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: LOCAL_PALETTE_QUERY_KEY(rootPath) });
+    },
+  });
+
   return {
     draftNodes: query.data?.draftNodes || {},
     localStructs: query.data?.localStructs || [],
@@ -391,6 +434,8 @@ export function useLocalPaletteQuery(
     clearPalette: clearPaletteMutation.mutateAsync,
     removeNodeFromPalette: removeNodeMutation.mutateAsync,
     reanalyzeSingleScript: reanalyzeSingleScriptMutation.mutateAsync,
+    saveScriptOverride: saveScriptOverrideMutation.mutateAsync,
+    clearScriptOverride: clearScriptOverrideMutation.mutateAsync,
     savePalette: (nodes: Record<string, LocalDraftNode>) =>
       applyPaletteMutation.mutateAsync({ nodes }),
     deleteLocalStruct: deleteStructMutation.mutateAsync,

@@ -11,11 +11,13 @@ import type { CustomPipelineNodeData } from "../nodes/types";
 
 interface UsePipelineLiveTrackingArgs {
   pipelineId: string;
+  isLocalMode?: boolean;
   setNodes: Dispatch<SetStateAction<Node[]>>;
 }
 
 export function usePipelineLiveTracking({
   pipelineId,
+  isLocalMode = false,
   setNodes,
 }: UsePipelineLiveTrackingArgs) {
   const [activeExecutionId, setActiveExecutionId] = useState<string | null>(
@@ -37,6 +39,9 @@ export function usePipelineLiveTracking({
   const [liveNodeErrors, setLiveNodeErrors] = useState<
     Record<string, string | null>
   >({});
+  const [localLogs, setLocalLogs] = useState<
+    Array<{ runId: string; line: string }>
+  >([]);
 
   const { data: executions } = usePipelineExecutions(pipelineId);
   const currentExecId = activeExecutionId || executions?.[0]?.id;
@@ -61,8 +66,132 @@ export function usePipelineLiveTracking({
     setLiveNodeStatuses({});
     setLiveNodeOutputs({});
     setLiveNodeErrors({});
+    setLocalLogs([]);
     setIsExecutionRunning(false);
   }, []);
+
+  // Local Runner Event Listener (Tauri stdout JSON-lines -> Canvas Live State)
+  useEffect(() => {
+    if (!isLocalMode) return;
+    if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window)) {
+      return;
+    }
+
+    let unlistenEvent: (() => void) | null = null;
+    let unlistenLog: (() => void) | null = null;
+    let disposed = false;
+
+    import("@tauri-apps/api/event").then(async ({ listen }) => {
+      if (disposed) return;
+
+      unlistenEvent = await listen<any>("local-pipeline://event", (event) => {
+        const payload = event.payload;
+        if (!payload || !payload.type) return;
+
+        switch (payload.type) {
+          case "run_started": {
+            isCancelledRef.current = false;
+            setActiveExecutionId(payload.run_id || null);
+            setActiveRunningNodeId(null);
+            setLiveNodeStatuses({});
+            setLiveNodeOutputs({});
+            setLiveNodeErrors({});
+            setLocalLogs([]);
+            setIsExecutionRunning(true);
+            break;
+          }
+          case "node_started": {
+            const nid = payload.node_id;
+            if (!nid) break;
+            setLiveNodeStatuses((prev) => ({ ...prev, [nid]: "running" }));
+            setActiveRunningNodeId(nid);
+            break;
+          }
+          case "node_progress": {
+            const nid = payload.node_id;
+            if (!nid) break;
+            const s = String(payload.status || "").toLowerCase();
+            const mapped: "running" | "succeeded" | "failed" =
+              s === "failed" ? "failed" : s === "succeeded" ? "succeeded" : "running";
+            setLiveNodeStatuses((prev) => ({ ...prev, [nid]: mapped }));
+            if (payload.outputs) {
+              setLiveNodeOutputs((prev) => ({ ...prev, [nid]: payload.outputs }));
+            }
+            if (payload.error_message) {
+              setLiveNodeErrors((prev) => ({ ...prev, [nid]: payload.error_message }));
+            }
+            break;
+          }
+          case "node_completed": {
+            const nid = payload.node_id;
+            if (!nid) break;
+            const ok = Boolean(payload.succeeded);
+            setLiveNodeStatuses((prev) => ({
+              ...prev,
+              [nid]: ok ? "succeeded" : "failed",
+            }));
+            setActiveRunningNodeId((prev) => (prev === nid ? null : prev));
+            if (payload.outputs) {
+              setLiveNodeOutputs((prev) => ({ ...prev, [nid]: payload.outputs }));
+            }
+            if (ok) {
+              setLiveNodeErrors((prev) => {
+                const next = { ...prev };
+                delete next[nid];
+                return next;
+              });
+            } else if (payload.error_message) {
+              setLiveNodeErrors((prev) => ({
+                ...prev,
+                [nid]: payload.error_message,
+              }));
+            }
+            break;
+          }
+          case "run_completed": {
+            setIsExecutionRunning(false);
+            setActiveRunningNodeId(null);
+            if (!payload.succeeded) {
+              setLiveNodeStatuses((prev) => {
+                const next = { ...prev };
+                for (const k of Object.keys(next)) {
+                  if (next[k] === "running") {
+                    next[k] = "failed";
+                  }
+                }
+                return next;
+              });
+              if (payload.error_message) {
+                setLiveNodeErrors((prev) => ({
+                  ...prev,
+                  __run__: payload.error_message,
+                }));
+              }
+            }
+            break;
+          }
+        }
+      });
+
+      unlistenLog = await listen<{ runId: string; line: string }>(
+        "local-pipeline://log",
+        (event) => {
+          const item = event.payload;
+          if (!item?.line) return;
+          setLocalLogs((prev) => {
+            const next = [...prev, item];
+            return next.length > 500 ? next.slice(next.length - 500) : next;
+          });
+        },
+      );
+    });
+
+    return () => {
+      disposed = true;
+      unlistenEvent?.();
+      unlistenLog?.();
+    };
+  }, [isLocalMode]);
 
   const isCancelledRef = useRef(false);
 
@@ -286,5 +415,6 @@ export function usePipelineLiveTracking({
     liveNodeStatuses,
     liveNodeOutputs,
     liveNodeErrors,
+    localLogs,
   };
 }

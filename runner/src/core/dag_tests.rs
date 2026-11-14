@@ -118,6 +118,21 @@ edges:
         let joint_node = scheduler.pop_ready_node().expect("Joint node must be ready now");
         assert_eq!(joint_node.id, "joint_files");
 
+    #[test]
+    fn test_pure_constant_template_interpolation() {
+        let mut inputs = HashMap::new();
+        inputs.insert("virtual_path".to_string(), json!("/Game/Characters/Genesis9/{character_name}"));
+        inputs.insert("character_name".to_string(), json!("Eva"));
+
+        let res = execute_pure_node("local:constant:CHAR_DEST", &inputs);
+        match res {
+            PureNodeResult::Outputs(outs) => {
+                assert_eq!(outs.get("virtual_path"), Some(&json!("/Game/Characters/Genesis9/Eva")));
+            }
+            PureNodeResult::NotPure => panic!("local:constant:* must be treated as pure node"),
+        }
+    }
+
         // 5. Giải quyết inputs của Joint từ Blackboard
         let joint_inputs = scheduler.resolve_node_inputs("joint_files");
         assert_eq!(joint_inputs.get("body").unwrap(), &json!(["body.fbx"]));

@@ -111,6 +111,9 @@ pub async fn prepare(
     let directory = storage.get_python_package_dir(&key);
     let marker = directory.join(COMPLETE);
     if tokio::fs::read_to_string(&marker).await.ok().as_deref() == Some(&key) {
+        if let Ok(db) = storage.db() {
+            let _ = db.touch_python_env(&key);
+        }
         info!(
             "[Dependencies] Reusing isolated packages: {} (Python: {})",
             directory.display(),

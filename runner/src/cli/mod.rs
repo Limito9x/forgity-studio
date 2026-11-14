@@ -6,6 +6,7 @@ pub mod env;
 pub mod mcp;
 pub mod register;
 pub mod run;
+pub mod run_local;
 pub mod setup;
 pub mod start;
 pub mod update;
@@ -122,5 +123,47 @@ pub enum Commands {
         /// Optional path to project workspace directory
         #[arg(short, long)]
         workspace: Option<PathBuf>,
+    },
+
+    /// Execute a local Component Pipe (*.component.yaml) or Master Pipeline (*.pipeline.yaml) 100% locally without Backend
+    RunLocal {
+        /// Path to the workspace root containing .forgity/workspace.db
+        #[arg(short, long)]
+        workspace: PathBuf,
+
+        /// Path to the .component.yaml or .pipeline.yaml file
+        #[arg(short, long)]
+        pipeline: PathBuf,
+
+        /// Optional JSON object string of runtime inputs for the Start node
+        #[arg(long)]
+        inputs_json: Option<String>,
+
+        /// Emit newline-delimited JSON RunnerExecutionEvent objects to stdout (logs go to stderr)
+        #[arg(long)]
+        json_events: bool,
+
+        /// Optional explicit run ID (defaults to generated UUID v4)
+        #[arg(long)]
+        run_id: Option<String>,
+    },
+
+    /// Execute a self-contained ExecutionBundle DTO (from stdin or JSON file) without touching workspace.db
+    RunBundle {
+        /// Path to an ExecutionBundle JSON file (if omitted or --stdin is set, reads from stdin)
+        #[arg(short, long)]
+        bundle: Option<PathBuf>,
+
+        /// Read ExecutionBundle JSON from stdin
+        #[arg(long)]
+        stdin: bool,
+
+        /// Emit newline-delimited JSON RunnerExecutionEvent objects to stdout (logs go to stderr)
+        #[arg(long)]
+        json_events: bool,
+
+        /// Optional explicit run ID override
+        #[arg(long)]
+        run_id: Option<String>,
     },
 }

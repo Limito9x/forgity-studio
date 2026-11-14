@@ -1,7 +1,10 @@
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use tokio::fs::{create_dir_all, read_dir, write};
 use tracing::{debug, info};
+
+use super::db::RunnerStateDb;
 
 /// Strips Windows verbatim prefix (`\\?\`) so that subprocesses and Python standard library
 /// receive standard clean paths.
@@ -16,6 +19,7 @@ pub fn normalize_absolute_path(path: PathBuf) -> PathBuf {
 
 pub struct StorageManager {
     base_dir: PathBuf,
+    db: OnceLock<RunnerStateDb>,
 }
 
 /// Computes a deterministic SHA-256 hash prefix (16 chars) for a set of python package requirements.
@@ -50,7 +54,17 @@ impl StorageManager {
         let abs = std::fs::canonicalize(&raw).unwrap_or(raw);
         Self {
             base_dir: normalize_absolute_path(abs),
+            db: OnceLock::new(),
         }
+    }
+
+    pub fn db(&self) -> Result<&RunnerStateDb> {
+        if let Some(db) = self.db.get() {
+            return Ok(db);
+        }
+        let initialized = RunnerStateDb::open(&self.base_dir)?;
+        let _ = self.db.set(initialized);
+        Ok(self.db.get().expect("RunnerStateDb initialized"))
     }
 
     pub fn base_dir(&self) -> &Path {
@@ -98,12 +112,21 @@ impl StorageManager {
 
     /// Finds a cached asset by its SHA-256 hash prefix or exact match, returning an absolute path.
     pub async fn find_cached_asset(&self, sha256_hash: &str) -> Result<Option<PathBuf>> {
+        let clean_hash = sha256_hash.to_lowercase();
+
+        // 1. O(1) lookup in SQLite runner_state.db
+        if let Ok(db) = self.db() {
+            if let Ok(Some(path)) = db.get_and_touch_asset(&clean_hash) {
+                return Ok(Some(normalize_absolute_path(path)));
+            }
+        }
+
+        // 2. Fallback disk scan for pre-SQLite legacy cache & auto-backfill
         let assets_dir = self.assets_dir();
         if !assets_dir.exists() {
             return Ok(None);
         }
 
-        let clean_hash = sha256_hash.to_lowercase();
         let mut entries = read_dir(&assets_dir).await?;
 
         while let Some(entry) = entries.next_entry().await? {
@@ -112,7 +135,13 @@ impl StorageManager {
             if file_name.starts_with(&clean_hash) {
                 let p = entry.path();
                 let abs = std::fs::canonicalize(&p).unwrap_or(p);
-                return Ok(Some(normalize_absolute_path(abs)));
+                let norm = normalize_absolute_path(abs);
+                if let Ok(db) = self.db() {
+                    let ext = norm.extension().and_then(|e| e.to_str()).map(|s| s.to_string());
+                    let size = std::fs::metadata(&norm).map(|m| m.len()).unwrap_or(0);
+                    let _ = db.upsert_asset(&clean_hash, ext.as_deref(), &file_name, &norm, size);
+                }
+                return Ok(Some(norm));
             }
         }
 
@@ -121,16 +150,28 @@ impl StorageManager {
 
     /// Finds a cached script by its SHA-256 hash.
     pub async fn find_cached_script(&self, sha256_hash: &str) -> Result<Option<PathBuf>> {
+        let clean_hash = sha256_hash.to_lowercase();
+
+        if let Ok(db) = self.db() {
+            if let Ok(Some(path)) = db.get_and_touch_script(&clean_hash) {
+                return Ok(Some(normalize_absolute_path(path)));
+            }
+        }
+
         let scripts_dir = self.scripts_dir();
         if !scripts_dir.exists() {
             return Ok(None);
         }
 
-        let clean_hash = sha256_hash.to_lowercase();
         let candidate = scripts_dir.join(format!("{}.py", clean_hash));
         if candidate.is_file() {
             let abs = std::fs::canonicalize(&candidate).unwrap_or(candidate);
-            return Ok(Some(normalize_absolute_path(abs)));
+            let norm = normalize_absolute_path(abs);
+            if let Ok(db) = self.db() {
+                let size = std::fs::metadata(&norm).map(|m| m.len()).unwrap_or(0);
+                let _ = db.upsert_script(&clean_hash, &norm, size);
+            }
+            return Ok(Some(norm));
         }
 
         Ok(None)
@@ -148,6 +189,9 @@ impl StorageManager {
 
         let abs = std::fs::canonicalize(&target_path).unwrap_or(target_path);
         let norm = normalize_absolute_path(abs);
+        if let Ok(db) = self.db() {
+            let _ = db.upsert_script(&clean_hash, &norm, content.len() as u64);
+        }
         info!("Saved script to cache: {:?}", norm);
         Ok(norm)
     }
@@ -167,10 +211,10 @@ impl StorageManager {
                 let clean_ext = ext.trim_start_matches('.');
                 format!("{}.{}", clean_hash, clean_ext)
             }
-            None => clean_hash,
+            None => clean_hash.clone(),
         };
 
-        let target_path = self.assets_dir().join(file_name);
+        let target_path = self.assets_dir().join(&file_name);
 
         tokio::fs::rename(temp_file, &target_path)
             .await
@@ -178,6 +222,10 @@ impl StorageManager {
 
         let abs = std::fs::canonicalize(&target_path).unwrap_or(target_path);
         let norm = normalize_absolute_path(abs);
+        if let Ok(db) = self.db() {
+            let size = std::fs::metadata(&norm).map(|m| m.len()).unwrap_or(0);
+            let _ = db.upsert_asset(&clean_hash, extension, &file_name, &norm, size);
+        }
         info!("Committed asset to CAS cache: {:?}", norm);
         Ok(norm)
     }

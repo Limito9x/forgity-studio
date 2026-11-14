@@ -7,6 +7,7 @@ use tracing::{error, info, warn};
 use crate::config::load_config;
 use crate::core::contracts::{StageResultMessage, StageTaskMessage};
 use crate::core::dispatcher::StageDispatcher;
+use crate::core::traits::RabbitMqEventSink;
 use crate::queue::rabbitmq::RabbitMqClient;
 
 pub async fn run_start(config_override: Option<&std::path::Path>, force_local: bool) -> Result<()> {
@@ -143,8 +144,9 @@ pub async fn run_start(config_override: Option<&std::path::Path>, force_local: b
             }
         };
 
+        let event_sink = Arc::new(RabbitMqEventSink::new(rabbitmq.clone()));
         let dispatcher = StageDispatcher::new(
-            rabbitmq.clone(),
+            event_sink,
             active_stages.clone(),
             dcc_pool.clone(),
             config.env.clone(),

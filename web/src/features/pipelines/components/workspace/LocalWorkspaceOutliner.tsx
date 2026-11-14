@@ -3,7 +3,6 @@ import {
   FolderOpen,
   Plus,
   Trash2,
-  FileCode,
   Workflow,
   ChevronDown,
   ChevronRight,
@@ -16,6 +15,11 @@ import {
   Package,
   Boxes,
   Zap,
+  KeyRound,
+  Cpu,
+  Layers,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +38,10 @@ import {
   useLocalPaletteQuery,
   useLocalPipelinesQuery,
 } from "../../hooks/workspace";
-import { formatNodeLabel } from "../../utils/labelFormatter";
+import {
+  useWorkspaceUiPrefsStore,
+  useProjectUiPrefs,
+} from "../../stores/useWorkspaceUiPrefsStore";
 import type {
   LocalDraftNode,
   ScannedPipelineYamlItemRust,
@@ -43,9 +50,13 @@ import type {
 interface LocalWorkspaceOutlinerProps {
   projectId: string;
   activeDraftPipeline?: ScannedPipelineYamlItemRust | null;
+  activeTabId?: string | null;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
   onSelectScript?: (node: LocalDraftNode) => void;
   onSelectDraft?: (draft: ScannedPipelineYamlItemRust) => void;
-  onOpenSyncSheet?: () => void;
+  onOpenPalette?: () => void;
+  onSyncPalette?: () => void;
   onOpenConfig?: () => void;
   onOpenConstants?: () => void;
   onOpenStructs?: () => void;
@@ -58,10 +69,15 @@ interface LocalWorkspaceOutlinerProps {
 export function LocalWorkspaceOutliner({
   projectId,
   activeDraftPipeline,
-  onSelectScript,
+  activeTabId,
+  collapsed = false,
+  onToggleCollapse,
   onSelectDraft,
-  onOpenSyncSheet,
+  onOpenPalette,
+  onSyncPalette,
   onOpenConfig,
+  onOpenConstants,
+  onOpenStructs,
   onOpenPullDialog,
   onOpenUnpackDialog,
   isCreatingPipelineExternal,
@@ -77,7 +93,6 @@ export function LocalWorkspaceOutliner({
     draftNodes,
     isScanning,
     scanAndSyncScripts,
-    removeNodeFromPalette,
   } = useLocalPaletteQuery(rootPath, config?.scriptsDir, config?.ignorePatterns);
 
   const {
@@ -89,10 +104,13 @@ export function LocalWorkspaceOutliner({
     deletePipeline,
   } = useLocalPipelinesQuery(rootPath, config?.pipelinesDir);
 
-  const [scriptsExpanded, setScriptsExpanded] = useState(true);
-  const [componentsExpanded, setComponentsExpanded] = useState(true);
-  const [masterExpanded, setMasterExpanded] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const uiPrefs = useProjectUiPrefs(projectId);
+  const toggleSection = useWorkspaceUiPrefsStore((s) => s.toggleSection);
+  const setSectionExpanded = useWorkspaceUiPrefsStore((s) => s.setSectionExpanded);
+  const componentsExpanded = uiPrefs.sections.componentPipes;
+  const masterExpanded = uiPrefs.sections.masterPipelines;
+  const setComponentsExpanded = (val: boolean) => setSectionExpanded(projectId, "componentPipes", val);
+  const setMasterExpanded = (val: boolean) => setSectionExpanded(projectId, "masterPipelines", val);
 
   // Pipeline rename dialog state
   const [renamingDraft, setRenamingDraft] = useState<ScannedPipelineYamlItemRust | null>(null);
@@ -114,15 +132,7 @@ export function LocalWorkspaceOutliner({
   const { data: studioQuota } = useStudioQuota(studioSlug);
   const creditsRemaining = studioQuota?.executionCreditsRemaining ?? 50;
 
-  const draftNodeList = Object.values(draftNodes);
   const rootFolderName = rootPath ? rootPath.split(/[/\\]/).filter(Boolean).pop() || "Workspace" : "No Workspace";
-
-  const filteredNodes = draftNodeList.filter(
-    (n) =>
-      n.fileName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      n.suggestedLabel.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      n.key.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   const handlePickOtherRoot = async () => {
     if (!isTauriRuntime()) return;
@@ -136,15 +146,6 @@ export function LocalWorkspaceOutliner({
       }
     } catch (err: any) {
       toast.error("Failed to switch workspace", { description: err?.message });
-    }
-  };
-
-  const handleRemoveNode = async (nodeKey: string) => {
-    try {
-      await removeNodeFromPalette(nodeKey);
-      toast.success(`Removed '${nodeKey}' from palette`);
-    } catch (err: any) {
-      toast.error("Failed to remove node", { description: err?.message });
     }
   };
 
@@ -223,8 +224,96 @@ export function LocalWorkspaceOutliner({
     return "bg-emerald-500/10 text-emerald-500 border-emerald-500/20";
   };
 
+  const paletteCount = Object.keys(draftNodes || {}).length;
+
+  if (collapsed) {
+    return (
+      <div className="w-11 h-full flex flex-col items-center py-2.5 gap-1.5 bg-card/60 border-r border-border/60 select-none shrink-0">
+        {onToggleCollapse && (
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            title="Expand Sidebar (Ctrl+B)"
+            className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
+          >
+            <PanelLeftOpen className="h-4 w-4" />
+          </button>
+        )}
+        <div className="w-5 h-px bg-border/60 my-0.5" />
+        <button
+          type="button"
+          onClick={onOpenStructs}
+          title="Structs"
+          className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
+            activeTabId === "singleton:structs"
+              ? "bg-indigo-500/15 text-indigo-400"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+          }`}
+        >
+          <Boxes className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={onOpenConstants}
+          title="Constants"
+          className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
+            activeTabId === "singleton:constants"
+              ? "bg-amber-500/15 text-amber-400"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+          }`}
+        >
+          <KeyRound className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={onOpenPalette}
+          title={`Node Palette (${paletteCount})`}
+          className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
+            activeTabId === "singleton:palette"
+              ? "bg-emerald-500/15 text-emerald-400"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+          }`}
+        >
+          <Cpu className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => (onSyncPalette ? onSyncPalette() : scanAndSyncScripts())}
+          disabled={isScanning}
+          title="Sync Scripts"
+          className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-emerald-400 hover:bg-muted/60 transition-colors cursor-pointer disabled:opacity-50"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isScanning ? "animate-spin text-emerald-500" : ""}`} />
+        </button>
+        <div className="w-5 h-px bg-border/60 my-0.5" />
+        <button
+          type="button"
+          onClick={() => {
+            setComponentsExpanded(true);
+            onToggleCollapse?.();
+          }}
+          title={`Component Pipes (${componentPipes.length})`}
+          className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
+        >
+          <Layers className="h-4 w-4 text-amber-500/80" />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setMasterExpanded(true);
+            onToggleCollapse?.();
+          }}
+          title={`Master Pipelines (${masterPipelines.length})`}
+          className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
+        >
+          <Workflow className="h-4 w-4 text-primary/80" />
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col h-full bg-card/60 border-r border-border/60 w-80 shrink-0 select-none">
+    <div className="flex flex-col h-full bg-card/60 border-r border-border/60 w-64 shrink-0 select-none">
       {/* Root Workspace Header bar */}
       <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/60">
         <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -258,19 +347,17 @@ export function LocalWorkspaceOutliner({
           >
             <Settings2 className="h-3.5 w-3.5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onPress={() => {
-              if (onOpenSyncSheet) onOpenSyncSheet();
-              else scanAndSyncScripts();
-            }}
-            isDisabled={isScanning}
-            className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
-          >
-            <RefreshCw className={`h-3 w-3 ${isScanning ? "animate-spin text-emerald-500" : ""}`} />
-            Sync
-          </Button>
+          {onToggleCollapse && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={onToggleCollapse}
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+              aria-label="Collapse Sidebar (Ctrl+B)"
+            >
+              <PanelLeftClose className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -294,12 +381,70 @@ export function LocalWorkspaceOutliner({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
+      <div className="flex-1 overflow-y-auto px-2 py-2.5 space-y-3">
+        {/* Top Navigation Items: Structs, Constants, Node Palette */}
+        <div className="space-y-0.5 pb-2 border-b border-border/50">
+          <button
+            type="button"
+            onClick={onOpenStructs}
+            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+              activeTabId === "singleton:structs"
+                ? "bg-indigo-500/15 text-indigo-400"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            }`}
+          >
+            <Boxes className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+            <span className="truncate">Structs</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenConstants}
+            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+              activeTabId === "singleton:constants"
+                ? "bg-amber-500/15 text-amber-400"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            }`}
+          >
+            <KeyRound className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            <span className="truncate">Constants</span>
+          </button>
+
+          <div
+            onClick={onOpenPalette}
+            className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+              activeTabId === "singleton:palette"
+                ? "bg-emerald-500/15 text-emerald-400"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            }`}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <Cpu className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+              <span className="truncate">Node Palette</span>
+              <span className="text-[10px] font-mono text-muted-foreground">({paletteCount})</span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onSyncPalette) onSyncPalette();
+                else scanAndSyncScripts();
+              }}
+              disabled={isScanning}
+              title="Sync & Scan Scripts"
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-muted-foreground hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3 w-3 ${isScanning ? "animate-spin text-emerald-500" : ""}`} />
+              <span>Sync</span>
+            </button>
+          </div>
+        </div>
+
         {/* Section 1A: Component Pipes (Single DCC Units) */}
         <div className="space-y-1">
           <div className="flex items-center justify-between text-xs font-medium text-foreground px-1 py-1">
             <button
-              onClick={() => setComponentsExpanded(!componentsExpanded)}
+              onClick={() => toggleSection(projectId, "componentPipes")}
               className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
             >
               {componentsExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
@@ -470,7 +615,7 @@ export function LocalWorkspaceOutliner({
         <div className="space-y-1">
           <div className="flex items-center justify-between text-xs font-medium text-foreground px-1 py-1">
             <button
-              onClick={() => setMasterExpanded(!masterExpanded)}
+              onClick={() => toggleSection(projectId, "masterPipelines")}
               className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
             >
               {masterExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
@@ -627,91 +772,6 @@ export function LocalWorkspaceOutliner({
           )}
         </div>
 
-        {/* Section 2: Local Palette Scripts */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between text-xs font-medium text-foreground px-1 py-1">
-            <button
-              onClick={() => setScriptsExpanded(!scriptsExpanded)}
-              className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {scriptsExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-              <span>Local Palette Nodes ({draftNodeList.length})</span>
-            </button>
-          </div>
-
-          {scriptsExpanded && (
-            <div className="space-y-1 pl-1">
-              {draftNodeList.length > 6 && (
-                <div className="px-1 py-1">
-                  <Input
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Filter scripts..."
-                    className="h-7 text-xs bg-background/50"
-                  />
-                </div>
-              )}
-
-              {filteredNodes.length === 0 ? (
-                <p className="text-[11px] text-muted-foreground px-2 py-1 italic">
-                  {draftNodeList.length === 0 ? "No palette saved. Click Sync to scan scripts." : "No matching scripts."}
-                </p>
-              ) : (
-                filteredNodes.map((node) => (
-                  <div
-                    key={node.key}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData(
-                        "application/forgity-node",
-                        JSON.stringify({
-                          key: `local:${node.key}`,
-                          label: formatNodeLabel(node.suggestedLabel || node.fileName),
-                          category: "Local Scripts",
-                          executor: node.executor,
-                          inputs: node.inputs || [],
-                          outputs: node.outputs || [],
-                          source: "LocalDraft",
-                        })
-                      );
-                      e.dataTransfer.effectAllowed = "copy";
-                    }}
-                    onClick={() => onSelectScript?.(node)}
-                    className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-muted/60 cursor-grab active:cursor-grabbing text-xs group transition-colors select-none"
-                  >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <FileCode className="h-3.5 w-3.5 text-muted-foreground shrink-0 group-hover:text-emerald-500" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-foreground font-medium text-[11px]">
-                          {formatNodeLabel(node.suggestedLabel || node.fileName)}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground truncate font-mono">
-                          {node.key}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveNode(node.key);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive transition-opacity"
-                        title={`Remove '${node.key}' from Palette`}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                      <Badge variant="outline" className={`text-[9px] px-1 py-0 h-4 ${getExecutorColor(node.executor)}`}>
-                        {node.executor}
-                      </Badge>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

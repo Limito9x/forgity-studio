@@ -6,6 +6,7 @@ import {
   Trash2,
   HardDrive,
   Loader2,
+  ArrowLeft,
 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ interface LocalScriptSyncSheetProps {
   isOpen: boolean;
   onClose: () => void;
   initialScriptKey?: string;
+  embedded?: boolean;
 }
 
 export function LocalScriptSyncSheet({
@@ -38,6 +40,7 @@ export function LocalScriptSyncSheet({
   isOpen,
   onClose,
   initialScriptKey: _initialScriptKey,
+  embedded = false,
 }: LocalScriptSyncSheetProps) {
   const {
     previewScanScripts,
@@ -101,10 +104,10 @@ export function LocalScriptSyncSheet({
   };
 
   useEffect(() => {
-    if (isOpen) {
+    if (embedded || isOpen) {
       loadNativeScripts();
     }
-  }, [isOpen]);
+  }, [embedded, isOpen, rootPath, scriptsDir]);
 
   // Convert StagedScriptItem[] to AnalyzedCustomNodeDto[] for full compatibility with Deck components
   const analyzedNodes: AnalyzedCustomNodeDto[] = useMemo(() => {
@@ -222,23 +225,28 @@ export function LocalScriptSyncSheet({
     return { newCount, modCount, sameCount, total: stagedNodes.length };
   }, [stagedNodes]);
 
-  return (
-    <Dialog
-      isOpen={isOpen}
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-      className="sm:max-w-[95vw] max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] p-0 gap-0 overflow-hidden rounded-2xl bg-background border border-border shadow-2xl flex flex-col"
-    >
+  const content = (
+    <>
       {/* Top Header */}
       <div className="h-14 border-b border-border bg-card/60 px-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
+          {embedded && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={onClose}
+              className="gap-1.5 text-xs h-8 text-muted-foreground hover:text-foreground -ml-2"
+            >
+              <ArrowLeft className="size-3.5" />
+              Back to Canvas
+            </Button>
+          )}
           <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500">
             <FileCode className="size-4" />
           </div>
           <div>
             <h1 className="text-sm font-bold tracking-tight text-foreground">
-              Local Script Ingestion & Review Studio
+              {embedded ? "Node Palette & Script Ingestion" : "Local Script Ingestion & Review Studio"}
             </h1>
           </div>
         </div>
@@ -366,7 +374,7 @@ export function LocalScriptSyncSheet({
 
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onPress={onClose} className="h-7 text-xs">
-            Cancel
+            {embedded ? "Back to Canvas" : "Cancel"}
           </Button>
           <Button
             size="sm"
@@ -379,6 +387,26 @@ export function LocalScriptSyncSheet({
           </Button>
         </div>
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <Dialog
+      isOpen={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      className="sm:max-w-[95vw] max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] p-0 gap-0 overflow-hidden rounded-2xl bg-background border border-border shadow-2xl flex flex-col"
+    >
+      {content}
     </Dialog>
   );
 }

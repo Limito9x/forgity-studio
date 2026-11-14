@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { Boxes, Layers, Trash2, ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Boxes, Layers, Trash2, } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useLocalPaletteQuery } from "../../hooks/workspace";
@@ -8,10 +7,9 @@ import type { LocalStructDefinition, LocalStructField } from "../../types/worksp
 
 interface LocalStructsManagerPageProps {
   rootPath?: string | null;
-  onBackToCanvas: () => void;
 }
 
-export function LocalStructsManagerPage({ rootPath, onBackToCanvas }: LocalStructsManagerPageProps) {
+export function LocalStructsManagerPage({ rootPath }: LocalStructsManagerPageProps) {
   const { localStructs, deleteLocalStruct } = useLocalPaletteQuery(rootPath ?? null);
   const [selectedStruct, setSelectedStruct] = useState<LocalStructDefinition | null>(
     localStructs.length > 0 ? localStructs[0] : null
@@ -36,16 +34,6 @@ export function LocalStructsManagerPage({ rootPath, onBackToCanvas }: LocalStruc
       {/* Top Header */}
       <div className="h-12 border-b border-border/80 px-4 flex items-center justify-between shrink-0 bg-card/40">
         <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onPress={onBackToCanvas}
-            className="gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back to Canvas</span>
-          </Button>
-          <div className="h-4 w-[1px] bg-border/60" />
           <div className="flex items-center gap-2">
             <Boxes className="h-4 w-4 text-primary shrink-0" />
             <div>
@@ -84,11 +72,10 @@ export function LocalStructsManagerPage({ rootPath, onBackToCanvas }: LocalStruc
                   <div
                     key={st.slug}
                     onClick={() => setSelectedStruct(st)}
-                    className={`flex items-center justify-between px-4 py-3 cursor-pointer text-xs transition-colors ${
-                      isSelected
-                        ? "bg-primary/10 text-primary font-medium"
-                        : "hover:bg-muted/30 text-foreground"
-                    }`}
+                    className={`flex items-center justify-between px-4 py-3 cursor-pointer text-xs transition-colors ${isSelected
+                      ? "bg-primary/10 text-primary font-medium"
+                      : "hover:bg-muted/30 text-foreground"
+                      }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
                       <Layers className={`h-4 w-4 shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />

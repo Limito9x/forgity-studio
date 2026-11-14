@@ -51,6 +51,18 @@ impl StorageCleaner {
         let max_age = Duration::from_secs(max_log_age_days * 24 * 3600);
         let now = SystemTime::now();
 
+        // Remove legacy .storage.lock if present
+        let legacy_lock = self.storage.base_dir().join(".storage.lock");
+        if legacy_lock.is_file() {
+            let _ = remove_file(&legacy_lock).await;
+        }
+
+        if clean_all {
+            if let Ok(db) = self.storage.db() {
+                let _ = db.clear_all_cache_records();
+            }
+        }
+
         // 1. Clean temp directory (all subdirectories & files)
         let temp_dir = self.storage.temp_dir();
         if temp_dir.exists() {

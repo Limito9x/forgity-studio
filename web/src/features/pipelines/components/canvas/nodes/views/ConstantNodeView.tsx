@@ -3,13 +3,17 @@ import type { NodeProps } from "@xyflow/react";
 import type { CustomPipelineNodeData } from "../types";
 import { NodeCard } from "../parts/NodeCard";
 import { NodeHeader } from "../parts/NodeHeader";
-import { PinOutputRow } from "../parts/PinRow";
+import { PinInputRow, PinOutputRow } from "../parts/PinRow";
 import { useNodeDefinition } from "../../NodeDefinitions";
 
 export function ConstantNodeView({ data, selected }: NodeProps) {
   const nodeData = data as unknown as CustomPipelineNodeData;
   const definition = useNodeDefinition(nodeData.kind, nodeData.refId);
   const outputs = nodeData.outputs || [];
+  const inputs =
+    nodeData.inputs && nodeData.inputs.length > 0
+      ? nodeData.inputs
+      : (definition?.inputs ?? []);
 
   const caps = definition?.capabilities as Record<string, any> | undefined;
   const scope = caps?.scope || "General";
@@ -60,6 +64,21 @@ export function ConstantNodeView({ data, selected }: NodeProps) {
       {scope === "Unreal" && resolvedUnrealPath && (
         <div className="px-3 pt-0.5 text-[9px] font-mono text-indigo-400 truncate" title={resolvedUnrealPath}>
           🎮 {resolvedUnrealPath}
+        </div>
+      )}
+
+      {/* Dynamic Template Input Pins ({var} placeholders) */}
+      {inputs.length > 0 && (
+        <div className="px-3 pt-2 text-xs">
+          <div className="space-y-2">
+            {inputs.map((pin, idx) => (
+              <PinInputRow
+                key={pin.id || `in_${idx}`}
+                pin={pin}
+                pinId={pin.id || `in_${idx}`}
+              />
+            ))}
+          </div>
         </div>
       )}
 

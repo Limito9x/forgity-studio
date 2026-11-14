@@ -74,3 +74,4 @@ Toàn bộ dữ liệu có giá trị mang đi (Portable / Git-friendly / AI-rea
 - **Thách thức cần kiểm soát**:
   - Cần giữ đồng bộ 2 chiều sạch sẽ giữa thao tác chỉnh sửa trên UI (Struct/Constant/Override) với file `contracts.yaml` để file trên đĩa luôn phản ánh đúng ý định người dùng khi đóng gói hoặc commit Git.
   - Cần cơ chế auto-migrate dữ liệu từ `manifest.json` và `.forgity/*.json` cũ sang SQLite trong giai đoạn chuyển tiếp.
+

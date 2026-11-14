@@ -592,11 +592,11 @@ pub fn analyze_local_scripts_native(
                 })
                 .unwrap_or_default();
 
-            analyzed_items.push(AnalyzedLocalScriptItem {
+            let mut item = AnalyzedLocalScriptItem {
                 key: scanned.key,
                 file_name: scanned.file_name,
                 full_path: scanned.full_path,
-                folder_root: scanned.folder_root,
+                folder_root: scanned.folder_root.clone(),
                 namespace: scanned.namespace,
                 relative_path: scanned.relative_path,
                 suggested_name,
@@ -610,7 +610,34 @@ pub fn analyze_local_scripts_native(
                 detected_structs,
                 dependencies,
                 last_modified_ms: scanned.last_modified_ms,
-            });
+            };
+
+            // Apply declarative script_overrides from contracts.yaml (check folder_root and its parent)
+            let root_candidate = Path::new(&item.folder_root);
+            let contracts = if super::contracts::contracts_path(root_candidate).is_file() {
+                Some(super::contracts::load_contracts_file(root_candidate))
+            } else if let Some(parent) = root_candidate.parent() {
+                if super::contracts::contracts_path(parent).is_file() {
+                    Some(super::contracts::load_contracts_file(parent))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            if let Some(c) = contracts {
+                if let Some(ov) = c.script_overrides.get(&item.key) {
+                    if let Ok(mut json_val) = serde_json::to_value(&item) {
+                        super::contracts::apply_script_override_to_json(&mut json_val, ov);
+                        if let Ok(merged) = serde_json::from_value::<AnalyzedLocalScriptItem>(json_val) {
+                            item = merged;
+                        }
+                    }
+                }
+            }
+
+            analyzed_items.push(item);
         }
     }
 
