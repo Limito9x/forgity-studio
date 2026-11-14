@@ -72,18 +72,6 @@ export function useProjectNav(options?: ProjectNavOptions) {
       `${projectBase}/pipeline/nodes/new${editNodeId ? `?editNodeId=${editNodeId}` : ""}`,
     nodeIngest: () => `${projectBase}/pipeline/nodes/ingest`,
 
-    // Repositories
-    repositories: () => `${projectBase}/repositories`,
-    repositoryDetail: (repositoryId: string, customProjectId?: string) => {
-      const pId = customProjectId || urlProjectKey;
-      const base = studioSlug
-        ? `/s/${studioSlug}/projects/${pId}`
-        : `/projects/${pId}`;
-      return `${base}/repositories/${repositoryId}`;
-    },
-    resourceDetail: (resourceId: string, workspaceId?: string) =>
-      `${projectBase}/resources/${resourceId}${workspaceId ? `?workspaceId=${workspaceId}` : ""}`,
-
     // Content Types
     contentTypes: () => `${projectBase}/content-types`,
     contentTypeDetail: (contentTypeId: string) => `${projectBase}/content-types/${contentTypeId}`,
@@ -128,13 +116,6 @@ export function useProjectNav(options?: ProjectNavOptions) {
     toNodes: () => navTo(urls.nodes()),
     toNodeNew: (editNodeId?: string) => navTo(urls.nodeNew(editNodeId)),
     toNodeIngest: () => navTo(urls.nodeIngest()),
-
-    // Repositories
-    toRepositories: () => navTo(urls.repositories()),
-    toRepositoryDetail: (repositoryId: string, customProjectId?: string) =>
-      navTo(urls.repositoryDetail(repositoryId, customProjectId)),
-    toResourceDetail: (resourceId: string, workspaceId?: string) =>
-      navTo(urls.resourceDetail(resourceId, workspaceId)),
 
     // Content Types
     toContentTypes: () => navTo(urls.contentTypes()),

@@ -21,7 +21,6 @@ import {
 import { cn } from "@/lib/utils";
 import { useUpdatePipelineTrigger } from "../../hooks/usePipelineGraph";
 import { usePipelineFormScope } from "../../form-scope/PipelineFormScope";
-import { useRepositories } from "@/features/repositories/hooks/useRepositories";
 import { TagsInput } from "@/components/custom-ui/inputs/tags-input/TagsInput";
 import { getPinVisual, formatPinTypeLabel } from "./nodes/types";
 import { toast } from "sonner";
@@ -36,7 +35,7 @@ interface PipelineStartNodeInspectorProps {
 
 export function PipelineStartNodeInspector({
   pipelineId,
-  projectId = "",
+  projectId: _projectId = "",
   triggerType = 0,
   triggerConfig = null,
 }: PipelineStartNodeInspectorProps) {
@@ -50,7 +49,7 @@ export function PipelineStartNodeInspector({
     [parameters],
   );
 
-  const { data: repositories = [] } = useRepositories(projectId);
+  const repositories: { id: string; name: string }[] = [];
   const updateTriggerMutation = useUpdatePipelineTrigger(pipelineId);
 
   const normalizedTriggerType: PipelineTriggerType =

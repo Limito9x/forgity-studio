@@ -17,7 +17,6 @@ public static class StudioServiceExtensions
         // Project Migrations
         services.AddScoped<IProjectMigrationProvider, PipelineMigrationProvider>();
         services.AddScoped<IProjectMigrationProvider, ContentMigrationProvider>();
-        services.AddScoped<IProjectMigrationProvider, RepositoryMigrationProvider>();
         services.AddScoped<ProjectMigrationOrchestrator>();
 
         return services;

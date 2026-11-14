@@ -28,7 +28,6 @@ import {
   Folder,
   ArrowLeftRight,
   Workflow,
-  FolderGit2,
   Laptop,
   Cloud,
 } from "lucide-react";
@@ -154,20 +153,6 @@ export function ProjectSidebar() {
                   </Collapsible>
                 )}
               </SidebarMenuItem>
-
-              {/* Repositories (Studio Catalog Feature Flag) */}
-              {featureFlags.enableStudioCatalog && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    isActive={pathname.startsWith(nav.urls.repositories())}
-                    tooltip="Repositories"
-                    onPress={() => nav.toRepositories()}
-                  >
-                    <FolderGit2 />
-                    <span>Repositories</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
 
               {/* Dynamic Contents & Content Types Group (Studio Catalog Feature Flag) */}
               {featureFlags.enableStudioCatalog && contentTypesData?.items && contentTypesData.items.length > 0 && (

@@ -14,7 +14,6 @@ import {
   List,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useDialogStore } from "@/stores/dialogStore";
 import { toast } from "sonner";
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -40,18 +39,13 @@ export function ContentResourcesTab({
   } = useGetContentAnchorTree(contentId);
 
   const assignMutation = useAssignResourcesContent();
-  const openDialog = useDialogStore((state) => state.openDialog);
 
   const handleOpenLinkDialog = () => {
     if (!projectId) {
       toast.warning("Project context is required to link resources.");
       return;
     }
-    openDialog("link-content-resources", {
-      contentId,
-      contentName: contentName || "Content Item",
-      projectId,
-    });
+    toast.info("Resource repository linking has been deprecated in favor of Local-First workflows.");
   };
 
   const handleUnlink = (resourceId: string, resourceName: string) => {

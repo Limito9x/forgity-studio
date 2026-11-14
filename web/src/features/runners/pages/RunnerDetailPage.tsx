@@ -6,10 +6,8 @@ import {
   useScanRunnerExecutors,
   type RunnerDto,
 } from "../hooks/useRunners";
-import { useAttachedRepositoriesByRunner } from "../hooks/useAttachedRepositoriesByRunner";
 import { useProjectNav } from "@/lib/navigation/useProjectNav";
 import { RunnerEnginesTab } from "../components/RunnerEnginesTab";
-import { RunnerAttachedRepositoriesTab } from "../components/RunnerAttachedRepositoriesTab";
 import { RunnerHardwareTab } from "../components/RunnerHardwareTab";
 import { RunnerEnvironmentTab } from "../components/RunnerEnvironmentTab";
 import { Button } from "@/components/ui/button";
@@ -19,7 +17,6 @@ import {
   Server,
   RefreshCw,
   Layers,
-  FolderGit2,
   Cpu,
   Loader2,
   Copy,
@@ -30,7 +27,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-type RunnerDetailTab = "engines" | "repositories" | "hardware" | "env";
+type RunnerDetailTab = "engines" | "hardware" | "env";
 
 interface RunnerDetailPageProps {
   runnerId?: string;
@@ -47,11 +44,6 @@ export function RunnerDetailPage(props: RunnerDetailPageProps = {}) {
   const { data: runners = [], isLoading: isRunnersLoading, refetch: refetchRunners } = useRunners();
   const runner: RunnerDto | undefined = runners.find((r) => r.id === runnerId);
 
-  const {
-    data: attachedRepos = [],
-    refetch: refetchRepos,
-  } = useAttachedRepositoriesByRunner(runnerId);
-
   const scanHardwareMutation = useScanRunnerHardware();
   const scanSoftwareMutation = useScanRunnerExecutors();
 
@@ -59,7 +51,6 @@ export function RunnerDetailPage(props: RunnerDetailPageProps = {}) {
 
   const handleRefreshAll = () => {
     refetchRunners();
-    refetchRepos();
     toast.success("Workstation data refreshed");
   };
 
@@ -149,19 +140,6 @@ export function RunnerDetailPage(props: RunnerDetailPageProps = {}) {
             className="text-[10px] font-mono px-1.5 py-0 h-4 min-w-4 flex items-center justify-center"
           >
             {configuredExecutorsCount}
-          </Badge>
-        ),
-      },
-      {
-        key: "repositories",
-        label: "Attached Repositories",
-        icon: FolderGit2,
-        badge: (
-          <Badge
-            variant="secondary"
-            className="text-[10px] font-mono px-1.5 py-0 h-4 min-w-4 flex items-center justify-center"
-          >
-            {attachedRepos.length}
           </Badge>
         ),
       },
@@ -319,16 +297,7 @@ export function RunnerDetailPage(props: RunnerDetailPageProps = {}) {
         />
       )}
 
-      {/* Tab 2: Attached Repositories */}
-      {activeTab === "repositories" && (
-        <RunnerAttachedRepositoriesTab
-          runnerId={runner.id}
-          runnerName={runner.name || runner.machineKey}
-          isOnline={isOnline}
-        />
-      )}
-
-      {/* Tab 3: Hardware Specs */}
+      {/* Tab 2: Hardware Specs */}
       {activeTab === "hardware" && <RunnerHardwareTab runner={runner} />}
 
       {/* Tab 4: Environment Variables */}

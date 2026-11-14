@@ -90,7 +90,7 @@ public class PipelineContractValidator(
 
                 if (contract.ConfigValues != null && contract.ConfigValues.TryGetValue(inputPin.Id, out var val) && val != null)
                 {
-                    if (Automation.Pipeline.Runtime.State.PipelineFileValue.TryGetUnbound(val, out var unboundInfo))
+                    if (PipelineFileValue.TryGetUnbound(val, out var unboundInfo))
                     {
                         isUnboundFile = true;
                         unboundFileName = unboundInfo?.OriginalFileName;

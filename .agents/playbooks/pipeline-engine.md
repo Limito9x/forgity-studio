@@ -1,5 +1,13 @@
 # Pipeline Playbook: Engine Lifecycle & Execution Mechanics
 
+> [!IMPORTANT]
+> **CẬP NHẬT KIẾN TRÚC (14/11/2026 — Local-First 2-Tier Runner Engine):**
+> - Toàn bộ `.NET` Backend DAG Execution Engine (`Automation.Pipeline.Runtime`, `ExecPlanner`, `PipelineOrchestrator`, `DotNetSegmentDispatcher`, `RunnerSegmentDispatcher`, `RedisExecutionStateStore`, `RedisExecutionMemoryStore`, RabbitMQ `stage_tasks`/`stage_results`) đã được **gỡ bỏ hoàn toàn** trên nhánh `develop` (bản lưu trữ lịch sử nằm ở nhánh `archive/pre-local-first-cleanup`).
+> - **Engine thực thi mới nằm 100% trong Rust Runner (`runner/`)**:
+>   - Tầng 2 (`MasterOrchestrator`): Điều phối `Start`, `End`, `Sequence`, `Joint` và `local:component:*` (Fork-Join DAG).
+>   - Tầng 1 (`ComponentOrchestrator`): Điều phối `*.component.yaml` (`DagScheduler` + `Blackboard` + `execute_pure_node` + `StageDispatcher`), hỗ trợ Batch với `Semaphore(max_concurrency)` & flatten outputs.
+>   - Giao tiếp Client <-> Runner qua DTO `ExecutionBundle` (`forgity-runner run-bundle --stdin --json-events`) và stream sự kiện JSON-lines ra `stdout` -> Tauri `local-pipeline://event` -> React Canvas (`usePipelineLiveTracking`).
+
 > **Phạm vi:** Tài liệu hướng dẫn và kỹ thuật mô tả cốt lõi cách vận hành cho:
 > 1. Vòng đời kích hoạt & thực thi Pipeline (Trigger -> DAG Planner -> Segments -> Finish).
 > 2. Các tầng lưu trữ và quản lý tiến trình (`PipelineExecution`, `MemoryStore`, `StateStore`, `EntityStore`).

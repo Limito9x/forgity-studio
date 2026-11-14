@@ -4,8 +4,6 @@ using Automation.Files;
 using Automation.Notifications;
 using Automation.Studio;
 using Automation.Content;
-using Automation.Tag;
-using Automation.Repository;
 using Automation.Pipeline;
 using Automation.DynamicForms;
 using Automation.Runner;
@@ -22,8 +20,6 @@ public static class ModuleRegistry
         new NotificationsModule(),
         new StudioModule(),
         new ContentModule(),
-        new TagModule(),
-        new RepositoryModule(),
         new PipelineModule(),
         new DynamicFormsModule(),
         new RunnerModule()

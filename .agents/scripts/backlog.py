@@ -7,8 +7,9 @@ Manages engineering plans, archive lifecycle, BACKLOG.md, and AGENTS.md indexing
 Usage:
     python .agents/scripts/backlog.py check
     python .agents/scripts/backlog.py archive [--dry-run]
+    python .agents/scripts/backlog.py compact [--dry-run]
     python .agents/scripts/backlog.py new "<Title>" [--scope "<Scope>"] [--summary "<Summary>"]
-    python .agents/scripts/backlog.py list [--active-only]
+    python .agents/scripts/backlog.py list [--active-only] [--include-archived]
 """
 
 import os
@@ -32,8 +33,11 @@ AGENTS_DIR = WORKSPACE_ROOT / ".agents"
 PLANS_DIR = AGENTS_DIR / "plans"
 ARCHIVE_DIR = PLANS_DIR / "archive"
 BACKLOG_FILE = PLANS_DIR / "BACKLOG.md"
+ARCHIVE_BACKLOG_FILE = PLANS_DIR / "BACKLOG_ARCHIVE.md"
 AGENTS_FILE = AGENTS_DIR / "AGENTS.md"
 README_FILE = PLANS_DIR / "README.md"
+
+COMPLETED_STATUSES = ("Resolved", "Merged", "Superseded")
 
 
 def get_git_tracked_files():
@@ -52,7 +56,8 @@ def get_git_tracked_files():
 
 def split_markdown_row(line):
     """
-    Splits markdown table cells properly, respecting escaped pipes (\\|).
+    Splits markdown table cells properly, respecting escaped pipes (\\|)
+    and pipes inside inline code spans (`...`).
     """
     placeholder = "@@ESCAPED_PIPE@@"
     safe_line = line.strip().replace(r"\|", placeholder)
@@ -60,30 +65,62 @@ def split_markdown_row(line):
         safe_line = safe_line[1:]
     if safe_line.endswith("|"):
         safe_line = safe_line[:-1]
-    
-    parts = safe_line.split("|")
-    return [p.replace(placeholder, r"\|").strip() for p in parts]
+
+    parts = []
+    current = []
+    in_code = False
+    for ch in safe_line:
+        if ch == "`":
+            in_code = not in_code
+            current.append(ch)
+        elif ch == "|" and not in_code:
+            parts.append("".join(current).replace(placeholder, r"\|").strip())
+            current = []
+        else:
+            current.append(ch)
+    parts.append("".join(current).replace(placeholder, r"\|").strip())
+    return parts
 
 
-def parse_backlog_items():
+def parse_status_badge(status_cell):
+    """Extracts the primary status from the status cell without misclassifying 'In Progress *(Phase ... Resolved)*'."""
+    badge_match = re.search(r"`([^`]+)`", status_cell)
+    primary = badge_match.group(1).strip() if badge_match else status_cell.strip()
+    lower = primary.lower()
+    if "in progress" in lower:
+        return "In Progress"
+    if "deferred" in lower:
+        return "Deferred"
+    if "merged" in lower:
+        return "Merged"
+    if "superseded" in lower:
+        return "Superseded"
+    if "resolved" in lower:
+        return "Resolved"
+    return "Pending"
+
+
+def parse_backlog_items(file_path=None):
     """
-    Parses table rows from BACKLOG.md.
+    Parses table rows from BACKLOG.md (or an archive backlog file).
     Returns list of dicts: {code, num, date, title_cell, problem, solution, links, status, status_cell, raw_line, line_idx}
     """
-    if not BACKLOG_FILE.exists():
-        print(f"Error: {BACKLOG_FILE} not found.", file=sys.stderr)
+    target_file = file_path or BACKLOG_FILE
+    if not target_file.exists():
+        if target_file == BACKLOG_FILE:
+            print(f"Error: {target_file} not found.", file=sys.stderr)
         return []
 
-    lines = BACKLOG_FILE.read_text(encoding="utf-8").splitlines()
+    lines = target_file.read_text(encoding="utf-8").splitlines()
     items = []
 
     for idx, line in enumerate(lines):
         clean_line = line.strip()
         if not clean_line.startswith("|") or "BL-" not in clean_line:
             continue
-        
+
         cells = split_markdown_row(clean_line)
-        if len(cells) < 7:
+        if len(cells) < 5:
             continue
 
         # Cell 0: **BL-001**
@@ -95,18 +132,19 @@ def parse_backlog_items():
         code = f"BL-{bl_num:03d}"
         date_str = cells[1]
         title_cell = cells[2]
-        problem_cell = cells[3]
-        solution_cell = cells[4]
-        links_cell = cells[5]
-        status_cell = cells[6]
+        if len(cells) >= 7:
+            problem_cell = cells[3]
+            solution_cell = cells[4]
+            links_cell = cells[5]
+            status_cell = cells[6]
+        else:
+            # Compact 5-column archive format: Code | Date | Title | Links | Status
+            problem_cell = ""
+            solution_cell = ""
+            links_cell = cells[3]
+            status_cell = cells[4]
 
-        status = "Pending"
-        if "Resolved" in status_cell:
-            status = "Resolved"
-        elif "Merged" in status_cell:
-            status = "Merged"
-        elif "In Progress" in status_cell:
-            status = "In Progress"
+        status = parse_status_badge(status_cell)
 
         items.append({
             "code": code,
@@ -145,11 +183,19 @@ def extract_plan_paths_from_cell(links_cell):
 
 def cmd_list(args):
     items = parse_backlog_items()
+    if getattr(args, "include_archived", False):
+        archived_items = parse_backlog_items(ARCHIVE_BACKLOG_FILE)
+        seen = {i["code"] for i in items}
+        for ai in archived_items:
+            if ai["code"] not in seen:
+                items.append(ai)
+        items.sort(key=lambda x: x["num"])
+
     print(f"\nTotal Backlog Items: {len(items)}\n" + "=" * 90)
     print(f"{'Code':<8} | {'Date':<10} | {'Status':<12} | {'Title'}")
     print("-" * 90)
     for item in items:
-        if args.active_only and item["status"] in ("Resolved", "Merged"):
+        if args.active_only and item["status"] in COMPLETED_STATUSES:
             continue
         title_match = re.search(r"\*\*([^*]+)\*\*", item["title_cell"])
         title = title_match.group(1) if title_match else item["title_cell"][:40]
@@ -172,8 +218,9 @@ def cmd_check(args):
     errors = 0
     warnings = 0
 
-    # 1. Check all links in BACKLOG.md
-    for item in items:
+    # 1. Check all links in BACKLOG.md & BACKLOG_ARCHIVE.md
+    archived_backlog_items = parse_backlog_items(ARCHIVE_BACKLOG_FILE)
+    for item in items + archived_backlog_items:
         plan_links = extract_plan_paths_from_cell(item["links"])
         for link_text, raw_url, target_path in plan_links:
             if target_path.suffix == ".md" and "plans" in str(target_path).lower():
@@ -181,20 +228,24 @@ def cmd_check(args):
                     # Check if it was moved to archive without updating link
                     archived_path = find_file_in_archive(target_path.name)
                     if archived_path:
-                        print(f"⚠️  [LINK OUTDATED] {item['code']}: '{target_path.name}' exists in archive '{archived_path.parent.name}' but BACKLOG link points to root plans.")
+                        print(f"⚠️  [LINK OUTDATED] {item['code']}: '{target_path.name}' exists in archive '{archived_path.parent.name}' but link points to root plans.")
                         warnings += 1
                     else:
                         print(f"❌ [BROKEN LINK] {item['code']}: {link_text} -> {target_path} DOES NOT EXIST.")
                         errors += 1
                 else:
-                    if item["status"] in ("Resolved", "Merged") and target_path.parent == PLANS_DIR:
+                    if item["status"] in COMPLETED_STATUSES and target_path.parent == PLANS_DIR:
                         print(f"⚠️  [SHOULD ARCHIVE] {item['code']} is '{item['status']}' but file is in root plans: {target_path.name}")
                         warnings += 1
 
+    completed_in_active = [i["code"] for i in items if i["status"] in COMPLETED_STATUSES]
+    if completed_in_active:
+        print(f"ℹ️  [CAN COMPACT] {len(completed_in_active)} completed items in BACKLOG.md can be moved to BACKLOG_ARCHIVE.md ({', '.join(completed_in_active[:5])}{'...' if len(completed_in_active) > 5 else ''}).")
+
     # 2. Check root plans directory for unlinked files
-    root_plan_files = [f for f in PLANS_DIR.glob("*.md") if f.name not in ("BACKLOG.md", "README.md")]
+    root_plan_files = [f for f in PLANS_DIR.glob("*.md") if f.name not in ("BACKLOG.md", "BACKLOG_ARCHIVE.md", "README.md")]
     all_referenced_names = set()
-    for item in items:
+    for item in items + archived_backlog_items:
         for _, _, p in extract_plan_paths_from_cell(item["links"]):
             all_referenced_names.add(p.name.lower())
 
@@ -270,13 +321,13 @@ def cmd_archive(args):
                 healed_links_count += 1
 
     # Phase 2: Move root plans that are Resolved/Merged into their archive folder
-    root_plans = [f for f in PLANS_DIR.glob("*.md") if f.name not in ("BACKLOG.md", "README.md")]
+    root_plans = [f for f in PLANS_DIR.glob("*.md") if f.name not in ("BACKLOG.md", "BACKLOG_ARCHIVE.md", "README.md")]
 
     for plan_file in root_plans:
         # Check if plan corresponds to a Resolved or Merged item
         item_match = None
         for item in items:
-            if item["status"] in ("Resolved", "Merged") and plan_file.name.lower() in item["links"].lower():
+            if item["status"] in COMPLETED_STATUSES and plan_file.name.lower() in item["links"].lower():
                 item_match = item
                 break
 
@@ -357,8 +408,109 @@ def cmd_archive(args):
     return 0
 
 
+def build_archive_row(item):
+    """Formats a completed backlog item into a concise 5-column row for BACKLOG_ARCHIVE.md."""
+    return (
+        f"| **{item['code']}** | {item['date']} | {item['title_cell']} | "
+        f"{item['links']} | {item['status_cell']} |"
+    )
+
+
+def cmd_compact(args):
+    """
+    Scans BACKLOG.md for completed items (Resolved / Merged / Superseded),
+    archives any completed root plan files into archive/YYYY-MM/,
+    and moves completed rows into BACKLOG_ARCHIVE.md so BACKLOG.md stays lean.
+    """
+    print("\n🧹 Scanning & Compacting Completed Backlog Items...\n")
+
+    # 1. First run archive lifecycle to move completed plan files & heal links
+    arch_args = argparse.Namespace(dry_run=args.dry_run, all_resolved=False)
+    cmd_archive(arch_args)
+
+    # 2. Parse active BACKLOG.md (after potential link healing)
+    items = parse_backlog_items(BACKLOG_FILE)
+    completed_items = [i for i in items if i["status"] in COMPLETED_STATUSES]
+
+    if not completed_items:
+        print("✨ BACKLOG.md is already compact (0 completed rows to move).\n")
+        return 0
+
+    print(f"📋 Found {len(completed_items)} completed items to move to BACKLOG_ARCHIVE.md:")
+    for item in completed_items:
+        title_match = re.search(r"\*\*([^*]+)\*\*", item["title_cell"])
+        title = title_match.group(1) if title_match else item["title_cell"][:50]
+        print(f"   - {item['code']} ({item['status']}): {title}")
+
+    if args.dry_run:
+        print("\n💡 [DRY-RUN] No files were modified.\n")
+        return 0
+
+    # 3. Merge into BACKLOG_ARCHIVE.md (deduplicated & sorted by BL number)
+    existing_archived = parse_backlog_items(ARCHIVE_BACKLOG_FILE)
+    archived_by_code = {i["code"]: build_archive_row(i) for i in existing_archived}
+    for item in completed_items:
+        archived_by_code[item["code"]] = build_archive_row(item)
+
+    sorted_codes = sorted(
+        archived_by_code.keys(),
+        key=lambda c: int(re.search(r"BL-(\d+)", c).group(1)),
+    )
+
+    archive_header = [
+        "# Lưu Trữ Backlog Đã Hoàn Thành (Completed Backlog Archive)",
+        "",
+        f"> Tài liệu này lưu trữ gọn các hạng mục đã `Resolved` / `Merged` được rút ra từ [BACKLOG.md](file:///{BACKLOG_FILE.as_posix()}) để giữ file Backlog chính tinh gọn.",
+        "",
+        "| Mã | Ngày đề xuất | Tiêu đề & Phạm vi | Tài liệu liên quan | Trạng thái |",
+        "| :--- | :--- | :--- | :--- | :--- |",
+    ]
+    archive_lines = archive_header + [archived_by_code[c] for c in sorted_codes] + [""]
+    ARCHIVE_BACKLOG_FILE.write_text("\n".join(archive_lines), encoding="utf-8")
+
+    # 4. Remove completed lines from BACKLOG.md and insert pointer to BACKLOG_ARCHIVE.md
+    completed_line_indices = {i["line_idx"] for i in completed_items}
+    orig_lines = BACKLOG_FILE.read_text(encoding="utf-8").splitlines()
+    filtered_lines = [
+        line for idx, line in enumerate(orig_lines) if idx not in completed_line_indices
+    ]
+
+    # Clean up redundant consecutive '---' separators created when rows between '---' are removed
+    cleaned_lines = []
+    for line in filtered_lines:
+        if line.strip() == "---" and cleaned_lines and cleaned_lines[-1].strip() == "---":
+            continue
+        cleaned_lines.append(line)
+
+    # Remove leading '---' immediately after table header separator '| :--- | ...'
+    final_lines = []
+    for line in cleaned_lines:
+        if (
+            line.strip() == "---"
+            and final_lines
+            and final_lines[-1].strip().startswith("| :---")
+        ):
+            continue
+        final_lines.append(line)
+
+    archive_note = f"> 📦 Các hạng mục đã hoàn thành (`Resolved` / `Merged`) được lưu trữ gọn tại [BACKLOG_ARCHIVE.md](file:///{ARCHIVE_BACKLOG_FILE.as_posix()})."
+    backlog_text = "\n".join(final_lines)
+    if "BACKLOG_ARCHIVE.md" not in backlog_text:
+        marker = "## 2. Bảng Danh Mục Backlog Kỹ Thuật"
+        if marker in backlog_text:
+            backlog_text = backlog_text.replace(marker, f"{marker}\n\n{archive_note}", 1)
+
+    BACKLOG_FILE.write_text(backlog_text + "\n", encoding="utf-8")
+
+    print(
+        f"\n✅ Compacted {len(completed_items)} items into {ARCHIVE_BACKLOG_FILE.relative_to(WORKSPACE_ROOT)}.\n"
+        f"   Active items remaining in BACKLOG.md: {len(items) - len(completed_items)}.\n"
+    )
+    return 0
+
+
 def cmd_new(args):
-    items = parse_backlog_items()
+    items = parse_backlog_items(BACKLOG_FILE) + parse_backlog_items(ARCHIVE_BACKLOG_FILE)
     next_num = max([item["num"] for item in items], default=0) + 1
     code = f"BL-{next_num:03d}"
 
@@ -453,6 +605,7 @@ def main():
     # list
     list_parser = subparsers.add_parser("list", help="List backlog items")
     list_parser.add_argument("--active-only", action="store_true", help="Show only pending/active items")
+    list_parser.add_argument("--include-archived", action="store_true", help="Include items from BACKLOG_ARCHIVE.md")
 
     # check
     subparsers.add_parser("check", help="Verify links and backlog file integrity")
@@ -461,6 +614,10 @@ def main():
     arch_parser = subparsers.add_parser("archive", help="Archive resolved plans into archive/YYYY-MM/")
     arch_parser.add_argument("--dry-run", action="store_true", help="Print actions without modifying files")
     arch_parser.add_argument("--all-resolved", action="store_true", help="Archive all resolved items even if not explicitly marked")
+
+    # compact
+    compact_parser = subparsers.add_parser("compact", help="Archive completed plans and move Resolved/Merged rows to BACKLOG_ARCHIVE.md")
+    compact_parser.add_argument("--dry-run", action="store_true", help="Preview changes without modifying files")
 
     # new
     new_parser = subparsers.add_parser("new", help="Create a new backlog item and plan document")
@@ -476,6 +633,8 @@ def main():
         return cmd_check(args)
     elif args.command == "archive":
         return cmd_archive(args)
+    elif args.command == "compact":
+        return cmd_compact(args)
     elif args.command == "new":
         return cmd_new(args)
 
