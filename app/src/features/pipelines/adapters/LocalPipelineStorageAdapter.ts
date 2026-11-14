@@ -7,7 +7,8 @@ export interface LocalStorageAdapterConfig {
   rootPath: string;
   pipelineSlug: string;
   filePath: string;
-  onRunDraft?: () => void;
+  onRunDraft?: (runtimeInputs?: Record<string, any>) => Promise<void> | void;
+  onDraftSaved?: (graph: ExtendedPipelineGraphDto) => void;
 }
 
 export class LocalPipelineStorageAdapter implements IPipelineStorageAdapter {
@@ -57,6 +58,8 @@ export class LocalPipelineStorageAdapter implements IPipelineStorageAdapter {
         );
       }
 
+      this.config.onDraftSaved?.(graph);
+
       return { success: true };
     } catch (err: any) {
       return { success: false, message: err?.message || "Failed to save local draft" };
@@ -82,9 +85,9 @@ export class LocalPipelineStorageAdapter implements IPipelineStorageAdapter {
     }
   }
 
-  async run(_options: PipelineRunOptions): Promise<any> {
+  async run(options: PipelineRunOptions): Promise<any> {
     if (this.config.onRunDraft) {
-      return this.config.onRunDraft();
+      return this.config.onRunDraft((options as any)?.runtimeInputs);
     }
     throw new Error("No runner delegate provided for local execution");
   }

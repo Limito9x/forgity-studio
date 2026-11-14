@@ -96,10 +96,13 @@ export const usePipelineGraph = (pipelineId?: string) => {
   });
 };
 
+const isLocalIdentifier = (id?: string) =>
+  !id || id.startsWith("local_") || id.includes("/") || id.includes("\\");
+
 export const usePipelineExecutions = (pipelineId?: string) => {
   return PipelinesApi.useGetPipelineExecutions(pipelineId || "", {
     query: {
-      enabled: !!pipelineId,
+      enabled: Boolean(pipelineId) && !isLocalIdentifier(pipelineId),
       placeholderData: keepPreviousData,
     },
   });
@@ -108,7 +111,7 @@ export const usePipelineExecutions = (pipelineId?: string) => {
 export const usePipelineExecution = (executionId?: string) => {
   return PipelinesApi.useGetPipelineExecution(executionId || "", {
     query: {
-      enabled: !!executionId,
+      enabled: Boolean(executionId) && !isLocalIdentifier(executionId),
     },
   });
 };
@@ -116,7 +119,7 @@ export const usePipelineExecution = (executionId?: string) => {
 export const useNodeExecutions = (executionId?: string) => {
   return PipelinesApi.useGetNodeExecutions(executionId || "", {
     query: {
-      enabled: !!executionId,
+      enabled: Boolean(executionId) && !isLocalIdentifier(executionId),
     },
   });
 };

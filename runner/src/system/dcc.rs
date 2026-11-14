@@ -282,14 +282,35 @@ pub fn probe_python_version(path: &Path) -> String {
 }
 
 /// Resolves the executable path based on the executor name ("blender", "unreal", "python").
+/// Checks user-configured `[executors]` in `runner.toml` first before falling back to auto-scan.
 pub fn resolve_executor_executable(executor: &str) -> anyhow::Result<PathBuf> {
-    match executor.to_lowercase().as_str() {
+    let key = executor.to_lowercase();
+    if let Ok((Some(cfg), _)) = crate::config::load_config(None, false) {
+        if let Some(executors) = cfg.executors {
+            if let Some(configured) = executors.get(&key) {
+                let trimmed = configured.trim().trim_matches('"');
+                if !trimmed.is_empty() {
+                    let configured_path = PathBuf::from(trimmed);
+                    if configured_path.is_file() {
+                        return Ok(configured_path);
+                    }
+                    tracing::warn!(
+                        "[DCC] Configured [executors].{} path '{}' does not exist; falling back to auto-scan.",
+                        key,
+                        trimmed
+                    );
+                }
+            }
+        }
+    }
+
+    match key.as_str() {
         "blender" => {
             let blenders = scan_blender();
             if let Some(first) = blenders.first() {
                 Ok(first.path.clone())
             } else {
-                Err(anyhow::anyhow!("Blender executable not found on this machine. Please install Blender or run 'forgity-runner doctor'."))
+                Err(anyhow::anyhow!("Blender executable not found on this machine. Please install Blender or configure it in My Machine -> DCC Config."))
             }
         }
         "unreal" => {
@@ -297,7 +318,7 @@ pub fn resolve_executor_executable(executor: &str) -> anyhow::Result<PathBuf> {
             if let Some(first) = unreals.first() {
                 Ok(first.path.clone())
             } else {
-                Err(anyhow::anyhow!("Unreal Engine executable not found on this machine."))
+                Err(anyhow::anyhow!("Unreal Engine executable not found on this machine. Please install Unreal Engine or configure it in My Machine -> DCC Config."))
             }
         }
         "python" => {

@@ -50,7 +50,10 @@ impl BundleResourceResolver {
 
 impl ResourceResolver for BundleResourceResolver {
     fn resolve_script(&self, tool_ref: &str) -> Result<ResolvedScript> {
-        let bare = tool_ref.strip_prefix("local:script:").unwrap_or(tool_ref);
+        let bare = tool_ref
+            .strip_prefix("local:script:")
+            .or_else(|| tool_ref.strip_prefix("local:"))
+            .unwrap_or(tool_ref);
         self.scripts
             .get(tool_ref)
             .or_else(|| self.scripts.get(bare))
@@ -61,6 +64,7 @@ impl ResourceResolver for BundleResourceResolver {
     fn resolve_component(&self, component_ref: &str) -> Result<DagPipelineDocument> {
         let bare = component_ref
             .strip_prefix("local:component:")
+            .or_else(|| component_ref.strip_prefix("local:"))
             .unwrap_or(component_ref);
         self.components
             .get(component_ref)
@@ -74,6 +78,7 @@ impl ResourceResolver for BundleResourceResolver {
     fn resolve_constant(&self, constant_ref: &str) -> Result<Option<Value>> {
         let bare = constant_ref
             .strip_prefix("local:constant:")
+            .or_else(|| constant_ref.strip_prefix("local:"))
             .unwrap_or(constant_ref);
         Ok(self
             .constants

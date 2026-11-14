@@ -35,7 +35,8 @@ export function resolveConstantsMap(
   function resolveString(str: string, visited: Set<string>, depth = 0): string {
     if (depth > 10 || !str.includes("$")) return str;
 
-    return str.replace(/\$([a-zA-Z0-9_]+)/g, (match, varName) => {
+    return str.replace(/\$\{([a-zA-Z0-9_]+)\}|\$([a-zA-Z0-9_]+)/g, (match, braced, bare) => {
+      const varName = braced || bare;
       if (visited.has(varName)) {
         console.warn(
           `[Constants] Cyclic dependency detected for variable: $${varName}`,

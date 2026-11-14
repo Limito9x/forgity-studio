@@ -11,6 +11,7 @@ export interface PipelineInputLike {
   isRequired?: boolean;
   defaultValue?: any;
   structType?: string | null;
+  contextData?: Record<string, any> | string | null;
 }
 
 /**
@@ -45,6 +46,7 @@ export function pipelineInputToFieldDefinition(
   configValues: Record<string, any> = {}
 ): FieldDefinition<any> {
   const structType = input.structType || (input as any).entityTarget || null;
+  const rawMeta = (input as any).contextData ?? (input as any).metadata;
 
   const pinDef: PinDefinition = {
     id: input.key,
@@ -54,6 +56,11 @@ export function pipelineInputToFieldDefinition(
     isRequired: input.isRequired,
     defaultValue: input.defaultValue,
     structType,
+    metadata: rawMeta
+      ? typeof rawMeta === "string"
+        ? rawMeta
+        : JSON.stringify(rawMeta)
+      : undefined,
   };
 
   return pinToFieldDefinition(pinDef, configValues);

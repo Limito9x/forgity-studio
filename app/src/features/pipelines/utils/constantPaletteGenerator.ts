@@ -4,16 +4,24 @@ import type { WorkspaceConstantItem } from "../types/workspaceConfig";
 import type { ResolvedConstant } from "../hooks/workspace/useLocalConstantsQuery";
 
 /**
- * Extracts unique `{var_name}` placeholders from constant template values.
+ * Extracts unique `{var_name}` or `${var_name}` placeholders from constant template values,
+ * excluding keys that already belong to workspace Constants (which are expanded automatically).
  */
-export function extractTemplateVars(values: unknown[]): string[] {
+export function extractTemplateVars(
+  values: unknown[],
+  knownConstantKeys: ReadonlySet<string> = new Set()
+): string[] {
   const vars = new Set<string>();
-  const regex = /\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g;
+  const regex = /\$?\{([a-zA-Z_][a-zA-Z0-9_-]*)\}/g;
   for (const val of values) {
     if (typeof val !== "string") continue;
+    regex.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = regex.exec(val)) !== null) {
-      vars.add(match[1]);
+      const name = match[1];
+      if (!knownConstantKeys.has(name)) {
+        vars.add(name);
+      }
     }
   }
   return Array.from(vars);
@@ -27,6 +35,7 @@ export function generateConstantPaletteItems(
   constants: WorkspaceConstantItem[],
   resolvedMap: Record<string, ResolvedConstant> = {}
 ): NodePaletteItemDto[] {
+  const knownConstantKeys = new Set(constants.map((c) => c.key));
   return constants.map((item) => {
     const resolved = resolvedMap[item.key];
     const isUnreal = item.scope === "Unreal";
@@ -75,15 +84,18 @@ export function generateConstantPaletteItems(
       });
     }
 
-    const templateVars = extractTemplateVars([
-      resolved?.resolvedValue ?? item.value,
-      resolved?.resolvedUnrealPath ?? item.unrealPath,
-    ]);
+    const templateVars = extractTemplateVars(
+      [
+        resolved?.resolvedValue ?? item.value,
+        resolved?.resolvedUnrealPath ?? item.unrealPath,
+      ],
+      knownConstantKeys
+    );
 
     const inputs: PinDefinition[] = templateVars.map((varName) => ({
       id: varName,
       label: varName
-        .split("_")
+        .split(/[_-]+/)
         .filter(Boolean)
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
         .join(" "),
@@ -101,7 +113,7 @@ export function generateConstantPaletteItems(
       category: "Constants",
       source: "Custom" as any,
       description: item.description || `Local Machine Constant: ${item.key} (${item.scope} - ${item.dataType})`,
-      executor: "server",
+      executor: "pure",
       inputs, // Pure node: 0 Exec, dynamic Data inputs if template vars exist
       outputs,
       isStateless: true,

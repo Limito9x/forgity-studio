@@ -28,19 +28,26 @@ pub struct HardwareProfileConfig {
     pub last_scanned_at: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct RunnerConfig {
+    #[serde(default)]
     pub api_url: String,
+    #[serde(default)]
     pub runner_id: String,
+    #[serde(default)]
     pub name: String,
+    #[serde(default)]
     pub machine_key: String,
+    #[serde(default)]
     pub registration_token: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub grpc_url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rabbitmq: Option<RabbitMqConfig>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hardware_profile: Option<HardwareProfileConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub executors: Option<HashMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub env: Option<HashMap<String, String>>,
 }

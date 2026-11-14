@@ -23,16 +23,8 @@ import { CanvasDiagnosticsPanel } from "./CanvasDiagnosticsPanel";
 import { PipelineParametersPanel, type ParameterTab } from "./PipelineParametersPanel";
 import { LiveExecutionDrawer } from "./LiveExecutionDrawer";
 import { ExecutionStatusBanner } from "./ExecutionStatusBanner";
+import { RunPipelineModal } from "../../dialogs/RunPipelineModal";
 import { PipelineFormScopeProvider } from "../../form-scope/PipelineFormScope";
-import { useNodePalette, useCancelPipelineExecution } from "../../hooks/usePipelines";
-import { useGetStructCatalogue } from "@/gen/endpoints/pipelines/pipelines";
-import { useLocalPaletteQuery, useLocalPipelinesQuery, useLocalConstantsQuery } from "../../hooks/workspace";
-import {
-  localStructsToCatalogue,
-  generateLocalStructPaletteItems,
-  generateComponentPipePaletteItems,
-} from "../../utils/structPaletteGenerator";
-import { generateConstantPaletteItems } from "../../utils/constantPaletteGenerator";
 import type { ExtendedPipelineGraphDto } from "../../hooks/usePipelineGraph";
 import {
   usePipelineDraftState,
@@ -69,66 +61,30 @@ const defaultEdgeOptions = {
 };
 
 export function PipelineCanvas(props: PipelineCanvasProps) {
-  const isLocal = Boolean(props.rootPath);
-  const definitions = useNodePalette(props.projectId);
-  const { draftNodes, localStructs } = useLocalPaletteQuery(props.rootPath ?? null);
-  const { pipelines: scannedPipelines } = useLocalPipelinesQuery(props.rootPath ?? null);
-  const { constants, resolvedConstants } = useLocalConstantsQuery(props.rootPath ?? null);
+  const workspaceCtx = usePipelineWorkspace();
 
-  // Combine server palette items (only in Cloud mode) with local definitions
+  // Normalize palette items from Context/Strategy (include unprefixed aliases for local script keys)
   const allDefinitions = useMemo(() => {
     const list: NodePaletteItemDto[] = [];
-
-    // Local-First: Khi ở Local Workspace, tuyệt đối KHÔNG kéo node definitions từ DB
-    if (!isLocal && definitions.data) {
-      list.push(...definitions.data);
-    }
-
-    if (draftNodes) {
-      for (const draft of Object.values(draftNodes)) {
-        const item: NodePaletteItemDto = {
-          key: draft.key,
-          label: draft.suggestedLabel || draft.suggestedName || draft.fileName,
-          category: "Local Scripts",
-          source: "Custom" as any,
-          executor: draft.executor,
-          inputs: (draft.inputs || []) as any,
-          outputs: (draft.outputs || []) as any,
-          description: draft.description || draft.fullPath,
-          id: draft.key,
-          isVisibleInPalette: true,
-        };
-        list.push(item);
+    for (const item of workspaceCtx.paletteItems) {
+      list.push(item);
+      if (
+        item.key &&
+        item.key.startsWith("local:") &&
+        !item.key.startsWith("local:constant:") &&
+        !item.key.startsWith("local:component:") &&
+        !item.key.startsWith("local:struct:")
+      ) {
+        const unprefixedKey = item.key.slice("local:".length);
         list.push({
           ...item,
-          key: `local:${draft.key}`,
-          id: `local:${draft.key}`,
+          key: unprefixedKey,
+          id: unprefixedKey,
         });
       }
     }
-
-    // Nạp Struct Make/Break companion nodes
-    if (localStructs && localStructs.length > 0) {
-      const structItems = generateLocalStructPaletteItems(localStructs);
-      list.push(...structItems);
-    }
-
-    // Nạp Component Pipes dưới dạng Sub-Pipeline nodes
-    if (scannedPipelines && scannedPipelines.length > 0) {
-      const componentPipes = scannedPipelines.filter((p) => p.pipelineKind === "component");
-      if (componentPipes.length > 0) {
-        list.push(...generateComponentPipePaletteItems(componentPipes));
-      }
-    }
-
-    // Nạp Local Machine Constants dưới dạng Pure Data nodes
-    if (constants && constants.length > 0) {
-      const constItems = generateConstantPaletteItems(constants, resolvedConstants);
-      list.push(...constItems);
-    }
-
     return list;
-  }, [isLocal, definitions.data, draftNodes, localStructs, scannedPipelines, constants, resolvedConstants]);
+  }, [workspaceCtx.paletteItems]);
 
   return (
     <ReactFlowProvider>
@@ -157,24 +113,8 @@ function PipelineCanvasContent({
   const workspaceCtx = usePipelineWorkspace();
   const storage = directStorage || workspaceCtx.storage;
   const isLocalMode = storage.mode === "local";
-
-  const { data: serverStructCatalogue = [] } = useGetStructCatalogue({ projectId });
-  const { localStructs } = useLocalPaletteQuery(rootPath);
+  const structCatalogue = workspaceCtx.structCatalogue;
   const [isAutoFollow, setIsAutoFollow] = useState(true);
-
-  // Merge server structs with locally detected structs
-  const structCatalogue = useMemo(() => {
-    const combined = [...(serverStructCatalogue || [])];
-    if (isLocalMode && localStructs && localStructs.length > 0) {
-      const localCat = localStructsToCatalogue(localStructs);
-      for (const item of localCat) {
-        if (!combined.some((c) => c.structType?.toLowerCase() === item.structType?.toLowerCase())) {
-          combined.push(item);
-        }
-      }
-    }
-    return combined;
-  }, [serverStructCatalogue, localStructs, isLocalMode]);
 
   // 1. Headless Draft State & Flat Storage Strategy (NO STAGES)
   const draft = usePipelineDraftState(graph, structCatalogue, {
@@ -183,6 +123,7 @@ function PipelineCanvasContent({
 
   // 1b. Real-time Diagnostics Scope
   const [isDiagnosticsPanelOpen, setIsDiagnosticsPanelOpen] = useState(false);
+  const [isRunModalOpen, setIsRunModalOpen] = useState(false);
   const diagnosticsScope = usePipelineDiagnostics({
     graph,
     nodes: draft.nodes,
@@ -227,7 +168,7 @@ function PipelineCanvasContent({
   // Parameters panel tab state (Inputs | Outputs)
   const [paramTab, setParamTab] = useState<ParameterTab>("inputs");
   const [isParametersOpen, setIsParametersOpen] = useState(false);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const { isDrawerOpen, setIsDrawerOpen } = live;
 
   // Auto-switch to Inputs tab when Start node is selected, or Outputs tab when Return node is selected
   useEffect(() => {
@@ -243,11 +184,10 @@ function PipelineCanvasContent({
     }
   }, [draft.selectedNodeId]);
 
-  const cancelMutation = useCancelPipelineExecution(graph.id);
   const handleCancelExecution = async () => {
     if (!live.activeExecutionId) return;
     try {
-      await cancelMutation.mutateAsync({ id: live.activeExecutionId });
+      await workspaceCtx.cancelExecution?.(live.activeExecutionId);
       toast.success("Pipeline cancellation requested.");
     } catch (err: any) {
       toast.error(err?.message || "Failed to cancel execution.");
@@ -318,7 +258,7 @@ function PipelineCanvasContent({
           viewMode={viewMode}
           onToggleViewMode={onToggleViewMode}
           isRunningDraft={false}
-          onOpenRunModal={() => storage.run({ projectId, pipelineId: graph.id })}
+          onOpenRunModal={() => setIsRunModalOpen(true)}
           onOpenHistory={
             isLocalMode
               ? undefined
@@ -350,10 +290,20 @@ function PipelineCanvasContent({
               <ExecutionStatusBanner
                 executionId={live.activeExecutionId}
                 isRunning={live.isExecutionRunning}
-                isFailed={String(live.currentExecution?.status).toLowerCase() === "failed"}
-                isSucceeded={String(live.currentExecution?.status).toLowerCase() === "completed"}
+                isFailed={
+                  isLocalMode
+                    ? live.localRunStatus === "failed"
+                    : String(live.currentExecution?.status).toLowerCase() === "failed"
+                }
+                isSucceeded={
+                  isLocalMode
+                    ? live.localRunStatus === "succeeded"
+                    : String(live.currentExecution?.status).toLowerCase() === "completed"
+                }
+                errorMessage={isLocalMode ? live.localRunError : live.currentExecution?.errorMessage}
                 onOpenLogs={() => {
                   live.setDrawerDefaultTab("logs");
+                  setIsDrawerOpen(true);
                 }}
                 onExitView={live.clearActiveExecution}
                 onCancel={handleCancelExecution}
@@ -417,6 +367,12 @@ function PipelineCanvasContent({
                 ctxMenu.closePalette();
               }}
               onPaneContextMenu={ctxMenu.onPaneContextMenu}
+              onEdgeContextMenu={(event, edge) => {
+                event.preventDefault();
+                if (!isLocked) {
+                  draft.onEdgesChange([{ type: "remove", id: edge.id }]);
+                }
+              }}
               onDragOver={handleCanvasDragOver}
               onDrop={handleCanvasDrop}
               fitView
@@ -426,6 +382,7 @@ function PipelineCanvasContent({
               nodesDraggable={!isLocked}
               nodesConnectable={!isLocked}
               elementsSelectable={!isLocked}
+              deleteKeyCode={isLocked ? null : ["Backspace", "Delete"]}
               className="bg-dot-pattern"
             >
               <Background
@@ -489,8 +446,35 @@ function PipelineCanvasContent({
             executionId={live.activeExecutionId}
             onClose={() => setIsDrawerOpen(false)}
             defaultTab={live.drawerDefaultTab}
+            localLogs={live.localLogs}
+            localRunStatus={live.localRunStatus}
+            localRunError={live.localRunError}
+            liveNodeStatuses={live.liveNodeStatuses}
+            liveNodeOutputs={live.liveNodeOutputs}
+            liveNodeErrors={live.liveNodeErrors}
+            nodes={draft.nodes}
           />
         )}
+
+        <RunPipelineModal
+          pipelineId={graph.id}
+          pipelineName={graph.name || (isLocalMode ? "Local Pipeline" : "Pipeline")}
+          projectId={projectId}
+          nodes={draft.nodes}
+          edges={draft.edges}
+          parameters={draft.parameters}
+          isOpen={isRunModalOpen}
+          onClose={() => setIsRunModalOpen(false)}
+          isLocalMode={isLocalMode}
+          onExecutionStarted={(executionId) => {
+            live.setActiveExecutionId(executionId);
+            live.setDrawerDefaultTab("logs");
+            setIsDrawerOpen(true);
+          }}
+          onRunLocal={(runtimeInputs) =>
+            storage.run({ projectId, pipelineId: graph.id, runtimeInputs } as any)
+          }
+        />
       </div>
     </PipelineFormScopeProvider>
   );

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useReactFlow } from "@xyflow/react";
-import { resolveToolPins } from "@/gen/endpoints/pipelines/pipelines";
 import type { PinDefinition } from "@/gen/model";
+import { usePipelineWorkspaceOptional } from "../../../../context/PipelineWorkspaceContext";
 import {
   arePinListsEqual,
   buildSchemaConfigSignature,
@@ -35,6 +35,8 @@ export function useNodePinResolver({
   hasExistingPins = false,
 }: UseNodePinResolverOptions) {
   const { setNodes, setEdges } = useReactFlow();
+  const workspace = usePipelineWorkspaceOptional();
+  const resolveToolPinsFn = workspace?.resolveToolPins;
   const schemaSignature = buildSchemaConfigSignature(
     configValues,
     schemaConfigKeys
@@ -55,13 +57,13 @@ export function useNodePinResolver({
   latestConfigRef.current = configValues;
 
   useEffect(() => {
-    if (!hasDynamicPins || !refId) return;
+    if (!hasDynamicPins || !refId || !resolveToolPinsFn) return;
     if (schemaSignature === lastResolvedSignatureRef.current) return;
 
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
-        const result = await resolveToolPins(
+        const result = await resolveToolPinsFn(
           {
             toolId: refId,
             configValues: latestConfigRef.current || {},

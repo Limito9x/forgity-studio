@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { ScopedFieldRegistry, baseRegistry } from "@/lib/field-registry";
 import { FormPinVariableSelect } from "../form-controls/FormPinVariableSelect";
-import { FormPinEntitySelect } from "../form-controls/FormPinEntitySelect";
 import { FormPinAssetUpload } from "../form-controls/FormPinAssetUpload";
 import { FormPinPathInput } from "../form-controls/FormPinPathInput";
 import { FormPinRunnerSelect } from "../form-controls/FormPinRunnerSelect";
+import { FormPinTextInput } from "../form-controls/FormPinTextInput";
 
 const createRequiredStringSchema = (props: any, field?: any) => {
   const isReq = props?.required === true;
@@ -21,35 +21,18 @@ const createRequiredStringSchema = (props: any, field?: any) => {
  */
 export const pipelineRegistry = new ScopedFieldRegistry(baseRegistry);
 
+// Override standard "input" in pipeline scope to provide `${...}` constant hints automatically
+pipelineRegistry.register({
+  type: "input",
+  component: FormPinTextInput,
+  buildSchema: baseRegistry.get("input")?.buildSchema,
+});
+
 // Đăng ký trực tiếp các Pipeline-specific form controls vào sàn kèm buildSchema
 pipelineRegistry.register({
   type: "pin:variableSelect",
   component: FormPinVariableSelect,
   buildSchema: createRequiredStringSchema,
-});
-
-const KNOWN_PLACEHOLDERS = ["resource", "repository", "workspace", "contenttype", "runner", "agent", "tag", "taggroup", "variable", "none"];
-
-pipelineRegistry.register({
-  type: "pin:entitySelect",
-  component: FormPinEntitySelect,
-  buildSchema: (props: any, field?: any) => {
-    const isReq = props?.required === true;
-    const msg = `${field?.label || field?.name || "This field"} is required`;
-    if (props?.multiple) {
-      return isReq
-        ? z.array(z.string()).min(1, msg)
-        : z.array(z.string()).optional().default([]);
-    }
-    if (!isReq) return z.string().optional().nullable();
-    return z
-      .string({ message: msg })
-      .min(1, msg)
-      .refine(
-        (val) => Boolean(val) && !KNOWN_PLACEHOLDERS.includes(val.trim().toLowerCase()),
-        { message: msg }
-      );
-  },
 });
 
 pipelineRegistry.register({
@@ -71,6 +54,12 @@ pipelineRegistry.register({
 
 pipelineRegistry.register({
   type: "pin:path",
+  component: FormPinPathInput,
+  buildSchema: createRequiredStringSchema,
+});
+
+pipelineRegistry.register({
+  type: "pin:pathInput",
   component: FormPinPathInput,
   buildSchema: createRequiredStringSchema,
 });

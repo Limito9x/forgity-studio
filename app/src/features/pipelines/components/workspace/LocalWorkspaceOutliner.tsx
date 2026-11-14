@@ -128,8 +128,9 @@ export function LocalWorkspaceOutliner({
   const [createExecutor, setCreateExecutor] = useState<string>("blender");
   const [newPipelineName, setNewPipelineName] = useState("");
 
-  const { studioSlug } = useCurrentStudio();
-  const { data: studioQuota } = useStudioQuota(studioSlug);
+  const isStandaloneLocal = projectId === "local-default";
+  const { studioSlug } = useCurrentStudio({ enabled: !isStandaloneLocal });
+  const { data: studioQuota } = useStudioQuota(isStandaloneLocal ? undefined : studioSlug);
   const creditsRemaining = studioQuota?.executionCreditsRemaining ?? 50;
 
   const rootFolderName = rootPath ? rootPath.split(/[/\\]/).filter(Boolean).pop() || "Workspace" : "No Workspace";
@@ -361,25 +362,27 @@ export function LocalWorkspaceOutliner({
         </div>
       </div>
 
-      {/* Solo Dev Preview Quota Badge */}
-      <div className="px-3 py-1.5 bg-muted/20 border-b border-border/40 flex items-center justify-between text-[11px]">
-        <button
-          onClick={() => useDialogStore.getState().openDialog("upgrade-plan", { quota: studioQuota })}
-          className="flex items-center gap-1.5 hover:opacity-80 transition-opacity text-muted-foreground hover:text-foreground cursor-pointer"
-        >
-          <Zap className={`h-3 w-3 ${creditsRemaining <= 5 ? "text-amber-500 fill-amber-500" : "text-primary"}`} />
-          <span>Solo Preview:</span>
-          <span className={`font-mono font-semibold ${creditsRemaining <= 0 ? "text-destructive" : "text-foreground"}`}>
-            {creditsRemaining}/50 Runs
-          </span>
-        </button>
-        <button
-          onClick={() => useDialogStore.getState().openDialog("upgrade-plan", { quota: studioQuota })}
-          className="text-[10px] font-medium text-primary hover:underline cursor-pointer"
-        >
-          {creditsRemaining <= 0 ? "Upgrade" : "Plan"}
-        </button>
-      </div>
+      {/* Solo Dev Preview Quota Badge (hidden in standalone Local Mode until Quota phase) */}
+      {!isStandaloneLocal && (
+        <div className="px-3 py-1.5 bg-muted/20 border-b border-border/40 flex items-center justify-between text-[11px]">
+          <button
+            onClick={() => useDialogStore.getState().openDialog("upgrade-plan", { quota: studioQuota })}
+            className="flex items-center gap-1.5 hover:opacity-80 transition-opacity text-muted-foreground hover:text-foreground cursor-pointer"
+          >
+            <Zap className={`h-3 w-3 ${creditsRemaining <= 5 ? "text-amber-500 fill-amber-500" : "text-primary"}`} />
+            <span>Solo Preview:</span>
+            <span className={`font-mono font-semibold ${creditsRemaining <= 0 ? "text-destructive" : "text-foreground"}`}>
+              {creditsRemaining}/50 Runs
+            </span>
+          </button>
+          <button
+            onClick={() => useDialogStore.getState().openDialog("upgrade-plan", { quota: studioQuota })}
+            className="text-[10px] font-medium text-primary hover:underline cursor-pointer"
+          >
+            {creditsRemaining <= 0 ? "Upgrade" : "Plan"}
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto px-2 py-2.5 space-y-3">
         {/* Top Navigation Items: Structs, Constants, Node Palette */}

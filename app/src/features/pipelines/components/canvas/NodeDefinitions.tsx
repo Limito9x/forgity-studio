@@ -10,3 +10,6 @@ export function NodeDefinitionsProvider({ items, children }: { items: NodePalett
 export function useNodeDefinition(kind = "", refId = "") {
   return useContext(Definitions).get(definitionKey(kind, refId));
 }
+export function useNodeDefinitionsMap() {
+  return useContext(Definitions);
+}

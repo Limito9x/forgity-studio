@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRunners } from "@/features/runners/hooks/useRunners";
+import { usePipelineWorkspaceOptional } from "../../context/PipelineWorkspaceContext";
 import { getSoftwareMetadata } from "@/features/runners/constants/dccEngines";
 import { getStageKindName } from "./hooks/canvasUtils";
 import type { StageKindType } from "../../hooks/usePipelineGraph";
@@ -50,17 +51,19 @@ export const ScopeContainerNode = memo(({ id, data, selected }: NodeProps) => {
   const [tempName, setTempName] = useState(nodeData.name || "Scope");
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: runners = [] } = useRunners();
+  const workspace = usePipelineWorkspaceOptional();
+  const { data: fallbackRunners = [] } = useRunners({ enabled: !workspace });
+  const runners = workspace ? workspace.runners : fallbackRunners;
 
   const edges = useEdges();
   const incomingRunnerEdge = isWorker
     ? edges.find(
-        (e) =>
-          e.target === id &&
-          (e.targetHandle?.toLowerCase() === "runner" ||
-            e.targetHandle?.toLowerCase() === "runnerid" ||
-            e.targetHandle?.toLowerCase() === "agentid")
-      )
+      (e) =>
+        e.target === id &&
+        (e.targetHandle?.toLowerCase() === "runner" ||
+          e.targetHandle?.toLowerCase() === "runnerid" ||
+          e.targetHandle?.toLowerCase() === "agentid")
+    )
     : null;
   const isRunnerBound = !!incomingRunnerEdge;
 
@@ -112,21 +115,21 @@ export const ScopeContainerNode = memo(({ id, data, selected }: NodeProps) => {
   // Border & background themes tailored per scope type
   const theme = isWorker
     ? {
-        border: selected ? "border-amber-500 shadow-amber-500/20" : "border-amber-500/40 hover:border-amber-500/70",
-        headerBg: "bg-amber-500/10 border-amber-500/20 text-amber-500",
-        badgeBg: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30",
-        bodyBg: "bg-amber-950/[0.03] dark:bg-amber-950/[0.07]",
-        accent: "text-amber-500",
-      }
+      border: selected ? "border-amber-500 shadow-amber-500/20" : "border-amber-500/40 hover:border-amber-500/70",
+      headerBg: "bg-amber-500/10 border-amber-500/20 text-amber-500",
+      badgeBg: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30",
+      bodyBg: "bg-amber-950/[0.03] dark:bg-amber-950/[0.07]",
+      accent: "text-amber-500",
+    }
     : isServer
-    ? {
+      ? {
         border: selected ? "border-sky-500 shadow-sky-500/20" : "border-sky-500/40 hover:border-sky-500/70",
         headerBg: "bg-sky-500/10 border-sky-500/20 text-sky-500",
         badgeBg: "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30",
         bodyBg: "bg-sky-950/[0.03] dark:bg-sky-950/[0.07]",
         accent: "text-sky-500",
       }
-    : {
+      : {
         border: selected ? "border-teal-500 shadow-teal-500/20" : "border-teal-500/40 hover:border-teal-500/70",
         headerBg: "bg-teal-500/10 border-teal-500/20 text-teal-500",
         badgeBg: "bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-500/30",
@@ -251,8 +254,8 @@ export const ScopeContainerNode = memo(({ id, data, selected }: NodeProps) => {
             {isWorker
               ? `Worker • ${dccMeta?.name || nodeData.executorKey || "DCC"}`
               : isServer
-              ? "Core Services"
-              : "Macro"}
+                ? "Core Services"
+                : "Macro"}
           </Badge>
         </div>
 
@@ -325,10 +328,10 @@ export const ScopeContainerNode = memo(({ id, data, selected }: NodeProps) => {
         {isWorker
           ? `DCC WORKSPACE • ${dccMeta?.name?.toUpperCase() || "ISOLATED"} TOOL SESSION`
           : isServer
-          ? "CORE SERVICES • SYSTEM & DATA PROCESSING"
-          : isMacro
-          ? "MACRO STAGE • ORCHESTRATION & CONTROL FLOW"
-          : "STAGE SCOPE"}
+            ? "CORE SERVICES • SYSTEM & DATA PROCESSING"
+            : isMacro
+              ? "MACRO STAGE • ORCHESTRATION & CONTROL FLOW"
+              : "STAGE SCOPE"}
       </div>
     </div>
   );

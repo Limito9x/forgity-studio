@@ -1,4 +1,4 @@
-import { Link, useMatches, useNavigate } from "@tanstack/react-router"
+import { Link, useMatches, useNavigate, useRouterState } from "@tanstack/react-router"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -23,6 +23,8 @@ import { DynamicIcon } from "@/components/custom-ui/DynamicIcon"
 export function AppBreadcrumb() {
   const matches = useMatches()
   const navigate = useNavigate()
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const isLocalMode = pathname.startsWith("/local")
   const projectCtx = useOptionalProject()
   const nav = useProjectNav()
 
@@ -33,10 +35,13 @@ export function AppBreadcrumb() {
   )
 
   // Other projects in the studio for quick switcher
-  const { data: projectsData } = useProjects({
-    studioSlug: projectCtx?.studioSlug || undefined,
-    pageSize: 50,
-  })
+  const { data: projectsData } = useProjects(
+    {
+      studioSlug: projectCtx?.studioSlug || undefined,
+      pageSize: 50,
+    },
+    { enabled: Boolean(projectCtx?.studioSlug) }
+  )
 
   // Filter matches that have a breadcrumb staticData
   const breadcrumbs = matches
@@ -58,13 +63,15 @@ export function AppBreadcrumb() {
   return (
     <Breadcrumb>
       <BreadcrumbList>
-        <BreadcrumbItem>
-          <BreadcrumbLink>
-            <Link to="/" className="transition-colors hover:text-foreground text-xs">
-              Application
-            </Link>
-          </BreadcrumbLink>
-        </BreadcrumbItem>
+        {!isLocalMode && (
+          <BreadcrumbItem>
+            <BreadcrumbLink>
+              <Link to="/" className="transition-colors hover:text-foreground text-xs">
+                Application
+              </Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+        )}
 
         {breadcrumbs.map((item, index) => {
           const isLast = index === breadcrumbs.length - 1

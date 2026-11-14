@@ -31,8 +31,8 @@ export interface PipelineDslDocument {
  */
 export function graphToPipelineYaml(
   pipelineName: string,
-  nodes: Node[],
-  edges: Edge[],
+  nodes: any[],
+  edges: any[],
   description?: string
 ): string {
   const dslNodes: PipelineDslNode[] = [];
@@ -40,33 +40,56 @@ export function graphToPipelineYaml(
   for (const n of nodes) {
     if (n.type === "scopeContainer") continue; // Stage scopes are mapped via node.stage
 
-    const data = n.data || {};
-    const refId = (data.refId as string) || (data.key as string) || n.id;
-    const refIdLower = refId.toLowerCase();
+    // Hỗ trợ cả ReactFlow Node (n.data) lẫn ExtendedPipelineGraphDto Node (phẳng)
+    const data = n.data && typeof n.data === "object" ? n.data : n;
+    const refId =
+      (data.refId as string) ||
+      (n.refId as string) ||
+      (data.key as string) ||
+      (n.key as string) ||
+      n.id;
+    const refIdLower = String(refId).toLowerCase();
     const isControlNode =
       refIdLower === "start" ||
       refIdLower === "beginexecute" ||
       refIdLower === "return" ||
       refIdLower === "endexecute";
 
-    const inputsConfig: Record<string, any> = (data.configValues as Record<string, any>) || {};
+    const inputsConfig: Record<string, any> =
+      (data.configValues as Record<string, any>) ||
+      (n.configValues as Record<string, any>) ||
+      {};
+    const label = (data.label as string) || (n.label as string) || undefined;
+    const category = (data.category as string) || (n.category as string) || undefined;
+    const executor = (data.executor as string) || (n.executor as string) || undefined;
+    const isLocalDraft = Boolean(data.isLocalDraft ?? n.metadata?.isLocalDraft);
+    const sourcePath = data.sourcePath ?? n.metadata?.sourcePath;
 
     dslNodes.push({
       id: n.id,
       tool: refId,
-      label: (data.label as string) || undefined,
-      category: isControlNode ? undefined : (data.category as string) || undefined,
-      executor: isControlNode ? undefined : (data.executor as string) || undefined,
+      label,
+      category: isControlNode ? undefined : category,
+      executor: isControlNode ? undefined : executor,
       stage: (n.parentId as string) || undefined,
       inputs: Object.keys(inputsConfig).length > 0 ? inputsConfig : undefined,
-      metadata: data.isLocalDraft ? { isLocalDraft: true, sourcePath: data.sourcePath } : undefined,
+      metadata: isLocalDraft ? { isLocalDraft: true, sourcePath } : undefined,
     });
   }
 
-  const dslEdges: PipelineDslEdge[] = edges.map((e) => ({
-    from: `${e.source}.${e.sourceHandle || "out"}`,
-    to: `${e.target}.${e.targetHandle || "in"}`,
-  }));
+  const dslEdges: PipelineDslEdge[] = (edges || [])
+    .map((e: any) => {
+      const src = e.source || e.sourceNodeId;
+      const srcPin = e.sourceHandle || e.sourcePin || "out";
+      const dst = e.target || e.targetNodeId;
+      const dstPin = e.targetHandle || e.targetPin || "in";
+      if (!src || !dst) return null;
+      return {
+        from: `${src}.${srcPin}`,
+        to: `${dst}.${dstPin}`,
+      };
+    })
+    .filter((x): x is PipelineDslEdge => x !== null);
 
   const doc: PipelineDslDocument = {
     name: pipelineName || "Draft Pipeline",

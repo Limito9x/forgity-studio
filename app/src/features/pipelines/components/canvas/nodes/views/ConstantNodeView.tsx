@@ -9,11 +9,14 @@ import { useNodeDefinition } from "../../NodeDefinitions";
 export function ConstantNodeView({ data, selected }: NodeProps) {
   const nodeData = data as unknown as CustomPipelineNodeData;
   const definition = useNodeDefinition(nodeData.kind, nodeData.refId);
-  const outputs = nodeData.outputs || [];
+  const outputs =
+    definition?.outputs && definition.outputs.length > 0
+      ? definition.outputs
+      : (nodeData.outputs || []);
   const inputs =
-    nodeData.inputs && nodeData.inputs.length > 0
-      ? nodeData.inputs
-      : (definition?.inputs ?? []);
+    definition?.inputs && definition.inputs.length > 0
+      ? definition.inputs
+      : (nodeData.inputs || []);
 
   const caps = definition?.capabilities as Record<string, any> | undefined;
   const scope = caps?.scope || "General";

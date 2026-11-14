@@ -182,6 +182,7 @@ export function DeckSidebar({
               node={node}
               index={originalIndex}
               isSelected={originalIndex === selectedIndex}
+              showStatusBadge={showStatusFilters}
               onClick={() => onSelectIndex(originalIndex)}
               onRemove={() => onRemoveNode(node.key)}
             />

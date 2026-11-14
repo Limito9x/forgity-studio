@@ -3,6 +3,7 @@ import type { FieldValues } from "react-hook-form";
 import { BaseFormField } from "@/components/form-controls/BaseFormField";
 import type { BaseFormControlProps } from "@/components/form-controls/type";
 import { useRunners } from "@/features/runners/hooks/useRunners";
+import { usePipelineWorkspaceOptional } from "../context/PipelineWorkspaceContext";
 import { BaseCombobox } from "@/components/custom-ui/inputs/combobox/BaseCombobox";
 import { registerField, type ExtractConfig } from "@/lib/field-registry";
 import { z } from "zod";
@@ -22,7 +23,12 @@ export function FormPinRunnerSelect<T extends FieldValues>({
   filterOnline = false,
   ...rest
 }: FormPinRunnerSelectProps<T>) {
-  const { data: runnersData = [], isLoading } = useRunners();
+  const workspace = usePipelineWorkspaceOptional();
+  const { data: fallbackRunners = [], isLoading: isFallbackLoading } = useRunners({
+    enabled: !workspace,
+  });
+  const runnersData = workspace ? workspace.runners : fallbackRunners;
+  const isLoading = workspace ? workspace.isLoadingRunners : isFallbackLoading;
 
   const options = useMemo(() => {
     const list = Array.isArray(runnersData) ? runnersData : [];

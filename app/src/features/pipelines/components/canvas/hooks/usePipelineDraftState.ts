@@ -16,7 +16,14 @@ import type {
   PipelineParameterDto,
   StructDefinitionDto,
 } from "@/gen/model";
-import { applyNodeConfigUpdate } from "../../../nodeDefinitions";
+import {
+  applyNodeConfigUpdate,
+  definitionKey,
+  reconcileGraphWithDefinitions,
+  resolveNodePinsFromDefinition,
+} from "../../../nodeDefinitions";
+import { useNodeDefinitionsMap } from "../NodeDefinitions";
+import { toast } from "sonner";
 import { isExecHandle } from "./canvasUtils";
 import { usePipelineContractSync } from "./usePipelineContractSync";
 import type { IPipelineStorageAdapter } from "../../../adapters/pipelineStorageAdapter";
@@ -30,13 +37,28 @@ export function usePipelineDraftState(
   structCatalogue: StructDefinitionDto[] | undefined,
   { storage }: UsePipelineDraftStateOptions
 ) {
-  // 1. Initial Flat Nodes (No Stage Scoping)
+  const definitions = useNodeDefinitionsMap();
+
+  // 1. Initial Flat Nodes (No Stage Scoping) — hydrate static shapes from Palette (SSOT)
   const initialNodes: Node[] = useMemo(() => {
     return (graph.nodes || []).map((n) => {
       let nodeType = "pipelineNode";
       if (n.kind === PipelineNodeKind.Capsule) {
         nodeType = "capsuleNode";
       }
+
+      const def = definitions.get(definitionKey(String(n.kind || ""), String(n.refId || "")));
+      const resolved = resolveNodePinsFromDefinition(
+        {
+          kind: n.kind,
+          label: n.label,
+          executor: n.executor,
+          category: n.category,
+          inputs: n.inputs || [],
+          outputs: n.outputs || [],
+        },
+        def
+      );
 
       return {
         id: n.id,
@@ -46,11 +68,11 @@ export function usePipelineDraftState(
         data: {
           refId: n.refId,
           kind: n.kind,
-          label: n.label,
-          category: n.category,
-          executor: n.executor,
-          inputs: n.inputs || [],
-          outputs: n.outputs || [],
+          label: resolved.label,
+          category: resolved.category,
+          executor: resolved.executor,
+          inputs: resolved.inputs,
+          outputs: resolved.outputs,
           configValues: n.configValues || {},
           metadata: n.metadata,
           fileAssets: n.fileAssets || [],
@@ -58,7 +80,7 @@ export function usePipelineDraftState(
         } as CustomPipelineNodeData,
       };
     });
-  }, [graph.nodes, graph.id]);
+  }, [graph.nodes, graph.id, definitions]);
 
   // 2. Initial Flat Edges
   const initialEdges: Edge[] = useMemo(() => {
@@ -90,8 +112,12 @@ export function usePipelineDraftState(
     });
   }, [graph.edges]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [nodes, setNodes, rawOnNodesChange] = useNodesState(initialNodes);
+  const [edges, setEdges, rawOnEdgesChange] = useEdgesState(initialEdges);
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
+  const edgesRef = useRef(edges);
+  edgesRef.current = edges;
 
   // Sync initial graph when graph ID changes
   const prevGraphIdRef = useRef(graph.id);
@@ -103,6 +129,26 @@ export function usePipelineDraftState(
     }
   }, [graph.id, initialNodes, initialEdges, setNodes, setEdges]);
 
+  // Reconcile live canvas nodes & edges whenever Palette definitions update (e.g. after Sync)
+  const prevDefinitionsRef = useRef(definitions);
+  useEffect(() => {
+    if (prevDefinitionsRef.current === definitions) return;
+    prevDefinitionsRef.current = definitions;
+    if (definitions.size === 0) return;
+
+    const result = reconcileGraphWithDefinitions(nodesRef.current, edgesRef.current, definitions);
+    if (result.nodesChanged) {
+      setNodes(result.nodes);
+    }
+    if (result.removedEdges.length > 0) {
+      setEdges(result.edges);
+      setIsDirty(true);
+      toast.warning(
+        `Palette updated: disconnected ${result.removedEdges.length} wire(s) whose pin no longer exists.`
+      );
+    }
+  }, [definitions, setNodes, setEdges]);
+
   // Parameters State (Inputs / Outputs strictly, NO Variables)
   const [parameters, setParameters] = useState<PipelineParameterDto[]>(() => {
     return (graph.parameters || []).filter((p) => p.kind !== "Variable" && (p.kind as any) !== 3);
@@ -111,6 +157,31 @@ export function usePipelineDraftState(
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const isInitialMount = useRef(true);
+
+  const onNodesChange = useCallback(
+    (changes: any[]) => {
+      rawOnNodesChange(changes);
+      const shouldMarkDirty = changes.some(
+        (c) =>
+          c.type === "remove" ||
+          (c.type === "position" && c.dragging === false)
+      );
+      if (shouldMarkDirty) {
+        setIsDirty(true);
+      }
+    },
+    [rawOnNodesChange]
+  );
+
+  const onEdgesChange = useCallback(
+    (changes: any[]) => {
+      rawOnEdgesChange(changes);
+      if (changes.some((c) => c.type === "remove")) {
+        setIsDirty(true);
+      }
+    },
+    [rawOnEdgesChange]
+  );
 
   // Tách riêng module Contract Sync
   usePipelineContractSync({
@@ -128,57 +199,87 @@ export function usePipelineDraftState(
     [nodes, selectedNodeId]
   );
 
-  // Auto-Save Debounced Strategy
+  // Auto-Save Debounced Strategy + Flush on Unmount
+  const isAutoSavingRef = useRef(false);
+  const isDirtyRef = useRef(isDirty);
+  isDirtyRef.current = isDirty;
+  const parametersRef = useRef(parameters);
+  parametersRef.current = parameters;
+  const storageRef = useRef(storage);
+  storageRef.current = storage;
+  const graphRef = useRef(graph);
+  graphRef.current = graph;
+
+  const buildCurrentGraphDto = useCallback((): ExtendedPipelineGraphDto => {
+    const g = graphRef.current;
+    return {
+      ...g,
+      nodes: nodesRef.current.map((n) => {
+        const data = (n.data as any) || {};
+        return {
+          id: n.id,
+          refId: String(data.refId || n.id),
+          label: data.label || n.id,
+          kind: data.kind || PipelineNodeKind.Tool,
+          category: data.category,
+          executor: data.executor,
+          position: n.position,
+          configValues: data.configValues || {},
+          inputs: data.inputs || [],
+          outputs: data.outputs || [],
+          metadata: data.metadata,
+          fileAssets: data.fileAssets || [],
+        };
+      }),
+      edges: edgesRef.current.map((e) => ({
+        id: e.id,
+        sourceNodeId: e.source,
+        sourcePin: e.sourceHandle || "out",
+        targetNodeId: e.target,
+        targetPin: e.targetHandle || "in",
+      })),
+      parameters: parametersRef.current,
+    };
+  }, []);
+
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
     }
-    if (!isDirty) return;
+    if (!isDirty || isAutoSavingRef.current) return;
 
     const timer = setTimeout(async () => {
+      if (isAutoSavingRef.current) return;
+      isAutoSavingRef.current = true;
+      setIsDirty(false);
+      isDirtyRef.current = false;
       try {
         setIsSaving(true);
-        const currentGraph: ExtendedPipelineGraphDto = {
-          ...graph,
-          nodes: nodes.map((n) => {
-            const data = (n.data as any) || {};
-            return {
-              id: n.id,
-              refId: String(data.refId || n.id),
-              label: data.label || n.id,
-              kind: data.kind || PipelineNodeKind.Tool,
-              category: data.category,
-              executor: data.executor,
-              position: n.position,
-              configValues: data.configValues || {},
-              inputs: data.inputs || [],
-              outputs: data.outputs || [],
-              metadata: data.metadata,
-              fileAssets: data.fileAssets || [],
-            };
-          }),
-          edges: edges.map((e) => ({
-            id: e.id,
-            sourceNodeId: e.source,
-            sourcePin: e.sourceHandle || "out",
-            targetNodeId: e.target,
-            targetPin: e.targetHandle || "in",
-          })),
-          parameters,
-        };
-
+        const currentGraph = buildCurrentGraphDto();
         await storage.saveDraft(graph.id, currentGraph);
-        setIsDirty(false);
       } catch (err) {
         console.warn("[usePipelineDraftState] Auto-save error:", err);
+        setIsDirty(true);
       } finally {
+        isAutoSavingRef.current = false;
         setIsSaving(false);
       }
     }, 600);
 
     return () => clearTimeout(timer);
-  }, [nodes, edges, parameters, isDirty, storage, graph]);
+  }, [nodes, edges, parameters, isDirty, storage, graph, buildCurrentGraphDto]);
+
+  // Flush any pending unsaved changes immediately when unmounting (e.g., switching tabs)
+  useEffect(() => {
+    return () => {
+      if (isDirtyRef.current && !isAutoSavingRef.current) {
+        isDirtyRef.current = false;
+        const currentGraph = buildCurrentGraphDto();
+        void storageRef.current.saveDraft(graphRef.current.id, currentGraph);
+      }
+    };
+  }, [buildCurrentGraphDto]);
 
   // Update Config for an input pin
   const handleUpdateConfig = useCallback(

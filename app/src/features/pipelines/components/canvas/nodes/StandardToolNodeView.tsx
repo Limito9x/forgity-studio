@@ -7,12 +7,14 @@ import { NodeHeader } from "./parts/NodeHeader";
 import { ExecPinBar } from "./parts/ExecPinBar";
 import { DataPinColumns } from "./parts/DataPinColumns";
 import { useNodeDefinition } from "../NodeDefinitions";
+import { resolveNodePinsFromDefinition } from "../../../nodeDefinitions";
 
 export function StandardToolNodeView({ id: _id, data, selected, missingDefinition = false }: NodeProps & { missingDefinition?: boolean }) {
   const nodeData = data as unknown as CustomPipelineNodeData;
   const definition = useNodeDefinition(nodeData.kind, nodeData.refId);
-  const executor = definition?.executor ?? nodeData.executor;
-  const { execInputs, execOutputs, dataInputs, dataOutputs, showExecIn } = useSplitPins(nodeData.inputs, nodeData.outputs);
+  const resolved = resolveNodePinsFromDefinition(nodeData, definition);
+  const executor = resolved.executor;
+  const { execInputs, execOutputs, dataInputs, dataOutputs, showExecIn } = useSplitPins(resolved.inputs, resolved.outputs);
   const isUnresolvedScript = Boolean((nodeData.metadata as Record<string, unknown> | undefined)?.["unresolvedScript"]);
 
   // Determine badge label
@@ -40,7 +42,7 @@ export function StandardToolNodeView({ id: _id, data, selected, missingDefinitio
         icon={nodeData.category ? <Box className="h-4 w-4" /> : <FileCode className="h-4 w-4" />}
         iconBgClass={isUnresolvedScript ? "bg-amber-500/15 text-amber-500" : "bg-blue-500/15 text-blue-500"}
         headerBgClass="border-border/70 bg-muted/50"
-        title={nodeData.label}
+        title={resolved.label}
         subtitle={nodeData.refId}
         badgeLabel={badgeLabel}
         badgeVariantClass={badgeVariantClass}

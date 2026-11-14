@@ -5,13 +5,13 @@ import { Sliders, CheckCircle2, Key } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FormRenderer } from "@/components/dynamic-form/FormRenderer";
 import { useNodeDefinition } from "./NodeDefinitions";
-import { nodeView } from "../../nodeDefinitions";
+import { nodeView, resolveNodePinsFromDefinition } from "../../nodeDefinitions";
 import type { CustomPipelineNodeData } from "./nodes/types";
 import { PipelineStartNodeInspector } from "./PipelineStartNodeInspector";
 import { pipelineRegistry } from "../../form-scope/pipelineRegistry";
 import { usePipelineFormScope, useNodeDiagnostics } from "../../form-scope/PipelineFormScope";
 import { pinToFieldDefinition } from "../../form-scope/pinToFieldDefinition";
-import { useGetStructCatalogue } from "@/gen/endpoints/pipelines/pipelines";
+import { usePipelineWorkspace } from "../../context/PipelineWorkspaceContext";
 import { NodeConfigHeader } from "./inspector/NodeConfigHeader";
 import { NodeConfigDiagnosticsBanner } from "./inspector/NodeConfigDiagnosticsBanner";
 import { NodeConfigStructSelector } from "./inspector/NodeConfigStructSelector";
@@ -43,7 +43,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
   isReadOnly = false,
 }: NodeConfigInspectorProps) {
   const { edges = [], nodes = [], projectId = "" } = usePipelineFormScope();
-  const { data: structCatalogue = [] } = useGetStructCatalogue({ projectId });
+  const { structCatalogue } = usePipelineWorkspace();
   const { nodeDiagnostics, errorCount, warningCount, hasErrors, getPinDiagnostics } =
     useNodeDiagnostics(node?.id);
 
@@ -69,7 +69,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
   const isConstantNode = Boolean((definition?.capabilities as any)?.isConstantNode);
   const constCaps = (definition?.capabilities as any) || {};
 
-  const inputs = data.inputs || [];
+  const inputs = resolveNodePinsFromDefinition(data, definition).inputs;
   const configValues = data.configValues || {};
 
   // Form Management with React Hook Form

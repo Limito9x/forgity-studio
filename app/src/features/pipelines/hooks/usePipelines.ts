@@ -51,6 +51,9 @@ import {
   getGetPipelineGraphQueryKey,
 } from "@/gen/endpoints/pipelines/pipelines";
 
+const isCloudProjectId = (projectId?: string) =>
+  Boolean(projectId && projectId !== "local-default");
+
 export function usePipelines(projectId?: string, isArchived: boolean = false) {
   return useQuery({
     queryKey: getGetPipelinesQueryKey(
@@ -58,7 +61,7 @@ export function usePipelines(projectId?: string, isArchived: boolean = false) {
     ),
     queryFn: ({ signal }) =>
       getPipelines(projectId ? { projectId, isArchived } : { isArchived }, signal),
-    enabled: !!projectId,
+    enabled: isCloudProjectId(projectId),
   });
 }
 
@@ -190,7 +193,7 @@ export function useNodePalette(projectId?: string, executor?: string) {
   return useQuery({
     queryKey: getGetNodePaletteQueryKey({ projectId }),
     queryFn: ({ signal }) => getNodePalette({ projectId }, signal),
-    enabled: !!projectId,
+    enabled: isCloudProjectId(projectId),
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     select: executor ? (items) => filterPalette(items, executor) : undefined,

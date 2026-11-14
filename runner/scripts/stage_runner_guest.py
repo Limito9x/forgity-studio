@@ -103,6 +103,52 @@ parent_lib_module.PipelineHooks = PipelineHooks
 sys.modules["lib"] = parent_lib_module
 
 
+def execute_pure_step(tool_key: str, step_inputs: dict) -> dict:
+    """Evaluate inline Pure nodes (Constant, MakeStruct, BreakStruct, Joint) inside the stage."""
+    lower_tool = (tool_key or "").lower()
+
+    if ":struct:make:" in lower_tool or lower_tool == "makestruct":
+        struct_obj = dict(step_inputs or {})
+        return {"struct_out": struct_obj, "output": struct_obj}
+
+    if ":struct:break:" in lower_tool or lower_tool == "breakstruct":
+        src = (
+            step_inputs.get("struct_in")
+            or step_inputs.get("input")
+            or step_inputs.get("target")
+            or (next(iter(step_inputs.values())) if step_inputs else {})
+        )
+        return dict(src) if isinstance(src, dict) else {}
+
+    if lower_tool in ("joint", "mergearray", "concatarray"):
+        merged = []
+        for k in sorted((step_inputs or {}).keys()):
+            v = step_inputs[k]
+            if isinstance(v, list):
+                merged.extend(v)
+            elif v is not None:
+                merged.append(v)
+        return {"out_array": merged, "output": merged}
+
+    if lower_tool.startswith("local:constant:"):
+        outputs = {}
+        for tmpl_key in ("value", "disk_path", "virtual_path"):
+            tmpl = step_inputs.get(tmpl_key)
+            if isinstance(tmpl, str):
+                rendered = tmpl
+                for k, v in (step_inputs or {}).items():
+                    if k in ("value", "disk_path", "virtual_path"):
+                        continue
+                    rendered = (
+                        rendered.replace(f"${{{k}}}", "" if v is None else str(v))
+                        .replace(f"{{{k}}}", "" if v is None else str(v))
+                    )
+                outputs[tmpl_key] = rendered
+        return outputs
+
+    return {}
+
+
 def resolve_step_inputs(step_inputs: dict, all_step_outputs: dict, resolved_data: dict) -> dict:
     """Resolve final input values for a step by substituting $ref, $file, and $data markers."""
     resolved = {}
@@ -375,7 +421,21 @@ def main():
         step_succeeded = True
         step_err = None
 
-        if script_path and os.path.exists(script_path):
+        if step.get("step_type") == "pure":
+            try:
+                tool_key = step.get("entry_point") or ""
+                res = execute_pure_step(tool_key, step_inputs)
+                if isinstance(res, dict):
+                    step_outputs.update(res)
+                all_step_outputs[step_id] = step_outputs
+                print(f"[GuestRunner] Pure step '{step_name}' completed. Outputs: {list(step_outputs.keys())}", flush=True)
+            except Exception as e:
+                step_succeeded = False
+                step_err = f"{e}\n{traceback.format_exc()}"
+                overall_success = False
+                error_msg = step_err
+                print(f"[GuestRunner] ERROR in pure step '{step_name}': {step_err}", flush=True)
+        elif script_path and os.path.exists(script_path):
             try:
                 # Isolate sys.argv to avoid scripts reading host CLI flags like --pipe
                 sys.argv = [script_path]

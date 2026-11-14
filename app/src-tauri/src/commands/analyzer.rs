@@ -344,13 +344,7 @@ fn map_raw_pin(raw: &serde_json::Value, is_input: bool) -> PinDefinitionDto {
 
     let (key_type, value_type) = if cardinality == "Map" {
         let kt = raw.get("keyType").and_then(|v| v.as_str()).unwrap_or("Text").to_string();
-        let vt = raw.get("valueType").and_then(|v| v.as_str()).map(|s| s.to_string()).unwrap_or_else(|| {
-            if name_lower.ends_with("_maps") || name_lower.ends_with("_paths") || name_lower.ends_with("_files") || name_lower.contains("texture") {
-                "Asset".to_string()
-            } else {
-                "Text".to_string()
-            }
-        });
+        let vt = raw.get("valueType").and_then(|v| v.as_str()).unwrap_or("Text").to_string();
         (Some(kt), Some(vt))
     } else {
         (None, None)

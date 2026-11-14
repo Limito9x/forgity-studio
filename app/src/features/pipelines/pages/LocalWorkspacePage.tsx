@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import {
   Save,
   RefreshCw,
@@ -10,9 +10,17 @@ import {
   useLocalWorkspaceConfig,
   useLocalPaletteQuery,
   useLocalPipelinesQuery,
+  useLocalConstantsQuery,
   loadLocalPipelineSnapshot,
   saveLocalPipelineSnapshot,
 } from "../hooks/workspace";
+import {
+  localStructsToCatalogue,
+  generateLocalStructPaletteItems,
+  generateComponentPipePaletteItems,
+} from "../utils/structPaletteGenerator";
+import { generateConstantPaletteItems } from "../utils/constantPaletteGenerator";
+import type { NodePaletteItemDto } from "@/gen/model";
 import { LocalWorkspaceEmptyState } from "../components/workspace/LocalWorkspaceEmptyState";
 import { LocalWorkspaceWelcomeState } from "../components/workspace/LocalWorkspaceWelcomeState";
 import { LocalWorkspaceOutliner } from "../components/workspace/LocalWorkspaceOutliner";
@@ -31,6 +39,7 @@ import { PipelineWorkspaceProvider } from "../context/PipelineWorkspaceContext";
 import { PipelineCanvas } from "../components/canvas/PipelineCanvas";
 import { useDialogStore } from "@/stores/dialogStore";
 import { pipelineYamlToGraph, graphToPipelineYaml } from "../utils/pipelineDslConverter";
+import { validateLocalPipelineGraph } from "../utils/localGraphValidator";
 import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 import {
   useStudioQuota,
@@ -56,6 +65,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
 
   const {
     draftNodes,
+    localStructs,
     reanalyzeSingleScript,
     removeNodeFromPalette,
   } = useLocalPaletteQuery(rootPath, config?.scriptsDir, config?.ignorePatterns);
@@ -64,6 +74,8 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     pipelines: scannedDraftPipelines,
     savePipelineDraft,
   } = useLocalPipelinesQuery(rootPath, config?.pipelinesDir);
+
+  const { constants, resolvedConstants } = useLocalConstantsQuery(rootPath);
 
   const {
     getProjectState,
@@ -124,8 +136,9 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
   const [loadedGraph, setLoadedGraph] = useState<ExtendedPipelineGraphDto | null>(null);
   const [graphRevision, setGraphRevision] = useState<number>(0);
 
-  const { studioSlug } = useCurrentStudio();
-  const { data: studioQuota } = useStudioQuota(studioSlug);
+  const isStandaloneLocal = projectId === "local-default";
+  const { studioSlug } = useCurrentStudio({ enabled: !isStandaloneLocal });
+  const { data: studioQuota } = useStudioQuota(isStandaloneLocal ? undefined : studioSlug);
   const verifyExecutionMutation = useVerifyPipelineExecution(studioSlug);
   const completeExecutionMutation = useCompletePipelineExecution(studioSlug);
 
@@ -341,19 +354,19 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     }
   };
 
-  const handleRunDraft = async () => {
+  const handleRunDraft = async (runtimeInputs?: Record<string, any>) => {
     if (!activeDraftPipeline || !rootPath) return;
 
-    // Check execution credits gate
-    if (studioQuota && studioQuota.executionCreditsRemaining <= 0) {
-      useDialogStore.getState().openDialog("upgrade-plan", { quota: studioQuota });
-      toast.error("Execution limit reached", {
-        description: "Your 50 free preview runs have been exhausted. Please upgrade to Indie Pro.",
-      });
-      return;
-    }
+    // Standalone Local Mode executes offline without Cloud quota gates.
+    if (!isStandaloneLocal) {
+      if (studioQuota && studioQuota.executionCreditsRemaining <= 0) {
+        useDialogStore.getState().openDialog("upgrade-plan", { quota: studioQuota });
+        toast.error("Execution limit reached", {
+          description: "Your 50 free preview runs have been exhausted. Please upgrade to Indie Pro.",
+        });
+        return;
+      }
 
-    try {
       if (studioSlug) {
         try {
           await verifyExecutionMutation.mutateAsync();
@@ -365,7 +378,9 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
           return;
         }
       }
+    }
 
+    try {
       const { invoke } = await import("@tauri-apps/api/core");
       const lowerName = activeDraftPipeline.fileName.toLowerCase();
       const pipelineKind =
@@ -373,18 +388,39 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
           ? "component"
           : "master";
 
+      // Prefer generating YAML from the active graph snapshot so Run Draft always executes
+      // the latest canvas state rather than stale disk YAML.
+      let yamlToRun = activeDraftPipeline.content;
+      if (pipelineSlug) {
+        try {
+          const snapJson = await loadLocalPipelineSnapshot(rootPath, pipelineSlug);
+          if (snapJson) {
+            const parsedDto = JSON.parse(snapJson) as ExtendedPipelineGraphDto;
+            if (parsedDto && Array.isArray(parsedDto.nodes) && parsedDto.nodes.length > 0) {
+              yamlToRun = graphToPipelineYaml(
+                parsedDto.name,
+                parsedDto.nodes as any,
+                parsedDto.edges as any,
+              );
+            }
+          }
+        } catch (snapErr) {
+          console.warn("[LocalWorkspacePage] Fallback to disk YAML for run:", snapErr);
+        }
+      }
+
       const res = await invoke<{ runId: string; runnerPath: string }>(
         "run_local_pipeline",
         {
           rootPath,
-          pipelineYamlContent: activeDraftPipeline.content,
+          pipelineYamlContent: yamlToRun,
           pipelineKind,
-          runtimeInputs: {},
+          runtimeInputs: runtimeInputs || {},
         },
       );
 
-      // Deduct 1 credit upon successful dispatch
-      if (studioSlug) {
+      // Deduct 1 credit upon successful dispatch (Studio project mode only)
+      if (!isStandaloneLocal && studioSlug) {
         completeExecutionMutation.mutate(1);
       }
 
@@ -406,9 +442,55 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
       rootPath: rootPath || "",
       pipelineSlug,
       filePath: activeDraftPipeline?.fullPath || "",
-      onRunDraft: () => handleRunDraftRef.current(),
+      onRunDraft: (runtimeInputs) => handleRunDraftRef.current(runtimeInputs),
+      onDraftSaved: (savedGraph) => setLoadedGraph(savedGraph),
     });
   }, [rootPath, pipelineSlug, activeDraftPipeline?.fullPath]);
+
+  const localStructCatalogue = useMemo(
+    () => localStructsToCatalogue(localStructs || []),
+    [localStructs]
+  );
+
+  const localPaletteItems = useMemo<NodePaletteItemDto[]>(() => {
+    const items: NodePaletteItemDto[] = [];
+
+    if (draftNodes) {
+      for (const draft of Object.values(draftNodes)) {
+        items.push({
+          key: `local:${draft.key}`,
+          label: draft.suggestedLabel || draft.suggestedName || draft.fileName,
+          category: "Local Scripts",
+          source: "LocalDraft" as any,
+          executor: draft.executor,
+          inputs: (draft.inputs || []) as any,
+          outputs: (draft.outputs || []) as any,
+          description: draft.description || draft.fullPath,
+          id: `local:${draft.key}`,
+          isVisibleInPalette: true,
+        });
+      }
+    }
+
+    if (localStructs && localStructs.length > 0) {
+      items.push(...generateLocalStructPaletteItems(localStructs));
+    }
+
+    if (scannedDraftPipelines && scannedDraftPipelines.length > 0) {
+      const componentPipes = scannedDraftPipelines.filter(
+        (p) => p.pipelineKind === "component"
+      );
+      if (componentPipes.length > 0) {
+        items.push(...generateComponentPipePaletteItems(componentPipes));
+      }
+    }
+
+    if (constants && constants.length > 0) {
+      items.push(...generateConstantPaletteItems(constants, resolvedConstants));
+    }
+
+    return items;
+  }, [draftNodes, localStructs, scannedDraftPipelines, constants, resolvedConstants]);
 
   if (isConfigLoading) {
     return (
@@ -426,12 +508,29 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     );
   }
 
+  const handleCancelLocalExecution = useCallback(async (executionId: string) => {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("cancel_local_pipeline", { runId: executionId });
+  }, []);
+
+  const handleValidateLocalGraph = useCallback(
+    async (_snapshot: Record<string, unknown>, { nodes, edges }: { nodes: any[]; edges: any[] }) =>
+      validateLocalPipelineGraph(nodes, edges),
+    []
+  );
+
   return (
     <PipelineWorkspaceProvider
       mode="local"
       projectId={projectId}
       rootPath={rootPath}
       storage={storageAdapter}
+      paletteItems={localPaletteItems}
+      structCatalogue={localStructCatalogue}
+      runners={[]}
+      isLoadingRunners={false}
+      validateGraph={handleValidateLocalGraph}
+      cancelExecution={handleCancelLocalExecution}
     >
       <div className="flex h-[calc(100vh-3.5rem)] w-full overflow-hidden bg-background">
         {/* Docked Left Sidebar */}

@@ -6,8 +6,11 @@ import type {
   PipelineParameterDto,
   PipelineDiagnostic,
 } from "../../../hooks/usePipelineGraph";
-import { useValidatePipeline } from "../../../hooks/usePipelineGraph";
-import type { PipelineDiagnosticsScope, ValidationStatus } from "../../../form-scope/PipelineFormScope";
+import { usePipelineWorkspaceOptional } from "../../../context/PipelineWorkspaceContext";
+import type {
+  PipelineDiagnosticsScope,
+  ValidationStatus,
+} from "../../../form-scope/PipelineFormScope";
 import type { CustomPipelineNodeData } from "../nodes/types";
 
 interface UsePipelineDiagnosticsOptions {
@@ -27,14 +30,15 @@ export function usePipelineDiagnostics({
   parameters,
   isDirty,
   lastSavedDiagnostics,
-  isLocalMode = false,
+  isLocalMode: _isLocalMode = false,
 }: UsePipelineDiagnosticsOptions): PipelineDiagnosticsScope {
   // Initial diagnostics from graph DTO
   const initialDiagnostics = useMemo(() => {
     return (graph.diagnostics ?? []) as PipelineDiagnostic[];
   }, [graph.diagnostics]);
 
-  const [diagnostics, setDiagnostics] = useState<PipelineDiagnostic[]>(initialDiagnostics);
+  const [diagnostics, setDiagnostics] =
+    useState<PipelineDiagnostic[]>(initialDiagnostics);
   const [isStale, setIsStale] = useState<boolean>(false);
   const isInitialMount = useRef(true);
 
@@ -63,7 +67,9 @@ export function usePipelineDiagnostics({
     }
   }, [isDirty]);
 
-  const validateMutation = useValidatePipeline(graph.id);
+  const workspace = usePipelineWorkspaceOptional();
+  const validateGraphStrategy = workspace?.validateGraph;
+  const [isValidating, setIsValidating] = useState(false);
 
   // Helper to build draft snapshot payload matching backend expected format
   const buildDraftSnapshot = useCallback(() => {
@@ -160,113 +166,52 @@ export function usePipelineDiagnostics({
   }, [nodes, edges, parameters]);
 
   const validateDraft = useCallback(async () => {
+    if (!validateGraphStrategy) return;
+    setIsValidating(true);
     try {
-      if (isLocalMode) {
-        // Pure local structural validation
-        const localDiagnostics: PipelineDiagnostic[] = [];
-        const startNode = nodes.find((n) => {
-          const kindStr = String((n.data as any)?.kind || "").toLowerCase();
-          const refIdStr = String((n.data as any)?.refId || n.id).toLowerCase();
-          return kindStr === "start" || refIdStr === "start";
-        });
-
-        if (!startNode) {
-          localDiagnostics.push({
-            code: "MissingNodeDefinition",
-            severity: "Error",
-            message: "Pipeline must have a Start node.",
-          });
-        }
-
-        // Check cycle
-        const adj = new Map<string, string[]>();
-        nodes.forEach((n) => adj.set(n.id, []));
-        edges.forEach((e) => {
-          if (adj.has(e.source)) adj.get(e.source)!.push(e.target);
-        });
-
-        const visited = new Set<string>();
-        const inStack = new Set<string>();
-
-        const checkCycle = (curr: string) => {
-          visited.add(curr);
-          inStack.add(curr);
-          for (const next of adj.get(curr) || []) {
-            if (!visited.has(next)) {
-              if (checkCycle(next)) return true;
-            } else if (inStack.has(next)) {
-              localDiagnostics.push({
-                code: "DagCycleDetected",
-                severity: "Error",
-                nodeId: next,
-                message: "Loop/Cycle detected involving this node.",
-              });
-              return true;
-            }
-          }
-          inStack.delete(curr);
-          return false;
-        };
-
-        for (const n of nodes) {
-          if (!visited.has(n.id)) checkCycle(n.id);
-        }
-
-        // Check unconnected inputs on tool nodes
-        for (const n of nodes) {
-          const kind = (n.data as any)?.kind;
-          if (kind === "Start" || kind === "Capsule" || n.type === "scopeContainer") continue;
-          const inputs = ((n.data as any)?.inputs || []) as any[];
-          const incomingEdges = edges.filter((e) => e.target === n.id);
-          const hasExecIn = incomingEdges.some((e) => (e.targetHandle || "").toLowerCase().includes("exec"));
-          if (!hasExecIn && inputs.some((p) => p.kind === "Exec" || p.id === "exec_in")) {
-            localDiagnostics.push({
-              code: "OrphanNode",
-              severity: "Warning",
-              nodeId: n.id,
-              message: "Execution input is not connected; node might not be reachable.",
-            });
-          }
-        }
-
-        setDiagnostics(localDiagnostics);
-        setIsStale(false);
-
-        const errors = localDiagnostics.filter((d) => d.severity === "Error");
-        if (errors.length > 0) {
-          toast.error(`Validation found ${errors.length} error(s). Review highlighted nodes.`);
-        } else if (localDiagnostics.length > 0) {
-          toast.warning(`Validation passed with ${localDiagnostics.length} warning(s).`);
-        } else {
-          toast.success("Local pipeline graph is valid with no structural errors!");
-        }
-        return;
-      }
-
       const payload = buildDraftSnapshot();
-      const res = await validateMutation.mutateAsync(payload);
+      const res = await validateGraphStrategy(payload, { nodes, edges });
 
-      const receivedDiagnostics = (res.diagnostics ?? []) as PipelineDiagnostic[];
+      const receivedDiagnostics = (res.diagnostics ??
+        []) as PipelineDiagnostic[];
       setDiagnostics(receivedDiagnostics);
       setIsStale(false);
 
-      if (res.isValid) {
-        toast.success("Pipeline graph is valid with no unresolved dependencies.");
+      const errorItems = receivedDiagnostics.filter(
+        (d) => d.severity === "Error",
+      );
+      if (res.isValid !== false && errorItems.length === 0) {
+        if (receivedDiagnostics.length > 0) {
+          toast.warning(
+            `Validation passed with ${receivedDiagnostics.length} warning(s).`,
+          );
+        } else {
+          toast.success(
+            "Pipeline graph is valid with no unresolved dependencies.",
+          );
+        }
       } else {
-        const errorItems = receivedDiagnostics.filter((d) => d.severity === "Error");
         if (errorItems.length > 0) {
-          toast.error(`Validation found ${errorItems.length} error(s). Review highlighted nodes.`);
+          toast.error(
+            `Validation found ${errorItems.length} error(s). Review highlighted nodes.`,
+          );
         } else if (res.cycleNodeIds && res.cycleNodeIds.length > 0) {
-          toast.error(`Pipeline contains a cycle involving nodes: ${res.cycleNodeIds.join(", ")}`);
+          toast.error(
+            `Pipeline contains a cycle involving nodes: ${res.cycleNodeIds.join(", ")}`,
+          );
         } else if (res.unresolvedPins && res.unresolvedPins.length > 0) {
-          toast.error(`Unresolved required pins: ${res.unresolvedPins.map((p) => p.pinLabel || p.pinKey).join(", ")}`);
+          toast.error(
+            `Unresolved required pins: ${res.unresolvedPins.map((p) => p.pinLabel || p.pinKey).join(", ")}`,
+          );
         }
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Validation failed";
       toast.error(msg);
+    } finally {
+      setIsValidating(false);
     }
-  }, [isLocalMode, nodes, edges, buildDraftSnapshot, validateMutation]);
+  }, [validateGraphStrategy, nodes, edges, buildDraftSnapshot]);
 
   // Filter diagnostics to remove ghost entries for deleted nodes
   const activeNodeIds = useMemo(() => new Set(nodes.map((n) => n.id)), [nodes]);
@@ -322,11 +267,11 @@ export function usePipelineDiagnostics({
   }, [activeDiagnostics]);
 
   const validationStatus: ValidationStatus = useMemo(() => {
-    if (validateMutation.isPending) return "validating";
+    if (isValidating) return "validating";
     if (isStale) return "stale";
     if (errorCount > 0) return "invalid";
     return "valid";
-  }, [validateMutation.isPending, isStale, errorCount]);
+  }, [isValidating, isStale, errorCount]);
 
   return {
     diagnostics: activeDiagnostics,
@@ -337,8 +282,7 @@ export function usePipelineDiagnostics({
     warningCount,
     validationStatus,
     isStale,
-    isValidating: validateMutation.isPending,
+    isValidating,
     validateDraft,
   };
 }
-

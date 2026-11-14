@@ -15,12 +15,13 @@ export function ContentItemPicker({
   multiple = false,
 }: EntityPickerProps) {
   // 1. ContentType filter on top (equivalent to Workstation filter in ResourcePicker)
-  const [selectedContentTypeId, setSelectedContentTypeId] = useState<string>("");
+  const [selectedContentTypeId, setSelectedContentTypeId] =
+    useState<string>("");
 
   const { data: contentTypesData, isLoading: isTypesLoading } = useContentTypes(
     { pageSize: 100, page: 1 } as any,
     effectiveProjectId,
-    { enabled: Boolean(effectiveProjectId) }
+    { enabled: Boolean(effectiveProjectId) },
   );
 
   const rawTypes = Array.isArray(contentTypesData)
@@ -38,14 +39,15 @@ export function ContentItemPicker({
   }, [rawTypes]);
 
   // 2. Query ContentItems scoped by selectedContentTypeId
-  const { data: contentItemsData, isLoading: isItemsLoading } = useLookupContentItems(
-    effectiveProjectId,
-    {
-      contentTypeId: selectedContentTypeId || undefined,
-      limit: 100,
-    },
-    { enabled: Boolean(effectiveProjectId) }
-  );
+  const { data: contentItemsData, isLoading: isItemsLoading } =
+    useLookupContentItems(
+      effectiveProjectId,
+      {
+        contentTypeId: selectedContentTypeId || undefined,
+        limit: 100,
+      },
+      { enabled: Boolean(effectiveProjectId) },
+    );
 
   const rawItems = Array.isArray(contentItemsData) ? contentItemsData : [];
 
@@ -112,7 +114,9 @@ export function ContentItemPicker({
           items={typeOptions}
           value={selectedContentTypeId}
           onValueChange={(val) => setSelectedContentTypeId(val || "")}
-          placeholder={isTypesLoading ? "Loading types..." : "All Content Types"}
+          placeholder={
+            isTypesLoading ? "Loading types..." : "All Content Types"
+          }
           disabled={disabled || isTypesLoading}
         />
       </div>
@@ -133,8 +137,8 @@ export function ContentItemPicker({
             isItemsLoading
               ? "Loading content items..."
               : availableItems.length === 0 && selectedContentTypeId
-              ? "No items in this Content Type"
-              : placeholder
+                ? "No items in this Content Type"
+                : placeholder
           }
           isLoading={isItemsLoading}
           disabled={disabled || isItemsLoading}

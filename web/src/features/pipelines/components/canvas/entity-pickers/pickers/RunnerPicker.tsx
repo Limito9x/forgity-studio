@@ -12,7 +12,8 @@ export function RunnerPicker({
   const items = runnersData.map((r: any) => ({
     value: r.id,
     label: `${r.name || r.id} (${r.status || "Unknown"})`,
-    disabled: !r.isOnline && !r.isActive && r.status !== "Active" && r.status !== 1,
+    disabled:
+      !r.isOnline && !r.isActive && r.status !== "Active" && r.status !== 1,
   }));
 
   return (
@@ -29,4 +30,3 @@ export function RunnerPicker({
     </div>
   );
 }
-

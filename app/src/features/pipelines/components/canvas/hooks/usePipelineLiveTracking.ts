@@ -7,6 +7,7 @@ import {
 } from "../../../hooks/usePipelineGraph";
 import { mapExecutionStatus, usePipelineSignalR } from "../../../hooks/usePipelineSignalR";
 import { ExecutionStatus } from "@/gen/model/executionStatus";
+import { toast } from "sonner";
 import type { CustomPipelineNodeData } from "../nodes/types";
 
 interface UsePipelineLiveTrackingArgs {
@@ -42,11 +43,15 @@ export function usePipelineLiveTracking({
   const [localLogs, setLocalLogs] = useState<
     Array<{ runId: string; line: string }>
   >([]);
+  const [localRunStatus, setLocalRunStatus] = useState<
+    "idle" | "running" | "succeeded" | "failed"
+  >("idle");
+  const [localRunError, setLocalRunError] = useState<string | null>(null);
 
-  const { data: executions } = usePipelineExecutions(pipelineId);
-  const currentExecId = activeExecutionId || executions?.[0]?.id;
+  const { data: executions } = usePipelineExecutions(isLocalMode ? undefined : pipelineId);
+  const currentExecId = activeExecutionId || (isLocalMode ? undefined : executions?.[0]?.id);
   const { data: currentExecution } = usePipelineExecution(
-    currentExecId || undefined,
+    isLocalMode ? undefined : currentExecId || undefined,
   );
 
   // Sync isExecutionRunning based on currentExecution status if not already running via SignalR
@@ -67,6 +72,8 @@ export function usePipelineLiveTracking({
     setLiveNodeOutputs({});
     setLiveNodeErrors({});
     setLocalLogs([]);
+    setLocalRunStatus("idle");
+    setLocalRunError(null);
     setIsExecutionRunning(false);
   }, []);
 
@@ -97,6 +104,8 @@ export function usePipelineLiveTracking({
             setLiveNodeOutputs({});
             setLiveNodeErrors({});
             setLocalLogs([]);
+            setLocalRunStatus("running");
+            setLocalRunError(null);
             setIsExecutionRunning(true);
             break;
           }
@@ -151,7 +160,14 @@ export function usePipelineLiveTracking({
           case "run_completed": {
             setIsExecutionRunning(false);
             setActiveRunningNodeId(null);
-            if (!payload.succeeded) {
+            const ok = Boolean(payload.succeeded);
+            setLocalRunStatus(ok ? "succeeded" : "failed");
+            if (ok) {
+              setLocalRunError(null);
+              toast.success("Local Pipeline Succeeded");
+            } else {
+              const errMsg = payload.error_message || "Local pipeline execution failed";
+              setLocalRunError(errMsg);
               setLiveNodeStatuses((prev) => {
                 const next = { ...prev };
                 for (const k of Object.keys(next)) {
@@ -161,12 +177,13 @@ export function usePipelineLiveTracking({
                 }
                 return next;
               });
-              if (payload.error_message) {
-                setLiveNodeErrors((prev) => ({
-                  ...prev,
-                  __run__: payload.error_message,
-                }));
-              }
+              setLiveNodeErrors((prev) => ({
+                ...prev,
+                __run__: errMsg,
+              }));
+              toast.error("Local Pipeline Failed", { description: errMsg });
+              setDrawerDefaultTab("logs");
+              setIsDrawerOpen(true);
             }
             break;
           }
@@ -416,5 +433,7 @@ export function usePipelineLiveTracking({
     liveNodeOutputs,
     liveNodeErrors,
     localLogs,
+    localRunStatus,
+    localRunError,
   };
 }

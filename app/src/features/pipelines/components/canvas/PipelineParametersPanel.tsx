@@ -8,8 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PipelineParameterDto } from "../../hooks/usePipelineGraph";
-import { usePipelineFormScope } from "../../form-scope/PipelineFormScope";
-import { useGetStructCatalogue } from "@/gen/endpoints/pipelines/pipelines";
+import { usePipelineWorkspace } from "../../context/PipelineWorkspaceContext";
 import { ParameterList } from "./parameters/ParameterList";
 import { ParameterEditorForm } from "./parameters/ParameterEditorForm";
 import type { ParameterTab } from "./parameters/types";
@@ -53,8 +52,7 @@ export function PipelineParametersPanel({
   const [isCreating, setIsCreating] = useState(false);
   const [editingParam, setEditingParam] = useState<PipelineParameterDto | null>(null);
 
-  const { projectId = "" } = usePipelineFormScope();
-  const { data: structCatalogue = [] } = useGetStructCatalogue({ projectId });
+  const { structCatalogue } = usePipelineWorkspace();
 
   const setTab = (tab: ParameterTab) => {
     setIsCreating(false);

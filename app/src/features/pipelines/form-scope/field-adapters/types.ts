@@ -12,6 +12,9 @@ export interface PinMetadataHint {
   rows?: number;
   allowCustom?: boolean;
   placeholder?: string;
+  pathKind?: "file" | "folder";
+  defaultFolder?: string;
+  accept?: string;
   entity?: string;
   properties?: Record<string, unknown>;
 }

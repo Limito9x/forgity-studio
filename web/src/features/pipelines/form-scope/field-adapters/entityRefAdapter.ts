@@ -4,22 +4,26 @@ export const entityRefAdapter: FieldAdapter = {
   id: "entityRef",
   match: (ctx: PinFieldContext) => {
     const hintProps = (ctx.hint?.properties ?? {}) as Record<string, unknown>;
-    const hintEntity = (ctx.hint?.entity || hintProps.entity) as string | undefined;
+    const hintEntity = (ctx.hint?.entity || hintProps.entity) as
+      string | undefined;
     const isEntityHint =
       ctx.hint?.type === "entity-select" ||
       ctx.hint?.type === "pin:entitySelect" ||
       Boolean(hintEntity);
 
-    return ctx.primitive === "EntityRef" || Boolean(ctx.structType) || isEntityHint;
+    return (
+      ctx.primitive === "EntityRef" || Boolean(ctx.structType) || isEntityHint
+    );
   },
   create: (ctx: PinFieldContext) => {
     const hintProps = (ctx.hint?.properties ?? {}) as Record<string, unknown>;
-    const hintEntity = (ctx.hint?.entity || hintProps.entity) as string | undefined;
+    const hintEntity = (ctx.hint?.entity || hintProps.entity) as
+      string | undefined;
     const entityTarget = (ctx.structType || hintEntity || "").trim();
 
     if (!entityTarget) {
       console.warn(
-        `[Pipeline Inspector] EntityRef pin '${ctx.pinId}' (${ctx.label}) has no structType or entity metadata configured.`
+        `[Pipeline Inspector] EntityRef pin '${ctx.pinId}' (${ctx.label}) has no structType or entity metadata configured.`,
       );
     }
 
@@ -72,4 +76,3 @@ export const entityRefAdapter: FieldAdapter = {
     };
   },
 };
-

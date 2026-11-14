@@ -64,8 +64,14 @@ impl MasterOrchestrator {
                     continue;
                 }
 
-                // 2. End Node
-                if tool_lower == "end" || tool_lower == "local:end" || node_def.id == "end" {
+                // 2. End / Return Node
+                if tool_lower == "end"
+                    || tool_lower == "local:end"
+                    || tool_lower == "return"
+                    || tool_lower == "local:return"
+                    || node_def.id == "end"
+                    || node_def.id == "return"
+                {
                     let mut end_inputs = node_def.inputs.clone();
                     let wired = scheduler.resolve_node_inputs(&node_def.id);
                     for (k, v) in wired {

@@ -43,7 +43,7 @@ pub struct LocalRunStartedResponse {
 /// 2. `%LOCALAPPDATA%\Forgity\bin\forgity-runner.exe`
 /// 3. Build dev trong monorepo (`runner/target/debug` hoặc `release`)
 /// 4. Biến môi trường PATH (`forgity-runner`)
-fn resolve_runner_executable() -> Result<PathBuf, String> {
+pub fn resolve_runner_executable() -> Result<PathBuf, String> {
     let exe_name = if cfg!(windows) {
         "forgity-runner.exe"
     } else {
@@ -105,15 +105,23 @@ fn build_execution_bundle(
     let db_file = root_path.join(".forgity").join("workspace.db");
     if db_file.is_file() {
         if let Ok(db) = WorkspaceDb::open(root_path) {
-            // 1. Load scripts
+            // 1. Load scripts (palette_json is a JSON object { key: scriptObj } from WorkspaceDb, or an array)
             if let Ok(palette_json) = db.load_palette_json() {
-                if let Ok(items) = serde_json::from_str::<Vec<Value>>(&palette_json) {
-                    for item in items {
+                if let Ok(parsed_palette) = serde_json::from_str::<Value>(&palette_json) {
+                    let entries: Vec<(Option<String>, Value)> = match parsed_palette {
+                        Value::Object(map) => map.into_iter().map(|(k, v)| (Some(k), v)).collect(),
+                        Value::Array(arr) => arr.into_iter().map(|v| (None, v)).collect(),
+                        _ => Vec::new(),
+                    };
+
+                    for (map_key, item) in entries {
                         let key = item
                             .get("key")
                             .and_then(|v| v.as_str())
-                            .unwrap_or_default()
-                            .to_string();
+                            .filter(|s| !s.is_empty())
+                            .map(|s| s.to_string())
+                            .or(map_key)
+                            .unwrap_or_default();
                         if key.is_empty() {
                             continue;
                         }

@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useLocalPaletteQuery } from "../../hooks/workspace";
+import { useWorkspaceTabsStore } from "../../stores/useWorkspaceTabsStore";
 import {
   useWorkspaceUiPrefsStore,
   useProjectUiPrefs,
@@ -132,6 +133,12 @@ export function LocalNodePaletteWorkbench({
             lastSyncedAt: node.lastSyncedAt || "",
           };
         });
+        const statusRank = { new: 0, modified: 1, unchanged: 2 } as const;
+        items.sort(
+          (a, b) =>
+            statusRank[a.status] - statusRank[b.status] ||
+            (a.suggestedLabel || a.fileName).localeCompare(b.suggestedLabel || b.fileName)
+        );
         setStagedNodes(items);
         if (initialScriptKey) {
           const foundIdx = items.findIndex((i) => i.key === initialScriptKey);
@@ -153,12 +160,15 @@ export function LocalNodePaletteWorkbench({
     }
   };
 
-  // Only scan when user explicitly triggers Sync (scanRequest increments > 0)
+  const consumePaletteScan = useWorkspaceTabsStore((s) => s.consumePaletteScan);
+
+  // Only scan when user explicitly triggers Sync (consume request immediately so re-opening tab doesn't re-scan)
   useEffect(() => {
     if (scanRequest > 0) {
+      consumePaletteScan();
       runDiskScan();
     }
-  }, [scanRequest]);
+  }, [scanRequest, consumePaletteScan]);
 
   // Select initial script in library mode if provided
   useEffect(() => {
@@ -180,6 +190,7 @@ export function LocalNodePaletteWorkbench({
       description: item.description ?? null,
       contentHash: item.contentHash,
       isOverride: mode === "review" ? item.status === "modified" : false,
+      localStatus: item.status,
       existingNodeId: null,
       hasBreakingChanges: false,
       impactReport: {

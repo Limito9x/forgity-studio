@@ -31,6 +31,7 @@ interface WorkspaceTabsStoreState {
   paletteInitialScriptKey?: string;
   getProjectState: (projectId: string) => ProjectWorkbenchState;
   requestPaletteScan: (projectId: string, scriptKey?: string) => void;
+  consumePaletteScan: () => void;
   openPipelineTab: (
     projectId: string,
     draft: {
@@ -83,6 +84,10 @@ export const useWorkspaceTabsStore = create<WorkspaceTabsStoreState>()(
           paletteScanRequest: state.paletteScanRequest + 1,
           paletteInitialScriptKey: scriptKey,
         }));
+      },
+
+      consumePaletteScan: () => {
+        set({ paletteScanRequest: 0 });
       },
 
       getProjectState: (projectId: string) => {

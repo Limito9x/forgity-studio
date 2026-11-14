@@ -16,7 +16,7 @@ import {
   SidebarMenuSubItem,
   SidebarGroupAction,
 } from "@/components/ui/sidebar";
-import { LayoutDashboard, Users, Shield, Settings, Logs, Cpu, Plus, FolderKanban, FolderGit2, HardDrive, Building2 } from "lucide-react";
+import { LayoutDashboard, Users, Shield, Settings, Logs, Plus, FolderKanban, FolderGit2, HardDrive, Building2 } from "lucide-react";
 import { NavUser } from "./NavUser";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useProjects } from "@/features/projects/hooks/useProjects";
@@ -27,12 +27,6 @@ const navItems = [
     title: "Dashboard",
     url: "/",
     icon: LayoutDashboard
-  },
-  {
-    title: "Runners",
-    url: "/runners",
-    icon: Cpu,
-    featurePrefix: "runner:"
   },
   {
     title: "Storage",
@@ -149,9 +143,6 @@ export function GlobalSidebar() {
                   if (item.title === "Dashboard") {
                     targetUrl = activeStudioSlug ? `/s/${activeStudioSlug}` : "/";
                     isItemActive = pathname === "/" || (activeStudioSlug ? pathname === `/s/${activeStudioSlug}` : false);
-                  } else if (item.title === "Runners") {
-                    targetUrl = activeStudioSlug ? `/s/${activeStudioSlug}/runners` : "/runners";
-                    isItemActive = pathname === "/runners" || (activeStudioSlug ? pathname === `/s/${activeStudioSlug}/runners` : false);
                   } else if (item.title === "Storage") {
                     targetUrl = activeStudioSlug ? `/s/${activeStudioSlug}/storage` : "/storage";
                     isItemActive = pathname === "/storage" || (activeStudioSlug ? pathname === `/s/${activeStudioSlug}/storage` : false);

@@ -47,7 +47,10 @@ pub fn run() {
             run_local_pipeline,
             cancel_local_pipeline,
             get_runner_unreal_project,
-            set_runner_unreal_project
+            set_runner_unreal_project,
+            get_local_runner_config,
+            save_local_runner_config,
+            scan_local_dcc_executors
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

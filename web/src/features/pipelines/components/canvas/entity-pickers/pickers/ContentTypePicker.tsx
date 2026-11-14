@@ -12,7 +12,7 @@ export function ContentTypePicker({
   const { data: contentTypesData, isLoading } = useContentTypes(
     { pageSize: 100, page: 1 } as any,
     effectiveProjectId,
-    { enabled: Boolean(effectiveProjectId) }
+    { enabled: Boolean(effectiveProjectId) },
   );
 
   const list = Array.isArray(contentTypesData)
@@ -40,4 +40,3 @@ export function ContentTypePicker({
     </div>
   );
 }
-

@@ -28,8 +28,6 @@ import {
   Folder,
   ArrowLeftRight,
   Workflow,
-  Laptop,
-  Cloud,
 } from "lucide-react";
 import { NavUser } from "./NavUser";
 import { useRouterState } from "@tanstack/react-router";
@@ -51,13 +49,10 @@ export function ProjectSidebar() {
   const { data: contentTypesData } = useContentTypes({ PageSize: 100 } as any, projectId);
 
   const pipelinesBaseUrl = nav.urls.pipelines();
-  const workspaceBaseUrl = nav.urls.workspace();
   const nodesBaseUrl = nav.urls.nodes();
 
-  const isWorkspaceActive = pathname === workspaceBaseUrl || pathname.startsWith(`${workspaceBaseUrl}/`);
   const isPipelineActive =
     (pathname === pipelinesBaseUrl || pathname.startsWith(`${pipelinesBaseUrl}/`)) &&
-    !isWorkspaceActive &&
     !pathname.includes("/pipeline/nodes");
   const isNodesActive = pathname.startsWith(nodesBaseUrl);
 
@@ -94,64 +89,16 @@ export function ProjectSidebar() {
           <SidebarGroupLabel>Project Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {/* Pipelines */}
+              {/* Pipelines (Cloud Studio Pipelines; Local Workspace moved to top-right Mode Switcher) */}
               <SidebarMenuItem>
-                {isCollapsed ? (
-                  <DropdownMenuTrigger>
-                    <SidebarMenuButton
-                      tooltip="Pipelines"
-                      isActive={isWorkspaceActive || isPipelineActive || isNodesActive}
-                    >
-                      <Workflow />
-                      <span>Pipelines</span>
-                    </SidebarMenuButton>
-                    <DropdownMenu placement="right top" offset={8} className="min-w-44">
-                      <DropdownMenuLabel>Pipelines</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onAction={() => nav.toWorkspace()}>
-                        <Laptop className="mr-2 h-4 w-4" />
-                        <span>Local Workspace</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onAction={() => nav.toPipelines()}>
-                        <Cloud className="mr-2 h-4 w-4" />
-                        <span>Studio Central</span>
-                      </DropdownMenuItem>
-                    </DropdownMenu>
-                  </DropdownMenuTrigger>
-                ) : (
-                  <Collapsible
-                    defaultExpanded={pathname.startsWith(pipelinesBaseUrl)}
-                    className="group/collapsible"
-                  >
-                    <SidebarMenuButton tooltip="Pipelines" slot="trigger">
-                      <Workflow />
-                      <span>Pipelines</span>
-                      <ChevronRight className="ml-auto transition-transform duration-200 group-data-[expanded]/collapsible:rotate-90" />
-                    </SidebarMenuButton>
-                    <CollapsibleContent>
-                      <SidebarMenuSub>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton
-                            isActive={isWorkspaceActive}
-                            onPress={() => nav.toWorkspace()}
-                          >
-                            <Laptop className="h-4 w-4 text-emerald-500" />
-                            <span>Local Workspace</span>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton
-                            isActive={isPipelineActive || isNodesActive}
-                            onPress={() => nav.toPipelines()}
-                          >
-                            <Cloud className="h-4 w-4 text-sky-500" />
-                            <span>Studio Central</span>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      </SidebarMenuSub>
-                    </CollapsibleContent>
-                  </Collapsible>
-                )}
+                <SidebarMenuButton
+                  tooltip="Pipelines"
+                  isActive={isPipelineActive || isNodesActive}
+                  onPress={() => nav.toPipelines()}
+                >
+                  <Workflow />
+                  <span>Pipelines</span>
+                </SidebarMenuButton>
               </SidebarMenuItem>
 
               {/* Dynamic Contents & Content Types Group (Studio Catalog Feature Flag) */}

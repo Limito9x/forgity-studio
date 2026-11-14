@@ -1,13 +1,48 @@
 use anyhow::Result;
 use clap::Subcommand;
 use colored::Colorize;
+use serde::Serialize;
 use std::fs;
 
 use crate::cli::daemon::get_daemon_data_dir;
 use crate::process::dcc_pool::DccSessionInfo;
+use crate::system::dcc::{scan_blender, scan_python, scan_unreal, DccApp};
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DccAppDto {
+    name: String,
+    version: String,
+    path: String,
+}
+
+impl From<DccApp> for DccAppDto {
+    fn from(app: DccApp) -> Self {
+        Self {
+            name: app.name,
+            version: app.version,
+            path: app.path.to_string_lossy().replace('\\', "/"),
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DccScanResultDto {
+    blender: Vec<DccAppDto>,
+    unreal: Vec<DccAppDto>,
+    python: Vec<DccAppDto>,
+}
 
 #[derive(Subcommand, Debug)]
 pub enum DccAction {
+    /// Scan installed local DCC executables (Blender, Unreal Engine, Python)
+    Scan {
+        /// Output raw JSON result for UI/automation
+        #[arg(long)]
+        json: bool,
+    },
+
     /// List active warm DCC resident sessions
     List {
         /// Output raw JSON list for automation
@@ -35,6 +70,28 @@ pub fn run_dcc(action: DccAction) -> Result<()> {
     let snapshot_file = data_dir.join("dcc-sessions.json");
 
     match action {
+        DccAction::Scan { json } => {
+            let blenders = scan_blender();
+            let unreals = scan_unreal();
+            let pythons = scan_python();
+
+            if json {
+                let dto = DccScanResultDto {
+                    blender: blenders.into_iter().map(DccAppDto::from).collect(),
+                    unreal: unreals.into_iter().map(DccAppDto::from).collect(),
+                    python: pythons.into_iter().map(DccAppDto::from).collect(),
+                };
+                println!("{}", serde_json::to_string_pretty(&dto)?);
+                return Ok(());
+            }
+
+            println!("\nDetected DCC Installations:");
+            for item in blenders.iter().chain(unreals.iter()).chain(pythons.iter()) {
+                println!("  - {} [{}]: {}", item.name, item.version, item.path.display());
+            }
+            println!();
+        }
+
         DccAction::List { json } => {
             let sessions: Vec<DccSessionInfo> = if snapshot_file.exists() {
                 let content = fs::read_to_string(&snapshot_file).unwrap_or_default();

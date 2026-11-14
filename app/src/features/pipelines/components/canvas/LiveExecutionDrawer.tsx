@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { usePipelineExecution, usePipelineExecutions, useNodeExecutions } from "../../hooks/usePipelineGraph";
 import type { PipelineExecutionDto, NodeExecutionDto } from "../../hooks/usePipelineGraph";
 import { useCancelPipelineExecution } from "../../hooks/usePipelines";
+import { useOptionalPipelineWorkspace } from "../../context/PipelineWorkspaceContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -35,6 +36,13 @@ interface LiveExecutionDrawerProps {
   onSelectExecution?: (id: string) => void;
   onClose: () => void;
   defaultTab?: "history" | "inspect" | "logs";
+  localLogs?: Array<{ runId: string; line: string }>;
+  localRunStatus?: "idle" | "running" | "succeeded" | "failed";
+  localRunError?: string | null;
+  liveNodeStatuses?: Record<string, "idle" | "running" | "succeeded" | "failed">;
+  liveNodeOutputs?: Record<string, Record<string, any>>;
+  liveNodeErrors?: Record<string, string | null>;
+  nodes?: Array<{ id: string; data?: any }>;
 }
 
 export function LiveExecutionDrawer({
@@ -43,6 +51,13 @@ export function LiveExecutionDrawer({
   onSelectExecution,
   onClose,
   defaultTab = "inspect",
+  localLogs = [],
+  localRunStatus = "idle",
+  localRunError = null,
+  liveNodeStatuses = {},
+  liveNodeOutputs = {},
+  liveNodeErrors = {},
+  nodes = [],
 }: LiveExecutionDrawerProps) {
   const [activeTab, setActiveTab] = useState<"history" | "inspect" | "logs">(defaultTab);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -57,10 +72,24 @@ export function LiveExecutionDrawer({
     }
   }, [defaultTab]);
 
+  const workspaceCtx = useOptionalPipelineWorkspace();
+  const isLocalMode =
+    workspaceCtx?.mode === "local" ||
+    Boolean(executionId?.startsWith("local_")) ||
+    !pipelineId ||
+    pipelineId.includes("/") ||
+    pipelineId.includes("\\");
+
   // Queries
-  const { data: executions, isLoading: isHistoryLoading, refetch: refetchHistory } = usePipelineExecutions(pipelineId);
-  const { data: execution, isLoading: isExecLoading } = usePipelineExecution(executionId || undefined);
-  const { data: nodeExecs, isLoading: isNodeExecsLoading } = useNodeExecutions(executionId || undefined);
+  const { data: executions, isLoading: isHistoryLoading, refetch: refetchHistory } = usePipelineExecutions(
+    isLocalMode ? undefined : pipelineId
+  );
+  const { data: execution, isLoading: isExecLoading } = usePipelineExecution(
+    isLocalMode ? undefined : executionId || undefined
+  );
+  const { data: nodeExecs, isLoading: isNodeExecsLoading } = useNodeExecutions(
+    isLocalMode ? undefined : executionId || undefined
+  );
 
   // Selected execution defaults to current executionId or first in history
   const activeExecution: PipelineExecutionDto | undefined = useMemo(() => {
@@ -90,7 +119,11 @@ export function LiveExecutionDrawer({
   const handleCancel = async () => {
     if (!activeExecution?.id) return;
     try {
-      await cancelMutation.mutateAsync({ id: activeExecution.id });
+      if (workspaceCtx?.cancelExecution) {
+        await workspaceCtx.cancelExecution(activeExecution.id);
+      } else if (!isLocalMode) {
+        await cancelMutation.mutateAsync({ id: activeExecution.id });
+      }
       toast.success("Pipeline cancellation requested.");
     } catch (err: any) {
       toast.error(err?.message || "Failed to cancel execution.");
@@ -181,11 +214,16 @@ export function LiveExecutionDrawer({
     }
   };
 
-  const tabs: { key: "history" | "inspect" | "logs"; label: string; icon: typeof Terminal }[] = [
-    { key: "inspect", label: "Inspect", icon: Terminal },
-    { key: "logs", label: "Step Logs", icon: FileText },
-    { key: "history", label: "History", icon: History },
-  ];
+  const tabs: { key: "history" | "inspect" | "logs"; label: string; icon: typeof Terminal }[] = isLocalMode
+    ? [
+        { key: "logs", label: "Runner Logs", icon: FileText },
+        { key: "inspect", label: "Node Status", icon: Terminal },
+      ]
+    : [
+        { key: "inspect", label: "Inspect", icon: Terminal },
+        { key: "logs", label: "Step Logs", icon: FileText },
+        { key: "history", label: "History", icon: History },
+      ];
 
   if (isMinimized) {
     return (
@@ -275,7 +313,16 @@ export function LiveExecutionDrawer({
           </div>
 
           {/* Active Status Badge */}
-          {activeExecution && activeTab !== "history" && getStatusBadge(activeExecution.status)}
+          {isLocalMode
+            ? localRunStatus !== "idle" &&
+              getStatusBadge(
+                localRunStatus === "running"
+                  ? "Running"
+                  : localRunStatus === "succeeded"
+                    ? "Succeeded"
+                    : "Failed"
+              )
+            : activeExecution && activeTab !== "history" && getStatusBadge(activeExecution.status)}
         </div>
 
         {/* Action Controls */}
@@ -436,7 +483,96 @@ export function LiveExecutionDrawer({
               </div>
             )}
 
-            {!executionId ? (
+            {isLocalMode ? (
+              <div className="space-y-3">
+                {localRunError && (
+                  <div className="p-3 rounded-lg border border-destructive/40 bg-destructive/10 text-destructive text-xs font-mono whitespace-pre-wrap">
+                    {localRunError}
+                  </div>
+                )}
+
+                {Object.keys(liveNodeStatuses).length > 0 && (
+                  <div className="space-y-1.5">
+                    {Object.entries(liveNodeStatuses).map(([nid, st]) => {
+                      const matchedNode = nodes.find((n) => n.id === nid);
+                      const label = (matchedNode?.data as any)?.label || nid;
+                      const nodeErr = liveNodeErrors[nid];
+                      const nodeOut = liveNodeOutputs[nid];
+                      return (
+                        <div
+                          key={nid}
+                          className={cn(
+                            "rounded-lg border px-3 py-2 text-xs bg-card/60",
+                            st === "failed"
+                              ? "border-destructive/40"
+                              : st === "succeeded"
+                                ? "border-emerald-500/30"
+                                : "border-border/60"
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-foreground truncate">{label}</span>
+                            {getStatusBadge(
+                              st === "running"
+                                ? "Running"
+                                : st === "succeeded"
+                                  ? "Succeeded"
+                                  : st === "failed"
+                                    ? "Failed"
+                                    : "Pending"
+                            )}
+                          </div>
+                          {nodeErr && (
+                            <p className="mt-1.5 text-[11px] font-mono text-destructive whitespace-pre-wrap">
+                              {nodeErr}
+                            </p>
+                          )}
+                          {nodeOut && (
+                            <pre className="mt-1.5 text-[10px] font-mono text-foreground/80 whitespace-pre-wrap max-h-[80px] overflow-auto">
+                              {JSON.stringify(nodeOut, null, 2)}
+                            </pre>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Terminal className="h-3 w-3" />
+                      Runner Output ({localLogs.length} lines)
+                    </span>
+                    {localLogs.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px]"
+                        onPress={() => {
+                          navigator.clipboard.writeText(localLogs.map((l) => l.line).join("\n"));
+                          toast.success("Copied runner logs");
+                        }}
+                      >
+                        <Copy className="h-3 w-3 mr-1" />
+                        Copy
+                      </Button>
+                    )}
+                  </div>
+                  {localLogs.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground font-mono">
+                      {localRunStatus === "running"
+                        ? "Waiting for runner stderr/stdout logs..."
+                        : "No stderr logs emitted for this run."}
+                    </p>
+                  ) : (
+                    <pre className="font-mono text-[11px] text-foreground/90 whitespace-pre-wrap max-h-[260px] overflow-y-auto leading-relaxed">
+                      {localLogs.map((l) => l.line).join("\n")}
+                    </pre>
+                  )}
+                </div>
+              </div>
+            ) : !executionId ? (
               <div className="flex flex-col items-center justify-center py-8 text-muted-foreground space-y-1">
                 <FileText className="h-8 w-8 opacity-30" />
                 <p>No execution selected.</p>
@@ -544,7 +680,47 @@ export function LiveExecutionDrawer({
         {/* ===== TAB: INSPECT ===== */}
         {activeTab === "inspect" && (
           <div className="space-y-3">
-            {isExecLoading && !activeExecution ? (
+            {isLocalMode ? (
+              <div className="space-y-2">
+                {nodes.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground space-y-1">
+                    <Terminal className="h-8 w-8 opacity-30" />
+                    <p>No nodes in pipeline.</p>
+                  </div>
+                ) : (
+                  nodes.map((n) => {
+                    const st = liveNodeStatuses[n.id] || "idle";
+                    const label = (n.data as any)?.label || n.id;
+                    const err = liveNodeErrors[n.id];
+                    const out = liveNodeOutputs[n.id];
+                    return (
+                      <div key={n.id} className="rounded-lg border border-border/60 bg-card/60 p-2.5 text-xs space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium truncate">{label}</span>
+                          {getStatusBadge(
+                            st === "running"
+                              ? "Running"
+                              : st === "succeeded"
+                                ? "Succeeded"
+                                : st === "failed"
+                                  ? "Failed"
+                                  : "Pending"
+                          )}
+                        </div>
+                        {err && (
+                          <p className="text-[11px] font-mono text-destructive whitespace-pre-wrap">{err}</p>
+                        )}
+                        {out && (
+                          <pre className="text-[10px] font-mono text-foreground/80 whitespace-pre-wrap max-h-[100px] overflow-auto bg-muted/30 p-2 rounded">
+                            {JSON.stringify(out, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            ) : isExecLoading && !activeExecution ? (
               <div className="flex items-center justify-center py-8 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
                 Connecting to execution stream...

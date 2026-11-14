@@ -45,6 +45,6 @@ logs/
 temp/
 
 # Private business scripts & local pipeline templates
-pipeline-scripts/
-pipelines/
-contracts.yaml
+/pipeline-scripts/
+/pipelines/
+/contracts.yaml

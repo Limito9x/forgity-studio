@@ -98,7 +98,9 @@ pub fn execute_pure_node(
                         Value::Bool(b) => b.to_string(),
                         _ => v.to_string(),
                     };
-                    rendered = rendered.replace(&format!("{{{}}}", k), &val_str);
+                    rendered = rendered
+                        .replace(&format!("${{{}}}", k), &val_str)
+                        .replace(&format!("{{{}}}", k), &val_str);
                 }
                 outputs.insert(template_key.to_string(), Value::String(rendered));
             }

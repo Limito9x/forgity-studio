@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import type { Node, Edge } from "@xyflow/react";
 import { useForm } from "react-hook-form";
 import { useRunners } from "@/features/runners/hooks/useRunners";
+import { usePipelineWorkspaceOptional } from "../context/PipelineWorkspaceContext";
 import { useRunPipeline, type PipelineParameterDto } from "../hooks/usePipelineGraph";
 import {
   Dialog,
@@ -62,6 +63,8 @@ interface RunPipelineModalProps {
   isOpen: boolean;
   onClose: () => void;
   onExecutionStarted?: (executionId: string) => void;
+  isLocalMode?: boolean;
+  onRunLocal?: (runtimeInputs: Record<string, any>) => Promise<void> | void;
 }
 
 export function RunPipelineModal({
@@ -74,8 +77,14 @@ export function RunPipelineModal({
   isOpen,
   onClose,
   onExecutionStarted,
+  isLocalMode = false,
+  onRunLocal,
 }: RunPipelineModalProps) {
-  const { data: agents = [] } = useRunners();
+  const workspace = usePipelineWorkspaceOptional();
+  const { data: fallbackAgents = [] } = useRunners({
+    enabled: !workspace && !isLocalMode,
+  });
+  const agents = workspace ? workspace.runners : fallbackAgents;
 
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const runMutation = useRunPipeline(pipelineId);
@@ -89,15 +98,16 @@ export function RunPipelineModal({
   }, [agents, selectedAgentId]);
 
   const requiresExternalRunner = useMemo(() => {
+    if (isLocalMode) return false;
     return nodes.some((n: any) => {
       if (n.type === "scopeContainer") {
         const executor = n.data?.executorKey || n.data?.executor;
-        return executor && !["builtin", "dotnet", "system"].includes(String(executor).toLowerCase());
+        return executor && !["builtin", "dotnet", "system", "server", "pure"].includes(String(executor).toLowerCase());
       }
       const executor = n.data?.executor;
-      return executor && !["builtin", "dotnet", "system"].includes(String(executor).toLowerCase());
+      return executor && !["builtin", "dotnet", "system", "server", "pure"].includes(String(executor).toLowerCase());
     });
-  }, [nodes]);
+  }, [nodes, isLocalMode]);
 
   const selectedAgent = useMemo(() => {
     return (agents || []).find((a: any) => a.id === selectedAgentId);
@@ -195,6 +205,7 @@ export function RunPipelineModal({
         structType: p.structType,
         defaultValue: p.defaultValue,
         isRequired: p.isRequired,
+        contextData: p.contextData,
       }));
   }, [parameters]);
 
@@ -342,6 +353,16 @@ export function RunPipelineModal({
           runtimeInputs[key] = values[key];
         }
       });
+
+      if (isLocalMode && onRunLocal) {
+        try {
+          await onRunLocal(runtimeInputs);
+          onClose();
+        } catch (err: any) {
+          toast.error(err?.message || "Failed to start local pipeline");
+        }
+        return;
+      }
 
       // Inject selectedAgentId vào runtimeInputs nếu chưa được chọn qua form
       if (selectedAgentId) {
@@ -624,7 +645,7 @@ export function RunPipelineModal({
                 <span>Select a Runner</span>
               ) : !isSelectedAgentOnline && requiresExternalRunner ? (
                 <span>Runner Offline</span>
-              ) : hasMissingExecutors ? (
+              ) : !isLocalMode && hasMissingExecutors ? (
                 <span>Environment Incomplete</span>
               ) : (
                 <>

@@ -270,11 +270,6 @@ class PythonScriptAnalyzer:
             }
             if cardinality == "Map":
                 k_t, v_t = extract_map_key_value_types(arg.annotation)
-                name_l = name.lower()
-                if name_l.endswith("_maps") or name_l.endswith("_paths") or name_l.endswith("_files") or "texture" in name_l:
-                    v_t = "Asset"
-                elif name_l == "material_roles":
-                    v_t = "Text"
                 input_entry["keyType"] = k_t
                 input_entry["valueType"] = v_t
 

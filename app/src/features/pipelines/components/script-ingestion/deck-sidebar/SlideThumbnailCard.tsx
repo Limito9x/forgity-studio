@@ -8,6 +8,7 @@ interface SlideThumbnailCardProps {
   node: AnalyzedCustomNodeDto;
   index: number;
   isSelected: boolean;
+  showStatusBadge?: boolean;
   onClick: () => void;
   onRemove: (e: React.MouseEvent) => void;
 }
@@ -16,6 +17,7 @@ export function SlideThumbnailCard({
   node,
   index,
   isSelected,
+  showStatusBadge = true,
   onClick,
   onRemove,
 }: SlideThumbnailCardProps) {
@@ -27,6 +29,13 @@ export function SlideThumbnailCard({
   const outputPins = node.outputs ?? [];
   const affectedEdges = node.impactReport?.affectedEdgeCount ?? 0;
   const isOverride = node.isOverride;
+  const localStatus = (node as AnalyzedCustomNodeDto & { localStatus?: "new" | "modified" | "unchanged" }).localStatus;
+  const resolvedBadge =
+    localStatus === "unchanged"
+      ? null
+      : localStatus === "modified" || (localStatus === undefined && isOverride)
+        ? "mod"
+        : "new";
 
   return (
     <div
@@ -52,23 +61,26 @@ export function SlideThumbnailCard({
           #{index + 1}
         </span>
         <div className="flex items-center gap-1">
-          {isOverride ? (
-            <Badge
-              variant="outline"
-              className="h-4 px-1.5 text-[9px] uppercase tracking-wider font-semibold border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 gap-0.5"
-            >
-              <RotateCcw className="size-2.5" />
-              MOD
-            </Badge>
-          ) : (
-            <Badge
-              variant="outline"
-              className="h-4 px-1.5 text-[9px] uppercase tracking-wider font-semibold border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 gap-0.5"
-            >
-              <CheckCircle2 className="size-2.5" />
-              NEW
-            </Badge>
-          )}
+          {showStatusBadge &&
+            resolvedBadge === "mod" && (
+              <Badge
+                variant="outline"
+                className="h-4 px-1.5 text-[9px] uppercase tracking-wider font-semibold border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 gap-0.5"
+              >
+                <RotateCcw className="size-2.5" />
+                MOD
+              </Badge>
+            )}
+          {showStatusBadge &&
+            resolvedBadge === "new" && (
+              <Badge
+                variant="outline"
+                className="h-4 px-1.5 text-[9px] uppercase tracking-wider font-semibold border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 gap-0.5"
+              >
+                <CheckCircle2 className="size-2.5" />
+                NEW
+              </Badge>
+            )}
 
           {/* Remove Button on hover */}
           <button

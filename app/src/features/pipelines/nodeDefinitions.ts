@@ -138,3 +138,159 @@ export function applyNodeConfigUpdate(
     didChangeStructType: false,
   };
 }
+
+/**
+ * Returns true when a node's pin schema & visual metadata should be driven
+ * directly by its Palette definition (SSOT) rather than frozen snapshot pins.
+ */
+export function isPaletteDrivenShape(
+  kind: string | undefined,
+  definition?: NodePaletteItemDto
+): boolean {
+  if (!definition) return false;
+  const k = String(kind || "");
+  if (k === "Start" || k === "Return" || k === "FlowControl") return false;
+  if (definition.hasDynamicPins) return false;
+  if (definition.capabilities?.viewVariant === "Collection") return false;
+  return true;
+}
+
+/**
+ * Resolves live pins & metadata from the Palette definition when the node is
+ * palette-driven, falling back to snapshot data only for dynamic/missing nodes.
+ */
+export function resolveNodePinsFromDefinition<
+  T extends {
+    kind?: string;
+    label?: string | null;
+    executor?: string | null;
+    category?: string | null;
+    inputs?: PinDefinition[];
+    outputs?: PinDefinition[];
+  }
+>(nodeData: T, definition?: NodePaletteItemDto) {
+  if (!isPaletteDrivenShape(nodeData.kind, definition) || !definition) {
+    return {
+      inputs: nodeData.inputs || [],
+      outputs: nodeData.outputs || [],
+      label: nodeData.label || "",
+      executor: definition?.executor ?? nodeData.executor,
+      category: definition?.category ?? nodeData.category,
+    };
+  }
+  return {
+    inputs: (definition.inputs as PinDefinition[]) || [],
+    outputs: (definition.outputs as PinDefinition[]) || [],
+    label: definition.label || nodeData.label || "",
+    executor: definition.executor || nodeData.executor,
+    category: definition.category || nodeData.category,
+  };
+}
+
+function hasMatchingPin(
+  pins: readonly PinDefinition[] | undefined,
+  handleId: string | null | undefined,
+  isOutput: boolean
+): boolean {
+  const raw = String(handleId || "").trim().toLowerCase();
+  if (!raw) return true;
+  if (raw === "exec" || (isOutput ? raw === "exec_out" || raw === "out" : raw === "exec_in" || raw === "in")) {
+    return true;
+  }
+  if (!pins || pins.length === 0) return false;
+  return pins.some(
+    (p) =>
+      String(p.id || "").toLowerCase() === raw ||
+      String(p.label || "").toLowerCase() === raw
+  );
+}
+
+/**
+ * Reconciles canvas nodes and edges against the latest Palette definitions:
+ * - Hydrates static nodes' pins & labels from Palette (SSOT)
+ * - Detects and prunes wires connected to pins that no longer exist
+ */
+export function reconcileGraphWithDefinitions<
+  TNode extends { id: string; data: Record<string, any> },
+  TEdge extends {
+    id: string;
+    source: string;
+    target: string;
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
+  }
+>(
+  nodes: TNode[],
+  edges: TEdge[],
+  definitions: Map<string, NodePaletteItemDto>
+): {
+  nodes: TNode[];
+  edges: TEdge[];
+  nodesChanged: boolean;
+  removedEdges: TEdge[];
+} {
+  let nodesChanged = false;
+  const nextNodes = nodes.map((node) => {
+    const data = node.data || {};
+    const def = definitions.get(definitionKey(String(data.kind || ""), String(data.refId || "")));
+    if (!isPaletteDrivenShape(data.kind, def) || !def) {
+      return node;
+    }
+
+    const nextInputs = (def.inputs as PinDefinition[]) || [];
+    const nextOutputs = (def.outputs as PinDefinition[]) || [];
+    const nextLabel = def.label || data.label;
+    const nextExecutor = def.executor || data.executor;
+    const nextCategory = def.category || data.category;
+
+    const pinsSame =
+      arePinListsEqual(data.inputs, nextInputs) &&
+      arePinListsEqual(data.outputs, nextOutputs);
+    const metaSame =
+      data.label === nextLabel &&
+      data.executor === nextExecutor &&
+      data.category === nextCategory;
+
+    if (pinsSame && metaSame) {
+      return node;
+    }
+
+    nodesChanged = true;
+    return {
+      ...node,
+      data: {
+        ...data,
+        inputs: nextInputs,
+        outputs: nextOutputs,
+        label: nextLabel,
+        executor: nextExecutor,
+        category: nextCategory,
+      },
+    };
+  });
+
+  const nodeMap = new Map(nextNodes.map((n) => [n.id, n]));
+  const removedEdges: TEdge[] = [];
+  const nextEdges = edges.filter((edge) => {
+    const src = nodeMap.get(edge.source);
+    const tgt = nodeMap.get(edge.target);
+    if (!src || !tgt) {
+      removedEdges.push(edge);
+      return false;
+    }
+    const srcOk = hasMatchingPin(src.data?.outputs, edge.sourceHandle, true);
+    const tgtOk = hasMatchingPin(tgt.data?.inputs, edge.targetHandle, false);
+    if (!srcOk || !tgtOk) {
+      removedEdges.push(edge);
+      return false;
+    }
+    return true;
+  });
+
+  return {
+    nodes: nextNodes,
+    edges: nextEdges,
+    nodesChanged,
+    removedEdges,
+  };
+}
