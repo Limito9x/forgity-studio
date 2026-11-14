@@ -50,3 +50,7 @@ export function usePipelineWorkspace(): PipelineWorkspaceContextValue {
   return ctx;
 }
 
+export function usePipelineWorkspaceOptional(): PipelineWorkspaceContextValue | null {
+  return useContext(PipelineWorkspaceContext);
+}
+

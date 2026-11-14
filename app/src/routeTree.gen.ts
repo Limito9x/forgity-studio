@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as LocalRouteImport } from './routes/local'
 import { Route as ProtectedLayoutRouteImport } from './routes/_protected/_layout'
 import { Route as ProtectedProjectRouteImport } from './routes/_protected/_project'
 import { Route as ProtectedOnboardingRouteImport } from './routes/_protected/onboarding'
@@ -19,6 +20,8 @@ import { Route as AuthForgotPasswordRouteImport } from './routes/auth/forgot-pas
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as AuthLogoutRouteImport } from './routes/auth/logout'
 import { Route as AuthResetPasswordRouteImport } from './routes/auth/reset-password'
+import { Route as LocalIndexRouteImport } from './routes/local/index'
+import { Route as LocalMachineRouteImport } from './routes/local/machine'
 import { Route as ProtectedLayoutIndexRouteImport } from './routes/_protected/_layout/index'
 import { Route as ProtectedLayout403RouteImport } from './routes/_protected/_layout/403'
 import { Route as ProtectedLayoutDevRouteImport } from './routes/_protected/_layout/dev'
@@ -79,6 +82,11 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LocalRoute = LocalRouteImport.update({
+  id: '/local',
+  path: '/local',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProtectedLayoutRoute = ProtectedLayoutRouteImport.update({
   id: '/_layout',
   getParentRoute: () => ProtectedRoute,
@@ -116,6 +124,16 @@ const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
   getParentRoute: () => AuthRoute,
+} as any)
+const LocalIndexRoute = LocalIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LocalRoute,
+} as any)
+const LocalMachineRoute = LocalMachineRouteImport.update({
+  id: '/machine',
+  path: '/machine',
+  getParentRoute: () => LocalRoute,
 } as any)
 const ProtectedLayoutIndexRoute = ProtectedLayoutIndexRouteImport.update({
   id: '/',
@@ -462,12 +480,15 @@ const ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRout
 export interface FileRoutesByFullPath {
   '/': typeof ProtectedLayoutIndexRoute
   '/auth': typeof AuthRouteWithChildren
+  '/local': typeof LocalRouteWithChildren
   '/onboarding': typeof ProtectedOnboardingRoute
   '/auth/accept-invite': typeof AuthAcceptInviteRoute
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
+  '/local/machine': typeof LocalMachineRoute
+  '/local/': typeof LocalIndexRoute
   '/roles': typeof ProtectedLayoutRolesRouteRouteWithChildren
   '/settings': typeof ProtectedLayoutSettingsRouteRouteWithChildren
   '/users': typeof ProtectedLayoutUsersRouteRouteWithChildren
@@ -527,6 +548,8 @@ export interface FileRoutesByTo {
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
+  '/local/machine': typeof LocalMachineRoute
+  '/local': typeof LocalIndexRoute
   '/403': typeof ProtectedLayout403Route
   '/dev': typeof ProtectedLayoutDevRoute
   '/runners': typeof ProtectedLayoutRunnersRoute
@@ -573,6 +596,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_protected': typeof ProtectedRouteWithChildren
   '/auth': typeof AuthRouteWithChildren
+  '/local': typeof LocalRouteWithChildren
   '/_protected/_layout': typeof ProtectedLayoutRouteWithChildren
   '/_protected/_project': typeof ProtectedProjectRouteWithChildren
   '/_protected/onboarding': typeof ProtectedOnboardingRoute
@@ -581,6 +605,8 @@ export interface FileRoutesById {
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
+  '/local/machine': typeof LocalMachineRoute
+  '/local/': typeof LocalIndexRoute
   '/_protected/_layout/roles': typeof ProtectedLayoutRolesRouteRouteWithChildren
   '/_protected/_layout/settings': typeof ProtectedLayoutSettingsRouteRouteWithChildren
   '/_protected/_layout/users': typeof ProtectedLayoutUsersRouteRouteWithChildren
@@ -637,12 +663,15 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/local'
     | '/onboarding'
     | '/auth/accept-invite'
     | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/logout'
     | '/auth/reset-password'
+    | '/local/machine'
+    | '/local/'
     | '/roles'
     | '/settings'
     | '/users'
@@ -702,6 +731,8 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/logout'
     | '/auth/reset-password'
+    | '/local/machine'
+    | '/local'
     | '/403'
     | '/dev'
     | '/runners'
@@ -747,6 +778,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_protected'
     | '/auth'
+    | '/local'
     | '/_protected/_layout'
     | '/_protected/_project'
     | '/_protected/onboarding'
@@ -755,6 +787,8 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/logout'
     | '/auth/reset-password'
+    | '/local/machine'
+    | '/local/'
     | '/_protected/_layout/roles'
     | '/_protected/_layout/settings'
     | '/_protected/_layout/users'
@@ -810,6 +844,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   ProtectedRoute: typeof ProtectedRouteWithChildren
   AuthRoute: typeof AuthRouteWithChildren
+  LocalRoute: typeof LocalRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -826,6 +861,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/local': {
+      id: '/local'
+      path: '/local'
+      fullPath: '/local'
+      preLoaderRoute: typeof LocalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_protected/_layout': {
@@ -883,6 +925,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/auth/reset-password'
       preLoaderRoute: typeof AuthResetPasswordRouteImport
       parentRoute: typeof AuthRoute
+    }
+    '/local/': {
+      id: '/local/'
+      path: '/'
+      fullPath: '/local/'
+      preLoaderRoute: typeof LocalIndexRouteImport
+      parentRoute: typeof LocalRoute
+    }
+    '/local/machine': {
+      id: '/local/machine'
+      path: '/machine'
+      fullPath: '/local/machine'
+      preLoaderRoute: typeof LocalMachineRouteImport
+      parentRoute: typeof LocalRoute
     }
     '/_protected/_layout/': {
       id: '/_protected/_layout/'
@@ -1529,9 +1585,22 @@ const AuthRouteChildren: AuthRouteChildren = {
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
+interface LocalRouteChildren {
+  LocalMachineRoute: typeof LocalMachineRoute
+  LocalIndexRoute: typeof LocalIndexRoute
+}
+
+const LocalRouteChildren: LocalRouteChildren = {
+  LocalMachineRoute: LocalMachineRoute,
+  LocalIndexRoute: LocalIndexRoute,
+}
+
+const LocalRouteWithChildren = LocalRoute._addFileChildren(LocalRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   ProtectedRoute: ProtectedRouteWithChildren,
   AuthRoute: AuthRouteWithChildren,
+  LocalRoute: LocalRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -2,28 +2,24 @@
 
 # ⚡ Forgity Studio
 
-### *Extensible Distributed Workflow Orchestration & Digital Asset Pipeline Platform*
+### *Local-First Two-Tier Workflow Orchestration & DCC Pipeline Platform*
 
-[![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
+[![Rust](https://img.shields.io/badge/Rust-Runner-000000?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
+[![Tauri v2](https://img.shields.io/badge/Tauri-v2-FFC131?style=for-the-badge&logo=tauri&logoColor=black)](https://v2.tauri.app/)
 [![React 19](https://img.shields.io/badge/React-19.0-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
-[![Python 3.12+](https://img.shields.io/badge/Python-3.12+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org/)
-[![FastEndpoints](https://img.shields.io/badge/FastEndpoints-VSA-008080?style=for-the-badge)](https://fast-endpoints.com/)
-[![Wolverine](https://img.shields.io/badge/Wolverine-MessageBus-E05D44?style=for-the-badge)](https://wolverine.netlify.app/)
-[![gRPC](https://img.shields.io/badge/gRPC-Protobuf-244c5a?style=for-the-badge&logo=grpc&logoColor=white)](https://grpc.io/)
-[![RabbitMQ](https://img.shields.io/badge/RabbitMQ-AMQP-FF6600?style=for-the-badge&logo=rabbitmq&logoColor=white)](https://www.rabbitmq.com/)
+[![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg?style=for-the-badge)](LICENSE)
+[![License: FSL-1.1-MIT](https://img.shields.io/badge/License-FSL--1.1--MIT-blue.svg?style=for-the-badge)](LICENSE)
 
 <p align="center">
-  A production-grade, distributed workflow automation engine and node-based studio designed to orchestrate complex digital asset pipelines, DCC tools, and creative automation across heterogeneous environments.
+  A local-first, node-based workflow automation studio and native Rust execution engine built to orchestrate Blender, Unreal Engine, Daz, and Python toolchains with zero cloud lock-in.
 </p>
 
 [Key Features](#-key-features) •
 [Architecture](#-architecture) •
 [Monorepo Layout](#-monorepo-layout) •
 [Quick Start](#-quick-start) •
-[Runner Daemon](#-runner-daemon) •
-[CI/CD & Releases](#-cicd--releases)
+[License](#-license)
 
 </div>
 
@@ -31,134 +27,80 @@
 
 ## 🚀 What is Forgity Studio?
 
-Managing digital asset pipelines across heterogeneous tools (Blender, Unreal Engine, Daz, DCC suites, rendering farms, and custom toolchains) is notoriously fragile. Studios often rely on disconnected Python scripts, ad-hoc CLI triggers, and manual file transfers that break easily and leak system resources.
+Managing digital content creation (DCC) pipelines across Blender, Unreal Engine, Daz Studio, and custom Python scripts is notoriously fragile. Studios often rely on disconnected scripts, ad-hoc CLI triggers, and brittle file handoffs.
 
-**Forgity Studio** solves this by providing:
-1. **Interactive Node-based Canvas (DAG)**: A visual graph workflow editor where technical artists and engineers assemble multi-stage pipelines with typed inputs/outputs (Pins).
-2. **Robust Backend Core (.NET 10)**: A Vertical Slice Architecture (VSA) Modular Monolith with transactional outbox, real-time WebSocket state dispatch, and bidirectional gRPC execution services.
-3. **Headless Distributed Workers (Python)**: Daemon agents running on local workstations or render nodes that execute pipeline stages in isolated subprocess sessions with automated memory management.
+**Forgity Studio** solves this with a **Local-First, Two-Tier DAG Architecture**:
+
+1. **Desktop & Visual Canvas (`app/`)**: A Tauri v2 + React 19 application featuring a Palette-driven node graph editor (`React Flow`), native Python AST script analysis, workspace Constants/Structs, and live execution tracking.
+2. **Native Rust Runner (`runner/`)**: A standalone Rust execution engine (`forgity-runner`) that receives an `ExecutionBundle` over `stdin`, streams structured JSON-lines progress over `stdout`, and executes DCC stages in isolated OS processes.
+3. **Optional Studio Cloud Backend (`api/`)**: A .NET 10 Modular Monolith (FastEndpoints, Wolverine, EF Core, PostgreSQL, RabbitMQ, gRPC) for team collaboration, cloud storage, and remote orchestration.
 
 ---
 
 ## 🏛️ Architecture
 
-Forgity Studio connects visual clients, backend orchestrators, and headless execution daemons in an event-driven lifecycle:
+### Two-Tier Pipeline Model
+- **Component Pipes (`*.component.yaml`)**: Reusable, single-domain sub-workflows (e.g., `daz_to_blender`) composed of typed Python/DCC nodes, Pure nodes (`Constant`, `MakeStruct`, `BreakStruct`), and `Start`/`Return` contracts.
+- **Master Pipelines (`*.pipeline.yaml`)**: Top-level orchestrators that sequence Component Pipes and Pure `Joint` nodes across heterogeneous DCC tools.
 
-- **Web UI (`web/`)**: React 19 + Vite + Tailwind CSS + TanStack Router/Query. Interactive node graph canvas with dynamic forms and realtime SignalR progress streaming.
-- **Backend Core (`api/`)**: .NET 10 Modular Monolith + FastEndpoints + Wolverine + EF Core (PostgreSQL) + Redis + RabbitMQ. Handles DAG planning, change tracking, security, and message distribution.
-- **Protobuf Contracts (`packages/proto/`)**: Single Source of Truth for bidirectional gRPC contracts (`agent.proto`, `execution_state.proto`).
-- **Distributed Runner Daemon (`workers/`)**: Python 3.12+ daemon managing subprocess execution for DCC tools (Blender, Unreal Engine) with isolated execution and self-healing cleanup.
+### Unified DCC Stage Execution
+Instead of spawning a fresh Blender or Unreal process for every single node, `forgity-runner` packs connected steps targeting the same DCC host (along with inline Pure nodes) into a single `StageTaskMessage` and executes them sequentially inside **one** persistent DCC process via `stage_runner_guest.py`, eliminating startup overhead and keeping scene state in memory.
 
----
-
-## 🌟 Key Features
-
-### 1. Visual DAG & Dynamic Pin System
-- **Node-Based Orchestration**: Construct complex pipelines using Directed Acyclic Graphs (DAG) with topological sorting and cycle validation.
-- **Granular Pin Typing**: Strong contract-driven pin bindings (`$ref` and intra-stage data flow) allowing downstream steps to seamlessly consume upstream outputs in-memory.
-- **Dynamic Form Engine**: Schema-driven forms rendered dynamically with Zod validation, supporting custom input controls and scoped field registries.
-
-### 2. Host Daemon vs. Guest Stage Runner Isolation
-- **Process Isolation**: Heavy tools like Blender and Unreal Engine run as dedicated headless subprocesses (`UnrealEditor-Cmd.exe`, `blender --background`). If an engine encounters a native segmentation fault, the main worker host remains completely unaffected.
-- **Automated Memory Cleanup**: Background sweepers eliminate zombie subprocesses and reclaim unmanaged engine memory after each stage completes.
-
-### 3. Smart Collaborative Locking & Zero-Byte Storage
-- **File & Resource Tracking**: Multi-storage profile management (Studio Cloud S3/MinIO vs BYOS local filesystem).
-- **CAS Deduplication**: Content-Addressable Storage using SHA-256 prevents redundant uploads and enables instantaneous zero-byte copies.
+### Palette-Driven Canvas & Reconciliation
+- Nodes on the canvas are **hydrated by `refId` from the live Palette** (Single Source of Truth). Snapshots (`.forgity/snapshots/*.snap.json`) store only instance data (`position`, `configValues`, `fileAssets`, `edges`), never frozen node shapes.
+- Updating a script, Struct, or Constant automatically reconciles affected nodes and prunes broken wires.
 
 ---
 
 ## 📁 Monorepo Layout
 
 ```text
-Forgity/
-├── api/                    # .NET 10 Modular Monolith (FastEndpoints, Wolverine, EF Core)
-│   ├── src/
-│   │   ├── Automation.Api/ # Host Application Entry Point & Web Host
-│   │   ├── Modules/        # Modular Monolith slices (Pipeline, Runner, Repository, Files, etc.)
-│   │   └── SharedKernel/   # Cross-cutting abstractions, Outbox, and Behaviors
-│   └── tests/              # Unit & Integration Tests
-├── web/                    # Frontend SPA & Tauri Desktop App (React 19, Vite, Tailwind CSS)
-│   ├── src/
-│   │   ├── features/       # Feature slices (pipelines, runners, repositories, contents)
-│   │   └── gen/            # Auto-generated API client from OpenAPI specs
-│   └── Dockerfile          # Ultra-lightweight Zero-CPU Nginx Production runtime
-├── workers/                # Python 3.12+ Distributed Runner Daemon & DCC Executors
-│   ├── core/               # gRPC client, state store, daemon supervisor
-│   ├── worker/             # Subprocess runners for Blender, Unreal, and Python scripts
-│   └── scripts/            # 1-Click Installers (install.ps1, install.sh)
-├── packages/proto/         # Protobuf single source of truth (agent.proto, execution_state.proto)
-├── docker-compose.yml      # Orchestration for Web, API, Postgres, RabbitMQ, Redis
-└── .github/workflows/      # Automated CI/CD (GHCR Container Publish & Runner Releases)
+forgity-studio/
+├── app/                    # Tauri v2 Desktop & React 19 Frontend (Vite, Tailwind, React Flow)
+│   ├── src/                # Feature slices (pipelines, runners, contents, auth) & Orval client
+│   └── src-tauri/          # Rust Tauri commands (native Python AST analyzer, local runner bridge)
+├── runner/                 # Native Rust Runner (`forgity-runner`)
+│   ├── src/                # DAG scheduler, component/master orchestrators, DCC executors, cache
+│   └── scripts/            # Host/guest DCC runners (`stage_runner_guest.py`)
+├── api/                    # Optional .NET 10 Modular Monolith (Studio Cloud & Collaboration)
+│   ├── src/                # FastEndpoints, Wolverine, EF Core, SharedKernel
+│   └── tests/              # Backend unit & integration tests
+├── packages/proto/         # Shared gRPC Protobuf contracts (`agent.proto`, `execution_state.proto`)
+└── docs/                   # Architecture Decision Records (ADRs) & technical references
 ```
 
 ---
 
-## ⚡ Quick Start
+## ⚡ Quick Start (Local Desktop Mode)
 
-### 1. Prerequisites
-- [Docker Desktop](https://www.docker.com/) (with WSL2 enabled on Windows)
+### Prerequisites
 - [Node.js 22+](https://nodejs.org/) & [pnpm](https://pnpm.io/)
-- [.NET 10 SDK](https://dotnet.microsoft.com/)
+- [Rust & Cargo](https://www.rust-lang.org/tools/install)
 - [Python 3.12+](https://www.python.org/)
+- Optional (for Studio Cloud): [.NET 10 SDK](https://dotnet.microsoft.com/) & [Docker Desktop](https://www.docker.com/)
 
-### 2. Launch Local Environment (Docker Compose)
-
-Clone the repository and spin up all core infrastructure:
-
+### 1. Build the Native Rust Runner
 ```bash
-git clone https://github.com/limito9x/automation-studio.git
-cd automation-studio
+cargo build --manifest-path runner/Cargo.toml
+```
 
-# Copy environment variables
+### 2. Run the Desktop App (`app/`)
+```bash
+pnpm --dir app install
+pnpm --dir app tauri dev
+```
+
+### 3. Optional: Start Studio Cloud Infrastructure
+```bash
 cp .env.example .env
-
-# Start all containers (API, Web, PostgreSQL, RabbitMQ, Redis)
 docker compose up -d
 ```
-
-Access the studio services:
-- **Web Studio**: [http://localhost](http://localhost)
-- **API Swagger / OpenAPI**: [http://localhost:5189/swagger](http://localhost:5189/swagger)
-- **RabbitMQ Dashboard**: [http://localhost:15672](http://localhost:15672) (Username: `limito9x`, Password: see `.env`)
-
----
-
-## 💻 Runner Daemon (Workstation Setup)
-
-Render nodes and local developer workstations connect to the Studio via the **Forgity Runner Daemon**:
-
-### 1-Click Installation (Windows PowerShell)
-
-Open PowerShell as Administrator and run:
-
-```powershell
-irm "http://localhost:5189/api/runners/bootstrap/install.ps1?token=<YOUR_RUNNER_TOKEN>" | iex
-```
-
-*The runner automatically installs to `$env:LOCALAPPDATA\Forgity\runner`, creates a background task supervisor, and establishes real-time gRPC & RabbitMQ connections back to the Studio.*
-
-### 1-Click Installation (Linux / macOS Bash)
-
-```bash
-curl -fsSL "http://localhost:5189/api/runners/bootstrap/install.sh?token=<YOUR_RUNNER_TOKEN>" | bash
-```
-
----
-
-## 📦 CI/CD & Releases
-
-The project includes pre-configured GitHub Actions workflows:
-
-1. **Docker Container Publishing (`docker-publish.yml`)**:
-   - Automatically builds and pushes production images to GitHub Container Registry:
-     - `ghcr.io/<owner>/forgity-api:latest`
-     - `ghcr.io/<owner>/forgity-web:latest`
-2. **Runner Distribution (`release-runner.yml`)**:
-   - Compiles Protobuf stubs, packages clean standalone archives (`forgity-runner-vX.Y.Z.zip` & `forgity-runner.zip`), calculates SHA-256 checksums, and publishes official GitHub Releases.
 
 ---
 
 ## 📄 License
 
-This project is licensed under the terms of the GNU Affero General Public License v3.0 ([AGPL-3.0](LICENSE)).
+Forgity Studio is licensed under the **Functional Source License, Version 1.1, MIT Future License (`FSL-1.1-MIT`)** — see [LICENSE](LICENSE).
+
+- **Permitted:** Free for personal, academic, and internal studio/company use.
+- **Restricted:** Competing commercial products or hosted/managed SaaS offerings of the Software are prohibited until the 2-year MIT conversion date.

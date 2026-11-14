@@ -33,3 +33,18 @@ backups/
 
 # Starter template package archive
 forgity_starter_template.zip
+
+# Runner / Python local cache
+cache/
+
+# Local workspace state, runtime DBs, logs & temp
+.forgity/
+runner_state.db
+runner_state.db-*
+logs/
+temp/
+
+# Private business scripts & local pipeline templates
+pipeline-scripts/
+pipelines/
+contracts.yaml
