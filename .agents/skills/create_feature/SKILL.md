@@ -1,33 +1,89 @@
-﻿---
+---
 name: create_feature
-description: HÆ°á»›ng dáº«n cÃ¡ch táº¡o má»™t tÃ­nh nÄƒng (Feature/Vertical Slice) má»›i trong má»™t module cá»§a dá»± Ã¡n.
+description: Hướng dẫn cách tạo một tính năng (Feature/Vertical Slice) mới trong một module theo chuẩn Pragmatic Single-File VSA.
 ---
 
-# HÆ°á»›ng Dáº«n Táº¡o TÃ­nh NÄƒng Má»›i (Feature)
+# Hướng Dẫn Tạo Tính Năng Mới (Pragmatic Single-File VSA)
 
-Dá»± Ã¡n Ã¡p dá»¥ng kiáº¿n trÃºc Vertical Slice (VSA), do Ä‘Ã³ má»—i tÃ­nh nÄƒng sáº½ Ä‘Æ°á»£c Ä‘Ã³ng gÃ³i trong má»™t thÆ° má»¥c riÃªng biá»‡t táº¡i `Features/<FeatureGroup>/<FeatureName>`. 
+Dự án áp dụng chuẩn **Single-File Vertical Slice Architecture (VSA)** kết hợp **Mapster-First** (chi tiết xem tại [ADR-005](file:///d:/FullStack/Automation/docs/backend/ADR_PRAGMATIC_SINGLE_FILE_VSA.md)).
 
-### TrÆ°á»ng há»£p 1: TÃ­nh nÄƒng lÃ  nhÃ³m CRUD tiÃªu chuáº©n
-Náº¿u tÃ­nh nÄƒng báº¡n cáº§n lÃ m bao gá»“m cÃ¡c thao tÃ¡c Create, Update, Delete, GetById, GetList (CRUD) tiÃªu chuáº©n cho má»™t Entity, Báº®T BUá»˜C sá»­ dá»¥ng cÃ´ng cá»¥ CLI:
+> **Quy tắc vàng:** Mỗi tính năng (Use Case) được gói gọn trong **MỘT FILE C# DUY NHẤT** tại `Features/<FeatureGroup>/<SliceName>.cs`. **TUYỆT ĐỐI KHÔNG TẠO THƯ MỤC CON LỒNG NHAU CHO TỪNG SLICE**.
 
-```bash
-dotnet run --project tools/Automation.Cli -- add-crud <TÃªnModule> <TÃªnEntity>
+---
+
+## 1. Cấu Trúc File Chuẩn của Một Slice
+
+Tạo file mới tại: `Features/<FeatureGroup>/<ActionName>.cs` (ví dụ: `Features/Tags/CreateTag.cs`):
+
+```csharp
+using Automation.Tag.Domain.Entities;
+using Automation.Tag.Infrastructure.Persistence;
+using Automation.Tag.Shared.Dtos;
+using Microsoft.EntityFrameworkCore;
+using Wolverine.Attributes;
+
+namespace Automation.Tag.Features.Tags;
+
+// 1. Command / Query Record
+public record CreateTagCommand(string Name, string? Color);
+
+// 2. Validator (FluentValidation - nếu có kiểm tra dữ liệu)
+public class CreateTagValidator : AbstractValidator<CreateTagCommand>
+{
+    public CreateTagValidator()
+    {
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
+    }
+}
+
+// 3. FastEndpoints Endpoint
+public class CreateTagEndpoint(IMessageBus bus) : Endpoint<CreateTagCommand, TagDto>
+{
+    public override void Configure()
+    {
+        Post("");
+        Group<TagsGroup>();
+        Permissions(P.Tag.Create);
+        Description(x => x.WithName("CreateTag"));
+    }
+
+    public override async Task HandleAsync(CreateTagCommand req, CancellationToken ct)
+    {
+        var result = await bus.InvokeAsync<Result<TagDto>>(req, ct);
+        await this.SendResultAsync(result, ct);
+    }
+}
+
+// 4. Wolverine Handler xử lý nghiệp vụ
+[Transactional(typeof(TagDbContext))] // Dùng [NonTransactional] nếu chỉ đọc (Query)
+public class CreateTagHandler(TagDbContext db)
+{
+    public async Task<Result<TagDto>> HandleAsync(CreateTagCommand command, CancellationToken ct)
+    {
+        var tag = command.Adapt<Domain.Entities.Tag>();
+        db.Tags.Add(tag);
+        await db.SaveChangesAsync(ct);
+
+        return Result.Ok(tag.Adapt<TagDto>());
+    }
+}
 ```
-*VÃ­ dá»¥:* `dotnet run --project tools/Automation.Cli -- add-crud Billing Invoice`
-Lá»‡nh nÃ y sáº½ tá»± Ä‘á»™ng sinh ra Ä‘áº§y Ä‘á»§ bá»™ Entity, Dto, Group Endpoint, vÃ  cÃ¡c thÆ° má»¥c Slice tÆ°Æ¡ng á»©ng.
 
-### TrÆ°á»ng há»£p 2: TÃ­nh nÄƒng Ä‘Æ¡n láº» (Custom Slice)
-Náº¿u báº¡n chá»‰ cáº§n táº¡o má»™t tÃ­nh nÄƒng Ä‘Æ¡n láº» (khÃ´ng pháº£i toÃ n bá»™ bá»™ CRUD), hÃ£y táº¡o thÆ° má»¥c má»›i thá»§ cÃ´ng hoáº·c sao chÃ©p tá»« má»™t tÃ­nh nÄƒng cÃ³ sáºµn. Má»™t tÃ­nh nÄƒng (Slice) hoÃ n chá»‰nh thÆ°á»ng bao gá»“m:
+---
 
-1. **`{ActionName}Command.cs`** hoáº·c **`{ActionName}Query.cs`**:
-   Lá»›p chá»©a dá»¯ liá»‡u Ä‘áº§u vÃ o.
-2. **`{ActionName}Validator.cs`**:
-   Lá»›p káº¿ thá»«a `Validator<T>` (tá»« FluentValidation) Ä‘á»ƒ kiá»ƒm tra tÃ­nh há»£p lá»‡ cá»§a Request.
-3. **`{ActionName}Handler.cs`**:
-   Lá»›p xá»­ lÃ½ nghiá»‡p vá»¥. **Báº¯t buá»™c sá»­ dá»¥ng class thÆ°á»ng vá»›i constructor injection** (VD: tiÃªm `DbContext`), khÃ´ng sá»­ dá»¥ng static class/method.
-4. **`{ActionName}Endpoint.cs`**:
-   Káº¿ thá»«a tá»« `Endpoint<TRequest, TResponse>` cá»§a FastEndpoints. Nhá»› gá»i phÆ°Æ¡ng thá»©c `Group<TGroup>()` trá» vá» Endpoint Group tÆ°Æ¡ng á»©ng cá»§a Feature.
+## 2. Quy Tắc Bắt Buộc
 
-**LÆ°u Ã½:** Sau khi táº¡o, hÃ£y cháº¡y `dotnet build` Ä‘á»ƒ kiá»ƒm tra Wolverine tá»± Ä‘á»™ng gáº¯n káº¿t Handler vÃ  FastEndpoints tá»± Ä‘á»™ng phÃ¡t hiá»‡n API.
+1. **Pure POCO & Mapster-First**:
+   - Entity có thuộc tính public `{ get; set; }`. Không tạo constructor ràng buộc tham số hay hàm `Update()` hình thức.
+   - Luôn dùng `command.Adapt<Entity>()` hoặc `db.Query.ProjectToType<TDto>()`.
 
+2. **SendResultAsync Unwrap**:
+   - Endpoint luôn khai báo generic response type là Raw DTO (`Endpoint<TRequest, TResponseDto>`), không bọc `Result<TResponseDto>`.
+   - Gọi `await this.SendResultAsync(result, ct)` để tự động chuyển FluentResults `Result.Fail` thành 400 Bad Request / 404 Not Found, và `Result.Ok` thành 200 OK.
 
+3. **Transaction Attributes**:
+   - Các thao tác Ghi (Create/Update/Delete): Bắt buộc `[Transactional(typeof(<Module>DbContext))]`.
+   - Các thao tác Đọc (Get/List/Query): Bắt buộc `[NonTransactional]`.
+
+4. **Kiểm Tra Build**:
+   - Sau khi tạo file, chạy `dotnet build api/src/Automation.Api/Automation.Api.csproj` để xác nhận 0 Error, 0 Warning.

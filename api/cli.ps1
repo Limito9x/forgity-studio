@@ -18,6 +18,32 @@ $apiPath = $apiProject.FullName
 $rootNamespace = $apiProject.BaseName.Replace(".Api", "")
 
 switch ($Command.ToLower()) {
+    "build" {
+        Write-Host "Checking for running API instances (port 5189/50051 or Automation.Api process)..." -ForegroundColor Cyan
+        $ports = @(5189, 50051)
+        foreach ($port in $ports) {
+            $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+            if ($conns) {
+                foreach ($conn in $conns) {
+                    $proc = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
+                    if ($proc) {
+                        Write-Host "Stopping process $($proc.ProcessName) (PID: $($proc.Id)) listening on port $port to prevent DLL locks..." -ForegroundColor Yellow
+                        Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+                    }
+                }
+            }
+        }
+        $apiProcs = Get-Process -Name "Automation.Api" -ErrorAction SilentlyContinue
+        if ($apiProcs) {
+            foreach ($p in $apiProcs) {
+                Write-Host "Stopping process Automation.Api (PID: $($p.Id))..." -ForegroundColor Yellow
+                Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            }
+        }
+        Start-Sleep -Milliseconds 500
+        Write-Host "Building entire solution (Automation.sln)..." -ForegroundColor Cyan
+        dotnet build "Automation.sln"
+    }
     "run" {
         Write-Host "Starting API with Hot Reload..." -ForegroundColor Cyan
         dotnet watch --project $apiPath run
@@ -70,6 +96,7 @@ switch ($Command.ToLower()) {
     default {
         Write-Host "Unknown command: $Command" -ForegroundColor Red
         Write-Host "Available commands:" -ForegroundColor Green
+        Write-Host "  .\cli build                                      - Stop any running API instances and build the solution"
         Write-Host "  .\cli run                                        - Run the API with Hot Reload (dotnet watch)"
         Write-Host "  .\cli start                                      - Run the API without Hot Reload (dotnet run)"
         Write-Host "  .\cli add-migration <ModuleName> <MigrationName> - Add a new EF Core migration to a specific module"

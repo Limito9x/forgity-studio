@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json;
 using Automation.Pipeline.Domain.Enums;
 using Automation.Pipeline.Domain.ValueObjects;
 
@@ -8,17 +10,28 @@ public class Pipeline : BaseEntity
     public Guid ProjectId { get; set; }
     public string Name { get; set; } = string.Empty;
     public PipelineTriggerType TriggerType { get; set; } = PipelineTriggerType.Manual;
-    public Guid? TriggerWorkspaceId { get; set; }
-    public System.Text.Json.JsonDocument? TriggerConfig { get; set; }
-    public List<PipelineVariableDecl> Variables { get; set; } = new();
-    private readonly List<PipelineNode> _nodes = new();
-    public IReadOnlyList<PipelineNode> Nodes => _nodes;
-    private readonly List<PipelineEdge> _edges = new();
-    public IReadOnlyList<PipelineEdge> Edges => _edges;
-    private readonly List<PipelineInput> _inputs = new();
-    public IReadOnlyList<PipelineInput> Inputs => _inputs;
-    private readonly List<PipelineOutput> _outputs = new();
-    public IReadOnlyList<PipelineOutput> Outputs => _outputs;
+    public JsonDocument? TriggerConfig { get; set; }
+
+    public Guid? ActiveSnapshotId { get; set; }
+    public PipelineSnapshot? ActiveSnapshot { get; set; }
+    public string? GraphHash { get; set; }
+
+    // Unified Graph Storage (JSONB single column)
+    public PipelineGraphDocument GraphData { get; set; } = new();
+
+    // Facade Properties: 100% backward-compatible with existing engine code
+    [NotMapped]
+    public List<PipelineParameter> Parameters
+    {
+        get => GraphData.Parameters;
+        set => GraphData.Parameters = value ?? [];
+    }
+
+    [NotMapped]
+    public IReadOnlyList<PipelineNode> Nodes => GraphData.Nodes;
+
+    [NotMapped]
+    public IReadOnlyList<PipelineEdge> Edges => GraphData.Edges;
 
     public Pipeline() { }
 
@@ -26,21 +39,18 @@ public class Pipeline : BaseEntity
         Guid projectId,
         string name,
         PipelineTriggerType triggerType = PipelineTriggerType.Manual,
-        Guid? triggerWorkspaceId = null,
-        System.Text.Json.JsonDocument? triggerConfig = null
+        JsonDocument? triggerConfig = null
     )
     {
         ProjectId = projectId;
         Name = name;
         TriggerType = triggerType;
-        TriggerWorkspaceId = triggerWorkspaceId;
         TriggerConfig = triggerConfig;
     }
 
-    public void UpdateTrigger(PipelineTriggerType triggerType, Guid? triggerWorkspaceId = null, System.Text.Json.JsonDocument? triggerConfig = null)
+    public void UpdateTrigger(PipelineTriggerType triggerType, JsonDocument? triggerConfig = null)
     {
         TriggerType = triggerType;
-        TriggerWorkspaceId = triggerWorkspaceId;
         TriggerConfig = triggerConfig;
     }
 
@@ -50,93 +60,85 @@ public class Pipeline : BaseEntity
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
-    public void AddInput(PipelineInput input)
+    public void Archive(string? user = null)
     {
-        _inputs.Add(input);
+        DeletedAt = DateTimeOffset.UtcNow;
+        DeletedBy = user;
+        UpdatedAt = DateTimeOffset.UtcNow;
     }
 
-    public void RemoveInput(Guid inputId)
+    public void Restore(string? newName = null)
     {
-        var input = _inputs.FirstOrDefault(x => x.Id == inputId);
-        if (input != null)
+        if (!string.IsNullOrWhiteSpace(newName))
         {
-            _inputs.Remove(input);
+            Name = newName.Trim();
         }
+        DeletedAt = null;
+        DeletedBy = null;
+        UpdatedAt = DateTimeOffset.UtcNow;
     }
 
-    public void AddOutput(PipelineOutput output)
+    public void AddNode(string refId, string kind, float x, float y, JsonDocument? config = null, Guid? parentId = null)
     {
-        _outputs.Add(output);
-    }
-
-    public void RemoveOutput(Guid outputId)
-    {
-        var output = _outputs.FirstOrDefault(x => x.Id == outputId);
-        if (output != null)
-        {
-            _outputs.Remove(output);
-        }
-    }
-
-    public void AddNode(string refId, string kind, float x, float y, System.Text.Json.JsonDocument? config = null)
-    {
-        _nodes.Add(new PipelineNode(IdGenerator.NewId(), Id, refId, kind, x, y, config));
+        GraphData.Nodes.Add(new PipelineNode(IdGenerator.NewId(), Id, refId, kind, x, y, config, parentId));
     }
 
     public void AddNode(PipelineNode node)
     {
-        _nodes.Add(node);
+        GraphData.Nodes.Add(node);
     }
 
     public void RemoveNode(Guid nodeId)
     {
-        var node = _nodes.FirstOrDefault(x => x.Id == nodeId);
+        var node = GraphData.Nodes.FirstOrDefault(x => x.Id == nodeId);
         if (node != null)
         {
-            _nodes.Remove(node);
+            GraphData.Nodes.Remove(node);
         }
     }
 
-    public void UpdateNode(Guid nodeId, float x, float y)
+    public void UpdateNode(Guid nodeId, float x, float y, Guid? parentId = null, NodeSize? size = null)
     {
-        var node = _nodes.FirstOrDefault(x => x.Id == nodeId);
-        node?.Update(x, y);
+        var node = GraphData.Nodes.FirstOrDefault(x => x.Id == nodeId);
+        node?.Update(x, y, parentId, size);
     }
 
-    public void UpdateNodeConfig(Guid nodeId, System.Text.Json.JsonDocument? config)
+    public void UpdateNodeConfig(Guid nodeId, JsonDocument? config)
     {
-        var node = _nodes.FirstOrDefault(x => x.Id == nodeId);
+        var node = GraphData.Nodes.FirstOrDefault(x => x.Id == nodeId);
         node?.UpdateConfig(config);
     }
 
-    public void AddEdge(
+    public PipelineEdge AddEdge(
         Guid sourcePipelineNodeId,
         string sourcePin,
         Guid targetPipelineNodeId,
-        string targetPin
+        string targetPin,
+        Guid? id = null,
+        EdgeKind? kind = null
     )
     {
-        _edges.Add(
-            new PipelineEdge(Id, sourcePipelineNodeId, sourcePin, targetPipelineNodeId, targetPin)
-        );
+        var edge = new PipelineEdge(Id, sourcePipelineNodeId, sourcePin, targetPipelineNodeId, targetPin, kind, id);
+        GraphData.Edges.Add(edge);
+        return edge;
+    }
+
+    public void AddEdge(PipelineEdge edge)
+    {
+        GraphData.Edges.Add(edge);
     }
 
     public void RemoveEdge(Guid edgeId)
     {
-        var edge = _edges.FirstOrDefault(x => x.Id == edgeId);
+        var edge = GraphData.Edges.FirstOrDefault(x => x.Id == edgeId);
         if (edge != null)
         {
-            _edges.Remove(edge);
+            GraphData.Edges.Remove(edge);
         }
     }
 
     public void ClearEdges()
     {
-        _edges.Clear();
-    }
-
-    public void SetVariables(List<PipelineVariableDecl> variables)
-    {
-        Variables = variables ?? new List<PipelineVariableDecl>();
+        GraphData.Edges.Clear();
     }
 }

@@ -15,6 +15,7 @@ service AgentService {
 
 message AgentMessage {
     string agent_id = 1;
+    string app_version = 3;
     oneof payload {
         CommandResponse command_response = 2;
     }
@@ -29,11 +30,70 @@ message CommandResponse {
         ScanCommandResult scan_result = 4;
         BrowseCommandResult browse_result = 5;
         ScanExecutorsCommandResult scan_executors_result = 6;
+        ScanHardwareCommandResult scan_hardware_result = 7;
+        UploadFilesCommandResult upload_files_result = 8;
+        UpdateRunnerCommandResult update_runner_result = 9;
+        CancelExecutionCommandResult cancel_execution_result = 10;
+        ExecuteCommandResult execute_command_result = 11;
     }
+}
+
+message ExecuteCommandResult {
+    int32 exit_code = 1;
+    string stdout = 2;
+    string stderr = 3;
+    bool timed_out = 4;
+}
+
+message CancelExecutionCommandResult {
+    bool killed = 1;
+    string message = 2;
+}
+
+message UpdateRunnerCommandResult {
+    string current_version = 1;
+    string updated_version = 2;
+    bool restart_scheduled = 3;
+}
+
+message UploadFilesCommandResult {
+    repeated UploadFileItemResult items = 1;
+    int64 total_bytes_uploaded = 2;
+}
+
+message UploadFileItemResult {
+    string asset_id = 1;
+    string resource_version_id = 2;
+    bool success = 3;
+    int64 bytes_uploaded = 4;
+    string error_message = 5;
+}
+
+message ScanHardwareCommandResult {
+    string os_platform = 1;
+    string cpu_model = 2;
+    int64 total_ram_bytes = 3;
+    string primary_gpu_name = 4;
+    int64 primary_gpu_vram_bytes = 5;
+    string hardware_details_json = 6;
 }
 
 message ScanCommandResult {
     repeated ResourceItemMessage items = 1;
+    bool has_reached_limit = 2;
+    int32 total_scanned = 3;
+}
+
+message SystemPlaceMessage {
+    string name = 1;
+    string path = 2;
+}
+
+message DriveInfoMessage {
+    string mount = 1;
+    string label = 2;
+    int64 total_bytes = 3;
+    int64 free_bytes = 4;
 }
 
 message BrowseCommandResult {
@@ -41,6 +101,9 @@ message BrowseCommandResult {
     string parent_path = 2;
     bool can_navigate_up = 3;
     repeated BrowseItemMessage items = 4;
+    repeated SystemPlaceMessage system_places = 5;
+    repeated string pinned_folders = 6;
+    repeated DriveInfoMessage drives = 7;
 }
 
 message ScanExecutorsCommandResult {
@@ -75,13 +138,40 @@ message ServerMessage {
         ScanCommand scan_command = 1;
         BrowseCommand browse_command = 2;
         ScanExecutorsCommand scan_executors_command = 3;
+        ScanHardwareCommand scan_hardware_command = 4;
+        UploadFilesCommand upload_files_command = 5;
+        UpdateRunnerCommand update_runner_command = 6;
+        CancelExecutionCommand cancel_execution_command = 7;
+        ExecuteCommand execute_command = 8;
     }
+}
+
+message ExecuteCommand {
+    string command_id = 1;
+    string program = 2;
+    repeated string args = 3;
+    int32 timeout_seconds = 4;
+}
+
+message CancelExecutionCommand {
+    string command_id = 1;
+    string pipeline_execution_id = 2;
+    string stage_execution_id = 3;
+}
+
+message UpdateRunnerCommand {
+    string command_id = 1;
+    string download_url = 2;
+    string target_version = 3;
+    string expected_sha256 = 4;
 }
 
 message ScanCommand {
     string command_id = 1;
     string directory_path = 2;
     repeated string extensions = 3;
+    repeated string sub_paths = 4;
+    int32 max_files = 5;
 }
 
 message BrowseCommand {
@@ -93,3 +183,21 @@ message ScanExecutorsCommand {
     string command_id = 1;
     string executor_key = 2;
 }
+
+message ScanHardwareCommand {
+    string command_id = 1;
+}
+
+message UploadFilesCommand {
+    string command_id = 1;
+    repeated UploadFileItem items = 2;
+}
+
+message UploadFileItem {
+    string file_path = 1;
+    string presigned_url = 2;
+    string content_type = 3;
+    string asset_id = 4;
+    string resource_version_id = 5;
+}
+

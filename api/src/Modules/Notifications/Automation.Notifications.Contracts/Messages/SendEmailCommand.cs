@@ -4,8 +4,6 @@ public record SendEmailCommand(
     string To,
     string Subject,
     string Body,
-    bool IsHtml = true
+    bool IsHtml = true,
+    string? PlainTextBody = null
 );
-
-
-

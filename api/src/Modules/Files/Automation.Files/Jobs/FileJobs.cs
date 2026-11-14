@@ -12,7 +12,7 @@ namespace Automation.Files.Jobs;
 
 public class FileJobs(
     FilesDbContext dbContext,
-    IObjectStorageService fileStorageService,
+    IStorageServiceFactory storageServiceFactory,
     ILogger<FileJobs> logger)
 {
     private const int BatchSize = 1000;
@@ -29,12 +29,10 @@ public class FileJobs(
         {
             var batch = await dbContext.Assets
                 .IgnoreQueryFilters()
-                .Where(f => f.Id > lastId)
                 .Where(f => f.CreatedAt < thresholdDate)
                 .Where(f => !dbContext.AssetLinks.Any(l => l.AssetId == f.Id))
-                .OrderBy(f => f.Id)
                 .Take(BatchSize)
-                .Select(f => new { f.Id, f.StoragePath })
+                .Select(f => new { f.Id, f.StoragePath, f.StorageProfileId })
                 .ToListAsync(ct);
 
             if (batch.Count == 0)
@@ -42,22 +40,40 @@ public class FileJobs(
                 break;
             }
 
-            logger.LogInformation("Processing batch {Count} of orphaned files. Cursor Id: {LastId}", batch.Count, lastId);
+            logger.LogInformation("Processing batch {Count} of orphaned files.", batch.Count);
 
-            var pathsToDelete = batch.Select(x => x.StoragePath).ToList();
             var idsToDelete = batch.Select(x => x.Id).ToList();
 
             try
             {
-                await fileStorageService.DeleteFilesAsync(pathsToDelete, ct);
+                // Nhóm theo StorageProfileId để xóa file vật lý trên đúng bucket (Default S3 hoặc Custom S3 của khách)
+                var profileGroups = batch.GroupBy(x => x.StorageProfileId);
+                foreach (var group in profileGroups)
+                {
+                    try
+                    {
+                        var storageService = await storageServiceFactory.GetStorageServiceAsync(group.Key, ct);
+                        var paths = group.Select(x => x.StoragePath).ToList();
+                        await storageService.DeleteFilesAsync(paths, ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "Failed to delete physical files from Storage Profile {ProfileId}. File records will still be purged from DB.", group.Key);
+                    }
+                }
 
                 var deletedInDb = await dbContext.Assets
                     .IgnoreQueryFilters()
                     .Where(f => idsToDelete.Contains(f.Id))
                     .ExecuteDeleteAsync(ct);
 
+                if (deletedInDb == 0)
+                {
+                    logger.LogWarning("No records were deleted in DB for the current batch. Stopping to prevent infinite loop.");
+                    break;
+                }
+
                 totalDeleted += deletedInDb;
-                lastId = batch.Last().Id;
             }
             catch (Exception ex)
             {
@@ -71,27 +87,31 @@ public class FileJobs(
 
     public async Task CleanupUntrackedStorageFiles(CancellationToken ct = default)
     {
-        logger.LogInformation("Start cleaning up (Untracked Storage Files)...");
+        logger.LogInformation("Start cleaning up untracked files (Default Studio Cloud Storage only)...");
 
-        var allStorageFiles = await fileStorageService.GetAllFilesAsync(ct);
+        // Chỉ áp dụng cho Default Storage của bản thân hệ thống, tuyệt đối không quét bucket của khách
+        var defaultStorage = storageServiceFactory.GetDefaultStorageService();
+
+        var allStorageFiles = await defaultStorage.GetAllFilesAsync(ct);
         var untrackedFiles = new HashSet<string>(allStorageFiles);
         
-        logger.LogInformation("Found a total of {Count} files on Storage.", untrackedFiles.Count);
+        logger.LogInformation("Found a total of {Count} files on Default Storage.", untrackedFiles.Count);
 
         if (untrackedFiles.Count == 0)
         {
             return;
         }
 
-        var lastId = Guid.Empty;
         var totalDbFilesProcessed = 0;
 
         while (!ct.IsCancellationRequested)
         {
+            // Chỉ so khớp với các Asset thuộc Default Storage (StorageProfileId == null)
             var batch = await dbContext.Assets
                 .IgnoreQueryFilters()
-                .Where(f => f.Id > lastId)
-                .OrderBy(f => f.Id)
+                .Where(f => f.StorageProfileId == null)
+                .OrderBy(f => f.CreatedAt)
+                .Skip(totalDbFilesProcessed)
                 .Take(BatchSize)
                 .Select(f => new { f.Id, f.StoragePath })
                 .ToListAsync(ct);
@@ -107,29 +127,28 @@ public class FileJobs(
             }
 
             totalDbFilesProcessed += batch.Count;
-            lastId = batch.Last().Id;
         }
 
         logger.LogInformation("Finished comparing with {Count} files in the Database.", totalDbFilesProcessed);
 
         if (untrackedFiles.Count > 0)
         {
-            logger.LogInformation("Detected {Count} ghost files on Storage. Starting deletion...", untrackedFiles.Count);
+            logger.LogInformation("Detected {Count} ghost files on Default Storage. Starting deletion...", untrackedFiles.Count);
 
             try
             {
-                await fileStorageService.DeleteFilesAsync(untrackedFiles, ct);
-                logger.LogInformation("Successfully deleted {Count} ghost files.", untrackedFiles.Count);
+                await defaultStorage.DeleteFilesAsync(untrackedFiles, ct);
+                logger.LogInformation("Successfully deleted {Count} ghost files on Default Storage.", untrackedFiles.Count);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "An error occurred while deleting ghost files on Storage.");
+                logger.LogError(ex, "An error occurred while deleting ghost files on Default Storage.");
                 throw;
             }
         }
         else
         {
-            logger.LogInformation("No ghost files detected. Everything is synchronized.");
+            logger.LogInformation("No ghost files detected on Default Storage. Everything is synchronized.");
         }
     }
 }

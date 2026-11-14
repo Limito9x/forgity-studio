@@ -5,6 +5,7 @@ Tài liệu này đúc kết toàn bộ bộ khung kiến trúc, các quy ước
 ---
 
 ## 1. Modular Monolith & Ranh Giới Module (Module Boundaries)
+*(Chi tiết xem tại [ADR-001: Modular Monolith Architecture](file:///d:/FullStack/Automation/docs/adr/ADR-001-modular-monolith-architecture.md))*
 
 Dự án áp dụng **Modular Monolith** trên nền tảng .NET 10:
 
@@ -19,15 +20,15 @@ Dự án áp dụng **Modular Monolith** trên nền tảng .NET 10:
 
 ---
 
-## 2. Kiến Trúc Lát Cắt Dọc (Vertical Slice Architecture - VSA)
+## 2. Kiến Trúc Lát Cắt Dọc Thực Dụng (Pragmatic Single-File VSA)
+*(Chi tiết xem tại [ADR-002: Pragmatic Single-File VSA](file:///d:/FullStack/Automation/docs/adr/ADR-002-pragmatic-single-file-vsa.md))*
 
-Mọi tính năng được tổ chức theo chiều dọc tại `Features/<FeatureGroup>/<FeatureName>/`:
-- `*Command.cs` hoặc `*Query.cs`: Request model đầu vào.
-- `*Endpoint.cs`: API Endpoint kế thừa FastEndpoints `Endpoint<TRequest, TResponse>`.
-  - **Endpoint Return Type:** Luôn trả trực tiếp Raw DTO (như `AgentDto`, `CursorPage<T>`), không bọc trong `Result<T>` để OpenAPI Spec và Orval sinh code Frontend chuẩn xác nhất.
-- `*Handler.cs`: Xử lý nghiệp vụ chính nhận Command/Query từ Wolverine.
-- `*Validator.cs`: Khai báo FluentValidation.
-- **Data Mapping:** Luôn sử dụng thư viện **Mapster** (`.Adapt<TDto>()`, `.ProjectToType<TDto>()`), không map thủ công từng trường.
+Mọi tính năng được tổ chức theo chiều dọc gói gọn trong **1 FILE C# DUY NHẤT** tại `Features/<FeatureGroup>/<FeatureName>.cs` (không tạo thư mục con lồng nhau):
+- **Command / Query Record:** Khai báo dữ liệu đầu vào.
+- **Validator:** Khai báo FluentValidation trực tiếp bên dưới Request.
+- **FastEndpoints Endpoint:** Kế thừa `Endpoint<TRequest, TResponse>`, khai báo `Group<FeatureGroup>()`. Luôn unwrap kết quả trả về bằng `await this.SendResultAsync(result, ct)` để Orval sinh TypeScript types chuẩn xác.
+- **Wolverine Handler:** Kế thừa hoặc đánh dấu `[Transactional(typeof(<Module>DbContext))]` (ghi dữ liệu) hoặc `[NonTransactional]` (đọc dữ liệu).
+- **Data Mapping & Entities:** Entity là Pure POCO `{ get; set; }`. Toàn bộ dữ liệu được ánh xạ bằng **Mapster** (`.Adapt<TDto>()`, `.ProjectToType<TDto>()`), nói KHÔNG với constructor giáo điều và mapping thủ công lặp lại.
 
 ---
 
@@ -85,3 +86,21 @@ Dự án áp dụng mô hình Persistence Model tinh gọn, loại bỏ các rà
   - `Id` được khởi tạo tự động bằng UUIDv7 thông qua Base Class, không gán thủ công `Id = ...` trong class con.
   - `CreatedAt` và `UpdatedAt` được tự động hóa thông qua `AuditingInterceptor`, không gán thủ công `DateTimeOffset.UtcNow`.
   - Chỉ viết constructor hoặc method riêng khi thực sự có logic tính toán/nghiệp vụ phức tạp (State Machine).
+
+---
+
+## 6. Bảo Mật Khóa Bí Mật Xuyên Suốt Hệ Thống (Centralized Secret Protection)
+
+Đối với các khóa kết nối bên thứ ba cần giải mã để gọi API (S3 Secret Access Key trong module `Files`, API Key của OpenAI/Anthropic/Gemini trong module `AI`, SMTP Password trong module `Notifications`...):
+
+- **Tầng Trừu Tượng Tập Trung (`Automation.SharedKernel.Abstractions.Security`):**
+  - Cung cấp `ISecretProtector` với hai phương thức thuần túy `Protect(plainText)` và `Unprotect(cipherText)`.
+- **Thuật Toán Mã Hóa AES-256-GCM (`AesGcmSecretProtector`):**
+  - Sử dụng Authenticated Encryption (AEAD) với Nonce ngẫu nhiên 12 bytes và Authentication Tag 16 bytes chống giả mạo dữ liệu.
+  - Định dạng chuỗi lưu trữ: `enc:v1:<Base64 Payload>`.
+  - Cơ chế **Graceful Fallback**: Tự động nhận diện chuỗi cũ chưa mã hóa để trả về nguyên trạng, đảm bảo không làm gián đoạn hệ thống.
+- **Tự Động Hóa Qua EF Core `EncryptedSecretConverter`:**
+  - Áp dụng ValueConverter tại `DbContext.OnModelCreating`.
+  - Mọi thao tác lưu xuống PostgreSQL đều tự động chuyển thành chuỗi ciphertext `enc:v1:...`.
+  - Mọi thao tác đọc lên Memory đều tự động giải mã về Plaintext gốc trong suốt 100%, giúp tầng Application/Domain giữ được sự tinh gọn tuyệt đối.
+

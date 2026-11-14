@@ -27,6 +27,7 @@ public static class PipelineAssetExtensions
             slotKey: PipelineAssetSlots.NodeConfig,
             options: new AssetCategoryOptions
             {
+                AllowSubSlots = true,
                 AllowMultiple = true,
                 MaxSizeBytes = 10L * 1024 * 1024 * 1024, // 10GB
                 AllowedContentTypes = []

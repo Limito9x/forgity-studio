@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Automation.Pipeline.Domain.ValueObjects;
+using Automation.Pipeline.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -20,55 +20,59 @@ public class PipelineConfiguration : IEntityTypeConfiguration<Domain.Entities.Pi
             .HasMaxLength(50)
             .IsRequired();
 
-        builder.Property(x => x.TriggerWorkspaceId)
-            .IsRequired(false);
-
         builder.Property(x => x.TriggerConfig)
             .HasColumnType("jsonb")
             .IsRequired(false);
 
+        builder.Property(x => x.GraphHash)
+            .HasMaxLength(64)
+            .IsRequired(false);
+
+        builder.Property(x => x.ActiveSnapshotId)
+            .IsRequired(false);
+
+        builder.HasOne(x => x.ActiveSnapshot)
+            .WithMany()
+            .HasForeignKey(x => x.ActiveSnapshotId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasIndex(x => new { x.ProjectId, x.Name })
             .IsUnique()
-            .HasFilter("\"IsDeleted\" = false");
+            .HasFilter("\"DeletedAt\" IS NULL");
 
         var jsonOptions = new JsonSerializerOptions
         {
+            PropertyNameCaseInsensitive = true,
             Converters = { new JsonStringEnumConverter() }
         };
 
-        builder.Property(x => x.Variables)
+        builder.Property(x => x.GraphData)
             .HasColumnType("jsonb")
             .HasConversion(
-                v => JsonSerializer.Serialize(v ?? new List<PipelineVariableDecl>(), jsonOptions),
-                v => SafeDeserializeVariables(v, jsonOptions)
+                v => JsonSerializer.Serialize(v ?? new PipelineGraphDocument(), jsonOptions),
+                v => SafeDeserializeGraphData(v, jsonOptions)
             )
-            .Metadata.SetValueComparer(new ValueComparer<List<PipelineVariableDecl>>(
+            .Metadata.SetValueComparer(new ValueComparer<PipelineGraphDocument>(
                 (c1, c2) => JsonSerializer.Serialize(c1, jsonOptions) == JsonSerializer.Serialize(c2, jsonOptions),
                 c => c == null ? 0 : JsonSerializer.Serialize(c, jsonOptions).GetHashCode(),
-                c => SafeDeserializeVariables(JsonSerializer.Serialize(c, jsonOptions), jsonOptions)
+                c => SafeDeserializeGraphData(JsonSerializer.Serialize(c, jsonOptions), jsonOptions)
             ));
     }
 
-    private static List<PipelineVariableDecl> SafeDeserializeVariables(string? json, JsonSerializerOptions options)
+    private static PipelineGraphDocument SafeDeserializeGraphData(string? json, JsonSerializerOptions options)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
-            return new List<PipelineVariableDecl>();
+            return new PipelineGraphDocument();
         }
 
         try
         {
-            var trimmed = json.Trim();
-            if (trimmed.StartsWith("["))
-            {
-                return JsonSerializer.Deserialize<List<PipelineVariableDecl>>(trimmed, options) ?? new List<PipelineVariableDecl>();
-            }
+            return JsonSerializer.Deserialize<PipelineGraphDocument>(json, options) ?? new PipelineGraphDocument();
         }
         catch
         {
-            // Ignore corrupted json and fallback to empty list
+            return new PipelineGraphDocument();
         }
-
-        return new List<PipelineVariableDecl>();
     }
 }

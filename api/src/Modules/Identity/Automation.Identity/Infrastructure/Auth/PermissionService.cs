@@ -1,4 +1,6 @@
+using Automation.Identity.Constants;
 using Automation.Identity.Domain.Enums;
+using Automation.SharedKernel.Abstractions.Auth;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -7,7 +9,8 @@ namespace Automation.Identity.Infrastructure.Auth;
 public class PermissionService(
     IdentityDbContext dbContext,
     ICacheService cache,
-    ILogger<PermissionService> logger
+    ILogger<PermissionService> logger,
+    GlobalPermissionRegistry? registry = null
 ) : IPermissionService
 {
     private static string GetUserRolesCacheKey(Guid userId) => $"users:{userId}:roles";
@@ -16,6 +19,22 @@ public class PermissionService(
 
     public async Task<List<string>> GetPermissionsAsync(Guid userId, CancellationToken ct = default)
     {
+        // 1. Super Admin bypass: SuperAdmin always has 100% of all registered system permissions
+        var isSuperAdmin = await (from ur in dbContext.UserRoles
+                                  where ur.UserId == userId
+                                  join r in dbContext.Roles on ur.RoleId equals r.Id
+                                  where r.Name == IdentityRoles.SuperAdmin
+                                  select r.Id).AnyAsync(ct);
+
+        if (isSuperAdmin && registry != null)
+        {
+            return registry.Modules
+                .SelectMany(m => m.Value.Values)
+                .SelectMany(p => p)
+                .Distinct()
+                .ToList();
+        }
+
         var userRoleCacheKey = GetUserRolesCacheKey(userId);
         var userRoles = await cache.GetAsync<List<UserRoleCacheItem>>(userRoleCacheKey, ct);
         

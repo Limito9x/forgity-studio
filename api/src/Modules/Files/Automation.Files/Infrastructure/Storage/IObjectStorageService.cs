@@ -18,6 +18,10 @@ public interface IObjectStorageService
     Task<List<string>> GetAllFilesAsync(CancellationToken ct = default);
     
     string GetPublicUrl(string storagePath);
+
+    Task<Stream> OpenReadStreamAsync(string storagePath, CancellationToken ct = default);
+    Task UploadStreamAsync(string storagePath, Stream contentStream, string contentType, long? expectedLength = null, CancellationToken ct = default);
+    Task<bool> ExistsAsync(string storagePath, CancellationToken ct = default);
 }
 
 

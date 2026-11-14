@@ -1,6 +1,6 @@
 using Automation.Api;
 using FastEndpoints;
-using Automation.Agent.Infrastructure.Auth;
+using Automation.Runner.Infrastructure.Auth;
 using Automation.SharedKernel.Extensions.Modules;
 using Automation.SharedKernel.Extensions.Auth;
 using Automation.SharedKernel.Extensions.Caching;
@@ -11,9 +11,10 @@ using FastEndpoints.OpenApi;
 using Scalar.AspNetCore;
 using Automation.SharedKernel.Extensions.ExceptionHandling;
 
-using Automation.Agent.Extensions;
+using Automation.Runner.Extensions;
 using Automation.Pipeline.Extensions;
 
+using Automation.SharedKernel.Extensions.Security;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 var builder = WebApplication.CreateSlimBuilder(args);
@@ -43,12 +44,26 @@ builder.Services.AddFastEndpoints(ModuleRegistry.AllEndpoints)
     });
 
 builder.Services.AddCurrentUserProvider();
+builder.Services.AddSecretProtection();
 
 builder.AddModules(ModuleRegistry.All);
 
 builder.Services.AddJobServices(builder.Configuration);
 
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    var appName = builder.Configuration["AppConfig:Name"] ?? "Automation Studio";
+    var appDescription = builder.Configuration["AppConfig:Description"] ?? "Modular Monolith API";
+    var appVersion = builder.Configuration["AppConfig:Version"] ?? "v1";
+
+    options.AddDocumentTransformer((document, context, cancellationToken) =>
+    {
+        document.Info.Title = appName;
+        document.Info.Description = appDescription;
+        document.Info.Version = appVersion;
+        return Task.CompletedTask;
+    });
+});
 
 builder.Services.AddRedisCache(builder.Configuration);
 
@@ -56,6 +71,7 @@ builder.Services.AddRateLimitingServices(builder.Configuration);
 
 builder.Services.AddGlobalExceptionHandling();
 
+builder.Services.AddCustomCors(builder.Configuration);
 builder.Services.AddAuthentication();
 builder.Services.AddAuthorization();
 builder.Services.AddSignalR();
@@ -77,11 +93,13 @@ app.UseGlobalExceptionHandling();
 
 app.UseCustomSerilogRequestLogging();
 
+app.UseCustomCors();
+
 app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
-app.UseAgentAuthentication();
+app.UseRunnerAuthentication();
 
 app.UseJobMiddleware();
 
@@ -89,20 +107,26 @@ app.UseFastEndpoints(c =>
 {
     c.Endpoints.RoutePrefix = "api";
     c.Security.PermissionsClaimType = "Permission";
+    c.Endpoints.Configurator = ep =>
+    {
+        var name = ep.EndpointType.Name;
+        if (name.EndsWith("Endpoint"))
+            name = name[..^8];
+        ep.Description(b => b.WithName(name), clearDefaults: false);
+    };
 });
 
 app.MapHub<Automation.Notifications.Features.Notifications.NotificationHub>("/hubs/notifications");
-app.MapHub<Automation.Pipeline.Hubs.PipelineExecutionHub>("/hubs/pipeline-executions");
-app.MapAgentGrpcServices();
-app.MapPipelineGrpcServices();
+app.MapRunnerGrpcServices();
 
 if (app.Environment.IsDevelopment())
 {
+    var appName = app.Configuration["AppConfig:Name"] ?? "Automation Studio";
     app.MapOpenApi();
     app.MapScalarApiReference(options =>
     {
         options
-            .WithTitle("Template API Reference")
+            .WithTitle($"{appName} API Reference")
             .WithTheme(ScalarTheme.DeepSpace)
             .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
     });

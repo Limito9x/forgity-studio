@@ -1,0 +1,265 @@
+use anyhow::{Context, Result};
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+use tokio::fs::{create_dir_all, read_dir, write};
+use tracing::{debug, info};
+
+use super::db::RunnerStateDb;
+
+/// Strips Windows verbatim prefix (`\\?\`) so that subprocesses and Python standard library
+/// receive standard clean paths.
+pub fn normalize_absolute_path(path: PathBuf) -> PathBuf {
+    let s = path.to_string_lossy();
+    if s.starts_with(r"\\?\") {
+        PathBuf::from(&s[4..])
+    } else {
+        path
+    }
+}
+
+pub struct StorageManager {
+    base_dir: PathBuf,
+    db: OnceLock<RunnerStateDb>,
+}
+
+/// Computes a deterministic SHA-256 hash prefix (16 chars) for a set of python package requirements.
+pub fn compute_dependencies_hash(packages: &[String]) -> String {
+    use sha2::{Digest, Sha256};
+
+    let mut unique_pkgs: Vec<String> = packages
+        .iter()
+        .map(|p| p.trim().to_lowercase())
+        .filter(|p| !p.is_empty())
+        .collect();
+
+    unique_pkgs.sort();
+    unique_pkgs.dedup();
+
+    if unique_pkgs.is_empty() {
+        return "empty".to_string();
+    }
+
+    let canonical_str = unique_pkgs.join("\n");
+    let mut hasher = Sha256::new();
+    hasher.update(canonical_str.as_bytes());
+    let full_hash = hex::encode(hasher.finalize());
+    full_hash[..16].to_string()
+}
+
+impl StorageManager {
+    pub fn new(base_dir: Option<PathBuf>) -> Self {
+        let raw = base_dir.unwrap_or_else(|| {
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+        });
+        let abs = std::fs::canonicalize(&raw).unwrap_or(raw);
+        Self {
+            base_dir: normalize_absolute_path(abs),
+            db: OnceLock::new(),
+        }
+    }
+
+    pub fn db(&self) -> Result<&RunnerStateDb> {
+        if let Some(db) = self.db.get() {
+            return Ok(db);
+        }
+        let initialized = RunnerStateDb::open(&self.base_dir)?;
+        let _ = self.db.set(initialized);
+        Ok(self.db.get().expect("RunnerStateDb initialized"))
+    }
+
+    pub fn base_dir(&self) -> &Path {
+        &self.base_dir
+    }
+
+    pub fn cache_dir(&self) -> PathBuf {
+        self.base_dir.join("cache")
+    }
+
+    pub fn assets_dir(&self) -> PathBuf {
+        self.cache_dir().join("assets")
+    }
+
+    pub fn scripts_dir(&self) -> PathBuf {
+        self.cache_dir().join("scripts")
+    }
+
+    pub fn python_packages_dir(&self) -> PathBuf {
+        self.cache_dir().join("python-packages")
+    }
+
+    pub fn get_python_package_dir(&self, hash: &str) -> PathBuf {
+        self.python_packages_dir().join(hash)
+    }
+
+    pub fn temp_dir(&self) -> PathBuf {
+        self.base_dir.join("temp")
+    }
+
+    pub fn logs_dir(&self) -> PathBuf {
+        self.base_dir.join("logs")
+    }
+
+    /// Initializes all required runtime storage directories.
+    pub async fn init_directories(&self) -> Result<()> {
+        create_dir_all(self.assets_dir()).await?;
+        create_dir_all(self.scripts_dir()).await?;
+        create_dir_all(self.python_packages_dir()).await?;
+        create_dir_all(self.temp_dir()).await?;
+        create_dir_all(self.logs_dir()).await?;
+        debug!("Initialized runtime storage directories at {:?}", self.base_dir);
+        Ok(())
+    }
+
+    /// Finds a cached asset by its SHA-256 hash prefix or exact match, returning an absolute path.
+    pub async fn find_cached_asset(&self, sha256_hash: &str) -> Result<Option<PathBuf>> {
+        let clean_hash = sha256_hash.to_lowercase();
+
+        // 1. O(1) lookup in SQLite runner_state.db
+        if let Ok(db) = self.db() {
+            if let Ok(Some(path)) = db.get_and_touch_asset(&clean_hash) {
+                return Ok(Some(normalize_absolute_path(path)));
+            }
+        }
+
+        // 2. Fallback disk scan for pre-SQLite legacy cache & auto-backfill
+        let assets_dir = self.assets_dir();
+        if !assets_dir.exists() {
+            return Ok(None);
+        }
+
+        let mut entries = read_dir(&assets_dir).await?;
+
+        while let Some(entry) = entries.next_entry().await? {
+            let file_name = entry.file_name().to_string_lossy().to_lowercase();
+            // Check if file starts with the hash or stem equals hash
+            if file_name.starts_with(&clean_hash) {
+                let p = entry.path();
+                let abs = std::fs::canonicalize(&p).unwrap_or(p);
+                let norm = normalize_absolute_path(abs);
+                if let Ok(db) = self.db() {
+                    let ext = norm.extension().and_then(|e| e.to_str()).map(|s| s.to_string());
+                    let size = std::fs::metadata(&norm).map(|m| m.len()).unwrap_or(0);
+                    let _ = db.upsert_asset(&clean_hash, ext.as_deref(), &file_name, &norm, size);
+                }
+                return Ok(Some(norm));
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Finds a cached script by its SHA-256 hash.
+    pub async fn find_cached_script(&self, sha256_hash: &str) -> Result<Option<PathBuf>> {
+        let clean_hash = sha256_hash.to_lowercase();
+
+        if let Ok(db) = self.db() {
+            if let Ok(Some(path)) = db.get_and_touch_script(&clean_hash) {
+                return Ok(Some(normalize_absolute_path(path)));
+            }
+        }
+
+        let scripts_dir = self.scripts_dir();
+        if !scripts_dir.exists() {
+            return Ok(None);
+        }
+
+        let candidate = scripts_dir.join(format!("{}.py", clean_hash));
+        if candidate.is_file() {
+            let abs = std::fs::canonicalize(&candidate).unwrap_or(candidate);
+            let norm = normalize_absolute_path(abs);
+            if let Ok(db) = self.db() {
+                let size = std::fs::metadata(&norm).map(|m| m.len()).unwrap_or(0);
+                let _ = db.upsert_script(&clean_hash, &norm, size);
+            }
+            return Ok(Some(norm));
+        }
+
+        Ok(None)
+    }
+
+    /// Stores a script in `cache/scripts/{sha256}.py`.
+    pub async fn save_script(&self, content: &str, sha256_hash: &str) -> Result<PathBuf> {
+        self.init_directories().await?;
+        let clean_hash = sha256_hash.to_lowercase();
+        let target_path = self.scripts_dir().join(format!("{}.py", clean_hash));
+
+        write(&target_path, content.as_bytes())
+            .await
+            .with_context(|| format!("Failed to write script to {:?}", target_path))?;
+
+        let abs = std::fs::canonicalize(&target_path).unwrap_or(target_path);
+        let norm = normalize_absolute_path(abs);
+        if let Ok(db) = self.db() {
+            let _ = db.upsert_script(&clean_hash, &norm, content.len() as u64);
+        }
+        info!("Saved script to cache: {:?}", norm);
+        Ok(norm)
+    }
+
+    /// Commits a downloaded asset from temporary file to `cache/assets/{sha256}.{ext}`.
+    pub async fn commit_asset(
+        &self,
+        temp_file: &Path,
+        sha256_hash: &str,
+        extension: Option<&str>,
+    ) -> Result<PathBuf> {
+        self.init_directories().await?;
+        let clean_hash = sha256_hash.to_lowercase();
+
+        let file_name = match extension {
+            Some(ext) => {
+                let clean_ext = ext.trim_start_matches('.');
+                format!("{}.{}", clean_hash, clean_ext)
+            }
+            None => clean_hash.clone(),
+        };
+
+        let target_path = self.assets_dir().join(&file_name);
+
+        tokio::fs::rename(temp_file, &target_path)
+            .await
+            .with_context(|| format!("Failed to commit asset from {:?} to {:?}", temp_file, target_path))?;
+
+        let abs = std::fs::canonicalize(&target_path).unwrap_or(target_path);
+        let norm = normalize_absolute_path(abs);
+        if let Ok(db) = self.db() {
+            let size = std::fs::metadata(&norm).map(|m| m.len()).unwrap_or(0);
+            let _ = db.upsert_asset(&clean_hash, extension, &file_name, &norm, size);
+        }
+        info!("Committed asset to CAS cache: {:?}", norm);
+        Ok(norm)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normalize_verbatim_path() {
+        let p = PathBuf::from(r"\\?\D:\Games\Projects\Test.py");
+        let norm = normalize_absolute_path(p);
+        assert_eq!(norm, PathBuf::from(r"D:\Games\Projects\Test.py"));
+    }
+
+    #[test]
+    fn test_normalize_normal_path() {
+        let p = PathBuf::from(r"D:\Games\Projects\Test.py");
+        let norm = normalize_absolute_path(p);
+        assert_eq!(norm, PathBuf::from(r"D:\Games\Projects\Test.py"));
+    }
+
+    #[test]
+    fn test_storage_manager_paths_are_absolute() {
+        let storage = StorageManager::new(None);
+        assert!(storage.base_dir().is_absolute(), "base_dir should be absolute");
+        assert!(storage.assets_dir().is_absolute(), "assets_dir should be absolute");
+        assert!(storage.scripts_dir().is_absolute(), "scripts_dir should be absolute");
+        assert!(storage.temp_dir().is_absolute(), "temp_dir should be absolute");
+        assert!(storage.logs_dir().is_absolute(), "logs_dir should be absolute");
+
+        // Ensure no \\?\ verbatim prefix
+        let base_str = storage.base_dir().to_string_lossy();
+        assert!(!base_str.starts_with(r"\\?\"), "base_dir must not have \\?\\ prefix");
+    }
+}

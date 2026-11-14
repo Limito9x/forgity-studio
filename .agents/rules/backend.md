@@ -18,14 +18,15 @@ Quy tắc áp dụng bắt buộc khi xây dựng hoặc sửa đổi mã nguồ
    - `Features/`: Các tính năng tổ chức theo chiều dọc (Vertical Slices).
    - `Shared/`: DTOs dùng chung nội bộ module.
 
-3. **Kiến trúc tính năng theo chiều dọc (Vertical Slice - VSA):**
-   - Đặt tính năng trong thư mục: `Features/<FeatureGroup>/<FeatureName>/` (VD: `Features/Orders/CreateOrder/`).
+3. **Kiến trúc tính năng theo chiều dọc (Single-File Pragmatic VSA):**
+   - Đặt tính năng trực tiếp trong thư mục: `Features/<FeatureGroup>/<FeatureName>.cs` (VD: `Features/Orders/CreateOrder.cs`). **TUYỆT ĐỐI KHÔNG TẠO THƯ MỤC CON LỒNG NHAU CHO TỪNG SLICE**!
    - Tại `Features/<FeatureGroup>/`, bắt buộc có một file Endpoint Group (VD: `OrdersGroup.cs`) kế thừa `Group` của FastEndpoints. Luôn thêm `.WithTags("<Tên_Group>")` để Swagger hiển thị nhóm.
-   - Một slice tính năng hoàn chỉnh nằm CÙNG một thư mục:
-     - `*Command.cs` hoặc `*Query.cs`: Request model đầu vào.
-     - `*Endpoint.cs`: API Endpoint kế thừa từ `Endpoint` của FastEndpoints, khai báo `Group<FeatureGroup>()`.
-     - `*Handler.cs`: Xử lý nghiệp vụ chính bằng Wolverine handler.
-     - `*Validator.cs`: Khai báo FluentValidation cho request.
+   - Một file slice tính năng hoàn chỉnh (`<FeatureName>.cs`) bao gồm đầy đủ theo thứ tự:
+     - `Command` hoặc `Query` record: Dữ liệu đầu vào.
+     - `Validator` (nếu cần): Kế thừa `AbstractValidator<TCommand>`.
+     - `Endpoint`: Kế thừa từ `Endpoint<TRequest, TResponse>` của FastEndpoints, khai báo `Group<FeatureGroup>()`. Trả về trực tiếp DTO không bọc `Result<T>` để Orval sinh code frontend chuẩn xác nhất (dùng `await this.SendResultAsync(result, ct)`).
+     - `Handler`: Wolverine handler xử lý nghiệp vụ với `[Transactional(typeof(ModuleDbContext))]` (Mutation) hoặc `[NonTransactional]` (Query).
+   - Chi tiết xem tại [ADR-005: Pragmatic Single-File VSA](file:///d:/FullStack/Automation/docs/backend/ADR_PRAGMATIC_SINGLE_FILE_VSA.md).
 
 ---
 
@@ -41,10 +42,11 @@ Quy tắc áp dụng bắt buộc khi xây dựng hoặc sửa đổi mã nguồ
    - Trước khi viết code, LUÔN kiểm tra `GlobalUsing.cs` ở module (vd: `api/src/Modules/<ModuleName>/GlobalUsing.cs`) để xem những namespace đã import sẵn. Tránh `using` thừa.
 
 6. **Tôn trọng Triết Lý Kiến Trúc:**
-   - Đọc và tuân thủ tài liệu [docs/backend/ARCHITECTURE.md](file:///d:/FullStack/Automation/docs/backend/ARCHITECTURE.md). Tránh rườm rà (Ceremony), đề cao Use Case (VSA).
+   - Đọc và tuân thủ tài liệu [docs/backend/ARCHITECTURE.md](file:///d:/FullStack/Automation/docs/backend/ARCHITECTURE.md) và [docs/backend/ADR_PRAGMATIC_SINGLE_FILE_VSA.md](file:///d:/FullStack/Automation/docs/backend/ADR_PRAGMATIC_SINGLE_FILE_VSA.md). Tránh rườm rà (Ceremony), đề cao tính thực dụng (Pragmatic VSA).
 
-7. **Sử dụng Mapster cho Data Mapping:**
-   - LUÔN dùng Mapster (`.Adapt<TDto>()`, `.ProjectToType<TDto>()`) để ánh xạ Entities và DTOs. Không map tay từng trường trừ khi bắt buộc.
+7. **Sử dụng Mapster & Pragmatic POCO Entities:**
+   - Entities được viết dưới dạng Pure POCO với public `{ get; set; }`. KHÔNG viết constructor có tham số cồng kềnh, KHÔNG viết hàm `Update()` giả cầy kiểu DDD giáo điều.
+   - LUÔN dùng Mapster (`.Adapt<TDto>()`, `.Adapt<TEntity>()`, `.ProjectToType<TDto>()`) để ánh xạ Entities và DTOs. Không map tay từng trường trừ khi bắt buộc.
 
 8. **Quy định về Access Modifiers (Sử dụng public):**
    - Mọi class, interface, enum, struct trong Backend (Wolverine Handlers, Endpoints, DbContexts, Configurations, Validators, DTOs, Commands, Queries, Entities) BẮT BUỘC để ở mức `public` để tránh lỗi Assembly Scanning và DI registration.
@@ -76,3 +78,74 @@ Quy tắc áp dụng bắt buộc khi xây dựng hoặc sửa đổi mã nguồ
 15. **API cho Canvas / Đồ thị Tương tác:**
     - TUYỆT ĐỐI KHÔNG thiết kế 1 API monolithic nhận toàn bộ đồ thị để lưu mỗi khi có thay đổi nhỏ.
     - Phân rã thành Granular APIs (AddNode, UpdateNodePosition, ConnectEdge, DeleteEdge, UpdatePinValue...).
+
+16. **Ưu Tiên Sử Dụng Script CLI Dự Án (`api/cli.ps1`):**
+    - Khi thao tác với Database Migration hoặc chạy API, LUÔN ưu tiên sử dụng script `cli.ps1` tại thư mục `api/` để tránh sai sót đường dẫn:
+      - Tạo migration: `.\cli add-migration <ModuleName> <MigrationName>`
+      - Cập nhật database: `.\cli update-db [ModuleName]`
+      - Khởi động API: `.\cli start` hoặc `.\cli run` (Hot reload)
+    - Chỉ dùng lệnh `dotnet ef` gốc khi cần truyền cờ đặc thù hoặc chạy trong pipeline CI/CD.
+
+17. **Quy Tắc Build Solution & Tránh Lock DLL:**
+    - Khi muốn build toàn bộ solution (`Automation.sln`) hoặc project `Automation.Api`, **BẮT BUỘC** phải kiểm tra và tắt tiến trình API đang chạy (tiến trình chiếm port `5189`, `50051` hoặc process `Automation.Api`). Nếu không tắt, file binary `.dll` sẽ bị hệ điều hành khóa (lỗi `MSB3027: The process cannot access the file because it is being used by another process`) dẫn đến thất bại hoặc treo build.
+    - Luôn ưu tiên dùng script tự động kiểm tra và ngắt tiến trình API trước khi build:
+      - Từ thư mục gốc dự án: `.\build-dotnet.ps1`
+      - Từ thư mục `api/`: `.\cli build`
+
+18. **Quy Tắc Bảo Mật Khóa Bí Mật Bên Thứ Ba (Secret Protection & Encryption):**
+    - **Phân định Hash vs Encryption:**
+      - *Cần lấy lại chuỗi gốc để gọi API đối tác* (S3 Secret Key, AI API Key như OpenAI/Anthropic/Gemini, SMTP Password, Webhook Signing Key): **BẮT BUỘC dùng Mã hóa 2 chiều đối xứng (Symmetric Encryption)**. Tuyệt đối không băm SHA vì một khi đã băm thì không thể lấy lại key để kết nối.
+      - *Chỉ cần so khớp khi xác thực* (Mật khẩu người dùng, Runner Setup Token, Personal Access Token): Dùng Hashing (Argon2id/bcrypt cho mật khẩu, SHA-256 cho Token).
+    - **Sử dụng Dịch Vụ Cốt Lõi từ `Automation.SharedKernel`:**
+      - Interface: `Automation.SharedKernel.Abstractions.Security.ISecretProtector` (`Protect(plainText)` và `Unprotect(cipherText)`).
+      - Triển khai: `AesGcmSecretProtector` sử dụng thuật toán **AES-256-GCM** (kèm Nonce 12B ngẫu nhiên và Auth Tag 16B chống tampering).
+      - Định dạng lưu trữ: `enc:v1:<Base64 Payload>`. Có cơ chế **Graceful Fallback**: nếu chuỗi chưa có prefix `enc:v1:` (dữ liệu cũ chưa mã hóa), tự động trả về nguyên văn để tránh lỗi runtime.
+    - **Tự động hóa qua EF Core `EncryptedSecretConverter` (Trong suốt 100%):**
+      - KHÔNG gọi `Protect`/`Unprotect` thủ công rải rác ở Handler hay Service.
+      - Tại `DbContext.OnModelCreating`, gắn ValueConverter cho thuộc tính bí mật:
+        ```csharp
+        modelBuilder.Entity<StorageProfile>()
+            .Property(x => x.SecretKey)
+            .HasMaxLength(1000)
+            .HasConversion((ValueConverter)new EncryptedSecretConverter(secretProtector));
+        ```
+      - *Cơ chế vận hành:* EF Core tự động mã hóa trước khi INSERT/UPDATE vào PostgreSQL, và tự động giải mã khi SELECT lên memory. Code nghiệp vụ trong Domain, Application và Handlers làm việc với Plaintext hoàn toàn tự nhiên!
+
+19. **Quy Chuẩn Kiểm Thử Tích Hợp (Integration Testing with WebApplicationFactory & Testcontainers):**
+    - Ưu tiên kiểm thử tích hợp (Integration Tests) tự động trong thư mục `api/tests/` thay vì phụ thuộc vào việc bật server thủ công hoặc chạy browser test chậm chạp.
+    - **`WebApplicationFactory<Program>`**: Khởi chạy ứng dụng Web in-memory trong cùng tiến trình test runner (không mở cổng socket ngoài, không lo xung đột cổng `5189`/`50051`, và hoàn toàn KHÔNG gây lỗi Lock DLL khi build).
+    - **`Testcontainers` (PostgreSql, RabbitMQ)**: Tự động khởi tạo hạ tầng Docker cô lập cho phiên test, chạy xong tự động hủy và dọn dẹp sạch sẽ 100% dữ liệu rác, không làm ô nhiễm DB phát triển `localhost:5433`.
+    - **Tự động hóa hoàn toàn**: Mọi luồng nghiệp vụ E2E phức tạp (Export/Import Pipeline Package, Auth, Hydration, Handshake) phải chạy trơn tru thông qua lệnh chuẩn:
+      ```bash
+      dotnet test api/tests/Automation.Pipeline.Tests
+      ```
+
+20. **Quy Chuẩn Handler Nghiệp Vụ Phức Tạp: Tóm Tắt Thứ Tự Xử Lý & Bắt Buộc Dựng Unit/Slice Tests:**
+    - **Đối tượng áp dụng:** Bắt buộc đối với các Handler chứa logic nghiệp vụ đa điều kiện (Guard validation, kiểm tra khóa/lock độc quyền, phụ thuộc quan hệ cha-con cascade, rẽ nhánh dữ liệu an toàn hoặc các điều kiện ngăn mất mát dữ liệu).
+    - **Tóm tắt đầu Handler (Header Docstring):** Ngay phía trên class Handler, **BẮT BUỘC** có khối tài liệu tóm tắt ngắn gọn:
+      1. `[Thứ tự xử lý]`: Trình bày tuần tự các bước (vd: 1. Existence Check -> 2. Guard Validation -> 3. Domain Mutation -> 4. Cascade/Commit -> 5. Broadcast/Side effects).
+      2. `[Test Cases dựng kèm]`: Danh sách các kịch bản kiểm thử (tất cả các trường hợp chặn/lỗi và trường hợp thành công).
+    - **Bắt buộc dựng Unit/Slice Tests:**
+      - Dựng file test tương ứng trong `api/tests/` sử dụng `xUnit + FluentAssertions + SQLite In-Memory` (với `TestDbContext` kế thừa và xóa schema).
+      - Toàn bộ các nhánh rẽ bảo vệ (Guard blocks) và luồng thành công đều phải được kiểm thử tự động.
+      - **Lợi ích cốt lõi:** Ngăn chặn triệt để lỗi runtime dịch LINQ sang SQL (như truy vấn trên unmapped computed properties), rò rỉ logic, hoặc hỏng dữ liệu trong DB; chạy nghiệm thu siêu tốc chỉ 1-2 giây qua `dotnet test` trước khi chạy server thật.
+
+21. **Quy Tắc Production-First & Cô Lập Test (No Leaky Test Accommodations):**
+    - **Triết lý cốt lõi:** Mã nguồn tính năng (`api/src/`) BẮT BUỘC phải được viết và tối ưu 100% cho việc chạy trực tiếp trên môi trường production (Direct Runtime). Tuyệt đối không bắt code tính năng phải nhượng bộ hay có cách xử lý lắt léo chỉ để phục vụ cho test.
+    - **Cấm ô nhiễm mã nguồn vì Test (No Test Pollution):**
+      - TUYỆT ĐỐI KHÔNG tạo thêm các public constructor phụ, các tham số nullable giả (như `DbContext? db = null`), hoặc các cờ rẽ nhánh test trong class production chỉ để việc `new` đối tượng trong test được dễ dàng.
+      - *Nguy cơ thực tế:* DI container của .NET (`Microsoft.Extensions.DependencyInjection` / Wolverine) quét các public constructors và rất dễ chọn nhầm constructor thiếu dependencies tại runtime, gây crash hệ thống ở production (điển hình như lỗi `InvalidOperationException: PipelineDbContext is required...`).
+    - **Nguyên tắc xử lý của Test:**
+      - Test BẮT BUỘC phải tự trang bị cơ chế khởi tạo và test fixture riêng biệt (dùng Mocking qua `NSubstitute`, Test Builder, In-Memory DB, hoặc `WebApplicationFactory`).
+      - Nếu một class nghiệp vụ thực sự có kịch bản chạy offline độc lập (như `FrozenExecutionGraph`), bộc lộ qua **Explicit Static Factory Method** (ví dụ `CreateWithoutDatabase(...)`) hoặc constructor `internal` đi kèm `[InternalsVisibleTo]`. Một class dịch vụ DI chỉ được phép có **DUY NHẤT 1 PUBLIC CONSTRUCTOR** với đầy đủ các dependencies cần thiết để chạy production.
+
+22. **Quy Chuẩn Local-First & Ephemeral Draft Pipeline (ADR-006):**
+    - **Zero-DB Pollution:** Các luồng kiểm thử nháp (`RunDraftPipeline`) TUYỆT ĐỐI KHÔNG ghi bản ghi vào PostgreSQL (`Pipelines`, `PipelineNodes`, `PipelineExecutions`). Trạng thái chỉ sống trên `IExecutionStateStore` (Redis/MemoryStore) với `TTL = 2 giờ`.
+    - **Stateless AST Analysis:** Bóc tách schema script Python thông qua `POST /api/pipeline/nodes/custom/analyze-batch-stateless`, trả về danh sách pins trực tiếp, không tạo thực thể `NodeDefinition` trong DB.
+    - **Direct Disk Bypass:** Đối với script local máy trạm (`local:*`), Dispatcher truyền thẳng đường dẫn đĩa vật lý `SourceRepositoryPath` và `ScriptUrl = null`, bỏ qua việc tải lên/tải xuống S3.
+    - **Workstation Affinity:** Điều hướng task runner ưu tiên theo `preferredRunnerId` (chính là machineKey của máy trạm local).
+
+
+
+
+

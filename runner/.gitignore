@@ -1,0 +1,13 @@
+# Rust build artifacts
+/target
+
+# Local runner configuration and secrets
+runner.toml
+*.local.toml
+.env
+
+# Local runtime data & caches
+logs/
+temp/
+cache/
+.storage.lock

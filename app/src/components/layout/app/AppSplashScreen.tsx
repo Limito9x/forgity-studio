@@ -1,0 +1,34 @@
+import { Loader2 } from "lucide-react";
+import { appConfig } from "@/config/appConfig";
+import forgityLogo from "@/assets/forgity.svg";
+
+interface AppSplashScreenProps {
+  message?: string;
+}
+
+export function AppSplashScreen({ message = "Initializing workspace..." }: AppSplashScreenProps) {
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background text-foreground select-none">
+      <div className="relative flex flex-col items-center">
+        {/* Glow backdrop effect */}
+        <div className="absolute -inset-4 rounded-3xl bg-primary/5 blur-xl pointer-events-none" />
+
+        {/* Brand Icon Box */}
+        <div className="relative flex size-14 items-center justify-center rounded-2xl border border-border/60 bg-card/90 shadow-lg shadow-black/10 backdrop-blur-sm p-2 overflow-hidden">
+          <img src={forgityLogo} alt={appConfig.shortName} className="size-full object-contain animate-pulse rounded-lg" />
+        </div>
+
+        {/* App Title & Status */}
+        <div className="mt-5 flex flex-col items-center gap-1.5 text-center">
+          <span className="text-base font-semibold tracking-tight text-foreground">
+            {appConfig.name}
+          </span>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+            <Loader2 className="size-3 animate-spin text-primary/70" />
+            <span>{message}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

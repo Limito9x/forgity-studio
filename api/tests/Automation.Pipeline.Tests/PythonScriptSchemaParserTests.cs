@@ -1,5 +1,5 @@
 using Automation.Pipeline.Domain.Enums;
-using Automation.Pipeline.Engine.Parsers;
+using Automation.Pipeline.BuildTime.Parsers;
 using FluentAssertions;
 using Xunit;
 
@@ -99,6 +99,78 @@ public class PythonScriptSchemaParserTests
 
             result.Inputs.Should().Contain(p => p.Id == "export_map");
             result.Outputs.Should().Contain(p => p.Id == "export_map" && p.Cardinality == PinCardinality.Map);
+        }
+    }
+
+    [Fact]
+    public void Parse_ClassifyCharacterManifest_ShouldExtractCleanPinsAndPythonExecutor()
+    {
+        var filePath = @"d:\FullStack\Automation\pipeline-scripts\ai\classify_character_manifest.py";
+        if (File.Exists(filePath))
+        {
+            var content = File.ReadAllText(filePath);
+            var result = PythonScriptSchemaParser.Parse(content, "classify_character_manifest.py");
+
+            result.Executor.Should().Be("python");
+            result.SuggestedLabel.Should().Be("Classify Character Manifest");
+            result.Inputs.Should().Contain(p => p.Id == "export_manifest");
+            result.Inputs.Should().Contain(p => p.Id == "contracts");
+            result.Inputs.Should().Contain(p => p.Id == "endpoint");
+            result.Inputs.Should().Contain(p => p.Id == "model");
+
+
+
+            result.Outputs.Should().Contain(p => p.Id == "manifest");
+            result.Outputs.Should().Contain(p => p.Id == "summary");
+        }
+    }
+
+    [Fact]
+    public void Parse_ClassifyMeshTypes_ShouldExtractCleanPinsAndPythonExecutor()
+    {
+        var filePath = @"d:\FullStack\Automation\pipeline-scripts\ai\classify_mesh_types.py";
+        if (File.Exists(filePath))
+        {
+            var content = File.ReadAllText(filePath);
+            var result = PythonScriptSchemaParser.Parse(content, "classify_mesh_types.py");
+
+            result.Executor.Should().Be("python");
+            result.SuggestedLabel.Should().Be("Classify Mesh Types");
+            result.Inputs.Should().Contain(p => p.Id == "raw_metadata" && p.Cardinality == PinCardinality.Single);
+            result.Inputs.Should().Contain(p => p.Id == "contracts");
+            result.Inputs.Should().Contain(p => p.Id == "endpoint");
+            result.Inputs.Should().Contain(p => p.Id == "model");
+
+            result.Outputs.Should().Contain(p => p.Id == "body_meshes" && p.Cardinality == PinCardinality.Array);
+            result.Outputs.Should().Contain(p => p.Id == "clothes" && p.Cardinality == PinCardinality.Array);
+            result.Outputs.Should().NotContain(p => p.Id == "hair_meshes");
+            result.Outputs.Should().NotContain(p => p.Id == "accessories");
+        }
+    }
+
+    [Fact]
+    public void Parse_ExportFbx_ShouldExtractUnifiedCleanPins()
+    {
+        var filePath = @"d:\FullStack\Automation\pipeline-scripts\blender\export_fbx.py";
+        if (File.Exists(filePath))
+        {
+            var content = File.ReadAllText(filePath);
+            var result = PythonScriptSchemaParser.Parse(content, "export_fbx.py");
+
+            result.Inputs.Should().HaveCount(7);
+            result.Inputs.Should().Contain(p => p.Id == "output_path");
+            result.Inputs.Should().Contain(p => p.Id == "export_mode");
+            result.Inputs.Should().Contain(p => p.Id == "target_objects");
+            result.Inputs.Should().Contain(p => p.Id == "prefix");
+            result.Inputs.Should().NotContain(p => p.Id == "root_folder");
+
+            result.Outputs.Should().HaveCount(5);
+            result.Outputs.Should().Contain(p => p.Id == "exported_files");
+            result.Outputs.Should().Contain(p => p.Id == "manifest");
+            result.Outputs.Should().Contain(p => p.Id == "metadata_map");
+            result.Outputs.Should().Contain(p => p.Id == "thumbnail_map");
+            result.Outputs.Should().NotContain(p => p.Id == "exported_fbx_path");
+            result.Outputs.Should().NotContain(p => p.Id == "objects_count");
         }
     }
 }

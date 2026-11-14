@@ -1,2 +1,50 @@
-Automation-Studio.code-workspace
+Forgity-Studio.code-workspace
 kill-ports.ps1
+.env
+.secret*
+*.secret
+*.key
+backup.sql
+scripts/sql/
+
+# Scratch & Local Scripts
+scripts/scratch/
+scripts/*.local.*
+*.scratch.*
+runner/dist/
+runner/target/
+
+# Python & Test Caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs & Temporary debug dumps
+*.log
+*.log.*
+*.tmp
+
+# Database Backups
+backups/
+*.dump
+
+# Starter template package archive
+forgity_starter_template.zip
+
+# Runner / Python local cache
+cache/
+
+# Local workspace state, runtime DBs, logs & temp
+.forgity/
+runner_state.db
+runner_state.db-*
+logs/
+temp/
+
+# Private business scripts & local pipeline templates
+pipeline-scripts/
+pipelines/
+contracts.yaml

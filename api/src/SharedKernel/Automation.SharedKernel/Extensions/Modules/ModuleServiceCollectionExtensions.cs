@@ -1,7 +1,7 @@
+using Automation.SharedKernel.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Automation.SharedKernel.Infrastructure.Persistence;
 using Wolverine.EntityFrameworkCore;
 
 namespace Automation.SharedKernel.Extensions.Modules;
@@ -12,7 +12,8 @@ public static class ModuleServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration config,
         string schema,
-        string? connectionStringName = "Default")
+        string? connectionStringName = "Default"
+    )
         where TContext : DbContext
     {
         services.AddHttpContextAccessor();
@@ -20,26 +21,21 @@ public static class ModuleServiceCollectionExtensions
         services.AddSingleton<AuditLogInterceptor>();
         services.AddSingleton<EntityDeletedInterceptor>();
 
-        services.AddDbContextWithWolverineIntegration<TContext>((sp, options) =>
-        {
-
-            options.UseNpgsql(
-                config.GetConnectionString(connectionStringName ?? "Default"),
-                npgsql =>
+        services.AddDbContextWithWolverineIntegration<TContext>(
+            (sp, options) =>
+            {
+                options.UseNpgsql(npgsql =>
                 {
-                    npgsql.MigrationsHistoryTable(
-                        "__EFMigrationsHistory",
-                        schema);
+                    npgsql.MigrationsHistoryTable("__EFMigrationsHistory", schema);
                 });
-            options.AddInterceptors(
-                sp.GetRequiredService<AuditingInterceptor>(),
-                sp.GetRequiredService<AuditLogInterceptor>(),
-                sp.GetRequiredService<EntityDeletedInterceptor>()
-            );
-        });
+                options.AddInterceptors(
+                    sp.GetRequiredService<AuditingInterceptor>(),
+                    sp.GetRequiredService<AuditLogInterceptor>(),
+                    sp.GetRequiredService<EntityDeletedInterceptor>()
+                );
+            }
+        );
 
         return services;
     }
 }
-
-

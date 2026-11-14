@@ -1,0 +1,566 @@
+use std::sync::Arc;
+use anyhow::{Context, Result};
+use std::time::Duration;
+use tokio::sync::mpsc;
+use tokio::time::sleep;
+use tokio_stream::wrappers::ReceiverStream;
+use tonic::transport::Channel;
+use tracing::{debug, error, info, warn};
+
+use super::agent::agent_service_client::AgentServiceClient;
+use super::agent::{
+    agent_message, command_response, server_message, AgentMessage, CommandResponse,
+    ExecutorCandidateMessage, ScanCommandResult, ScanExecutorsCommandResult,
+    ScanHardwareCommandResult, UploadFileItemResult, UploadFilesCommandResult,
+    CancelExecutionCommandResult, ExecuteCommandResult,
+};
+use crate::process::active_stage::ActiveStageManager;
+use crate::process::dcc_pool::DccPool;
+
+pub struct GrpcRunnerClient;
+
+impl GrpcRunnerClient {
+    /// Maintains a persistent bidirectional gRPC streaming connection with the Backend.
+    /// Sends the initial handshake message to mark this runner as ONLINE in the Backend ConnectionRegistry,
+    /// and listens for remote server commands (Browse, Scan, ScanHardware, ScanExecutors, UploadFiles, CancelExecution).
+    pub async fn run_loop(
+        grpc_url: String,
+        runner_id: String,
+        active_stages: Arc<ActiveStageManager>,
+        dcc_pool: Arc<DccPool>,
+    ) {
+        let app_version = env!("FORGITY_RUNNER_VERSION").to_string();
+
+        loop {
+            info!("Attempting gRPC connection to Backend at {}...", grpc_url);
+
+            match Self::connect_and_stream(&grpc_url, &runner_id, &app_version, active_stages.clone(), dcc_pool.clone()).await {
+                Ok(_) => {
+                    warn!("gRPC stream closed by server. Reconnecting in 5s...");
+                }
+                Err(e) => {
+                    warn!("gRPC connection to {} failed: {}. Retrying in 5s...", grpc_url, e);
+                }
+            }
+
+            sleep(Duration::from_secs(5)).await;
+        }
+    }
+
+    async fn connect_and_stream(
+        grpc_url: &str,
+        runner_id: &str,
+        app_version: &str,
+        active_stages: Arc<ActiveStageManager>,
+        dcc_pool: Arc<DccPool>,
+    ) -> Result<()> {
+        let endpoint = Channel::from_shared(grpc_url.to_string())
+            .with_context(|| format!("Invalid gRPC URL: {}", grpc_url))?
+            .connect_timeout(Duration::from_secs(10))
+            .http2_keep_alive_interval(Duration::from_secs(15))
+            .keep_alive_while_idle(true);
+
+        let channel = endpoint
+            .connect()
+            .await
+            .with_context(|| format!("Failed to connect to gRPC endpoint {}", grpc_url))?;
+
+        let mut client = AgentServiceClient::new(channel);
+
+        let (tx, rx) = mpsc::channel::<AgentMessage>(32);
+        let request_stream = ReceiverStream::new(rx);
+
+        // 1. Send Handshake Message to trigger _registry.Add(connection) on Backend
+        let handshake = AgentMessage {
+            agent_id: runner_id.to_string(),
+            app_version: app_version.to_string(),
+            payload: None,
+        };
+
+        tx.send(handshake)
+            .await
+            .context("Failed to send initial gRPC handshake message")?;
+
+        info!(
+            "════════════════════════════════════════════════════════════════\n\
+             [gRPC] Connected to Backend gRPC at {}!\n\
+             [gRPC] Runner ID: {} is now ONLINE on Web Dashboard.\n\
+             ════════════════════════════════════════════════════════════════",
+            grpc_url, runner_id
+        );
+
+        let response = client
+            .connect(request_stream)
+            .await
+            .context("Error calling rpc Connect")?;
+
+        let mut inbound = response.into_inner();
+
+        // 2. Listen for ServerMessage from Backend and respond to remote commands
+        while let Some(server_msg) = inbound.message().await? {
+            debug!("Received ServerMessage from Backend: {:?}", server_msg);
+
+            match server_msg.payload {
+                Some(server_message::Payload::ScanHardwareCommand(cmd)) => {
+                    info!("[gRPC] Handling remote ScanHardwareCommand (cmd_id: {})...", cmd.command_id);
+                    let hw = crate::system::hardware::get_hardware_snapshot();
+
+                    let resp = CommandResponse {
+                        command_id: cmd.command_id,
+                        success: true,
+                        error_message: String::new(),
+                        result: Some(command_response::Result::ScanHardwareResult(ScanHardwareCommandResult {
+                            os_platform: hw.os_platform,
+                            cpu_model: hw.cpu_model,
+                            total_ram_bytes: hw.total_ram_bytes as i64,
+                            primary_gpu_name: hw.primary_gpu_name,
+                            primary_gpu_vram_bytes: hw.primary_gpu_vram_bytes as i64,
+                            hardware_details_json: hw.hardware_details,
+                        })),
+                    };
+
+                    let reply = AgentMessage {
+                        agent_id: runner_id.to_string(),
+                        app_version: app_version.to_string(),
+                        payload: Some(agent_message::Payload::CommandResponse(resp)),
+                    };
+
+                    if let Err(e) = tx.send(reply).await {
+                        error!("[gRPC] Failed to send ScanHardwareCommand response: {}", e);
+                    } else {
+                        info!("[gRPC] Hardware re-scan response sent successfully!");
+                    }
+                }
+
+                Some(server_message::Payload::ScanExecutorsCommand(cmd)) => {
+                    info!("[gRPC] Handling remote ScanExecutorsCommand (cmd_id: {})...", cmd.command_id);
+                    let mut items = Vec::new();
+                    for b in crate::system::dcc::scan_blender() {
+                        items.push(ExecutorCandidateMessage {
+                            executor_key: "blender".to_string(),
+                            executable_path: b.path.to_string_lossy().to_string(),
+                            version: b.version,
+                        });
+                    }
+                    for u in crate::system::dcc::scan_unreal() {
+                        items.push(ExecutorCandidateMessage {
+                            executor_key: "unreal".to_string(),
+                            executable_path: u.path.to_string_lossy().to_string(),
+                            version: u.version,
+                        });
+                    }
+                    for p in crate::system::dcc::scan_python() {
+                        items.push(ExecutorCandidateMessage {
+                            executor_key: "python".to_string(),
+                            executable_path: p.path.to_string_lossy().to_string(),
+                            version: p.version,
+                        });
+                    }
+
+                    let resp = CommandResponse {
+                        command_id: cmd.command_id,
+                        success: true,
+                        error_message: String::new(),
+                        result: Some(command_response::Result::ScanExecutorsResult(ScanExecutorsCommandResult {
+                            items,
+                        })),
+                    };
+
+                    let reply = AgentMessage {
+                        agent_id: runner_id.to_string(),
+                        app_version: app_version.to_string(),
+                        payload: Some(agent_message::Payload::CommandResponse(resp)),
+                    };
+
+                    if let Err(e) = tx.send(reply).await {
+                        error!("[gRPC] Failed to send ScanExecutorsCommand response: {}", e);
+                    } else {
+                        info!("[gRPC] ScanExecutorsCommand response sent successfully!");
+                    }
+                }
+
+                Some(server_message::Payload::BrowseCommand(cmd)) => {
+                    info!("[gRPC] Handling remote BrowseCommand (cmd_id: {}, path: '{}')...", cmd.command_id, cmd.directory_path);
+                    let resp = match crate::system::browser::browse_path(&cmd.directory_path) {
+                        Ok(result) => CommandResponse {
+                            command_id: cmd.command_id,
+                            success: true,
+                            error_message: String::new(),
+                            result: Some(command_response::Result::BrowseResult(result)),
+                        },
+                        Err(e) => CommandResponse {
+                            command_id: cmd.command_id,
+                            success: false,
+                            error_message: e.to_string(),
+                            result: None,
+                        },
+                    };
+
+                    let reply = AgentMessage {
+                        agent_id: runner_id.to_string(),
+                        app_version: app_version.to_string(),
+                        payload: Some(agent_message::Payload::CommandResponse(resp)),
+                    };
+
+                    if let Err(e) = tx.send(reply).await {
+                        error!("[gRPC] Failed to send BrowseCommand response: {}", e);
+                    } else {
+                        info!("[gRPC] BrowseCommand response sent successfully!");
+                    }
+                }
+
+                Some(server_message::Payload::ScanCommand(cmd)) => {
+                    info!(
+                        "[gRPC] Handling remote ScanCommand (cmd_id: {}, path: '{}', sub_paths: {:?}, max_files: {})...",
+                        cmd.command_id, cmd.directory_path, cmd.sub_paths, cmd.max_files
+                    );
+                    let (items, has_reached_limit, total_scanned) = crate::system::browser::scan_resources(
+                        &cmd.directory_path,
+                        &cmd.extensions,
+                        &cmd.sub_paths,
+                        cmd.max_files,
+                    );
+                    info!(
+                        "[gRPC] Scanned {} resource items in '{}' (total_scanned: {}, has_reached_limit: {})",
+                        items.len(), cmd.directory_path, total_scanned, has_reached_limit
+                    );
+
+                    let resp = CommandResponse {
+                        command_id: cmd.command_id,
+                        success: true,
+                        error_message: String::new(),
+                        result: Some(command_response::Result::ScanResult(ScanCommandResult {
+                            items,
+                            has_reached_limit,
+                            total_scanned,
+                        })),
+                    };
+
+                    let reply = AgentMessage {
+                        agent_id: runner_id.to_string(),
+                        app_version: app_version.to_string(),
+                        payload: Some(agent_message::Payload::CommandResponse(resp)),
+                    };
+
+                    if let Err(e) = tx.send(reply).await {
+                        error!("[gRPC] Failed to send ScanCommand response: {}", e);
+                    } else {
+                        info!("[gRPC] ScanCommand response sent successfully!");
+                    }
+                }
+
+                Some(server_message::Payload::UploadFilesCommand(cmd)) => {
+                    info!("[gRPC] Handling remote UploadFilesCommand (cmd_id: {}, {} files)...", cmd.command_id, cmd.items.len());
+                    let mut item_results = Vec::new();
+                    let mut total_bytes = 0i64;
+                    let http_client = reqwest::Client::new();
+
+                    for item in cmd.items {
+                        let file_path = std::path::PathBuf::from(&item.file_path);
+                        if !file_path.exists() {
+                            item_results.push(UploadFileItemResult {
+                                asset_id: item.asset_id,
+                                resource_version_id: item.resource_version_id,
+                                success: false,
+                                bytes_uploaded: 0,
+                                error_message: format!("File does not exist: {}", file_path.display()),
+                            });
+                            continue;
+                        }
+
+                        match tokio::fs::File::open(&file_path).await {
+                            Ok(file) => {
+                                let metadata = file.metadata().await;
+                                let file_len = metadata.map(|m| m.len()).unwrap_or(0);
+                                let content_type = if item.content_type.is_empty() {
+                                    "application/octet-stream".to_string()
+                                } else {
+                                    item.content_type
+                                };
+
+                                let stream = tokio_util::io::ReaderStream::new(file);
+                                let body = reqwest::Body::wrap_stream(stream);
+
+                                let res = http_client
+                                    .put(&item.presigned_url)
+                                    .header(reqwest::header::CONTENT_TYPE, content_type)
+                                    .header(reqwest::header::CONTENT_LENGTH, file_len)
+                                    .body(body)
+                                    .send()
+                                    .await;
+
+                                match res {
+                                    Ok(resp) if resp.status().is_success() => {
+                                        total_bytes += file_len as i64;
+                                        item_results.push(UploadFileItemResult {
+                                            asset_id: item.asset_id,
+                                            resource_version_id: item.resource_version_id,
+                                            success: true,
+                                            bytes_uploaded: file_len as i64,
+                                            error_message: String::new(),
+                                        });
+                                    }
+                                    Ok(resp) => {
+                                        let status = resp.status();
+                                        let text = resp.text().await.unwrap_or_default();
+                                        item_results.push(UploadFileItemResult {
+                                            asset_id: item.asset_id,
+                                            resource_version_id: item.resource_version_id,
+                                            success: false,
+                                            bytes_uploaded: 0,
+                                            error_message: format!("HTTP {} - {}", status, text),
+                                        });
+                                    }
+                                    Err(e) => {
+                                        item_results.push(UploadFileItemResult {
+                                            asset_id: item.asset_id,
+                                            resource_version_id: item.resource_version_id,
+                                            success: false,
+                                            bytes_uploaded: 0,
+                                            error_message: e.to_string(),
+                                        });
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                item_results.push(UploadFileItemResult {
+                                    asset_id: item.asset_id,
+                                    resource_version_id: item.resource_version_id,
+                                    success: false,
+                                    bytes_uploaded: 0,
+                                    error_message: e.to_string(),
+                                });
+                            }
+                        }
+                    }
+
+                    let resp = CommandResponse {
+                        command_id: cmd.command_id,
+                        success: true,
+                        error_message: String::new(),
+                        result: Some(command_response::Result::UploadFilesResult(UploadFilesCommandResult {
+                            items: item_results,
+                            total_bytes_uploaded: total_bytes,
+                        })),
+                    };
+
+                    let reply = AgentMessage {
+                        agent_id: runner_id.to_string(),
+                        app_version: app_version.to_string(),
+                        payload: Some(agent_message::Payload::CommandResponse(resp)),
+                    };
+
+                    if let Err(e) = tx.send(reply).await {
+                        error!("[gRPC] Failed to send UploadFilesCommand response: {}", e);
+                    } else {
+                        info!("[gRPC] UploadFilesCommand response sent successfully!");
+                    }
+                }
+
+                Some(server_message::Payload::CancelExecutionCommand(cmd)) => {
+                    info!(
+                        "[gRPC] Handling remote CancelExecutionCommand (cmd_id: {}, pipeline_id: {}, stage_id: {})...",
+                        cmd.command_id, cmd.pipeline_execution_id, cmd.stage_execution_id
+                    );
+
+                    let (killed, msg) = active_stages.cancel_active_stage(
+                        &cmd.pipeline_execution_id,
+                        &cmd.stage_execution_id,
+                    ).await;
+
+                    let resp = CommandResponse {
+                        command_id: cmd.command_id,
+                        success: true,
+                        error_message: String::new(),
+                        result: Some(command_response::Result::CancelExecutionResult(CancelExecutionCommandResult {
+                            killed,
+                            message: msg,
+                        })),
+                    };
+
+                    let reply = AgentMessage {
+                        agent_id: runner_id.to_string(),
+                        app_version: app_version.to_string(),
+                        payload: Some(agent_message::Payload::CommandResponse(resp)),
+                    };
+
+                    if let Err(e) = tx.send(reply).await {
+                        error!("[gRPC] Failed to send CancelExecutionCommand response: {}", e);
+                    } else {
+                        info!("[gRPC] CancelExecutionCommand response sent successfully (killed={})!", killed);
+                    }
+                }
+
+                Some(server_message::Payload::ExecuteCommand(cmd)) => {
+                    info!(
+                        "[gRPC] Handling remote ExecuteCommand (cmd_id: {}, program: '{}', args: {:?})...",
+                        cmd.command_id, cmd.program, cmd.args
+                    );
+
+                    let is_forgity_prog = cmd.program.is_empty()
+                        || cmd.program == "forgity"
+                        || cmd.program == "forgity-runner";
+
+                    // In-memory persistent DCC process pool management (zero proto bloat convention)
+                    if is_forgity_prog && cmd.args.first().map(|s| s.as_str()) == Some("dcc") {
+                        info!("[gRPC] Intercepting in-memory DCC pool command: {:?}", cmd.args);
+                        let action = cmd.args.get(1).map(|s| s.as_str()).unwrap_or("");
+                        let (exit_code, stdout, stderr, success, err_msg) = match action {
+                            "list" => {
+                                let sessions = dcc_pool.list().await;
+                                match serde_json::to_string_pretty(&sessions) {
+                                    Ok(json_str) => (0, json_str, String::new(), true, String::new()),
+                                    Err(e) => (1, String::new(), e.to_string(), false, e.to_string()),
+                                }
+                            }
+                            "stop" => {
+                                let has_all = cmd.args.iter().any(|a| a == "--all");
+                                if has_all {
+                                    let count = dcc_pool.stop_all().await;
+                                    let res_json = serde_json::json!({ "stopped": count }).to_string();
+                                    (0, res_json, String::new(), true, String::new())
+                                } else if let Some(key) = cmd.args.get(2) {
+                                    let stopped = dcc_pool.stop(key).await;
+                                    let res_json = serde_json::json!({ "stopped": if stopped { 1 } else { 0 } }).to_string();
+                                    (0, res_json, String::new(), true, String::new())
+                                } else {
+                                    (
+                                        1,
+                                        String::new(),
+                                        "Missing target session key or --all".to_string(),
+                                        false,
+                                        "Missing session key or --all".to_string(),
+                                    )
+                                }
+                            }
+                            _ => (
+                                1,
+                                String::new(),
+                                format!("Unknown dcc command action: {}", action),
+                                false,
+                                format!("Unknown dcc command action: {}", action),
+                            ),
+                        };
+
+                        let resp = CommandResponse {
+                            command_id: cmd.command_id,
+                            success,
+                            error_message: err_msg,
+                            result: Some(command_response::Result::ExecuteCommandResult(
+                                ExecuteCommandResult {
+                                    exit_code,
+                                    stdout,
+                                    stderr,
+                                    timed_out: false,
+                                },
+                            )),
+                        };
+
+                        let reply = AgentMessage {
+                            agent_id: runner_id.to_string(),
+                            app_version: app_version.to_string(),
+                            payload: Some(agent_message::Payload::CommandResponse(resp)),
+                        };
+
+                        if let Err(e) = tx.send(reply).await {
+                            error!("[gRPC] Failed to send DCC ExecuteCommand response: {}", e);
+                        } else {
+                            info!("[gRPC] DCC ExecuteCommand response sent successfully!");
+                        }
+                        continue;
+                    }
+
+                    let program_exe = if is_forgity_prog {
+                        std::env::current_exe()
+                            .unwrap_or_else(|_| std::path::PathBuf::from("forgity"))
+                    } else {
+                        std::path::PathBuf::from(&cmd.program)
+                    };
+
+                    let timeout_secs = if cmd.timeout_seconds > 0 {
+                        cmd.timeout_seconds as u64
+                    } else {
+                        30
+                    };
+
+                    let mut child_cmd = tokio::process::Command::new(program_exe);
+                    child_cmd.args(&cmd.args);
+                    child_cmd.stdout(std::process::Stdio::piped());
+                    child_cmd.stderr(std::process::Stdio::piped());
+
+                    let (exit_code, stdout, stderr, timed_out, success, err_msg) = match tokio::time::timeout(
+                        Duration::from_secs(timeout_secs),
+                        child_cmd.output(),
+                    )
+                    .await
+                    {
+                        Ok(Ok(output)) => {
+                            let code = output.status.code().unwrap_or(-1);
+                            let out_str = String::from_utf8_lossy(&output.stdout).to_string();
+                            let err_str = String::from_utf8_lossy(&output.stderr).to_string();
+                            (
+                                code,
+                                out_str,
+                                err_str,
+                                false,
+                                output.status.success(),
+                                String::new(),
+                            )
+                        }
+                        Ok(Err(e)) => (
+                            -1,
+                            String::new(),
+                            e.to_string(),
+                            false,
+                            false,
+                            format!("Failed to spawn process: {}", e),
+                        ),
+                        Err(_) => (
+                            -1,
+                            String::new(),
+                            "Execution timed out".to_string(),
+                            true,
+                            false,
+                            "Execution timed out".to_string(),
+                        ),
+                    };
+
+                    let resp = CommandResponse {
+                        command_id: cmd.command_id,
+                        success,
+                        error_message: err_msg,
+                        result: Some(command_response::Result::ExecuteCommandResult(
+                            ExecuteCommandResult {
+                                exit_code,
+                                stdout,
+                                stderr,
+                                timed_out,
+                            },
+                        )),
+                    };
+
+                    let reply = AgentMessage {
+                        agent_id: runner_id.to_string(),
+                        app_version: app_version.to_string(),
+                        payload: Some(agent_message::Payload::CommandResponse(resp)),
+                    };
+
+                    if let Err(e) = tx.send(reply).await {
+                        error!("[gRPC] Failed to send ExecuteCommand response: {}", e);
+                    } else {
+                        info!(
+                            "[gRPC] ExecuteCommand response sent successfully (exit_code={})!",
+                            exit_code
+                        );
+                    }
+                }
+
+                _ => {
+                    debug!("[gRPC] Unhandled server message payload: {:?}", server_msg);
+                }
+            }
+        }
+
+        Ok(())
+    }
+}

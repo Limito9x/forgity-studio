@@ -1,0 +1,77 @@
+name: Build and Push Web Image
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*.*.*"]
+    paths:
+      - "app/**"
+      - "packages/proto/**"
+      - ".github/workflows/docker-web.yml"
+      - "!**.md"
+      - "!docs/**"
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/forgity-web
+
+jobs:
+  build-and-push-web:
+    name: Build & Publish Web Image to GHCR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install Web Dependencies and Build SPA
+        working-directory: ./app
+        run: |
+          pnpm install
+          pnpm build
+
+      - name: Extract Docker metadata for Web
+        id: meta_web
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+
+      - name: Build and push Web Docker Image (Nginx SPA)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app
+          file: app/Dockerfile
+          push: true
+          tags: ${{ steps.meta_web.outputs.tags }}
+          labels: ${{ steps.meta_web.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

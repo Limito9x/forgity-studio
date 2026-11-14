@@ -1,16 +1,75 @@
-MIT License
+Functional Source License, Version 1.1, MIT Future License (FSL-1.1-MIT)
 
-Copyright (c) 2026 Automation Studio Contributors
+## Abbreviation
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+FSL-1.1-MIT
+
+## Terms and Conditions
+
+### Licensor ("We")
+
+The party offering the Software under these Terms and Conditions.
+
+### The Software
+
+The "Software" is each version of the software that we make available under
+these Terms and Conditions, as indicated by our inclusion of these Terms and
+Conditions with the Software.
+
+### License Grant
+
+Subject to your compliance with these Terms and Conditions, we hereby grant you
+a non-exclusive, worldwide, non-transferable, non-sublicensable, revocable
+(only as expressly provided herein), royalty-free license to use, copy, modify,
+and prepare derivative works of the Software, and to distribute the Software and
+such modifications and derivative works, solely for Permitted Purposes.
+
+### Permitted Purpose
+
+A "Permitted Purpose" is any purpose other than a Competing Use. A "Competing
+Use" means making the Software available to others in a commercial product or
+service that:
+
+1. substitutes for the Software or any other product or service we offer using
+   the Software;
+2. is a hosted, managed, or Software-as-a-Service (SaaS) offering of the
+   Software; or
+3. otherwise competes with our commercial offerings built on the Software.
+
+For clarity, using the Software internally within your organization or studio to
+build, automate, or ship your own games, 3D assets, or internal pipelines is a
+Permitted Purpose.
+
+### Termination
+
+If you breach these Terms and Conditions, your license terminates immediately
+and automatically. If you bring any claim or action alleging that the Software
+infringes any patent, your license terminates immediately and automatically.
+
+### Redistribution
+
+You may distribute the Software or derivative works only if you include a copy
+of these Terms and Conditions with every copy you distribute and retain all
+copyright, patent, trademark, and attribution notices.
+
+### Future License (MIT)
+
+On the second anniversary of the date we first make a specific version of the
+Software available under these Terms and Conditions (the "Change Date"), we
+hereby grant you a license to that specific version of the Software under the
+MIT License:
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
+
+### Disclaimer
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,

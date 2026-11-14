@@ -4,11 +4,23 @@ Những quy tắc này áp dụng cho toàn bộ workspace Monorepo `Automation/
 
 ---
 
-## 1. Ưu Tiên Sử Dụng CodeGraph MCP (MANDATORY)
+## 1. Ưu Tiên Bậc Nhất: Sử Dụng CodeGraph MCP Kèm projectPath (TOP MANDATORY PRIORITY)
 
-- **Primary Tool:** Bắt buộc ưu tiên sử dụng MCP tool `codegraph_explore` (hoặc lệnh shell `codegraph explore`) là công cụ ĐẦU TIÊN để phân tích kiến trúc, dò tìm symbol, xem references/callers/callees, và đọc code chính xác.
-- **projectPath Parameter:** Khi gọi `codegraph_explore`, luôn truyền trực tiếp tham số `projectPath` trỏ tới root `D:/FullStack/Automation` (hoặc thư mục subproject).
-- **Hạn chế Grep/View mò mẫm:** Không dùng `grep_search`, `list_dir`, hoặc `view_file` để tìm kiếm mù mờ khi chưa dùng CodeGraph để nắm bức tranh tổng thể.
+- **Top Priority Tool:** Bắt buộc ưu tiên sử dụng MCP tool `call_mcp_tool` với `ServerName: "codegraph"`, `ToolName: "codegraph_explore"` là công cụ ĐẦU TIÊN và BẬC NHẤT trước khi làm bất kỳ thao tác phân tích kiến trúc, dò tìm symbol, xem references/callers/callees, hoặc đọc code chi tiết.
+- **BẮT BUỘC tham số `projectPath`:** Khi gọi `codegraph_explore`, LUÔN LUÔN truyền trực tiếp tham số `projectPath: "d:\\FullStack\\Automation"` (hoặc đường dẫn tuyệt đối tới subproject tương ứng). Không bao giờ được gọi `codegraph_explore` mà thiếu `projectPath` vì MCP client chạy ở môi trường ngoài project root và sẽ báo lỗi `No CodeGraph project is loaded`.
+- **Cú pháp chuẩn khi gọi tool:**
+  ```json
+  {
+    "ServerName": "codegraph",
+    "ToolName": "codegraph_explore",
+    "Arguments": {
+      "projectPath": "d:\\FullStack\\Automation",
+      "query": "<SymbolName hoặc câu hỏi>"
+    }
+  }
+  ```
+- **Lệnh shell thay thế (khi không dùng MCP):** `codegraph explore "<query>" --path "d:\\FullStack\\Automation"`.
+- **Tuyệt đối cấm mò mẫm bằng Grep/View:** Nghiêm cấm dùng `grep_search`, `list_dir`, hoặc `view_file` để tìm kiếm mò mẫm, phán đoán mù mờ khi chưa dùng CodeGraph để nắm toàn bộ bức tranh dependencies, blast radius và verbatim source code.
 
 ---
 
@@ -24,6 +36,7 @@ Những quy tắc này áp dụng cho toàn bộ workspace Monorepo `Automation/
 
 ## 3. Ngôn Ngữ & Quy Ước Hiển Thị (Language Conventions)
 
+- **Thương Hiệu & Đặt Tên (Branding SSOT):** Tên thương mại & sản phẩm chính thức trên UI, thông báo, nhãn, tài liệu người dùng và trao đổi với User là **Forgity** hoặc **Forgity Studio** (được định nghĩa tại `web/src/config/appConfig.ts`). Tên namespace C# giữ nguyên tiền tố kỹ thuật `Automation.*`. Không dùng tên cũ "Automation Studio" cho sản phẩm.
 - **UI & Code:** Toàn bộ văn bản hiển thị cho người dùng (UI text, nhãn, thông báo lỗi, placeholder), tài liệu commit, và tên biến/hàm/lớp PHẢI viết bằng **tiếng Anh**.
 - **Agent Chat & Plans:** Khi User viết tiếng Việt, Agent phản hồi bằng **tiếng Việt**. Tất cả tài liệu kế hoạch (`implementation_plan.md`, `walkthrough.md`) viết bằng **tiếng Việt**.
 - **Comments & Logs:** Có thể viết bằng **tiếng Việt** hoặc **tiếng Anh**.
@@ -36,3 +49,86 @@ Khi thực hiện tác vụ, hãy xác định khu vực mã nguồn đang thao 
 - **`api/` (Backend)**: Tuân thủ nghiêm ngặt [rules/backend.md](file:///d:/FullStack/Automation/.agents/rules/backend.md).
 - **`web/` (Frontend)**: Tuân thủ nghiêm ngặt [rules/frontend.md](file:///d:/FullStack/Automation/.agents/rules/frontend.md).
 - **`workers/` (Workers)**: Tuân thủ nghiêm ngặt [rules/workers.md](file:///d:/FullStack/Automation/.agents/rules/workers.md).
+
+---
+
+## 5. Quy Chuẩn Tài Liệu, Kế Hoạch & Cẩm Nang Vận Hành (Single Source of Truth)
+
+- **Tập Trung Tuyệt Đối Trong `.agents/`:** Toàn bộ Kế hoạch kỹ thuật (`.agents/plans/`) và Cẩm nang vận hành cốt lõi (`.agents/playbooks/`) BẮT BUỘC phải đặt trong thư mục `.agents/`. Nghiêm cấm tạo file markdown rác, kế hoạch rác ngoài thư mục `docs/`.
+- **Bắt Buộc Đọc Playbook Trước Khi Code:** Trước khi can thiệp vào bất kỳ module/feature cốt lõi nào (như Pipeline Engine, Canvas Graph Sync, Worker Storage), Agent BẮT BUỘC phải đọc Playbook tương ứng trong `.agents/playbooks/` để nắm vững Mental Model và luồng vận hành thực tế (Lifecycle) từ A đến Z, tránh suy diễn hoặc over-engineer.
+- **Bắt Buộc Cập Nhật Liên Tục (Continuous Sync):** Sau khi hoàn thành hoặc sửa đổi luồng thực thi / hợp đồng dữ liệu, Agent BẮT BUỘC phải quay lại cập nhật Playbook tương ứng và đồng bộ Chỉ mục (Index) trong [AGENTS.md](file:///d:/FullStack/Automation/.agents/AGENTS.md). Tuyệt đối không để tài liệu bị lỗi thời làm sai lệch các Agent về sau.
+
+---
+
+## 6. Quy Trình Thực Thi Theo Kế Hoạch Phân Phase & Cổng Duyệt (Phased Execution & Review Gate)
+
+Đối với các tác vụ tái cấu trúc quy trình, sửa đổi kiến trúc hoặc phát triển tính năng có độ phức tạp cao:
+
+1. **Tầng 1 - Kế Hoạch Tổng Quát (Master Roadmap):**
+   - Agent cùng User thống nhất một Master Plan tổng quát lưu tại `.agents/plans/<date>-<topic>.md`.
+   - Master Plan phải phân chia rõ ràng các Phase độc lập, có ranh giới và mục tiêu nghiệm thu cụ thể.
+
+2. **Tầng 2 - Đối Chiếu Trước/Sau & Lập Implementation Plan Chi Tiết Từng Phase (BẮT BUỘC):**
+   - **Trước khi can thiệp mã nguồn của bất kỳ Phase nào**, Agent **TUYỆT ĐỐI KHÔNG ĐƯỢC tự ý code ngay**.
+   - **Bảng Đối Chiếu Trước & Sau (Before vs After Matrix):** Ở giai đoạn thảo luận chuẩn bị lên Implementation Plan và ngay trong Plan, Agent BẮT BUỘC phải trình bày **Bảng đối chiếu Trước & Sau thực hiện** theo từng hạng mục (chỉ rõ điểm đứt gãy/hạn chế hiện tại `TRƯỚC` và kiến trúc chuẩn hóa `SAU`).
+   - Agent BẮT BUỘC phải trình bày một **Implementation Plan chi tiết riêng cho Phase đó** gồm:
+     * Bảng đối chiếu **Trước & Sau (Before vs After)** cho từng hạng mục kiến trúc / luồng dữ liệu.
+     * Danh sách file sẽ tạo / sửa đổi kèm đường dẫn tuyệt đối dạng markdown link.
+     * Đặc tả hợp đồng dữ liệu / method / consumer / UI component.
+     * Ranh giới đỏ (Redlines), các giả định kiến trúc và xử lý edge cases.
+     * Tiêu chí nghiệm thu và các bước kiểm thử (Build / Unit test / Manual verification).
+
+3. **Tầng 3 - Cổng Duyệt Của User (User Review Gate):**
+   - Agent dừng lại chờ User xem xét, phản biện và uốn nắn kế hoạch chi tiết của Phase.
+   - **Chỉ khi User xác nhận đồng ý hoặc yêu cầu thực thi** (ví dụ: *"thực thi phase X"*), Agent mới được phép bắt đầu sửa code.
+
+4. **Tầng 4 - Hoàn Tất Phase & Chuyển Giao Tuần Tự (No Auto-Run Next Phase):**
+   - Sau khi thực thi xong Phase X và nghiệm thu đạt yêu cầu, Agent tóm tắt kết quả và dừng lại.
+   - **Nghiêm cấm tự động nhảy sang code Phase tiếp theo** khi chưa lập Implementation Plan chi tiết cho Phase mới và chưa được User duyệt.
+
+---
+
+## 7. Kỷ Luật Thực Dụng & Nghiêm Cấm Vẽ Vời (Strict Pragmatism & Zero Hallucinated Features)
+
+- **Cấm Tự Ý Bịa Roadmap & Coming Soon:** Tuyệt đối KHÔNG tự ý chèn các mục "Roadmap", "Coming Soon", "Planned (Q1/Q2/Q3...)", hoặc các khối quảng bá tính năng tương lai vào giao diện trừ khi User đích thân yêu cầu rõ ràng.
+- **100% Data-Driven & Single Source of Truth:** Mọi thẻ (Card), bảng (Table), dòng dữ liệu, hoặc thông số trên UI PHẢI gắn liền trực tiếp với API DTO, gRPC message, hoặc database entity có thật trong hệ thống. Tuyệt đối không hardcode mock data, số liệu giả để "làm màu" cho giao diện.
+- **Triệt Để Tuân Thủ YAGNI (You Aren't Gonna Need It):** Chỉ cài đặt đúng và đủ các tính năng nằm trong phạm vi của Phase hiện tại. Không suy diễn, không tự ý mở rộng phạm vi ("tiện tay làm thêm"), không nhét các tính năng mà hệ sinh thái chưa sẵn sàng hỗ trợ.
+- **Không Monkey-Patch UI Primitives:** Khi gặp lỗi type hoặc thuộc tính (ví dụ: `title` vs `aria-label`), KHÔNG ĐƯỢC hack, monkey-patch, thêm `any` hoặc nới lỏng props của các component UI dùng chung trong `components/ui/`. Phải giải quyết đúng chuẩn mực ở tầng gọi component (call-site).
+
+---
+
+## 8. Quy Chuẩn Sửa Đổi Mã Nguồn Bằng Native Tool (Source Code Modification Standard)
+
+- **BẮT BUỘC Dùng Native Tools (`edit_file` / `write_file`):** Mọi thao tác sửa đổi file mã nguồn phải đi qua `edit_file` (cho sửa đổi từng phần) hoặc `write_file` (cho tạo mới / ghi đè toàn bộ file).
+- **TUYỆT ĐỐI CẤM Dùng Script Phụ Trợ (Python / PowerShell / Node.js) Để Sửa Code:** Nghiêm cấm tạo script trong `scratch/` hoặc chạy script shell để ghi đè file code. Thao tác này làm mất tính minh bạch của Diff UI trực quan trên IDE của User và tiềm ẩn rủi ro sai lệch encoding / format.
+- **Kỹ Thuật Chọn Anchor Với `edit_file`:**
+  - Luôn chọn đoạn `Target` ngắn, có ngữ cảnh neo độc nhất (unique anchors) từ 3–8 dòng.
+  - Hạn chế copy-paste block quá dài (hàng chục dòng) để tránh lỗi lệch line-ending giữa CRLF (`\r\n`) và LF (`\n`) trên môi trường Windows.
+  - Nếu cần thay đổi toàn bộ file hoặc file cấu hình lớn, sử dụng `write_file` kèm cờ `Overwrite: true`.
+
+---
+
+## 9. Triết Lý Dumb Executor & Chống Chữa Cháy Chắp Vá (Anti-Heuristic Compounding)
+
+> **BÀI HỌC CỐT TỬ TỪ THỰC TẾ:** Mọi sự suy đoán (heuristics) và các giải pháp chắp vá (band-aid fixes) sinh ra bên trong các hàm thực thi hạ nguồn (downstream executors) là **mầm mống phá hoại kiến trúc**, biến các hàm đơn giản 200 dòng thành "quái vật" 1000 dòng không thể bảo trì.
+
+### 1. Nguyên Tắc Palette vs Dumb Executor (The Palette Mental Model):
+- **Tương tự Canvas Pipeline:** Mỗi Node trên canvas không cần tự nắm giữ quy luật hay tự quyết định cách hiển thị. Người quản lý và ra luật là **Palette (Single Source of Truth / Contract)**.
+- **Node chỉ là Thợ Cơ Học (Dumb Executor):** Nhiệm vụ của Node là nhận dữ liệu đã được phân giải chuẩn mực từ Upstream (Contract/Manifest/DTO) và thực thi máy móc đúng các bước theo quy chuẩn (Convention).
+- **Tuyệt đối CẤM suy đoán (Zero Heuristics Policy):**
+  - CẤM viết regex đoán tên thuộc tính (như chuyển `camelCase` sang `snake_case`, đoán `SlotTag` hay `Slot_Tag`).
+  - CẤM tạo các vòng lặp fallback mò mẫm đường dẫn thư mục (ví dụ duyệt ngược cây thư mục để tìm file config, tự bịa danh sách folder candidate để dò UClass).
+  - CẤM viết các chuỗi `try-catch` lồng nhau để "thử vận may" gán kiểu dữ liệu.
+
+### 2. Tư Duy Xử Lý Đứt Gãy (Fail-Fast & Fix Upstream):
+- Khi một hàm hạ nguồn thiếu thông tin (ví dụ không biết `skeleton_path`, không biết `target_schema_path`, không biết texture slot là `TC_Normalmap` hay `TC_Grayscale`):
+  - **HÀNH ĐỘNG SAI (Anti-Pattern):** Tự viết thêm 50-100 dòng code fallback, regex, duyệt folder mò mẫm để "chữa cháy tạm bợ" cho chạy được.
+  - **HÀNH ĐỘNG ĐÚNG (Architectural Fix):** Dừng lại ngay lập tức (Fail-Fast). Đẩy trách nhiệm về khâu **Upstream Resolver / Contract Inspector**. Nếu Contract thiếu ➔ Bổ sung vào Contract. Nếu AI Manifest bind thiếu ➔ Sửa prompt / logic phân loại của AI. Executor hạ nguồn PHẢI giữ sạch sẽ, tối giản và thuần túy cơ học.
+
+---
+
+## 10. Quy Chuẩn Vòng Đời Kế Hoạch & Lưu Trữ Theo Tháng (Plan Lifecycle & Monthly Archiving)
+
+- **Thư Mục Gốc `.agents/plans/` Tinh Gọn:** Chỉ lưu giữ duy nhất `BACKLOG.md`, `README.md` và các Active Plans đang triển khai (tối đa 1–3 file).
+- **Lưu Trữ (Archive) Định Kỳ Theo Tháng:** Toàn bộ kế hoạch kỹ thuật sau khi đã nghiệm thu và hoàn thành BẮT BUỘC phải di chuyển vào kho lưu trữ theo tháng: `.agents/plans/archive/YYYY-MM/` và cập nhật chỉ mục tương ứng tại `README.md`.
+- **Sổ Bộ Backlog 2 Tầng:** `BACKLOG.md` duy trì ngắn gọn (chỉ chứa các mục Active & High-priority Next Up); các ý tưởng dài hạn chưa xếp lịch được chuyển vào kho `ICEBOX.md` để tránh làm phình to context window của Agent.
