@@ -16,7 +16,7 @@ export function useCollectionPinActions({
   nodeId,
   capabilities,
 }: UseCollectionPinActionsOptions) {
-  const { setNodes } = useReactFlow();
+  const { setNodes, setEdges } = useReactFlow();
   const pinAddMode = capabilities?.pinAddMode || "Sequence";
 
   const handleAddPin = useCallback(
@@ -27,6 +27,45 @@ export function useCollectionPinActions({
         nds.map((n) => {
           if (n.id !== nodeId) return n;
           const currentInputs: PinDefinition[] = (n.data as any).inputs || [];
+          const currentOutputs: PinDefinition[] = (n.data as any).outputs || [];
+
+          if (pinAddMode === "ChannelPair") {
+            let maxIdx = 0;
+            for (const p of currentInputs) {
+              const m = /^in_(\d+)$/i.exec(String(p.id || ""));
+              if (m) {
+                const idx = Number(m[1]);
+                if (idx > maxIdx) maxIdx = idx;
+              }
+            }
+            const nextIdx = maxIdx + 1;
+            const inPin: PinDefinition = {
+              id: `in_${nextIdx}`,
+              label: `In ${nextIdx}`,
+              kind: "Data" as any,
+              primitiveType: "Any" as any,
+              cardinality: "Array" as any,
+              isRequired: false,
+            };
+            const outPin: PinDefinition = {
+              id: `out_${nextIdx}`,
+              label: `Out ${nextIdx}`,
+              kind: "Data" as any,
+              primitiveType: "Any" as any,
+              cardinality: "Array" as any,
+              isRequired: false,
+            };
+            window.dispatchEvent(new CustomEvent("pipeline:mark-dirty"));
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                inputs: [...currentInputs, inPin],
+                outputs: [...currentOutputs, outPin],
+              },
+            };
+          }
+
           const currentDynamic: string[] = currentInputs
             .filter((p) => !isExecPin(p) && Boolean(p.id))
             .map((p) => p.id as string);
@@ -70,13 +109,43 @@ export function useCollectionPinActions({
         })
       );
     },
-    [nodeId, pinAddMode, setNodes, capabilities]
+    [nodeId, pinAddMode, setNodes, setEdges, capabilities]
   );
 
   const handleRemovePin = useCallback(
     (e: React.MouseEvent, pinId: string) => {
       e.stopPropagation();
       if (!capabilities?.canRemovePin || capabilities.protectedPinIds?.includes(pinId)) return;
+
+      if (pinAddMode === "ChannelPair") {
+        const suffix = pinId.replace(/^in_/i, "").replace(/^out_/i, "");
+        const targetIn = `in_${suffix}`;
+        const targetOut = `out_${suffix}`;
+        setNodes((nds) =>
+          nds.map((n) => {
+            if (n.id !== nodeId) return n;
+            const currentInputs: PinDefinition[] = (n.data as any).inputs || [];
+            const currentOutputs: PinDefinition[] = (n.data as any).outputs || [];
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                inputs: currentInputs.filter((p) => p.id !== targetIn),
+                outputs: currentOutputs.filter((p) => p.id !== targetOut),
+              },
+            };
+          })
+        );
+        setEdges((eds) =>
+          eds.filter(
+            (edge) =>
+              !(edge.target === nodeId && edge.targetHandle === targetIn) &&
+              !(edge.source === nodeId && edge.sourceHandle === targetOut)
+          )
+        );
+        return;
+      }
+
       setNodes((nds) =>
         nds.map((n) => {
           if (n.id !== nodeId) return n;
@@ -119,7 +188,7 @@ export function useCollectionPinActions({
         })
       );
     },
-    [nodeId, pinAddMode, setNodes, capabilities]
+    [nodeId, pinAddMode, setNodes, setEdges, capabilities]
   );
 
   return {

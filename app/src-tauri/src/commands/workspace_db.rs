@@ -363,13 +363,14 @@ impl WorkspaceDb {
         for row in rows.flatten() {
             let value: serde_json::Value =
                 serde_json::from_str(&row.2).unwrap_or(serde_json::Value::Null);
+            let unreal_path = decode_unreal_path(row.5, &value, &row.3, &row.4);
             list.push(serde_json::json!({
                 "id": row.0,
                 "key": row.1,
                 "value": value,
                 "dataType": row.3,
                 "scope": row.4,
-                "unrealPath": row.5,
+                "unrealPath": unreal_path,
                 "description": row.6,
                 "updatedAt": row.7
             }));
@@ -402,10 +403,7 @@ impl WorkspaceDb {
         let list: Vec<serde_json::Value> = serde_json::from_str(constants_json)
             .map_err(|e| format!("Invalid constants JSON: {}", e))?;
 
-        self.conn
-            .execute("DELETE FROM local_constants", [])
-            .map_err(|e| format!("Failed to clear local_constants: {}", e))?;
-
+        let mut prepared_rows = Vec::with_capacity(list.len());
         for item in list {
             let key = item.get("key").and_then(|v| v.as_str()).unwrap_or("").to_string();
             if key.is_empty() {
@@ -416,7 +414,8 @@ impl WorkspaceDb {
                 .and_then(|v| v.as_str())
                 .unwrap_or(&key)
                 .to_string();
-            let value_json = serde_json::to_string(item.get("value").unwrap_or(&serde_json::Value::Null))
+            let value_val = item.get("value").unwrap_or(&serde_json::Value::Null);
+            let value_json = serde_json::to_string(value_val)
                 .unwrap_or_else(|_| "null".to_string());
             let data_type = item
                 .get("dataType")
@@ -428,10 +427,13 @@ impl WorkspaceDb {
                 .and_then(|v| v.as_str())
                 .unwrap_or("General")
                 .to_string();
-            let unreal_path = item
-                .get("unrealPath")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
+            let unreal_path = encode_and_validate_unreal_path(
+                &key,
+                item.get("unrealPath"),
+                value_val,
+                &data_type,
+                &scope,
+            )?;
             let description = item
                 .get("description")
                 .and_then(|v| v.as_str())
@@ -441,8 +443,31 @@ impl WorkspaceDb {
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            let content_hash = sha256_hex(&format!("{}:{}", value_json, data_type));
+            let content_hash = sha256_hex(&format!(
+                "{}:{}:{}",
+                value_json,
+                data_type,
+                unreal_path.as_deref().unwrap_or("")
+            ));
 
+            prepared_rows.push((
+                key,
+                id,
+                value_json,
+                data_type,
+                scope,
+                unreal_path,
+                description,
+                content_hash,
+                updated_at,
+            ));
+        }
+
+        self.conn
+            .execute("DELETE FROM local_constants", [])
+            .map_err(|e| format!("Failed to clear local_constants: {}", e))?;
+
+        for (key, id, value_json, data_type, scope, unreal_path, description, content_hash, updated_at) in prepared_rows {
             self.conn
                 .execute(
                     "
@@ -455,6 +480,164 @@ impl WorkspaceDb {
         }
 
         Ok(())
+    }
+}
+
+fn split_legacy_array_str(raw: &str) -> Vec<serde_json::Value> {
+    raw.split([',', '\n'])
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| serde_json::Value::String(s.to_string()))
+        .collect()
+}
+
+fn is_legacy_truncated_unreal_array(
+    legacy_str: &str,
+    value: &serde_json::Value,
+    scope: &str,
+) -> Option<Vec<serde_json::Value>> {
+    if !scope.eq_ignore_ascii_case("Unreal") {
+        return None;
+    }
+    let val_arr = value.as_array()?;
+    if val_arr.len() <= 1 {
+        return None;
+    }
+    let all_game_paths = val_arr.iter().all(|v| {
+        v.as_str()
+            .map(|s| s.trim().starts_with("/Game/"))
+            .unwrap_or(false)
+    });
+    if !all_game_paths {
+        return None;
+    }
+    let contains_legacy = val_arr
+        .iter()
+        .any(|v| v.as_str().map(|s| s.trim() == legacy_str).unwrap_or(false));
+    if contains_legacy {
+        Some(val_arr.clone())
+    } else {
+        None
+    }
+}
+
+/// Decodes `unreal_path` column into a typed JSON value (`Array` for `data_type == "Array"`,
+/// `String` otherwise), migrating legacy single-string rows cleanly on read.
+fn decode_unreal_path(
+    raw: Option<String>,
+    value: &serde_json::Value,
+    data_type: &str,
+    scope: &str,
+) -> serde_json::Value {
+    let Some(raw_str) = raw else {
+        return serde_json::Value::Null;
+    };
+    let trimmed = raw_str.trim();
+    if trimmed.is_empty() {
+        return if data_type.eq_ignore_ascii_case("Array") {
+            serde_json::Value::Array(Vec::new())
+        } else {
+            serde_json::Value::Null
+        };
+    }
+
+    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        match parsed {
+            serde_json::Value::Array(arr) => return serde_json::Value::Array(arr),
+            serde_json::Value::String(s) => {
+                if data_type.eq_ignore_ascii_case("Array") {
+                    if let Some(recovered) = is_legacy_truncated_unreal_array(s.trim(), value, scope) {
+                        return serde_json::Value::Array(recovered);
+                    }
+                    return serde_json::Value::Array(split_legacy_array_str(&s));
+                }
+                return serde_json::Value::String(s);
+            }
+            _ => {}
+        }
+    }
+
+    if data_type.eq_ignore_ascii_case("Array") {
+        if let Some(recovered) = is_legacy_truncated_unreal_array(trimmed, value, scope) {
+            return serde_json::Value::Array(recovered);
+        }
+        return serde_json::Value::Array(split_legacy_array_str(trimmed));
+    }
+
+    serde_json::Value::String(trimmed.to_string())
+}
+
+/// Validates and serializes `unrealPath` for SQLite persistence.
+/// For `Unreal` + `Array` constants, enforces equal array length with `value`.
+fn encode_and_validate_unreal_path(
+    key: &str,
+    unreal_path: Option<&serde_json::Value>,
+    value: &serde_json::Value,
+    data_type: &str,
+    scope: &str,
+) -> Result<Option<String>, String> {
+    let Some(up) = unreal_path else {
+        return Ok(None);
+    };
+    if up.is_null() {
+        return Ok(None);
+    }
+
+    let is_array = data_type.eq_ignore_ascii_case("Array");
+    let is_unreal = scope.eq_ignore_ascii_case("Unreal");
+
+    match up {
+        serde_json::Value::Array(arr) => {
+            if is_unreal && is_array {
+                let val_len = value.as_array().map(|a| a.len()).unwrap_or(0);
+                if arr.len() != val_len {
+                    return Err(format!(
+                        "Constant '{}': unrealPath array length ({}) must match value array length ({})",
+                        key,
+                        arr.len(),
+                        val_len
+                    ));
+                }
+            }
+            let json = serde_json::to_string(arr)
+                .map_err(|e| format!("Failed to serialize unrealPath for '{}': {}", key, e))?;
+            Ok(Some(json))
+        }
+        serde_json::Value::String(s) => {
+            let trimmed = s.trim();
+            if trimmed.is_empty() {
+                return Ok(None);
+            }
+            if is_array {
+                let arr = if let Ok(serde_json::Value::Array(parsed)) =
+                    serde_json::from_str::<serde_json::Value>(trimmed)
+                {
+                    parsed
+                } else {
+                    split_legacy_array_str(trimmed)
+                };
+                if is_unreal {
+                    let val_len = value.as_array().map(|a| a.len()).unwrap_or(0);
+                    if arr.len() != val_len {
+                        return Err(format!(
+                            "Constant '{}': unrealPath array length ({}) must match value array length ({})",
+                            key,
+                            arr.len(),
+                            val_len
+                        ));
+                    }
+                }
+                let json = serde_json::to_string(&arr)
+                    .map_err(|e| format!("Failed to serialize unrealPath for '{}': {}", key, e))?;
+                Ok(Some(json))
+            } else {
+                Ok(Some(trimmed.to_string()))
+            }
+        }
+        _ => Err(format!(
+            "Constant '{}': unrealPath must be a string, array, or null",
+            key
+        )),
     }
 }
 
@@ -494,6 +677,79 @@ mod tests {
         assert!(loaded_structs.contains("char_item"));
         assert!(forgity_dir.join("constants.json.bak").is_file());
         assert!(temp_root.join("contracts.yaml").is_file());
+
+        let _ = std::fs::remove_dir_all(&temp_root);
+    }
+
+    #[test]
+    fn test_constants_unreal_path_array_roundtrip_and_length_validation() {
+        let temp_root = std::env::temp_dir().join(format!(
+            "forgity_ws_db_const_arr_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let db = WorkspaceDb::open(&temp_root).unwrap();
+
+        let valid_json = r#"[{
+            "id": "c1",
+            "key": "PDA_PATHS",
+            "value": ["/Game/A", "/Game/B"],
+            "dataType": "Array",
+            "scope": "Unreal",
+            "unrealPath": ["/Game/A", "/Game/B"]
+        }]"#;
+        db.save_constants_json(valid_json).unwrap();
+
+        let loaded: Vec<serde_json::Value> =
+            serde_json::from_str(&db.load_constants_json().unwrap()).unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(
+            loaded[0]["unrealPath"],
+            serde_json::json!(["/Game/A", "/Game/B"])
+        );
+
+        let mismatched_json = r#"[{
+            "id": "c1",
+            "key": "PDA_PATHS",
+            "value": ["/Game/A", "/Game/B"],
+            "dataType": "Array",
+            "scope": "Unreal",
+            "unrealPath": ["/Game/B"]
+        }]"#;
+        let err = db.save_constants_json(mismatched_json).unwrap_err();
+        assert!(err.contains("must match value array length"));
+
+        let _ = std::fs::remove_dir_all(&temp_root);
+    }
+
+    #[test]
+    fn test_constants_legacy_unreal_path_migration() {
+        let temp_root = std::env::temp_dir().join(format!(
+            "forgity_ws_db_const_mig_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let db = WorkspaceDb::open(&temp_root).unwrap();
+
+        // Simulate legacy truncated row saved before Phase 0
+        db.conn
+            .execute(
+                "INSERT INTO local_constants (key, id, value_json, data_type, scope, unreal_path, description, content_hash, updated_at)
+                 VALUES ('PDA_PATHS', 'c1', '[\"/Game/A\",\"/Game/B\"]', 'Array', 'Unreal', '/Game/B', NULL, 'h', '')",
+                [],
+            )
+            .unwrap();
+
+        let loaded: Vec<serde_json::Value> =
+            serde_json::from_str(&db.load_constants_json().unwrap()).unwrap();
+        assert_eq!(
+            loaded[0]["unrealPath"],
+            serde_json::json!(["/Game/A", "/Game/B"])
+        );
 
         let _ = std::fs::remove_dir_all(&temp_root);
     }

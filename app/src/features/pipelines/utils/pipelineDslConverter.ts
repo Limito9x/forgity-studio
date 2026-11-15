@@ -10,6 +10,10 @@ export interface PipelineDslNode {
   stage?: string;
   inputs?: Record<string, any>;
   metadata?: Record<string, any>;
+  isBatch?: boolean;
+  maxConcurrency?: number;
+  iterablePin?: string;
+  skipOnError?: boolean;
 }
 
 export interface PipelineDslEdge {
@@ -55,10 +59,29 @@ export function graphToPipelineYaml(
       refIdLower === "return" ||
       refIdLower === "endexecute";
 
-    const inputsConfig: Record<string, any> =
+    const rawInputsConfig: Record<string, any> =
       (data.configValues as Record<string, any>) ||
       (n.configValues as Record<string, any>) ||
       {};
+    const isBatch = Boolean(rawInputsConfig._isBatch);
+    const maxConcurrency = isBatch && rawInputsConfig._maxConcurrency != null
+      ? Number(rawInputsConfig._maxConcurrency)
+      : undefined;
+    const iterablePin = isBatch && rawInputsConfig._iterablePin
+      ? String(rawInputsConfig._iterablePin)
+      : undefined;
+    const skipOnError = isBatch && rawInputsConfig._skipOnError !== undefined
+      ? Boolean(rawInputsConfig._skipOnError)
+      : undefined;
+
+    const inputsConfig: Record<string, any> = {};
+    for (const [k, v] of Object.entries(rawInputsConfig)) {
+      if (k === "_isBatch" || k === "_maxConcurrency" || k === "_iterablePin" || k === "_skipOnError") {
+        continue;
+      }
+      inputsConfig[k] = v;
+    }
+
     const label = (data.label as string) || (n.label as string) || undefined;
     const category = (data.category as string) || (n.category as string) || undefined;
     const executor = (data.executor as string) || (n.executor as string) || undefined;
@@ -74,6 +97,14 @@ export function graphToPipelineYaml(
       stage: (n.parentId as string) || undefined,
       inputs: Object.keys(inputsConfig).length > 0 ? inputsConfig : undefined,
       metadata: isLocalDraft ? { isLocalDraft: true, sourcePath } : undefined,
+      ...(isBatch
+        ? {
+            isBatch: true,
+            maxConcurrency,
+            iterablePin,
+            skipOnError,
+          }
+        : {}),
     });
   }
 
@@ -150,7 +181,17 @@ export function pipelineYamlToGraph(yamlContent: string): {
         label: item.label || item.tool,
         category: item.category,
         executor: item.executor,
-        configValues: item.inputs || {},
+        configValues: {
+          ...(item.inputs || {}),
+          ...(item.isBatch
+            ? {
+                _isBatch: true,
+                _maxConcurrency: item.maxConcurrency ?? 2,
+                _iterablePin: item.iterablePin ?? "",
+                _skipOnError: item.skipOnError ?? true,
+              }
+            : {}),
+        },
         isLocalDraft: item.metadata?.isLocalDraft || item.tool.startsWith("local:"),
         sourcePath: item.metadata?.sourcePath,
       },

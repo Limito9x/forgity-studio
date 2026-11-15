@@ -10,17 +10,11 @@ import {
   useLocalWorkspaceConfig,
   useLocalPaletteQuery,
   useLocalPipelinesQuery,
-  useLocalConstantsQuery,
+  useLocalNodeContractsQuery,
   loadLocalPipelineSnapshot,
   saveLocalPipelineSnapshot,
 } from "../hooks/workspace";
-import {
-  localStructsToCatalogue,
-  generateLocalStructPaletteItems,
-  generateComponentPipePaletteItems,
-} from "../utils/structPaletteGenerator";
-import { generateConstantPaletteItems } from "../utils/constantPaletteGenerator";
-import type { NodePaletteItemDto } from "@/gen/model";
+import type { NodePaletteItemDto, StructDefinitionDto } from "@/gen/model";
 import { LocalWorkspaceEmptyState } from "../components/workspace/LocalWorkspaceEmptyState";
 import { LocalWorkspaceWelcomeState } from "../components/workspace/LocalWorkspaceWelcomeState";
 import { LocalWorkspaceOutliner } from "../components/workspace/LocalWorkspaceOutliner";
@@ -47,9 +41,29 @@ import {
   useCompletePipelineExecution,
 } from "@/features/studios/hooks/useStudioQuota";
 import { PipelineTriggerType } from "@/gen/model/pipelineTriggerType";
-import type { LocalDraftNode, ScannedPipelineYamlItemRust } from "../types/workspaceConfig";
+import type {
+  LocalDraftNode,
+  LocalStructDefinition,
+  ScannedPipelineYamlItemRust,
+} from "../types/workspaceConfig";
 import type { ExtendedPipelineGraphDto } from "../hooks/usePipelineGraph";
 import { PipelineNodeKind } from "../hooks/usePipelineGraph";
+
+function localStructsToCatalogue(structs: LocalStructDefinition[]): StructDefinitionDto[] {
+  return structs.map((s) => ({
+    structType: s.slug,
+    label: s.displayName || s.slug,
+    outputPins: s.fields.map((f) => ({
+      id: f.name,
+      label: f.label || f.name,
+      kind: "Data" as any,
+      primitiveType: (f.type === "Struct" ? "EntityRef" : f.type) as any,
+      cardinality: (f.cardinality || "Single") as any,
+      structType: f.structType,
+      defaultValue: f.defaultValue,
+    })),
+  }));
+}
 
 interface LocalWorkspacePageProps {
   projectId: string;
@@ -75,7 +89,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     savePipelineDraft,
   } = useLocalPipelinesQuery(rootPath, config?.pipelinesDir);
 
-  const { constants, resolvedConstants } = useLocalConstantsQuery(rootPath);
+  const { data: nodeContractItems } = useLocalNodeContractsQuery(rootPath);
 
   const {
     getProjectState,
@@ -134,6 +148,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
   const setViewMode = (mode: "visual" | "yaml") => setCanvasViewMode(projectId, mode);
   const [rawYamlContent, setRawYamlContent] = useState("");
   const [loadedGraph, setLoadedGraph] = useState<ExtendedPipelineGraphDto | null>(null);
+  const [isLoadingGraph, setIsLoadingGraph] = useState(false);
   const [graphRevision, setGraphRevision] = useState<number>(0);
 
   const isStandaloneLocal = projectId === "local-default";
@@ -150,9 +165,12 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
   useEffect(() => {
     if (!activeDraftPipeline || !pipelineSlug || !rootPath) {
       setLoadedGraph(null);
+      setIsLoadingGraph(false);
       return;
     }
     setRawYamlContent(activeDraftPipeline.content);
+    setLoadedGraph(null);
+    setIsLoadingGraph(true);
 
     let isCancelled = false;
     const currentActivePipeline = activeDraftPipeline;
@@ -161,89 +179,113 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     async function loadGraphData() {
       if (!currentRootPath || !pipelineSlug || !currentActivePipeline) return;
 
-      // 1. Thử load từ snapshot cache trên đĩa (.forgity/snapshots/<pipelineSlug>.snap.json)
       try {
-        const snapJson = await loadLocalPipelineSnapshot(currentRootPath, pipelineSlug);
+        // 1. Thử load từ snapshot cache trên đĩa (.forgity/snapshots/<pipelineSlug>.snap.json)
+        try {
+          const snapJson = await loadLocalPipelineSnapshot(currentRootPath, pipelineSlug);
+          if (isCancelled) return;
+
+          if (snapJson) {
+            const parsedDto = JSON.parse(snapJson) as ExtendedPipelineGraphDto;
+            if (parsedDto && Array.isArray(parsedDto.nodes) && parsedDto.nodes.length > 0) {
+              setLoadedGraph(parsedDto);
+              setGraphRevision((v) => v + 1);
+              return;
+            }
+          }
+        } catch (snapErr) {
+          console.warn("[LocalWorkspacePage] Snapshot load skipped or unparseable:", snapErr);
+        }
+
         if (isCancelled) return;
 
-        if (snapJson) {
-          const parsedDto = JSON.parse(snapJson) as ExtendedPipelineGraphDto;
-          if (parsedDto && Array.isArray(parsedDto.nodes) && parsedDto.nodes.length > 0) {
-            setLoadedGraph(parsedDto);
-            setGraphRevision((v) => v + 1);
-            return;
+        // 2. Fallback: Parse trực tiếp từ file YAML sang Graph DTO
+        try {
+          const parsed = pipelineYamlToGraph(currentActivePipeline.content);
+          const graphDto: ExtendedPipelineGraphDto = {
+            id: currentActivePipeline.fullPath,
+            name: parsed.name || currentActivePipeline.fileName,
+            projectId,
+            triggerType: PipelineTriggerType.Manual,
+            nodes: parsed.nodes.map((n) => {
+              const refIdLower = String(n.data?.refId || n.id).toLowerCase();
+              const isStart = refIdLower === "start" || refIdLower === "beginexecute";
+              const isReturn = refIdLower === "return" || refIdLower === "endexecute";
+              const isStage = n.type === "scopeContainer";
+
+              let kind: any = PipelineNodeKind.Tool;
+              if (isStart) kind = PipelineNodeKind.Start;
+              else if (isReturn) kind = PipelineNodeKind.Return;
+              else if (isStage) kind = PipelineNodeKind.Container;
+              else if (n.data?.isLocalDraft) kind = PipelineNodeKind.Custom;
+
+              const matchedScript = Object.values(draftNodes).find(
+                (d) => d.key === n.data?.refId || `local:${d.key}` === n.data?.refId
+              );
+              const matchedContract = (nodeContractItems || []).find(
+                (c) => String(c.key).toLowerCase() === refIdLower
+              );
+
+              return {
+                id: n.id,
+                refId: (n.data?.refId as string) || n.id,
+                label: (n.data?.label as string) || matchedContract?.label || n.id,
+                kind,
+                category:
+                  isStart || isReturn
+                    ? "Flow Control"
+                    : matchedContract?.category ||
+                      matchedScript?.executor ||
+                      (n.data?.category as string) ||
+                      "Tool",
+                executor:
+                  isStart || isReturn
+                    ? "server"
+                    : matchedContract?.executor ||
+                      matchedScript?.executor ||
+                      (n.data?.executor as string) ||
+                      "python",
+                position: n.position,
+                parentId: n.parentId || null,
+                configValues: (n.data?.configValues as any) || {},
+                inputs: isReturn
+                  ? [{ id: "exec_in", label: "Exec", kind: "Exec" as any, isRequired: false }]
+                  : (matchedContract?.inputs as any) || matchedScript?.inputs || [],
+                outputs: isStart
+                  ? [{ id: "exec_out", label: "Start", kind: "Exec" as any, isRequired: false }]
+                  : (matchedContract?.outputs as any) || matchedScript?.outputs || [],
+                metadata: {
+                  isLocalDraft: n.data?.isLocalDraft,
+                  label: n.data?.label,
+                },
+              };
+            }),
+            edges: parsed.edges.map((e) => ({
+              id: e.id,
+              sourceNodeId: e.source,
+              sourcePin: e.sourceHandle || "out",
+              targetNodeId: e.target,
+              targetPin: e.targetHandle || "in",
+            })),
+            parameters: [],
+          };
+
+          if (isCancelled) return;
+          setLoadedGraph(graphDto);
+          setGraphRevision((v) => v + 1);
+
+          // Lưu ngược lại snapshot ban đầu để các lần sau mở tức thì
+          void saveLocalPipelineSnapshot(currentRootPath, pipelineSlug, JSON.stringify(graphDto, null, 2));
+        } catch (yamlErr) {
+          console.error("[LocalWorkspacePage] Failed to parse pipeline YAML:", yamlErr);
+          if (!isCancelled) {
+            setLoadedGraph(null);
           }
         }
-      } catch (snapErr) {
-        console.warn("[LocalWorkspacePage] Snapshot load skipped or unparseable:", snapErr);
-      }
-
-      if (isCancelled) return;
-
-      // 2. Fallback: Parse trực tiếp từ file YAML sang Graph DTO
-      try {
-        const parsed = pipelineYamlToGraph(currentActivePipeline.content);
-        const graphDto: ExtendedPipelineGraphDto = {
-          id: currentActivePipeline.fullPath,
-          name: parsed.name || currentActivePipeline.fileName,
-          projectId,
-          triggerType: PipelineTriggerType.Manual,
-          nodes: parsed.nodes.map((n) => {
-            const refIdLower = String(n.data?.refId || n.id).toLowerCase();
-            const isStart = refIdLower === "start" || refIdLower === "beginexecute";
-            const isReturn = refIdLower === "return" || refIdLower === "endexecute";
-            const isStage = n.type === "scopeContainer";
-
-            let kind: any = PipelineNodeKind.Tool;
-            if (isStart) kind = PipelineNodeKind.Start;
-            else if (isReturn) kind = PipelineNodeKind.Return;
-            else if (isStage) kind = PipelineNodeKind.Container;
-            else if (n.data?.isLocalDraft) kind = PipelineNodeKind.Custom;
-
-            const matchedScript = Object.values(draftNodes).find(
-              (d) => d.key === n.data?.refId || `local:${d.key}` === n.data?.refId
-            );
-
-            return {
-              id: n.id,
-              refId: (n.data?.refId as string) || n.id,
-              label: (n.data?.label as string) || n.id,
-              kind,
-              category: isStart || isReturn ? "Flow Control" : matchedScript?.executor || (n.data?.category as string) || "Tool",
-              executor: isStart || isReturn ? "server" : matchedScript?.executor || (n.data?.executor as string) || "python",
-              position: n.position,
-              parentId: n.parentId || null,
-              configValues: (n.data?.configValues as any) || {},
-              inputs: isReturn
-                ? [{ id: "exec_in", label: "Exec", kind: "Exec" as any, isRequired: false }]
-                : (matchedScript?.inputs || []),
-              outputs: isStart
-                ? [{ id: "exec_out", label: "Start", kind: "Exec" as any, isRequired: false }]
-                : (matchedScript?.outputs || []),
-              metadata: {
-                isLocalDraft: n.data?.isLocalDraft,
-                label: n.data?.label,
-              },
-            };
-          }),
-          edges: parsed.edges.map((e) => ({
-            id: e.id,
-            sourceNodeId: e.source,
-            sourcePin: e.sourceHandle || "out",
-            targetNodeId: e.target,
-            targetPin: e.targetHandle || "in",
-          })),
-          parameters: [],
-        };
-
-        setLoadedGraph(graphDto);
-        setGraphRevision((v) => v + 1);
-
-        // Lưu ngược lại snapshot ban đầu để các lần sau mở tức thì
-        void saveLocalPipelineSnapshot(currentRootPath, pipelineSlug, JSON.stringify(graphDto, null, 2));
-      } catch (yamlErr) {
-        console.error("[LocalWorkspacePage] Failed to parse pipeline YAML:", yamlErr);
-        setLoadedGraph(null);
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingGraph(false);
+        }
       }
     }
 
@@ -472,25 +514,23 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
       }
     }
 
-    if (localStructs && localStructs.length > 0) {
-      items.push(...generateLocalStructPaletteItems(localStructs));
-    }
-
-    if (scannedDraftPipelines && scannedDraftPipelines.length > 0) {
-      const componentPipes = scannedDraftPipelines.filter(
-        (p) => p.pipelineKind === "component"
-      );
-      if (componentPipes.length > 0) {
-        items.push(...generateComponentPipePaletteItems(componentPipes));
-      }
-    }
-
-    if (constants && constants.length > 0) {
-      items.push(...generateConstantPaletteItems(constants, resolvedConstants));
+    if (nodeContractItems && nodeContractItems.length > 0) {
+      items.push(...nodeContractItems);
     }
 
     return items;
-  }, [draftNodes, localStructs, scannedDraftPipelines, constants, resolvedConstants]);
+  }, [draftNodes, nodeContractItems]);
+
+  const handleCancelLocalExecution = useCallback(async (executionId: string) => {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("cancel_local_pipeline", { runId: executionId });
+  }, []);
+
+  const handleValidateLocalGraph = useCallback(
+    async (_snapshot: Record<string, unknown>, { nodes, edges }: { nodes: any[]; edges: any[] }) =>
+      validateLocalPipelineGraph(nodes, edges),
+    []
+  );
 
   if (isConfigLoading) {
     return (
@@ -507,17 +547,6 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
       </div>
     );
   }
-
-  const handleCancelLocalExecution = useCallback(async (executionId: string) => {
-    const { invoke } = await import("@tauri-apps/api/core");
-    await invoke("cancel_local_pipeline", { runId: executionId });
-  }, []);
-
-  const handleValidateLocalGraph = useCallback(
-    async (_snapshot: Record<string, unknown>, { nodes, edges }: { nodes: any[]; edges: any[] }) =>
-      validateLocalPipelineGraph(nodes, edges),
-    []
-  );
 
   return (
     <PipelineWorkspaceProvider
@@ -638,6 +667,10 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                       spellCheck={false}
                     />
                   </div>
+                </div>
+              ) : isLoadingGraph || (loadedGraph && loadedGraph.id !== activeDraftPipeline.fullPath) ? (
+                <div className="flex items-center justify-center h-full">
+                  <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
                 </div>
               ) : loadedGraph ? (
                 <div className="h-full w-full">

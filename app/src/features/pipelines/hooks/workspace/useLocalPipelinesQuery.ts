@@ -131,6 +131,7 @@ export function useLocalPipelinesQuery(
           return list;
         },
       );
+      queryClient.invalidateQueries({ queryKey: ["local-node-contracts", rootPath] });
     },
   });
 
@@ -163,6 +164,7 @@ export function useLocalPipelinesQuery(
           return old.map((p) => (p.fullPath === res.oldPath ? res.updated : p));
         },
       );
+      queryClient.invalidateQueries({ queryKey: ["local-node-contracts", rootPath] });
     },
   });
 

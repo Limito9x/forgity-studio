@@ -57,6 +57,9 @@ Chào mừng đến với **Sổ Bộ Backlog** của dự án **Forgity Studio*
 | **BL-055** | 2026-11-14 | **Legacy Remnants Cleanup & Cloud Immutable Template Registry Trimming**<br/>*(api/, web/, runner/, packages/proto/)* | Sau khi chuyển sang mô hình Local-First & Single-Machine Execution (ADR-007/ADR-008), hệ thống vẫn còn tàn dư gây nợ kỹ thuật: module `Repository` & `Tag` (`GameplayTags`), SignalR `PipelineExecutionHub`, endpoint live-edit `SavePipelineGraph` & C# Server Tools trên Cloud, cùng hạ tầng RabbitMQ/gRPC server-push trên Runner. | 1. **Phase A**: Xóa bỏ hoàn toàn module `Repository`, `Tag`, các Struct/Tool phụ thuộc và UI/routes liên quan.<br/>2. **Phase B**: Thu gọn `Automation.Pipeline` thành Cloud Immutable Template & Artifact Registry (giữ xem/list/export/publish/archive; xóa SignalR `PipelineExecutionHub`, `SavePipelineGraph`, cloud live-edit).<br/>3. **Phase C**: Tách rời `Content` khỏi Repository/Resource và lộ trình dọn RabbitMQ/gRPC daemon trong `runner/` & `Automation.Runner` khi xong luồng Pull Template + Quota Gate. | - [plans/2026-11-14-bl-055-legacy-remnants-cleanup-and-cloud-registry-trimming.md](file:///d:/FullStack/Automation/.agents/plans/2026-11-14-bl-055-legacy-remnants-cleanup-and-cloud-registry-trimming.md)<br/>- [ADR-008](file:///d:/FullStack/Automation/docs/adr/ADR-008-runner-only-local-execution-engine-and-backend-runtime-removal.md) | `Pending` |
 
 ---
+| **BL-056** | 2026-11-15 | **Contract-Driven Pure Node Execution**<br/>*(Runner / Tauri / Canvas)* | Bundle resolves constant/pure node outputs from Palette contract; runner and guest become dumb pass-through, removing output-shape guessing. | 1. Triển khai theo kế hoạch kỹ thuật chi tiết. | - [plans/2026-11-15-bl-056-contract-driven-pure-node-execution.md](file:///D:/FullStack/Automation/.agents/plans/2026-11-15-bl-056-contract-driven-pure-node-execution.md) | `Pending` |
+
+---
 
 ## 3. Quy Định Thêm Mới Vào Backlog
 

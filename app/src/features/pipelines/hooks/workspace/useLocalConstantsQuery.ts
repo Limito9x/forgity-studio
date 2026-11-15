@@ -1,91 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
-import { useMemo, useCallback } from "react";
+import { useCallback } from "react";
 import { toast } from "sonner";
-import type {
-  WorkspaceConstantItem,
-  ConstantDataType,
-  ConstantScope,
-} from "../../types/workspaceConfig";
-
-export interface ResolvedConstant {
-  key: string;
-  rawValue: any;
-  resolvedValue: any;
-  dataType: ConstantDataType;
-  scope: ConstantScope;
-  unrealPath?: string | null;
-  resolvedUnrealPath?: string | null;
-  description?: string | null;
-}
-
-/**
- * Resolves recursive `$VAR_NAME` references with cycle detection and depth guard.
- */
-export function resolveConstantsMap(
-  constants: WorkspaceConstantItem[],
-): Record<string, ResolvedConstant> {
-  const rawMap = new Map<string, WorkspaceConstantItem>();
-  for (const c of constants) {
-    rawMap.set(c.key, c);
-  }
-
-  const resolvedMap: Record<string, ResolvedConstant> = {};
-
-  function resolveString(str: string, visited: Set<string>, depth = 0): string {
-    if (depth > 10 || !str.includes("$")) return str;
-
-    return str.replace(/\$\{([a-zA-Z0-9_]+)\}|\$([a-zA-Z0-9_]+)/g, (match, braced, bare) => {
-      const varName = braced || bare;
-      if (visited.has(varName)) {
-        console.warn(
-          `[Constants] Cyclic dependency detected for variable: $${varName}`,
-        );
-        return match;
-      }
-      const target = rawMap.get(varName);
-      if (!target) return match;
-
-      visited.add(varName);
-      const targetValStr = String(target.value ?? "");
-      const res = resolveString(targetValStr, new Set(visited), depth + 1);
-      return res;
-    });
-  }
-
-  for (const item of constants) {
-    let resolvedValue = item.value;
-    if (typeof item.value === "string") {
-      resolvedValue = resolveString(item.value, new Set([item.key]));
-    } else if (Array.isArray(item.value)) {
-      resolvedValue = item.value.map((v) =>
-        typeof v === "string" ? resolveString(v, new Set([item.key])) : v,
-      );
-    }
-
-    let resolvedUnrealPath = item.unrealPath;
-    if (typeof item.unrealPath === "string") {
-      resolvedUnrealPath = resolveString(item.unrealPath, new Set([item.key]));
-    }
-
-    resolvedMap[item.key] = {
-      key: item.key,
-      rawValue: item.value,
-      resolvedValue,
-      dataType: item.dataType,
-      scope: item.scope,
-      unrealPath: item.unrealPath,
-      resolvedUnrealPath,
-      description: item.description,
-    };
-  }
-
-  return resolvedMap;
-}
+import type { WorkspaceConstantItem } from "../../types/workspaceConfig";
+import type { NodePaletteItemDto } from "@/gen/model";
 
 export function useLocalConstantsQuery(rootPath: string | null) {
   const queryClient = useQueryClient();
   const queryKey = ["local-constants", rootPath];
+  const paletteQueryKey = ["local-constant-palette", rootPath];
 
   const query = useQuery({
     queryKey,
@@ -120,6 +43,8 @@ export function useLocalConstantsQuery(rootPath: string | null) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: paletteQueryKey });
+      queryClient.invalidateQueries({ queryKey: ["local-node-contracts", rootPath] });
     },
     onError: (err: any) => {
       toast.error("Failed to save local constants", {
@@ -129,10 +54,6 @@ export function useLocalConstantsQuery(rootPath: string | null) {
   });
 
   const constants = query.data ?? [];
-
-  const resolvedConstants = useMemo(() => {
-    return resolveConstantsMap(constants);
-  }, [constants]);
 
   const upsertConstant = useCallback(
     async (item: WorkspaceConstantItem) => {
@@ -164,11 +85,50 @@ export function useLocalConstantsQuery(rootPath: string | null) {
 
   return {
     constants,
-    resolvedConstants,
     isLoading: query.isLoading,
     upsertConstant,
     deleteConstant,
     saveConstants: (items: WorkspaceConstantItem[]) => saveMutation.mutateAsync(items),
     refetch: query.refetch,
   };
+}
+
+export function useLocalConstantPaletteQuery(rootPath: string | null) {
+  return useQuery({
+    queryKey: ["local-constant-palette", rootPath],
+    queryFn: async (): Promise<NodePaletteItemDto[]> => {
+      if (!rootPath) return [];
+      try {
+        const items = await invoke<NodePaletteItemDto[]>("load_constant_palette", {
+          rootPath,
+        });
+        return Array.isArray(items) ? items : [];
+      } catch (err) {
+        console.warn("[useLocalConstantPaletteQuery] Failed to load constant palette:", err);
+        return [];
+      }
+    },
+    enabled: Boolean(rootPath),
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useLocalNodeContractsQuery(rootPath: string | null) {
+  return useQuery({
+    queryKey: ["local-node-contracts", rootPath],
+    queryFn: async (): Promise<NodePaletteItemDto[]> => {
+      if (!rootPath) return [];
+      try {
+        const items = await invoke<NodePaletteItemDto[]>("load_workspace_node_contracts", {
+          rootPath,
+        });
+        return Array.isArray(items) ? items : [];
+      } catch (err) {
+        console.warn("[useLocalNodeContractsQuery] Failed to load node contracts:", err);
+        return [];
+      }
+    },
+    enabled: Boolean(rootPath),
+    staleTime: 1000 * 60 * 5,
+  });
 }

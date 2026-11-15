@@ -4,13 +4,15 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use super::dag::DagPipelineDocument;
-use super::traits::{ResolvedScript, ResourceResolver};
+use super::traits::{ResolvedConstantSpec, ResolvedScript, ResourceResolver};
 
 /// DTO tự chứa (Self-contained) do Local Client (Tauri) hoặc Cloud đóng gói gửi sang cho Runner thực thi.
 /// Runner chỉ cần nhận DTO này là chạy được ngay mà không cần biết SQLite hay cấu trúc thư mục workspace.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExecutionBundle {
+    #[serde(default = "default_bundle_version")]
+    pub bundle_version: u32,
     #[serde(default)]
     pub run_id: Option<String>,
     /// "component" | "master"
@@ -24,7 +26,11 @@ pub struct ExecutionBundle {
     #[serde(default)]
     pub components: HashMap<String, DagPipelineDocument>,
     #[serde(default)]
-    pub constants: HashMap<String, Value>,
+    pub constants: HashMap<String, ResolvedConstantSpec>,
+}
+
+fn default_bundle_version() -> u32 {
+    1
 }
 
 fn default_pipeline_kind() -> String {
@@ -35,7 +41,7 @@ fn default_pipeline_kind() -> String {
 pub struct BundleResourceResolver {
     scripts: HashMap<String, ResolvedScript>,
     components: HashMap<String, DagPipelineDocument>,
-    constants: HashMap<String, Value>,
+    constants: HashMap<String, ResolvedConstantSpec>,
 }
 
 impl BundleResourceResolver {
@@ -75,7 +81,7 @@ impl ResourceResolver for BundleResourceResolver {
             })
     }
 
-    fn resolve_constant(&self, constant_ref: &str) -> Result<Option<Value>> {
+    fn resolve_constant_spec(&self, constant_ref: &str) -> Result<Option<ResolvedConstantSpec>> {
         let bare = constant_ref
             .strip_prefix("local:constant:")
             .or_else(|| constant_ref.strip_prefix("local:"))

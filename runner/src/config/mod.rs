@@ -50,6 +50,8 @@ pub struct RunnerConfig {
     pub executors: Option<HashMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub env: Option<HashMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unreal_projects: Option<HashMap<String, String>>,
 }
 
 impl RunnerConfig {

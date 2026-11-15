@@ -187,9 +187,18 @@ pub struct ResolvedScript {
     pub default_inputs: HashMap<String, Value>,
 }
 
+/// Contract đã materialize của 1 Constant node (sinh bởi Bundle Compiler, không cần đoán pin ở Runner).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolvedConstantSpec {
+    pub outputs: HashMap<String, Value>,
+    #[serde(default)]
+    pub template_vars: Vec<String>,
+}
+
 /// Cổng tra cứu tài nguyên cho Engine (tách Orchestrator khỏi nguồn dữ liệu: Bundle DTO vs SQLite vs Cloud).
 pub trait ResourceResolver: Send + Sync {
     fn resolve_script(&self, tool_ref: &str) -> Result<ResolvedScript>;
     fn resolve_component(&self, component_ref: &str) -> Result<DagPipelineDocument>;
-    fn resolve_constant(&self, constant_ref: &str) -> Result<Option<Value>>;
+    fn resolve_constant_spec(&self, constant_ref: &str) -> Result<Option<ResolvedConstantSpec>>;
 }

@@ -264,15 +264,19 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
                   </div>
                   <div className="pt-1">
                     <span className="text-foreground/80 block">Resolved Value:</span>
-                    <div className="bg-background/80 p-2 rounded border border-border/50 text-[11px] text-amber-400 break-all select-all">
-                      {String(constCaps.resolvedValue ?? "")}
+                    <div className="bg-background/80 p-2 rounded border border-border/50 text-[11px] text-amber-400 break-all whitespace-pre-wrap select-all">
+                      {Array.isArray(constCaps.resolvedValue)
+                        ? constCaps.resolvedValue.join("\n")
+                        : String(constCaps.resolvedValue ?? "")}
                     </div>
                   </div>
                   {constCaps.resolvedUnrealPath && (
                     <div className="pt-1">
                       <span className="text-foreground/80 block">Virtual Path (/Game/...):</span>
-                      <div className="bg-background/80 p-2 rounded border border-border/50 text-[11px] text-indigo-400 break-all select-all">
-                        {String(constCaps.resolvedUnrealPath)}
+                      <div className="bg-background/80 p-2 rounded border border-border/50 text-[11px] text-indigo-400 break-all whitespace-pre-wrap select-all">
+                        {Array.isArray(constCaps.resolvedUnrealPath)
+                          ? constCaps.resolvedUnrealPath.join("\n")
+                          : String(constCaps.resolvedUnrealPath)}
                       </div>
                     </div>
                   )}

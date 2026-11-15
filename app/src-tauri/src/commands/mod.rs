@@ -6,6 +6,7 @@ pub mod pipeline;
 pub mod analyzer;
 pub mod runner;
 pub mod local_execution;
+pub mod node_contracts;
 
 pub use machine::*;
 pub use workspace::*;
@@ -15,4 +16,5 @@ pub use pipeline::*;
 pub use analyzer::*;
 pub use runner::*;
 pub use local_execution::*;
+pub use node_contracts::*;
 

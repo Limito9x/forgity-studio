@@ -108,7 +108,10 @@ def execute_pure_step(tool_key: str, step_inputs: dict) -> dict:
     lower_tool = (tool_key or "").lower()
 
     if ":struct:make:" in lower_tool or lower_tool == "makestruct":
-        struct_obj = dict(step_inputs or {})
+        struct_obj = {
+            k: v for k, v in (step_inputs or {}).items()
+            if k not in ("exec_in", "exec_out")
+        }
         return {"struct_out": struct_obj, "output": struct_obj}
 
     if ":struct:break:" in lower_tool or lower_tool == "breakstruct":
@@ -120,22 +123,32 @@ def execute_pure_step(tool_key: str, step_inputs: dict) -> dict:
         )
         return dict(src) if isinstance(src, dict) else {}
 
-    if lower_tool in ("joint", "mergearray", "concatarray"):
+    if lower_tool in ("joint", "local:joint", "merge_array", "mergearray", "concatarray"):
         merged = []
-        for k in sorted((step_inputs or {}).keys()):
-            v = step_inputs[k]
-            if isinstance(v, list):
-                merged.extend(v)
-            elif v is not None:
-                merged.append(v)
-        return {"out_array": merged, "output": merged}
-
-    if lower_tool.startswith("local:constant:"):
         outputs = {}
-        for tmpl_key in ("value", "disk_path", "virtual_path"):
-            tmpl = step_inputs.get(tmpl_key)
-            if isinstance(tmpl, str):
-                rendered = tmpl
+        for k in sorted((step_inputs or {}).keys()):
+            if k in ("exec_in", "exec_out"):
+                continue
+            v = step_inputs[k]
+            channel_items = []
+            if isinstance(v, list):
+                channel_items.extend(v)
+            elif v is not None:
+                channel_items.append(v)
+            merged.extend(channel_items)
+
+            lower_k = k.lower()
+            out_k = f"out_{lower_k[3:]}" if lower_k.startswith("in_") else f"out_{k}"
+            outputs[out_k] = channel_items
+
+        outputs["out_array"] = merged
+        outputs["output"] = merged
+        return outputs
+
+    if lower_tool.startswith("local:constant:") or lower_tool == "constant":
+        def _render_const(val: Any) -> Any:
+            if isinstance(val, str):
+                rendered = val
                 for k, v in (step_inputs or {}).items():
                     if k in ("value", "disk_path", "virtual_path"):
                         continue
@@ -143,7 +156,15 @@ def execute_pure_step(tool_key: str, step_inputs: dict) -> dict:
                         rendered.replace(f"${{{k}}}", "" if v is None else str(v))
                         .replace(f"{{{k}}}", "" if v is None else str(v))
                     )
-                outputs[tmpl_key] = rendered
+                return rendered
+            if isinstance(val, list):
+                return [_render_const(item) for item in val]
+            return val
+
+        outputs = {}
+        for tmpl_key in ("value", "disk_path", "virtual_path"):
+            if tmpl_key in step_inputs and step_inputs[tmpl_key] is not None:
+                outputs[tmpl_key] = _render_const(step_inputs[tmpl_key])
         return outputs
 
     return {}
@@ -219,20 +240,39 @@ def resolve_step_inputs(step_inputs: dict, all_step_outputs: dict, resolved_data
 def apply_input_mappings(step: dict, step_inputs: dict, all_step_outputs: dict) -> dict:
     """Support intra-stage data flow from previous steps in this stage via InputMappings."""
     mappings = step.get("input_mappings", [])
+    wire_buckets = {}
     for m in mappings:
         target_pin = m.get("pin_key")
         src_node = m.get("source_node_id")
         src_pin = m.get("source_pin_key")
         if target_pin and src_node and src_pin and src_node in all_step_outputs:
             src_outs = all_step_outputs[src_node]
+            resolved_val = None
+            found = False
             if src_pin in src_outs and src_outs[src_pin] is not None:
-                step_inputs[target_pin] = src_outs[src_pin]
+                resolved_val = src_outs[src_pin]
+                found = True
             else:
                 for out_k, out_v in src_outs.items():
                     if out_k.lower() == src_pin.lower() or out_k.lower().replace("-", "_") == src_pin.lower().replace("-", "_"):
                         if out_v is not None:
-                            step_inputs[target_pin] = out_v
+                            resolved_val = out_v
+                            found = True
                         break
+            if found:
+                wire_buckets.setdefault(target_pin, []).append(resolved_val)
+
+    for target_pin, vals in wire_buckets.items():
+        if len(vals) == 1:
+            step_inputs[target_pin] = vals[0]
+        else:
+            merged = []
+            for v in vals:
+                if isinstance(v, list):
+                    merged.extend(v)
+                elif v is not None:
+                    merged.append(v)
+            step_inputs[target_pin] = merged
     return step_inputs
 
 

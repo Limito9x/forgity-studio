@@ -192,10 +192,31 @@ impl DagScheduler {
                 resolved.insert(k.clone(), v.clone());
             }
 
-            // Nạp inputs từ Blackboard theo incoming connections
+            // Nạp inputs từ Blackboard theo incoming connections.
+            // Nếu có >= 2 dây cùng cắm vào 1 target_pin (ví dụ Joint multi-wire fan-in),
+            // tự động gom thành mảng phẳng thay vì dây sau ghi đè dây trước.
+            let mut wire_buckets: HashMap<String, Vec<Value>> = HashMap::new();
             for (target_pin, source_node, source_pin) in &state.incoming_connections {
                 if let Some(val) = self.blackboard.get_pin_value(source_node, source_pin) {
-                    resolved.insert(target_pin.clone(), val);
+                    wire_buckets
+                        .entry(target_pin.clone())
+                        .or_default()
+                        .push(val);
+                }
+            }
+            for (target_pin, mut vals) in wire_buckets {
+                if vals.len() == 1 {
+                    resolved.insert(target_pin, vals.remove(0));
+                } else {
+                    let mut merged = Vec::new();
+                    for val in vals {
+                        match val {
+                            Value::Array(arr) => merged.extend(arr),
+                            Value::Null => {}
+                            other => merged.push(other),
+                        }
+                    }
+                    resolved.insert(target_pin, Value::Array(merged));
                 }
             }
         }

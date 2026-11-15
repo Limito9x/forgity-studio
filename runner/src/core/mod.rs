@@ -8,7 +8,6 @@ pub mod blackboard;
 pub mod pure_nodes;
 pub mod dag;
 pub mod batch;
-pub mod workspace_resolver;
 pub mod component_orchestrator;
 pub mod master_orchestrator;
 

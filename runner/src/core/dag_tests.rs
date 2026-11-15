@@ -205,5 +205,31 @@ edges:
         assert_eq!(baked_files[2], "D:/output/cloth_4.duf_2048p.fbx");
         assert_eq!(baked_files[3], "D:/output/cloth_5.duf_2048p.fbx");
     }
+
+    #[test]
+    fn test_execute_constant_node_from_spec_and_fail_fast() {
+        use crate::core::pure_nodes::execute_constant_node;
+        use crate::core::traits::ResolvedConstantSpec;
+
+        let mut outputs = HashMap::new();
+        outputs.insert("disk_path".to_string(), json!(["D:/Game/{char}"]));
+        outputs.insert("virtual_path".to_string(), json!(["/Game/{char}"]));
+        let spec = ResolvedConstantSpec {
+            outputs,
+            template_vars: vec!["char".to_string()],
+        };
+
+        // Missing template var -> fail fast
+        let err = execute_constant_node("local:constant:PATHS", &spec, &HashMap::new()).unwrap_err();
+        assert!(err.to_string().contains("missing required template variable 'char'"));
+
+        // Provided template var -> renders exact contract outputs
+        let mut inputs = HashMap::new();
+        inputs.insert("char".to_string(), json!("July"));
+        let res = execute_constant_node("local:constant:PATHS", &spec, &inputs).unwrap();
+        assert_eq!(res.get("disk_path"), Some(&json!(["D:/Game/July"])));
+        assert_eq!(res.get("virtual_path"), Some(&json!(["/Game/July"])));
+        assert!(!res.contains_key("value"));
+    }
 }
 

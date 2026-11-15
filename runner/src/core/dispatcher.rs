@@ -201,6 +201,42 @@ impl StageDispatcher {
             }
         }
 
+        // 2d. Auto-inject Unreal .uproject path from runner.toml when running locally without project context
+        if task.executor.eq_ignore_ascii_case("unreal") {
+            let has_project = task
+                .environment_config
+                .get("fullPathProject")
+                .or_else(|| task.environment_config.get("uproject_path"))
+                .and_then(|v| v.as_str())
+                .map(|s| !s.trim().is_empty())
+                .unwrap_or(false);
+
+            if !has_project {
+                if let Ok((Some(cfg), _)) = crate::config::load_config(None, false) {
+                    if let Some(ref projects) = cfg.unreal_projects {
+                        let resolved = projects
+                            .get("local-default")
+                            .filter(|p| std::path::Path::new(p.trim()).is_file())
+                            .or_else(|| {
+                                projects
+                                    .values()
+                                    .find(|p| std::path::Path::new(p.trim()).is_file())
+                            });
+                        if let Some(uproject_path) = resolved {
+                            info!(
+                                "[Dispatcher] Injected Unreal .uproject from runner.toml: {}",
+                                uproject_path
+                            );
+                            task.environment_config.insert(
+                                "fullPathProject".to_string(),
+                                serde_json::Value::String(uproject_path.clone()),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
         // 3. Resolve Executor Strategy & Validate fail-fast
         let executor = self.executor_registry.get(&task.executor)?;
         executor.validate(&task)?;

@@ -193,10 +193,17 @@ export function UnrealContentVaultWorkspace({
         return;
       }
       const updatedList = [...currentList, virtPath];
+      const currentUnrealList: string[] = Array.isArray(activeConstant.unrealPath)
+        ? [...activeConstant.unrealPath]
+        : [...currentList];
+      const updatedUnrealList =
+        currentUnrealList.length === currentList.length
+          ? [...currentUnrealList, virtPath]
+          : updatedList;
       onUpdateConstant({
         ...activeConstant,
         value: updatedList,
-        unrealPath: virtPath,
+        unrealPath: updatedUnrealList,
       });
       toast.success(`Added '${virtPath}' to list '${activeConstant.key}'`);
     } else {
@@ -212,10 +219,15 @@ export function UnrealContentVaultWorkspace({
   // Remove Tag from Array Constant
   const handleRemoveTag = (tagToRemove: string) => {
     if (!activeConstant || !Array.isArray(activeConstant.value)) return;
-    const updatedList = activeConstant.value.filter((t: string) => t !== tagToRemove);
+    const removeIdx = activeConstant.value.indexOf(tagToRemove);
+    const updatedList = activeConstant.value.filter((_: string, idx: number) => idx !== removeIdx);
+    const updatedUnrealList = Array.isArray(activeConstant.unrealPath)
+      ? activeConstant.unrealPath.filter((_: string, idx: number) => idx !== removeIdx)
+      : updatedList;
     onUpdateConstant({
       ...activeConstant,
       value: updatedList,
+      unrealPath: updatedUnrealList,
     });
     toast.info(`Removed tag from '${activeConstant.key}'`);
   };
@@ -236,7 +248,7 @@ export function UnrealContentVaultWorkspace({
       scope: "Unreal" as ConstantScope,
       dataType: newType,
       value: newType === "Array" ? [] : "",
-      unrealPath: "",
+      unrealPath: newType === "Array" ? [] : "",
     };
 
     onAddConstant(newItem);

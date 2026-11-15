@@ -93,14 +93,15 @@ fn build_execution_bundle(
     run_id: &str,
     pipeline_yaml_content: &str,
     pipeline_kind: &str,
-    runtime_inputs: HashMap<String, Value>,
+    mut runtime_inputs: HashMap<String, Value>,
 ) -> Result<Value, String> {
-    let root_pipeline: Value = serde_yaml::from_str(pipeline_yaml_content)
+    let mut root_pipeline: Value = serde_yaml::from_str(pipeline_yaml_content)
         .map_err(|e| format!("Failed to parse pipeline YAML: {}", e))?;
 
     let mut scripts_map: HashMap<String, ResolvedScriptBundleDto> = HashMap::new();
     let mut components_map: HashMap<String, Value> = HashMap::new();
-    let mut constants_map: HashMap<String, Value> = HashMap::new();
+    let mut constants_map: HashMap<String, super::node_contracts::ResolvedConstantSpec> = HashMap::new();
+    let mut raw_constants: Vec<super::node_contracts::RawConstantItem> = Vec::new();
 
     let db_file = root_path.join(".forgity").join("workspace.db");
     if db_file.is_file() {
@@ -182,18 +183,10 @@ fn build_execution_bundle(
                 }
             }
 
-            // 2. Load constants
-            if let Ok(constants_json) = db.load_constants_json() {
-                if let Ok(constants) = serde_json::from_str::<Vec<Value>>(&constants_json) {
-                    for c in constants {
-                        if let (Some(k), Some(v)) = (
-                            c.get("key").and_then(|x| x.as_str()),
-                            c.get("value"),
-                        ) {
-                            constants_map.insert(k.to_string(), v.clone());
-                        }
-                    }
-                }
+            // 2. Load & compile constants via SSOT node_contracts
+            if let Ok(const_items) = super::node_contracts::load_constant_items_from_db(&db) {
+                constants_map = super::node_contracts::compile_constant_specs(&const_items);
+                raw_constants = const_items;
             }
 
             // 3. Load component YAMLs
@@ -215,7 +208,24 @@ fn build_execution_bundle(
         }
     }
 
+    // 4. Expand ${VAR} trong toàn bộ node inputs, script defaultInputs & runtimeInputs
+    if !raw_constants.is_empty() {
+        super::node_contracts::expand_vars_in_dag_json(&mut root_pipeline, &raw_constants);
+        for comp_doc in components_map.values_mut() {
+            super::node_contracts::expand_vars_in_dag_json(comp_doc, &raw_constants);
+        }
+        for script_dto in scripts_map.values_mut() {
+            for val in script_dto.default_inputs.values_mut() {
+                super::node_contracts::expand_vars_in_json_value(val, &raw_constants);
+            }
+        }
+        for val in runtime_inputs.values_mut() {
+            super::node_contracts::expand_vars_in_json_value(val, &raw_constants);
+        }
+    }
+
     Ok(serde_json::json!({
+        "bundleVersion": 2,
         "runId": run_id,
         "pipelineKind": pipeline_kind,
         "rootPipeline": root_pipeline,
@@ -224,6 +234,51 @@ fn build_execution_bundle(
         "components": components_map,
         "constants": constants_map,
     }))
+}
+
+/// Xuất ExecutionBundle v2 ra file JSON để chạy CLI debug `forgity-runner run-bundle --bundle <file>`.
+#[tauri::command]
+pub fn export_execution_bundle(
+    root_path: String,
+    pipeline_yaml_content: String,
+    pipeline_kind: String,
+    runtime_inputs: Option<HashMap<String, Value>>,
+    output_path: Option<String>,
+) -> Result<String, String> {
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let run_id = format!("export_{}", now_ms);
+    let root = Path::new(&root_path);
+
+    let bundle = build_execution_bundle(
+        root,
+        &run_id,
+        &pipeline_yaml_content,
+        &pipeline_kind,
+        runtime_inputs.unwrap_or_default(),
+    )?;
+
+    let target_path = match output_path {
+        Some(p) if !p.trim().is_empty() => PathBuf::from(p),
+        _ => root
+            .join(".forgity")
+            .join("bundles")
+            .join(format!("{}.json", run_id)),
+    };
+
+    if let Some(parent) = target_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create bundle directory: {}", e))?;
+    }
+
+    let pretty = serde_json::to_string_pretty(&bundle)
+        .map_err(|e| format!("Failed to serialize ExecutionBundle: {}", e))?;
+    std::fs::write(&target_path, pretty)
+        .map_err(|e| format!("Failed to write ExecutionBundle file: {}", e))?;
+
+    Ok(target_path.to_string_lossy().to_string())
 }
 
 #[tauri::command]

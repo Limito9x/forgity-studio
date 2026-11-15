@@ -22,7 +22,7 @@ export interface WorkspaceConstantItem {
   value: any;
   dataType: ConstantDataType;
   scope: ConstantScope;
-  unrealPath?: string | null;
+  unrealPath?: string | string[] | null;
   description?: string | null;
   updatedAt?: string;
 }

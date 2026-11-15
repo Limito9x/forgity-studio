@@ -224,6 +224,7 @@ pub async fn run_register(
         .ok()
         .and_then(|(cfg, _)| cfg);
     let existing_env = existing_config.as_ref().and_then(|c| c.env.clone());
+    let existing_unreal_projects = existing_config.as_ref().and_then(|c| c.unreal_projects.clone());
     let existing_executors = existing_config.and_then(|c| c.executors);
 
     let runner_config = RunnerConfig {
@@ -245,6 +246,7 @@ pub async fn run_register(
         }),
         executors: existing_executors,
         env: existing_env,
+        unreal_projects: existing_unreal_projects,
     };
 
     let config_path = save_config(&runner_config, config_override, local)

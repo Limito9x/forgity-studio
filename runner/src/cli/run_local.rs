@@ -16,9 +16,20 @@ use crate::core::master_orchestrator::MasterOrchestrator;
 use crate::core::traits::{
     EventSink, ResourceResolver, RunnerExecutionEvent, StdoutJsonEventSink, UnlimitedQuotaGate,
 };
-use crate::core::workspace_resolver::WorkspaceResolver;
 use crate::process::active_stage::ActiveStageManager;
 use crate::process::dcc_pool::DccPool;
+
+pub(crate) fn parse_and_validate_bundle(raw_json: &str) -> Result<ExecutionBundle> {
+    let bundle: ExecutionBundle = serde_json::from_str(raw_json)
+        .context("Failed to deserialize ExecutionBundle JSON")?;
+    if bundle.bundle_version < 2 {
+        anyhow::bail!(
+            "Unsupported ExecutionBundle version {}: Runner requires bundleVersion >= 2",
+            bundle.bundle_version
+        );
+    }
+    Ok(bundle)
+}
 
 /// Chạy pipeline trực tiếp từ ExecutionBundle DTO (nhận từ Tauri Client qua stdin hoặc file JSON).
 /// Runner hoàn toàn không động vào workspace.db ở chế độ này.
@@ -41,8 +52,7 @@ pub async fn run_bundle(
             .with_context(|| format!("Failed to read ExecutionBundle JSON at {:?}", path))?
     };
 
-    let bundle: ExecutionBundle = serde_json::from_str(&raw_json)
-        .context("Failed to deserialize ExecutionBundle JSON")?;
+    let bundle = parse_and_validate_bundle(&raw_json)?;
 
     let is_component = bundle.pipeline_kind.eq_ignore_ascii_case("component");
     let run_id = run_id_override
@@ -56,53 +66,6 @@ pub async fn run_bundle(
         is_component,
         run_id,
         bundle.runtime_inputs,
-        resolver,
-        json_events,
-        config_override,
-    )
-    .await
-}
-
-/// Chạy pipeline từ file YAML + workspace.db (tiện cho dev test trực tiếp từ terminal).
-pub async fn run_local_pipeline(
-    workspace: PathBuf,
-    pipeline: PathBuf,
-    inputs_json: Option<String>,
-    json_events: bool,
-    run_id: Option<String>,
-    config_override: Option<&Path>,
-) -> Result<()> {
-    let run_id = run_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-
-    let yaml_content = std::fs::read_to_string(&pipeline)
-        .with_context(|| format!("Failed to read pipeline YAML at {:?}", pipeline))?;
-    let doc: DagPipelineDocument = serde_yaml::from_str(&yaml_content)
-        .with_context(|| format!("Failed to parse pipeline YAML at {:?}", pipeline))?;
-
-    let is_component = pipeline
-        .file_name()
-        .and_then(|n| n.to_str())
-        .map(|s| s.ends_with(".component.yaml"))
-        .unwrap_or(false)
-        || doc
-            .kind
-            .as_deref()
-            .map(|k| k.eq_ignore_ascii_case("component"))
-            .unwrap_or(false);
-
-    let runtime_inputs: HashMap<String, Value> = match inputs_json {
-        Some(raw) if !raw.trim().is_empty() => serde_json::from_str(&raw)
-            .with_context(|| "Failed to parse --inputs-json as JSON object")?,
-        _ => HashMap::new(),
-    };
-
-    let resolver: Arc<dyn ResourceResolver> = Arc::new(WorkspaceResolver::new(&workspace)?);
-
-    execute_with_resolver(
-        doc,
-        is_component,
-        run_id,
-        runtime_inputs,
         resolver,
         json_events,
         config_override,

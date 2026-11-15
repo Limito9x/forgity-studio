@@ -2,6 +2,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 use tracing::debug;
 
+use super::traits::ResolvedConstantSpec;
+
 pub enum PureNodeResult {
     /// Trả về tập hợp các pin outputs: HashMap<pin_id, Value>
     Outputs(HashMap<String, Value>),
@@ -24,6 +26,9 @@ pub fn execute_pure_node(
         debug!(tool = %tool_key, "Executing pure Make Struct in-memory");
         let mut struct_obj = serde_json::Map::new();
         for (k, v) in inputs {
+            if k == "exec_in" || k == "exec_out" {
+                continue;
+            }
             struct_obj.insert(k.clone(), v.clone());
         }
 
@@ -52,30 +57,48 @@ pub fn execute_pure_node(
         return PureNodeResult::Outputs(outputs);
     }
 
-    // 3. Joint / Merge Array: gom nhiều mảng đầu vào thành 1 mảng phẳng duy nhất
-    if lower_tool == "joint" || lower_tool == "mergearray" || lower_tool == "concatarray" {
+    // 3. Joint / Merge Array: gom mảng theo từng cặp kênh 1-1 (in_k -> out_k) + giữ out_array tổng hợp
+    if lower_tool == "joint"
+        || lower_tool == "local:joint"
+        || lower_tool == "merge_array"
+        || lower_tool == "mergearray"
+        || lower_tool == "concatarray"
+    {
         debug!(tool = %tool_key, "Executing pure Joint / Merge Array in-memory");
         let mut merged_array = Vec::new();
+        let mut outputs = HashMap::new();
 
         // Sắp xếp các key để việc gộp mảng có thứ tự tất định (Deterministic)
         let mut sorted_keys: Vec<&String> = inputs.keys().collect();
         sorted_keys.sort();
 
         for key in sorted_keys {
+            if key == "exec_in" || key == "exec_out" {
+                continue;
+            }
             if let Some(val) = inputs.get(key) {
+                let mut channel_items = Vec::new();
                 match val {
                     Value::Array(arr) => {
-                        merged_array.extend(arr.clone());
+                        channel_items.extend(arr.clone());
                     }
                     Value::Null => {}
                     other => {
-                        merged_array.push(other.clone());
+                        channel_items.push(other.clone());
                     }
                 }
+                merged_array.extend(channel_items.clone());
+
+                let lower_key = key.to_ascii_lowercase();
+                let out_key = if let Some(suffix) = lower_key.strip_prefix("in_") {
+                    format!("out_{}", suffix)
+                } else {
+                    format!("out_{}", key)
+                };
+                outputs.insert(out_key, Value::Array(channel_items));
             }
         }
 
-        let mut outputs = HashMap::new();
         outputs.insert("out_array".to_string(), Value::Array(merged_array.clone()));
         outputs.insert("output".to_string(), Value::Array(merged_array));
         return PureNodeResult::Outputs(outputs);
@@ -86,28 +109,75 @@ pub fn execute_pure_node(
         debug!(tool = %tool_key, "Executing pure Constant Template in-memory");
         let mut outputs = HashMap::new();
         for template_key in ["value", "disk_path", "virtual_path"] {
-            if let Some(Value::String(tmpl)) = inputs.get(template_key) {
-                let mut rendered = tmpl.clone();
-                for (k, v) in inputs {
-                    if k == "value" || k == "disk_path" || k == "virtual_path" {
-                        continue;
-                    }
-                    let val_str = match v {
-                        Value::String(s) => s.clone(),
-                        Value::Number(n) => n.to_string(),
-                        Value::Bool(b) => b.to_string(),
-                        _ => v.to_string(),
-                    };
-                    rendered = rendered
-                        .replace(&format!("${{{}}}", k), &val_str)
-                        .replace(&format!("{{{}}}", k), &val_str);
+            if let Some(raw_val) = inputs.get(template_key) {
+                if !raw_val.is_null() {
+                    outputs.insert(
+                        template_key.to_string(),
+                        render_constant_value(raw_val, inputs),
+                    );
                 }
-                outputs.insert(template_key.to_string(), Value::String(rendered));
             }
         }
         return PureNodeResult::Outputs(outputs);
     }
 
     PureNodeResult::NotPure
+}
+
+/// Evaluates a `local:constant:<key>` node strictly from its materialized `ResolvedConstantSpec`
+/// without guessing pin names. Fails fast if any required template variable is missing.
+pub fn execute_constant_node(
+    tool_key: &str,
+    spec: &ResolvedConstantSpec,
+    inputs: &HashMap<String, Value>,
+) -> anyhow::Result<HashMap<String, Value>> {
+    for var_name in &spec.template_vars {
+        let missing = inputs
+            .get(var_name)
+            .map(|v| v.is_null())
+            .unwrap_or(true);
+        if missing {
+            anyhow::bail!(
+                "Constant '{}' is missing required template variable '{}'",
+                tool_key,
+                var_name
+            );
+        }
+    }
+
+    let mut outputs = HashMap::with_capacity(spec.outputs.len());
+    for (pin_id, raw_val) in &spec.outputs {
+        if !raw_val.is_null() {
+            outputs.insert(pin_id.clone(), render_constant_value(raw_val, inputs));
+        }
+    }
+    Ok(outputs)
+}
+
+fn render_constant_value(val: &Value, inputs: &HashMap<String, Value>) -> Value {
+    match val {
+        Value::String(tmpl) => {
+            let mut rendered = tmpl.clone();
+            for (k, v) in inputs {
+                if k == "value" || k == "disk_path" || k == "virtual_path" {
+                    continue;
+                }
+                let val_str = match v {
+                    Value::String(s) => s.clone(),
+                    Value::Number(n) => n.to_string(),
+                    Value::Bool(b) => b.to_string(),
+                    _ => v.to_string(),
+                };
+                rendered = rendered
+                    .replace(&format!("${{{}}}", k), &val_str)
+                    .replace(&format!("{{{}}}", k), &val_str);
+            }
+            Value::String(rendered)
+        }
+        Value::Array(arr) => {
+            Value::Array(arr.iter().map(|item| render_constant_value(item, inputs)).collect())
+        }
+        other => other.clone(),
+    }
 }
 

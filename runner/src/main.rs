@@ -19,9 +19,7 @@ async fn main() -> anyhow::Result<()> {
     // If running in MCP mode or --json-events mode, avoid polluting stdout
     if !matches!(
         cli.command,
-        Commands::Mcp { .. }
-            | Commands::RunLocal { json_events: true, .. }
-            | Commands::RunBundle { json_events: true, .. }
+        Commands::Mcp { .. } | Commands::RunBundle { json_events: true, .. }
     ) {
         tracing_subscriber::fmt()
             .with_env_filter(
@@ -74,23 +72,6 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Mcp { workspace } => {
             cli::mcp::run_mcp_server(workspace).await?;
-        }
-        Commands::RunLocal {
-            workspace,
-            pipeline,
-            inputs_json,
-            json_events,
-            run_id,
-        } => {
-            cli::run_local::run_local_pipeline(
-                workspace,
-                pipeline,
-                inputs_json,
-                json_events,
-                run_id,
-                config_override,
-            )
-            .await?;
         }
         Commands::RunBundle {
             bundle,

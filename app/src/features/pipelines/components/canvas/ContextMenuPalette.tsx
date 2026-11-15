@@ -83,9 +83,10 @@ export function ContextMenuPalette({
       ) {
         return false;
       }
-      // Trong Component Pipe: không lồng Component Pipe khác và lọc theo executor tương thích
+      // Phân tách Context Menu theo loại pipeline (Component Pipe vs Master Pipeline)
       if (isComponentPipe) {
         if (keyLower.startsWith("local:component:")) return false;
+        if (keyLower === "sequence" || keyLower === "local:sequence") return false;
         if (executorParam && item.executor) {
           const itemExec = item.executor.toLowerCase();
           const targetExec = executorParam.toLowerCase();
@@ -97,6 +98,12 @@ export function ContextMenuPalette({
             return false;
           }
         }
+      } else {
+        const isAllowedInMaster =
+          keyLower.startsWith("local:component:") ||
+          keyLower === "sequence" ||
+          keyLower === "joint";
+        if (!isAllowedInMaster) return false;
       }
       return true;
     });
