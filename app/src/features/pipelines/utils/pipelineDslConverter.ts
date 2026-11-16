@@ -37,7 +37,9 @@ export function graphToPipelineYaml(
   pipelineName: string,
   nodes: any[],
   edges: any[],
-  description?: string
+  description?: string,
+  kind?: "master" | "component",
+  executor?: string
 ): string {
   const dslNodes: PipelineDslNode[] = [];
 
@@ -122,10 +124,12 @@ export function graphToPipelineYaml(
     })
     .filter((x): x is PipelineDslEdge => x !== null);
 
-  const doc: PipelineDslDocument = {
+  const doc: PipelineDslDocument & { kind?: string; executor?: string } = {
     name: pipelineName || "Draft Pipeline",
     version: "draft",
     runner: "local",
+    ...(kind ? { kind } : {}),
+    ...(kind === "component" && executor ? { executor } : {}),
     description: description || undefined,
     nodes: dslNodes,
     edges: dslEdges.length > 0 ? dslEdges : undefined,

@@ -26,6 +26,8 @@ pub fn run() {
             save_local_palette,
             commands::contracts::save_script_override,
             commands::contracts::clear_script_override,
+            commands::contracts::get_pipeline_contract_spec,
+            commands::contracts::validate_local_pipeline_graph,
             load_local_palette,
             save_local_structs,
             load_local_structs,

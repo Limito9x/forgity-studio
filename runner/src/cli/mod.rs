@@ -10,6 +10,7 @@ pub mod run_local;
 pub mod setup;
 pub mod start;
 pub mod update;
+pub mod workspace;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -142,5 +143,11 @@ pub enum Commands {
         /// Optional explicit run ID override
         #[arg(long)]
         run_id: Option<String>,
+    },
+
+    /// Inspect, validate, bundle, and run local workspace pipelines using forgity-core
+    Workspace {
+        #[command(subcommand)]
+        action: workspace::WorkspaceAction,
     },
 }

@@ -39,17 +39,27 @@ export function nodeView(kind: string, definition?: NodePaletteItemDto) {
 export function filterPalette(items: NodePaletteItemDto[], executor?: string) {
   return items.filter((item) => {
     if (!item.isVisibleInPalette) return false;
-    if (!executor) return true;
-    const exec = executor.toLowerCase();
     const itemExec = item.executor.toLowerCase();
-    // Pure nodes (such as Make/Break local structs or pure math) are stage-agnostic and allowed everywhere
-    if (itemExec === "pure") return true;
-    if (exec === "macro") return item.source === "SubPipeline" || item.category === "Flow Control" || item.key === "Return";
+    const isStartOrReturn = item.key === "Start" || item.key === "Return";
+    const isConstant = item.source === "Constant" || item.key.startsWith("local:constant:");
+    const isPure = itemExec === "pure" || item.key.startsWith("local:pure:");
+    const isComponent = item.source === "SubPipeline" || item.category === "Components" || item.key.startsWith("local:component:");
+
+    if (isStartOrReturn || isConstant) return true;
+
+    // Master Pipeline (no stage executor): allows Components + Pure orchestration (Joint), forbids raw DCC scripts
+    if (!executor) {
+      return isPure || isComponent;
+    }
+
+    const exec = executor.toLowerCase();
+    // Component Pipe (has stage executor): forbids Pure orchestration (Joint) and nested Components
+    if (isPure || isComponent) return false;
+
+    if (exec === "macro") return item.category === "Flow Control";
     if (["server", "dotnet", "builtin"].includes(exec)) {
-      if (item.source === "SubPipeline" || item.key === "Return" || item.category === "Flow Control") {
-        return false;
-      }
-      return item.source === "Tool" || item.source === "BuiltIn" || ["builtin", "dotnet"].includes(item.executor.toLowerCase());
+      if (item.category === "Flow Control") return false;
+      return item.source === "Tool" || item.source === "BuiltIn" || ["builtin", "dotnet"].includes(itemExec);
     }
     if (itemExec === exec) return true;
     // Allow generic Python scripts to run inside DCC stages (Unreal, Blender, Daz, etc.)

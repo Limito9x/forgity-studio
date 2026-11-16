@@ -21,7 +21,6 @@ import { LocalWorkspaceWelcomeState } from "../components/workspace/LocalWorkspa
 import { LocalWorkspaceOutliner } from "../components/workspace/LocalWorkspaceOutliner";
 import { WorkspaceTabBar } from "../components/workspace/WorkspaceTabBar";
 import { LocalConstantsManagerPage } from "../components/workspace/LocalConstantsManagerPage";
-import { LocalStructsManagerPage } from "../components/workspace/LocalStructsManagerPage";
 import { useWorkspaceTabsStore } from "../stores/useWorkspaceTabsStore";
 import {
   useWorkspaceUiPrefsStore,
@@ -593,7 +592,6 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
           }}
           onOpenConfig={() => useDialogStore.getState().openDialog("workspace-config", { projectId })}
           onOpenConstants={() => openSingletonTab(projectId, "constants")}
-          onOpenStructs={() => openSingletonTab(projectId, "structs")}
           isCreatingPipelineExternal={isCreatingPipeline}
           onCreatingPipelineChange={setIsCreatingPipeline}
           onOpenPullDialog={() => useDialogStore.getState().openDialog("workspace-pull-studio", { projectId })}
@@ -623,10 +621,6 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
             ) : activeTab?.kind === "constants" ? (
               <LocalConstantsManagerPage
                 projectId={projectId}
-                rootPath={rootPath}
-              />
-            ) : activeTab?.kind === "structs" ? (
-              <LocalStructsManagerPage
                 rootPath={rootPath}
               />
             ) : activeDraftPipeline ? (

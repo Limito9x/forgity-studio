@@ -292,26 +292,12 @@ export function RunPipelineModal({
   // Initial default values for all inputs
   const defaultValues = useMemo(() => {
     const defaults: Record<string, any> = {};
-    const KNOWN_PLACEHOLDERS = [
-      "resource",
-      "repository",
-      "workspace",
-      "contenttype",
-      "runner",
-      "agent",
-      "tag",
-      "taggroup",
-      "variable",
-      "none",
-    ];
 
     pipelineInputs.forEach((input) => {
       const f = startFields.find((field) => field.name === input.key);
       const val = f?.defaultValue !== undefined ? f.defaultValue : input.defaultValue;
-      const valStr = typeof val === "string" ? val.trim().toLowerCase() : "";
 
-      // Nếu defaultValue trùng với tên Entity Target placeholder thì coi là chưa chọn (rỗng)
-      if (val === null || val === undefined || KNOWN_PLACEHOLDERS.includes(valStr)) {
+      if (val === null || val === undefined) {
         defaults[input.key] = f?.properties?.multiple ? [] : "";
       } else {
         defaults[input.key] = val;

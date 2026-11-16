@@ -53,7 +53,15 @@ pub async fn run_bundle(
     };
 
     let bundle = parse_and_validate_bundle(&raw_json)?;
+    run_parsed_bundle(bundle, json_events, run_id_override, config_override).await
+}
 
+pub async fn run_parsed_bundle(
+    bundle: ExecutionBundle,
+    json_events: bool,
+    run_id_override: Option<String>,
+    config_override: Option<&Path>,
+) -> Result<()> {
     let is_component = bundle.pipeline_kind.eq_ignore_ascii_case("component");
     let run_id = run_id_override
         .or_else(|| bundle.run_id.clone())

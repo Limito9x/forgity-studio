@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type WorkspaceTabKind = "pipeline" | "palette" | "structs" | "constants";
+export type WorkspaceTabKind = "pipeline" | "palette" | "constants";
 
 export interface WorkspaceTabViewport {
   x: number;
@@ -43,7 +43,7 @@ interface WorkspaceTabsStoreState {
   ) => void;
   openSingletonTab: (
     projectId: string,
-    kind: "palette" | "structs" | "constants",
+    kind: "palette" | "constants",
   ) => void;
   closeTab: (projectId: string, tabId: string) => void;
   setActiveTab: (projectId: string, tabId: string) => void;
@@ -63,11 +63,10 @@ const DEFAULT_PROJECT_STATE: ProjectWorkbenchState = {
 };
 
 const SINGLETON_META: Record<
-  "palette" | "structs" | "constants",
+  "palette" | "constants",
   { id: string; title: string }
 > = {
   palette: { id: "singleton:palette", title: "Node Palette" },
-  structs: { id: "singleton:structs", title: "Structs" },
   constants: { id: "singleton:constants", title: "Constants" },
 };
 

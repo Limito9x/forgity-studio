@@ -16,11 +16,20 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     let config_override = cli.config.as_deref();
 
-    // If running in MCP mode or --json-events mode, avoid polluting stdout
-    if !matches!(
+    // If running in MCP mode or JSON-stdout modes, avoid polluting stdout
+    let suppress_stdout_logs = matches!(
         cli.command,
-        Commands::Mcp { .. } | Commands::RunBundle { json_events: true, .. }
-    ) {
+        Commands::Mcp { .. }
+            | Commands::RunBundle { json_events: true, .. }
+            | Commands::Workspace {
+                action: cli::workspace::WorkspaceAction::Run { json_events: true, .. }
+                    | cli::workspace::WorkspaceAction::Validate { json: true, .. }
+                    | cli::workspace::WorkspaceAction::Contract { json: true }
+                    | cli::workspace::WorkspaceAction::List { json: true, .. }
+                    | cli::workspace::WorkspaceAction::Bundle { out: None, .. }
+            }
+    );
+    if !suppress_stdout_logs {
         tracing_subscriber::fmt()
             .with_env_filter(
                 tracing_subscriber::EnvFilter::try_from_default_env()
@@ -81,6 +90,9 @@ async fn main() -> anyhow::Result<()> {
         } => {
             cli::run_local::run_bundle(bundle, stdin, json_events, run_id, config_override)
                 .await?;
+        }
+        Commands::Workspace { action } => {
+            cli::workspace::run_workspace(action, config_override).await?;
         }
     }
 

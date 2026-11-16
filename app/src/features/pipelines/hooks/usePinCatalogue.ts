@@ -1,12 +1,7 @@
-import { useGetPinCatalogue } from "@/gen/endpoints/pipelines/pipelines";
-import type { PinTypeMetadataDto } from "@/gen/model";
-
 export type NormalizedPinType =
   | "String"
   | "Number"
-  | "Boolean"
-  | "EntityRef"
-  | "Asset";
+  | "Boolean";
 
 export interface PinVisualInfo {
   code: NormalizedPinType;
@@ -43,22 +38,6 @@ export const STATIC_PIN_CATALOGUE: Record<NormalizedPinType, PinVisualInfo> = {
     handleColor: "#f59e0b",
     defaultControl: "boolean",
   },
-  EntityRef: {
-    code: "EntityRef",
-    label: "Entity Reference",
-    color: "#10b981",
-    badgeStyle: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
-    handleColor: "#10b981",
-    defaultControl: "entity-select",
-  },
-  Asset: {
-    code: "Asset",
-    label: "File Upload",
-    color: "#ec4899",
-    badgeStyle: "bg-pink-500/10 text-pink-400 border-pink-500/30",
-    handleColor: "#ec4899",
-    defaultControl: "file-upload",
-  },
 };
 
 /**
@@ -75,19 +54,6 @@ export function normalizePinType(rawType: unknown): NormalizedPinType {
     case "2":
     case "boolean":
       return "Boolean";
-    case "3":
-    case "4":
-    case "entityref":
-    case "struct":
-    case "workspace":
-    case "resource":
-    case "6":
-    case "variable":
-      return "EntityRef";
-    case "5":
-    case "asset":
-    case "file":
-      return "Asset";
     case "0":
     case "string":
     case "path":
@@ -105,20 +71,12 @@ export function getPinVisual(rawType: unknown): PinVisualInfo {
 }
 
 /**
- * Hook kết nối Pin Catalogue từ Backend làm Single Source of Truth
+ * Hook trả về Pin Catalogue tĩnh (Local-First SSOT)
  */
 export function usePinCatalogue() {
-  const { data, isLoading } = useGetPinCatalogue({
-    query: {
-      staleTime: 1000 * 60 * 30, // 30 phút cache
-    },
-  });
-
-  const catalogue = (data as unknown as PinTypeMetadataDto[]) ?? [];
-
   return {
-    catalogue,
-    isLoading,
+    catalogue: Object.values(STATIC_PIN_CATALOGUE),
+    isLoading: false,
     getPinVisual,
     normalizePinType,
   };

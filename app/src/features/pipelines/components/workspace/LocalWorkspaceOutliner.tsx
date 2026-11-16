@@ -243,18 +243,6 @@ export function LocalWorkspaceOutliner({
         <div className="w-5 h-px bg-border/60 my-0.5" />
         <button
           type="button"
-          onClick={onOpenStructs}
-          title="Structs"
-          className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
-            activeTabId === "singleton:structs"
-              ? "bg-indigo-500/15 text-indigo-400"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-          }`}
-        >
-          <Boxes className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
           onClick={onOpenConstants}
           title="Constants"
           className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
@@ -385,21 +373,8 @@ export function LocalWorkspaceOutliner({
       )}
 
       <div className="flex-1 overflow-y-auto px-2 py-2.5 space-y-3">
-        {/* Top Navigation Items: Structs, Constants, Node Palette */}
+        {/* Top Navigation Items: Constants, Node Palette */}
         <div className="space-y-0.5 pb-2 border-b border-border/50">
-          <button
-            type="button"
-            onClick={onOpenStructs}
-            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-              activeTabId === "singleton:structs"
-                ? "bg-indigo-500/15 text-indigo-400"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-            }`}
-          >
-            <Boxes className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
-            <span className="truncate">Structs</span>
-          </button>
-
           <button
             type="button"
             onClick={onOpenConstants}

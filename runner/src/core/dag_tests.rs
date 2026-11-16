@@ -6,36 +6,6 @@ mod tests {
     use std::collections::HashMap;
 
     #[test]
-    fn test_pure_make_and_break_struct() {
-        let mut make_inputs = HashMap::new();
-        make_inputs.insert("duf_path".to_string(), json!("D:/models/char.duf"));
-        make_inputs.insert("resolution".to_string(), json!(2048));
-
-        // 1. Make Struct
-        let make_res = execute_pure_node("local:struct:make:character_manifest", &make_inputs);
-        let struct_output = match make_res {
-            PureNodeResult::Outputs(outs) => outs.get("struct_out").cloned().expect("struct_out must exist"),
-            _ => panic!("Expected pure node outputs"),
-        };
-
-        assert_eq!(struct_output["duf_path"], "D:/models/char.duf");
-        assert_eq!(struct_output["resolution"], 2048);
-
-        // 2. Break Struct
-        let mut break_inputs = HashMap::new();
-        break_inputs.insert("struct_in".to_string(), struct_output);
-
-        let break_res = execute_pure_node("local:struct:break:character_manifest", &break_inputs);
-        match break_res {
-            PureNodeResult::Outputs(outs) => {
-                assert_eq!(outs.get("duf_path").unwrap(), "D:/models/char.duf");
-                assert_eq!(outs.get("resolution").unwrap(), 2048);
-            }
-            _ => panic!("Expected pure node outputs for break"),
-        }
-    }
-
-    #[test]
     fn test_pure_joint_array() {
         let mut inputs = HashMap::new();
         inputs.insert("branch_a".to_string(), json!(["body.fbx"]));

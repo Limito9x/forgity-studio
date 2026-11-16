@@ -21,43 +21,7 @@ pub fn execute_pure_node(
 ) -> PureNodeResult {
     let lower_tool = tool_key.to_lowercase();
 
-    // 1. Make <Struct>: local:struct:make:<slug> hoặc MakeStruct
-    if lower_tool.contains(":struct:make:") || lower_tool == "makestruct" {
-        debug!(tool = %tool_key, "Executing pure Make Struct in-memory");
-        let mut struct_obj = serde_json::Map::new();
-        for (k, v) in inputs {
-            if k == "exec_in" || k == "exec_out" {
-                continue;
-            }
-            struct_obj.insert(k.clone(), v.clone());
-        }
-
-        let mut outputs = HashMap::new();
-        outputs.insert("struct_out".to_string(), Value::Object(struct_obj.clone()));
-        outputs.insert("output".to_string(), Value::Object(struct_obj));
-        return PureNodeResult::Outputs(outputs);
-    }
-
-    // 2. Break <Struct>: local:struct:break:<slug> hoặc BreakStruct
-    if lower_tool.contains(":struct:break:") || lower_tool == "breakstruct" {
-        debug!(tool = %tool_key, "Executing pure Break Struct in-memory");
-        let mut outputs = HashMap::new();
-
-        // Tìm input struct (chân struct_in hoặc input hoặc target)
-        let struct_val = inputs.get("struct_in")
-            .or_else(|| inputs.get("input"))
-            .or_else(|| inputs.get("target"))
-            .or_else(|| inputs.values().next());
-
-        if let Some(Value::Object(map)) = struct_val {
-            for (k, v) in map {
-                outputs.insert(k.clone(), v.clone());
-            }
-        }
-        return PureNodeResult::Outputs(outputs);
-    }
-
-    // 3. Joint / Merge Array: gom mảng từ chân `in` (hoặc `in_k` tương thích ngược) ra chân `out`
+    // 1. Joint / Merge Array: gom mảng từ chân `in` (hoặc `in_k` tương thích ngược) ra chân `out`
     if lower_tool == "joint"
         || lower_tool == "local:joint"
         || lower_tool == "merge_array"

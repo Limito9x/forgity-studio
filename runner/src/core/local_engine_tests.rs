@@ -125,7 +125,7 @@ mod tests {
                 },
                 DagNodeDefinition {
                     id: "make_info".to_string(),
-                    tool: "local:struct:make:character_info".to_string(),
+                    tool: "joint".to_string(),
                     label: None,
                     executor: None,
                     inputs: HashMap::new(),
@@ -158,7 +158,7 @@ mod tests {
                     to: "make_info.base".to_string(),
                 },
                 DagEdgeDefinition {
-                    from: "make_info.struct_out".to_string(),
+                    from: "make_info.out".to_string(),
                     to: "end.result".to_string(),
                 },
             ],
@@ -184,15 +184,15 @@ mod tests {
             .unwrap();
 
         let results = out.get("result").and_then(|v| v.as_array()).unwrap();
-        assert_eq!(results.len(), 3);
-        let names: Vec<&str> = results
+        assert_eq!(results.len(), 6);
+        let flattened: Vec<String> = results
             .iter()
-            .filter_map(|item| item.get("name").and_then(|v| v.as_str()))
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
             .collect();
-        assert!(names.contains(&"Alice"));
-        assert!(names.contains(&"Bob"));
-        assert!(names.contains(&"Cara"));
-        assert_eq!(results[0].get("base"), Some(&json!("Genesis9")));
+        assert!(flattened.contains(&"Alice".to_string()));
+        assert!(flattened.contains(&"Bob".to_string()));
+        assert!(flattened.contains(&"Cara".to_string()));
+        assert!(flattened.contains(&"Genesis9".to_string()));
 
         let events = sink.events.lock().await;
         assert!(!events.is_empty());
@@ -450,13 +450,13 @@ mod tests {
                 "nodes": [
                     { "id": "start", "tool": "start" },
                     { "id": "c1", "tool": "local:constant:realm" },
-                    { "id": "mk", "tool": "local:struct:make:hero" },
+                    { "id": "mk", "tool": "joint" },
                     { "id": "end", "tool": "end" }
                 ],
                 "edges": [
                     { "from": "start.character_name", "to": "mk.name" },
                     { "from": "c1.value", "to": "mk.realm" },
-                    { "from": "mk.struct_out", "to": "end.hero" }
+                    { "from": "mk.out", "to": "end.hero" }
                 ]
             }
         });
@@ -490,9 +490,9 @@ mod tests {
             .await
             .unwrap();
 
-        let hero = outputs.get("hero").unwrap();
-        assert_eq!(hero.get("name"), Some(&json!("Kira")));
-        assert_eq!(hero.get("realm"), Some(&json!("Fantasy")));
+        let hero = outputs.get("hero").and_then(|v| v.as_array()).unwrap();
+        assert!(hero.contains(&json!("Kira")));
+        assert!(hero.contains(&json!("Fantasy")));
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }

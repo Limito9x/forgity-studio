@@ -1,4 +1,5 @@
-use serde::{Deserialize, Serialize};
+﻿use forgity_core::bundle::build_execution_bundle;
+use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -7,28 +8,16 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, State};
 
-use super::workspace_db::WorkspaceDb;
-
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-/// Quản lý các tiến trình `forgity-runner` đang chạy ở chế độ Local.
+/// Quáº£n lÃ½ cÃ¡c tiáº¿n trÃ¬nh `forgity-runner` Ä‘ang cháº¡y á»Ÿ cháº¿ Ä‘á»™ Local.
 #[derive(Default)]
 pub struct LocalExecutionState {
     pub active_runs: Arc<Mutex<HashMap<String, Child>>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ResolvedScriptBundleDto {
-    key: String,
-    executor: String,
-    full_path: String,
-    requirements: Vec<String>,
-    default_inputs: HashMap<String, Value>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -38,11 +27,11 @@ pub struct LocalRunStartedResponse {
     pub runner_path: String,
 }
 
-/// Tìm binary `forgity-runner.exe` theo thứ tự ưu tiên:
-/// 1. Cạnh file exe Tauri hiện tại
+/// TÃ¬m binary `forgity-runner.exe` theo thá»© tá»± Æ°u tiÃªn:
+/// 1. Cáº¡nh file exe Tauri hiá»‡n táº¡i
 /// 2. `%LOCALAPPDATA%\Forgity\bin\forgity-runner.exe`
-/// 3. Build dev trong monorepo (`runner/target/debug` hoặc `release`)
-/// 4. Biến môi trường PATH (`forgity-runner`)
+/// 3. Build dev trong monorepo (`runner/target/debug` hoáº·c `release`)
+/// 4. Biáº¿n mÃ´i trÆ°á»ng PATH (`forgity-runner`)
 pub fn resolve_runner_executable() -> Result<PathBuf, String> {
     let exe_name = if cfg!(windows) {
         "forgity-runner.exe"
@@ -87,162 +76,7 @@ pub fn resolve_runner_executable() -> Result<PathBuf, String> {
     Ok(PathBuf::from(exe_name))
 }
 
-/// Đọc `.forgity/workspace.db` (nếu có) và đóng gói thành `ExecutionBundle` JSON DTO.
-fn build_execution_bundle(
-    root_path: &Path,
-    run_id: &str,
-    pipeline_yaml_content: &str,
-    pipeline_kind: &str,
-    mut runtime_inputs: HashMap<String, Value>,
-) -> Result<Value, String> {
-    let mut root_pipeline: Value = serde_yaml::from_str(pipeline_yaml_content)
-        .map_err(|e| format!("Failed to parse pipeline YAML: {}", e))?;
-
-    let mut scripts_map: HashMap<String, ResolvedScriptBundleDto> = HashMap::new();
-    let mut components_map: HashMap<String, Value> = HashMap::new();
-    let mut constants_map: HashMap<String, super::node_contracts::ResolvedConstantSpec> = HashMap::new();
-    let mut raw_constants: Vec<super::node_contracts::RawConstantItem> = Vec::new();
-
-    let db_file = root_path.join(".forgity").join("workspace.db");
-    let db_opt = if db_file.is_file() {
-        WorkspaceDb::open(root_path).ok()
-    } else {
-        None
-    };
-    if let Some(ref db) = db_opt {
-        {
-            // 1. Load scripts (palette_json is a JSON object { key: scriptObj } from WorkspaceDb, or an array)
-            if let Ok(palette_json) = db.load_palette_json() {
-                if let Ok(parsed_palette) = serde_json::from_str::<Value>(&palette_json) {
-                    let entries: Vec<(Option<String>, Value)> = match parsed_palette {
-                        Value::Object(map) => map.into_iter().map(|(k, v)| (Some(k), v)).collect(),
-                        Value::Array(arr) => arr.into_iter().map(|v| (None, v)).collect(),
-                        _ => Vec::new(),
-                    };
-
-                    for (map_key, item) in entries {
-                        let key = item
-                            .get("key")
-                            .and_then(|v| v.as_str())
-                            .filter(|s| !s.is_empty())
-                            .map(|s| s.to_string())
-                            .or(map_key)
-                            .unwrap_or_default();
-                        if key.is_empty() {
-                            continue;
-                        }
-                        let full_path = item
-                            .get("fullPath")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or_default()
-                            .to_string();
-                        let executor = item
-                            .get("executor")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("python")
-                            .to_string();
-
-                        let mut default_inputs = HashMap::new();
-                        if let Some(inputs) = item.get("inputs").and_then(|v| v.as_array()) {
-                            for pin in inputs {
-                                if let (Some(pid), Some(def_val)) = (
-                                    pin.get("id").and_then(|v| v.as_str()),
-                                    pin.get("defaultValue"),
-                                ) {
-                                    if !def_val.is_null() {
-                                        default_inputs.insert(pid.to_string(), def_val.clone());
-                                    }
-                                }
-                            }
-                        }
-
-                        let mut requirements = Vec::new();
-                        if let Some(deps) = item.get("dependencies").and_then(|v| v.as_array()) {
-                            for dep in deps {
-                                let pkg = dep
-                                    .get("packageName")
-                                    .and_then(|v| v.as_str())
-                                    .filter(|s| !s.is_empty())
-                                    .or_else(|| {
-                                        dep.get("module")
-                                            .and_then(|v| v.as_str())
-                                            .filter(|s| !s.is_empty())
-                                    });
-                                if let Some(p) = pkg {
-                                    requirements.push(p.to_string());
-                                }
-                            }
-                        }
-
-                        scripts_map.insert(
-                            key.clone(),
-                            ResolvedScriptBundleDto {
-                                key,
-                                executor,
-                                full_path,
-                                requirements,
-                                default_inputs,
-                            },
-                        );
-                    }
-                }
-            }
-
-            // 2. Load & compile constants via SSOT node_contracts
-            if let Ok(const_items) = super::node_contracts::load_constant_items_from_db(&db) {
-                constants_map = super::node_contracts::compile_constant_specs(&const_items);
-                raw_constants = const_items;
-            }
-
-        }
-    }
-
-    // 3. Load component YAMLs (disk scan + workspace.db merge via SSOT discover_component_pipelines)
-    for (slug, full_path, relative_path) in
-        super::node_contracts::discover_component_pipelines(root_path, db_opt.as_ref())
-    {
-        let p_path = PathBuf::from(&full_path);
-        let resolved = if p_path.is_file() {
-            p_path
-        } else {
-            root_path.join(&relative_path)
-        };
-        if let Ok(yaml_str) = std::fs::read_to_string(&resolved) {
-            if let Ok(parsed_comp) = serde_yaml::from_str::<Value>(&yaml_str) {
-                components_map.insert(slug, parsed_comp);
-            }
-        }
-    }
-
-    // 4. Expand ${VAR} trong toàn bộ node inputs, script defaultInputs & runtimeInputs
-    if !raw_constants.is_empty() {
-        super::node_contracts::expand_vars_in_dag_json(&mut root_pipeline, &raw_constants);
-        for comp_doc in components_map.values_mut() {
-            super::node_contracts::expand_vars_in_dag_json(comp_doc, &raw_constants);
-        }
-        for script_dto in scripts_map.values_mut() {
-            for val in script_dto.default_inputs.values_mut() {
-                super::node_contracts::expand_vars_in_json_value(val, &raw_constants);
-            }
-        }
-        for val in runtime_inputs.values_mut() {
-            super::node_contracts::expand_vars_in_json_value(val, &raw_constants);
-        }
-    }
-
-    Ok(serde_json::json!({
-        "bundleVersion": 2,
-        "runId": run_id,
-        "pipelineKind": pipeline_kind,
-        "rootPipeline": root_pipeline,
-        "runtimeInputs": runtime_inputs,
-        "scripts": scripts_map,
-        "components": components_map,
-        "constants": constants_map,
-    }))
-}
-
-/// Xuất ExecutionBundle v2 ra file JSON để chạy CLI debug `forgity-runner run-bundle --bundle <file>`.
+/// Xuáº¥t ExecutionBundle v2 ra file JSON Ä‘á»ƒ cháº¡y CLI debug `forgity-runner run-bundle --bundle <file>`.
 #[tauri::command]
 pub fn export_execution_bundle(
     root_path: String,
@@ -336,7 +170,7 @@ pub fn run_local_pipeline(
         )
     })?;
 
-    // Bơm ExecutionBundle JSON vào stdin rồi đóng ống ngay để Runner bắt đầu chạy
+    // BÆ¡m ExecutionBundle JSON vÃ o stdin rá»“i Ä‘Ã³ng á»‘ng ngay Ä‘á»ƒ Runner báº¯t Ä‘áº§u cháº¡y
     if let Some(mut stdin) = child.stdin.take() {
         stdin
             .write_all(bundle_json.as_bytes())
@@ -358,7 +192,7 @@ pub fn run_local_pipeline(
         map.insert(run_id.clone(), child);
     }
 
-    // Luồng đọc stderr để ghi nhận lỗi kỹ thuật nếu process chết bất thường
+    // Luá»“ng Ä‘á»c stderr Ä‘á»ƒ ghi nháº­n lá»—i ká»¹ thuáº­t náº¿u process cháº¿t báº¥t thÆ°á»ng
     let stderr_buf = Arc::new(Mutex::new(Vec::<String>::new()));
     if let Some(stderr_pipe) = stderr {
         let stderr_buf_clone = stderr_buf.clone();
@@ -386,7 +220,7 @@ pub fn run_local_pipeline(
         });
     }
 
-    // Luồng đọc stdout từng dòng JSON-lines và bắn sự kiện sang React Canvas
+    // Luá»“ng Ä‘á»c stdout tá»«ng dÃ²ng JSON-lines vÃ  báº¯n sá»± kiá»‡n sang React Canvas
     let active_runs_ref = state.active_runs.clone();
     let run_id_out = run_id.clone();
     let app_out = app.clone();
@@ -407,7 +241,7 @@ pub fn run_local_pipeline(
             }
         }
 
-        // Chờ child kết thúc và dọn khỏi active_runs
+        // Chá» child káº¿t thÃºc vÃ  dá»n khá»i active_runs
         let exit_status = {
             if let Ok(mut map) = active_runs_ref.lock() {
                 map.remove(&run_id_out).and_then(|mut c| c.wait().ok())
@@ -416,7 +250,7 @@ pub fn run_local_pipeline(
             }
         };
 
-        // Nếu process chết bất thường mà chưa phát `run_completed`, tự phát sự kiện lỗi để UI không bị treo
+        // Náº¿u process cháº¿t báº¥t thÆ°á»ng mÃ  chÆ°a phÃ¡t `run_completed`, tá»± phÃ¡t sá»± kiá»‡n lá»—i Ä‘á»ƒ UI khÃ´ng bá»‹ treo
         if !saw_run_completed {
             let err_summary = stderr_buf
                 .lock()

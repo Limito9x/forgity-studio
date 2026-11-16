@@ -16,7 +16,6 @@ export function WorkspaceTabBar({
 }: WorkspaceTabBarProps) {
   const getTabIcon = (tab: WorkspaceTab) => {
     if (tab.kind === "palette") return <Cpu className="h-3.5 w-3.5 text-emerald-400 shrink-0" />;
-    if (tab.kind === "structs") return <Boxes className="h-3.5 w-3.5 text-indigo-400 shrink-0" />;
     if (tab.kind === "constants") return <KeyRound className="h-3.5 w-3.5 text-amber-400 shrink-0" />;
     if (tab.pipelineKind === "component") return <Layers className="h-3.5 w-3.5 text-amber-500 shrink-0" />;
     return <Workflow className="h-3.5 w-3.5 text-primary shrink-0" />;
