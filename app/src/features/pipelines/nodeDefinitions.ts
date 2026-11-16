@@ -167,20 +167,43 @@ export function resolveNodePinsFromDefinition<
     category?: string | null;
     inputs?: PinDefinition[];
     outputs?: PinDefinition[];
+    configValues?: Record<string, unknown>;
   }
 >(nodeData: T, definition?: NodePaletteItemDto) {
+  const baseInputs =
+    !isPaletteDrivenShape(nodeData.kind, definition) || !definition
+      ? nodeData.inputs || []
+      : (definition.inputs as PinDefinition[]) || [];
+  const baseOutputs =
+    !isPaletteDrivenShape(nodeData.kind, definition) || !definition
+      ? nodeData.outputs || []
+      : (definition.outputs as PinDefinition[]) || [];
+
+  const isBatch = Boolean(nodeData.configValues?._isBatch);
+  const iterablePin = String(nodeData.configValues?._iterablePin || "").trim();
+
+  // Promote the selected iterable input pin to Array when Parallel Batch Execution is active
+  const resolvedInputs =
+    isBatch && iterablePin
+      ? baseInputs.map((pin) =>
+          pin.id === iterablePin && pin.cardinality !== ("Array" as any) && (pin.cardinality as any) !== 1
+            ? { ...pin, cardinality: "Array" as any }
+            : pin
+        )
+      : baseInputs;
+
   if (!isPaletteDrivenShape(nodeData.kind, definition) || !definition) {
     return {
-      inputs: nodeData.inputs || [],
-      outputs: nodeData.outputs || [],
+      inputs: resolvedInputs,
+      outputs: baseOutputs,
       label: nodeData.label || "",
       executor: definition?.executor ?? nodeData.executor,
       category: definition?.category ?? nodeData.category,
     };
   }
   return {
-    inputs: (definition.inputs as PinDefinition[]) || [],
-    outputs: (definition.outputs as PinDefinition[]) || [],
+    inputs: resolvedInputs,
+    outputs: baseOutputs,
     label: definition.label || nodeData.label || "",
     executor: definition.executor || nodeData.executor,
     category: definition.category || nodeData.category,

@@ -57,7 +57,7 @@ pub fn execute_pure_node(
         return PureNodeResult::Outputs(outputs);
     }
 
-    // 3. Joint / Merge Array: gom mảng theo từng cặp kênh 1-1 (in_k -> out_k) + giữ out_array tổng hợp
+    // 3. Joint / Merge Array: gom mảng từ chân `in` (hoặc `in_k` tương thích ngược) ra chân `out`
     if lower_tool == "joint"
         || lower_tool == "local:joint"
         || lower_tool == "merge_array"
@@ -73,7 +73,7 @@ pub fn execute_pure_node(
         sorted_keys.sort();
 
         for key in sorted_keys {
-            if key == "exec_in" || key == "exec_out" {
+            if key == "exec_in" || key == "exec_out" || key == "take" {
                 continue;
             }
             if let Some(val) = inputs.get(key) {
@@ -90,7 +90,9 @@ pub fn execute_pure_node(
                 merged_array.extend(channel_items.clone());
 
                 let lower_key = key.to_ascii_lowercase();
-                let out_key = if let Some(suffix) = lower_key.strip_prefix("in_") {
+                let out_key = if lower_key == "in" {
+                    "out".to_string()
+                } else if let Some(suffix) = lower_key.strip_prefix("in_") {
                     format!("out_{}", suffix)
                 } else {
                     format!("out_{}", key)
@@ -99,6 +101,10 @@ pub fn execute_pure_node(
             }
         }
 
+        outputs.insert("out".to_string(), Value::Array(merged_array.clone()));
+        outputs
+            .entry("out_1".to_string())
+            .or_insert_with(|| Value::Array(merged_array.clone()));
         outputs.insert("out_array".to_string(), Value::Array(merged_array.clone()));
         outputs.insert("output".to_string(), Value::Array(merged_array));
         return PureNodeResult::Outputs(outputs);

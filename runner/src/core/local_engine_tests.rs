@@ -707,4 +707,228 @@ mod tests {
         );
         let _ = std::fs::remove_dir_all(&root);
     }
+
+    #[tokio::test]
+    async fn test_master_joint_micro_batch_waves_and_free_busy_state() {
+        let make_producer = |name: &str, items: serde_json::Value| DagPipelineDocument {
+            name: name.to_string(),
+            version: Some("1.0".to_string()),
+            kind: Some("component".to_string()),
+            executor: Some("blender".to_string()),
+            nodes: vec![
+                DagNodeDefinition {
+                    id: "start".to_string(),
+                    tool: "Start".to_string(),
+                    label: None,
+                    executor: None,
+                    inputs: HashMap::from([("out_files".to_string(), items)]),
+                    metadata: HashMap::new(),
+                    is_batch: false,
+                    max_concurrency: None,
+                    iterable_pin: None,
+                    skip_on_error: None,
+                },
+                DagNodeDefinition {
+                    id: "return".to_string(),
+                    tool: "Return".to_string(),
+                    label: None,
+                    executor: None,
+                    inputs: HashMap::new(),
+                    metadata: HashMap::new(),
+                    is_batch: false,
+                    max_concurrency: None,
+                    iterable_pin: None,
+                    skip_on_error: None,
+                },
+            ],
+            edges: vec![DagEdgeDefinition {
+                from: "start.out_files".to_string(),
+                to: "return.fbx_files".to_string(),
+            }],
+        };
+
+        // Downstream Unreal component that takes an Array `fbx_files` and returns `imported_meshes`
+        let unreal_comp = DagPipelineDocument {
+            name: "fbx_to_unreal".to_string(),
+            version: Some("1.0".to_string()),
+            kind: Some("component".to_string()),
+            executor: Some("unreal".to_string()),
+            nodes: vec![
+                DagNodeDefinition {
+                    id: "start".to_string(),
+                    tool: "Start".to_string(),
+                    label: None,
+                    executor: None,
+                    inputs: HashMap::from([("fbx_files".to_string(), json!([]))]),
+                    metadata: HashMap::new(),
+                    is_batch: false,
+                    max_concurrency: None,
+                    iterable_pin: None,
+                    skip_on_error: None,
+                },
+                DagNodeDefinition {
+                    id: "return".to_string(),
+                    tool: "Return".to_string(),
+                    label: None,
+                    executor: None,
+                    inputs: HashMap::new(),
+                    metadata: HashMap::new(),
+                    is_batch: false,
+                    max_concurrency: None,
+                    iterable_pin: None,
+                    skip_on_error: None,
+                },
+            ],
+            edges: vec![DagEdgeDefinition {
+                from: "start.fbx_files".to_string(),
+                to: "return.imported_meshes".to_string(),
+            }],
+        };
+
+        let master_doc = DagPipelineDocument {
+            name: "master_wave_test".to_string(),
+            version: Some("1.0".to_string()),
+            kind: Some("master".to_string()),
+            executor: None,
+            nodes: vec![
+                DagNodeDefinition {
+                    id: "start".to_string(),
+                    tool: "Start".to_string(),
+                    label: None,
+                    executor: None,
+                    inputs: HashMap::new(),
+                    metadata: HashMap::new(),
+                    is_batch: false,
+                    max_concurrency: None,
+                    iterable_pin: None,
+                    skip_on_error: None,
+                },
+                DagNodeDefinition {
+                    id: "seq".to_string(),
+                    tool: "Sequence".to_string(),
+                    label: None,
+                    executor: None,
+                    inputs: HashMap::new(),
+                    metadata: HashMap::new(),
+                    is_batch: false,
+                    max_concurrency: None,
+                    iterable_pin: None,
+                    skip_on_error: None,
+                },
+                DagNodeDefinition {
+                    id: "p1".to_string(),
+                    tool: "local:component:p1".to_string(),
+                    label: None,
+                    executor: None,
+                    inputs: HashMap::new(),
+                    metadata: HashMap::new(),
+                    is_batch: false,
+                    max_concurrency: None,
+                    iterable_pin: None,
+                    skip_on_error: None,
+                },
+                DagNodeDefinition {
+                    id: "p2".to_string(),
+                    tool: "local:component:p2".to_string(),
+                    label: None,
+                    executor: None,
+                    inputs: HashMap::new(),
+                    metadata: HashMap::new(),
+                    is_batch: false,
+                    max_concurrency: None,
+                    iterable_pin: None,
+                    skip_on_error: None,
+                },
+                DagNodeDefinition {
+                    id: "joint".to_string(),
+                    tool: "Joint".to_string(),
+                    label: None,
+                    executor: None,
+                    inputs: HashMap::from([("take".to_string(), json!(5))]),
+                    metadata: HashMap::new(),
+                    is_batch: false,
+                    max_concurrency: None,
+                    iterable_pin: None,
+                    skip_on_error: None,
+                },
+                DagNodeDefinition {
+                    id: "unreal".to_string(),
+                    tool: "local:component:fbx_to_unreal".to_string(),
+                    label: None,
+                    executor: None,
+                    inputs: HashMap::new(),
+                    metadata: HashMap::new(),
+                    is_batch: false,
+                    max_concurrency: None,
+                    iterable_pin: None,
+                    skip_on_error: None,
+                },
+                DagNodeDefinition {
+                    id: "return".to_string(),
+                    tool: "Return".to_string(),
+                    label: None,
+                    executor: None,
+                    inputs: HashMap::new(),
+                    metadata: HashMap::new(),
+                    is_batch: false,
+                    max_concurrency: None,
+                    iterable_pin: None,
+                    skip_on_error: None,
+                },
+            ],
+            edges: vec![
+                DagEdgeDefinition { from: "start.exec_out".to_string(), to: "seq.exec_in".to_string() },
+                DagEdgeDefinition { from: "seq.then_0".to_string(), to: "p1.exec_in".to_string() },
+                DagEdgeDefinition { from: "seq.then_1".to_string(), to: "p2.exec_in".to_string() },
+                DagEdgeDefinition { from: "p1.fbx_files".to_string(), to: "joint.in".to_string() },
+                DagEdgeDefinition { from: "p2.fbx_files".to_string(), to: "joint.in".to_string() },
+                DagEdgeDefinition { from: "joint.out".to_string(), to: "unreal.fbx_files".to_string() },
+                DagEdgeDefinition { from: "unreal.imported_meshes".to_string(), to: "return.final_meshes".to_string() },
+            ],
+        };
+
+        let bundle = ExecutionBundle {
+            bundle_version: 2,
+            run_id: Some("wave_test".to_string()),
+            pipeline_kind: "master".to_string(),
+            root_pipeline: master_doc.clone(),
+            runtime_inputs: HashMap::new(),
+            scripts: HashMap::new(),
+            components: HashMap::from([
+                ("p1".to_string(), make_producer("p1", json!(["f1", "f2", "f3", "f4", "f5", "f6", "f7"]))),
+                ("p2".to_string(), make_producer("p2", json!(["f8", "f9", "f10", "f11", "f12"]))),
+                ("fbx_to_unreal".to_string(), unreal_comp),
+            ]),
+            constants: HashMap::new(),
+        };
+
+        let root = std::env::temp_dir().join(format!("forgity_test_wave_{}", uuid::Uuid::new_v4()));
+        let sink: Arc<dyn EventSink> = Arc::new(NullEventSink);
+        let resolver = Arc::new(BundleResourceResolver::from_bundle(&bundle));
+        let dispatcher = Arc::new(StageDispatcher::new(
+            sink.clone(),
+            Arc::new(ActiveStageManager::new()),
+            Arc::new(DccPool::new(root.join(".forgity"))),
+            None,
+        ));
+        let comp_orch = Arc::new(ComponentOrchestrator::new(
+            dispatcher,
+            resolver.clone(),
+            sink.clone(),
+            Arc::new(UnlimitedQuotaGate),
+        ));
+        let master_orch = MasterOrchestrator::new(comp_orch, resolver, sink);
+
+        let outputs = master_orch
+            .execute(&master_doc, "wave_test", HashMap::new(), CancellationToken::new())
+            .await
+            .unwrap();
+
+        let final_arr = outputs
+            .get("final_meshes")
+            .and_then(|v| v.as_array())
+            .expect("final_meshes should be an array");
+        assert_eq!(final_arr.len(), 12);
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }

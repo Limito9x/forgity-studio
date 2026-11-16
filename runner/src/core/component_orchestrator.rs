@@ -47,21 +47,105 @@ impl ComponentOrchestrator {
         batch_config: Option<BatchExecutionConfig>,
         cancel: CancellationToken,
     ) -> Result<HashMap<String, Value>> {
+        self.execute_with_stream(doc, run_id, inputs, batch_config, None, cancel)
+            .await
+    }
+
+    /// Chạy Component Pipe kèm kênh phát trực tiếp từng phần tử hoàn thành (`item_tx`) cho `Joint` ở tầng Master.
+    pub async fn execute_with_stream(
+        self: Arc<Self>,
+        doc: Arc<DagPipelineDocument>,
+        run_id: String,
+        inputs: HashMap<String, Value>,
+        batch_config: Option<BatchExecutionConfig>,
+        item_tx: Option<tokio::sync::mpsc::UnboundedSender<HashMap<String, Value>>>,
+        cancel: CancellationToken,
+    ) -> Result<HashMap<String, Value>> {
         if let Some(cfg) = batch_config {
-            let item_count = match inputs.get(&cfg.iterable_pin_name) {
-                Some(Value::Array(arr)) => arr.len().max(1),
-                Some(_) => 1,
-                None => 0,
+            let items_vec = match inputs.get(&cfg.iterable_pin_name) {
+                Some(Value::Array(arr)) => arr.clone(),
+                Some(Value::Null) | None => Vec::new(),
+                Some(single) => vec![single.clone()],
             };
-            self.quota_gate.check_and_consume(item_count).await?;
+
+            if items_vec.is_empty() {
+                return Ok(HashMap::new());
+            }
+
+            let is_unreal_executor = doc
+                .executor
+                .as_deref()
+                .map(|e| e.eq_ignore_ascii_case("unreal"))
+                .unwrap_or(false);
+            let start_pin_is_array = doc
+                .nodes
+                .iter()
+                .find(|n| {
+                    let t = n.tool.to_lowercase();
+                    t == "start" || t == "local:start" || n.id == "start"
+                })
+                .and_then(|start_node| start_node.inputs.get(&cfg.iterable_pin_name))
+                .map(|v| v.is_array())
+                .unwrap_or(false);
+
+            // Nếu Component là Unreal hoặc chân Start gốc đã nhận Array (như `fbx_files: Text[]`),
+            // tuyệt đối KHÔNG xé lẻ thành phần tử đơn và KHÔNG spawn nhiều tiến trình song song,
+            // mà cắt theo từng cụm `max_concurrency` và chạy tuần tự 1 tiến trình/đợt.
+            if is_unreal_executor || start_pin_is_array {
+                let chunk_size = cfg.max_concurrency.max(1);
+                let chunks: Vec<Vec<Value>> = items_vec
+                    .chunks(chunk_size)
+                    .map(|c| c.to_vec())
+                    .collect();
+                let total_waves = chunks.len();
+                self.quota_gate.check_and_consume(total_waves).await?;
+
+                let mut pin_buckets: HashMap<String, Vec<Value>> = HashMap::new();
+                for (wave_idx, chunk) in chunks.into_iter().enumerate() {
+                    let mut wave_inputs = inputs.clone();
+                    wave_inputs.insert(cfg.iterable_pin_name.clone(), Value::Array(chunk));
+                    match self
+                        .execute_single(
+                            &doc,
+                            &run_id,
+                            wave_inputs,
+                            Some(wave_idx),
+                            Some(total_waves),
+                            &cancel,
+                        )
+                        .await
+                    {
+                        Ok(wave_out) => {
+                            if let Some(ref tx) = item_tx {
+                                let _ = tx.send(wave_out.clone());
+                            }
+                            for (pin_id, pin_val) in wave_out {
+                                let bucket = pin_buckets.entry(pin_id).or_default();
+                                match pin_val {
+                                    Value::Array(arr) => bucket.extend(arr),
+                                    other => bucket.push(other),
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            if !cfg.skip_on_error {
+                                return Err(err);
+                            }
+                        }
+                    }
+                }
+
+                let mut gathered = HashMap::new();
+                for (k, v) in pin_buckets {
+                    gathered.insert(k, Value::Array(v));
+                }
+                return Ok(gathered);
+            }
+
+            let total_items = items_vec.len();
+            self.quota_gate.check_and_consume(total_items).await?;
 
             let iterable_pin = cfg.iterable_pin_name.clone();
-            let total_items = match inputs.get(&iterable_pin) {
-                Some(Value::Array(arr)) => arr.len(),
-                Some(_) => 1,
-                None => 0,
-            };
-
             let orch = self.clone();
             let doc_clone = doc.clone();
             let run_id_clone = run_id.clone();
@@ -73,11 +157,17 @@ impl ComponentOrchestrator {
                 let run_id = run_id_clone.clone();
                 let cancel = cancel_clone.clone();
                 let iterable_pin = iterable_pin.clone();
+                let tx_clone = item_tx.clone();
                 async move {
                     item_inputs.insert(iterable_pin, item_val);
-                    orch.execute_single(&doc, &run_id, item_inputs, Some(idx), Some(total_items), &cancel)
+                    let single_res = orch
+                        .execute_single(&doc, &run_id, item_inputs, Some(idx), Some(total_items), &cancel)
                         .await
-                        .map_err(|e| e.to_string())
+                        .map_err(|e| e.to_string())?;
+                    if let Some(tx) = tx_clone {
+                        let _ = tx.send(single_res.clone());
+                    }
+                    Ok(single_res)
                 }
             })
             .await
@@ -86,8 +176,13 @@ impl ComponentOrchestrator {
             Ok(batch_res.gathered_outputs)
         } else {
             self.quota_gate.check_and_consume(1).await?;
-            self.execute_single(&doc, &run_id, inputs, None, None, &cancel)
-                .await
+            let single_res = self
+                .execute_single(&doc, &run_id, inputs, None, None, &cancel)
+                .await?;
+            if let Some(tx) = item_tx {
+                let _ = tx.send(single_res.clone());
+            }
+            Ok(single_res)
         }
     }
 

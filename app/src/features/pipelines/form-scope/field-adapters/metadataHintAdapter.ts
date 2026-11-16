@@ -34,7 +34,7 @@ export const metadataHintAdapter: FieldAdapter = {
       };
     }
 
-    // 1.5 Local Path Picker (File / Folder)
+    // 1.5 Local Path Picker (File / Folder - supports Single and Array/Multi)
     if (rawType === "path") {
       const acceptStr = typeof ctx.hint?.accept === "string" ? ctx.hint.accept : "";
       const extensions = acceptStr
@@ -42,13 +42,24 @@ export const metadataHintAdapter: FieldAdapter = {
         .map((s: string) => s.trim().replace(/^\./, ""))
         .filter(Boolean);
 
+      const defaultVal = isArray
+        ? Array.isArray(ctx.pin.defaultValue)
+          ? ctx.pin.defaultValue.map(String)
+          : ctx.pin.defaultValue != null && ctx.pin.defaultValue !== ""
+          ? [String(ctx.pin.defaultValue)]
+          : []
+        : ctx.pin.defaultValue != null
+        ? String(ctx.pin.defaultValue)
+        : "";
+
       return {
         name: ctx.pinId,
         label: ctx.label,
         type: "pin:pathInput",
-        defaultValue: ctx.pin.defaultValue != null ? String(ctx.pin.defaultValue) : "",
+        defaultValue: defaultVal,
         properties: {
           mode: ctx.hint?.pathKind === "file" ? "file" : "folder",
+          multiple: isArray,
           defaultFolder: ctx.hint?.defaultFolder || undefined,
           extensions: extensions.length > 0 ? extensions : undefined,
           placeholder: ctx.hint?.placeholder,

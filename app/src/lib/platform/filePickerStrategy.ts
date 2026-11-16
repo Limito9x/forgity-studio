@@ -144,6 +144,43 @@ export async function openNativeFileOrFolderDialog(
 }
 
 /**
+ * Opens native Windows File or Folder Picker with multi-select enabled.
+ * Returns normalized forward-slash paths.
+ */
+export async function openNativeMultipleFilesOrFoldersDialog(
+  options: NativePickerOptions = {}
+): Promise<string[]> {
+  if (!isTauriRuntime()) {
+    throw new Error("Native file picker is only available in Tauri Desktop app");
+  }
+
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const isFolder = options.mode === "folder";
+
+  const filters =
+    !isFolder && options.extensions && options.extensions.length > 0
+      ? [
+          {
+            name: "Allowed Files",
+            extensions: options.extensions.map((ext) => ext.replace(/^\./, "")),
+          },
+        ]
+      : undefined;
+
+  const result = await open({
+    title: options.title,
+    directory: isFolder,
+    multiple: true,
+    defaultPath: options.defaultPath || undefined,
+    filters,
+  });
+
+  if (!result) return [];
+  const rawList = typeof result === "string" ? [result] : Array.isArray(result) ? result : [];
+  return rawList.map((p) => String(p).replace(/\\/g, "/")).filter(Boolean);
+}
+
+/**
  * React hook exposing strategic file picker capabilities for a given runner.
  */
 export function useFilePickerStrategy(

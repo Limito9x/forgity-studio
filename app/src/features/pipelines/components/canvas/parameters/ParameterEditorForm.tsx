@@ -141,12 +141,13 @@ export function ParameterEditorForm({
   }, [editingParam, form]);
 
   const activeContextData = useMemo<Record<string, any> | null>(() => {
-    if (watchedType !== "String" || watchedCardinality !== "Single" || watchedControlMode !== "path") {
+    if (watchedType !== "String" || watchedControlMode !== "path") {
       return null;
     }
     return {
       type: "path",
       pathKind: watchedPathKind,
+      multiple: watchedCardinality === "Array",
       defaultFolder: watchedDefaultFolder || undefined,
       accept: watchedPathKind === "file" ? watchedAccept || undefined : undefined,
     };
@@ -342,7 +343,7 @@ export function ParameterEditorForm({
         </div>
       )}
 
-      {watchedType === "String" && watchedCardinality === "Single" && activeTab !== "outputs" && (
+      {watchedType === "String" && activeTab !== "outputs" && (
         <div className="space-y-2 p-2.5 rounded-lg border bg-muted/20">
           <div className="space-y-1">
             <label className="text-[10px] font-medium text-muted-foreground block">

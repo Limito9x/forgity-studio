@@ -503,8 +503,8 @@ pub fn build_builtin_system_palette_items() -> Vec<Value> {
             "category": "Flow Control",
             "source": "BuiltIn",
             "executor": "pure",
-            "description": "Synchronizes upstream branches and merges multi-wire arrays per 1-to-1 channel (in_k -> out_k).",
-            "hasDynamicPins": true,
+            "description": "Buffers incoming items from multiple upstream branches into a single stream and flushes chunks of 'take' items whenever the downstream component is FREE.",
+            "hasDynamicPins": false,
             "isVisibleInPalette": true,
             "inputs": [
                 {
@@ -514,12 +514,22 @@ pub fn build_builtin_system_palette_items() -> Vec<Value> {
                     "isRequired": false
                 },
                 {
-                    "id": "in_1",
-                    "label": "In 1",
+                    "id": "in",
+                    "label": "Items In",
                     "kind": "Data",
                     "primitiveType": "Any",
                     "cardinality": "Array",
                     "isRequired": false
+                },
+                {
+                    "id": "take",
+                    "label": "Take Count",
+                    "kind": "Data",
+                    "primitiveType": "Number",
+                    "cardinality": "Single",
+                    "defaultValue": 10,
+                    "isRequired": false,
+                    "description": "Number of items to flush per wave when the downstream component is FREE (0 = take all once upstreams complete)."
                 }
             ],
             "outputs": [
@@ -530,21 +540,14 @@ pub fn build_builtin_system_palette_items() -> Vec<Value> {
                     "isRequired": false
                 },
                 {
-                    "id": "out_1",
-                    "label": "Out 1",
+                    "id": "out",
+                    "label": "Items Out",
                     "kind": "Data",
                     "primitiveType": "Any",
                     "cardinality": "Array",
                     "isRequired": false
                 }
-            ],
-            "capabilities": {
-                "viewVariant": "Collection",
-                "canAddPin": true,
-                "canRemovePin": true,
-                "pinAddMode": "ChannelPair",
-                "protectedPinIds": ["exec_in", "in_1"]
-            }
+            ]
         }),
     ]
 }
@@ -729,6 +732,35 @@ fn is_return_node_json(node: &Value) -> bool {
 
 /// Biên dịch danh sách Component Pipes (`*.component.yaml`) thành Palette Items (`local:component:<slug>`).
 /// Ưu tiên trích xuất pin schema từ `.forgity/snapshots/<slug>.snap.json` (giữ nguyên `primitiveType`/`cardinality`),
+fn infer_component_executor(parsed_yaml: Option<&Value>, parsed_snap: Option<&Value>) -> String {
+    if let Some(exec) = parsed_yaml
+        .and_then(|v| v.get("executor").and_then(|e| e.as_str()))
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        return exec.to_string();
+    }
+
+    let find_node_exec = |root: Option<&Value>| -> Option<String> {
+        let nodes = root?.get("nodes")?.as_array()?;
+        for n in nodes {
+            if let Some(exec) = n.get("executor").and_then(|e| e.as_str()).map(str::trim) {
+                let lower = exec.to_ascii_lowercase();
+                if !exec.is_empty()
+                    && !matches!(lower.as_str(), "builtin" | "system" | "pure" | "dotnet")
+                {
+                    return Some(exec.to_string());
+                }
+            }
+        }
+        None
+    };
+
+    find_node_exec(parsed_yaml)
+        .or_else(|| find_node_exec(parsed_snap))
+        .unwrap_or_else(|| "python".to_string())
+}
+
 /// fallback về `.component.yaml` nếu chưa có snapshot.
 pub fn build_component_palette_items(
     root_path: &Path,
@@ -768,12 +800,7 @@ pub fn build_component_palette_items(
             .unwrap_or(slug)
             .to_string();
 
-        let executor = parsed_yaml
-            .as_ref()
-            .and_then(|v| v.get("executor").and_then(|e| e.as_str()))
-            .filter(|s| !s.trim().is_empty())
-            .unwrap_or("python")
-            .to_string();
+        let executor = infer_component_executor(parsed_yaml.as_ref(), parsed_snap.as_ref());
 
         let description = parsed_yaml
             .as_ref()
@@ -887,6 +914,62 @@ pub fn load_constant_palette(root_path: String) -> Result<Vec<Value>, String> {
     Ok(build_constant_palette_items(&items))
 }
 
+pub(crate) fn discover_component_pipelines(
+    root: &Path,
+    db: Option<&WorkspaceDb>,
+) -> Vec<(String, String, String)> {
+    let mut components_by_slug: HashMap<String, (String, String, String)> = HashMap::new();
+
+    // 1. Scan disk `.component.yaml` files directly so newly added or existing files are always discovered
+    let pipelines_dir = std::fs::read_to_string(root.join(".forgity").join("workspace.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+        .and_then(|v| v.get("pipelinesDir").and_then(|d| d.as_str()).map(|s| s.to_string()))
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "pipelines".to_string());
+
+    let pipelines_folder = root.join(&pipelines_dir);
+    let scanned = super::pipeline::scan_local_pipeline_drafts(
+        pipelines_folder.to_string_lossy().to_string(),
+    );
+    for item in scanned {
+        if item.pipeline_kind.eq_ignore_ascii_case("component") {
+            let slug = item
+                .file_name
+                .trim_end_matches(".component.yaml")
+                .trim_end_matches(".component.yml")
+                .trim_end_matches(".pipeline.yaml")
+                .trim_end_matches(".pipeline.yml")
+                .trim_end_matches(".yaml")
+                .trim_end_matches(".yml")
+                .to_string();
+            if !slug.is_empty() {
+                let rel = format!(
+                    "{}/{}",
+                    pipelines_dir.trim_end_matches('/'),
+                    item.relative_path.trim_start_matches('/')
+                );
+                components_by_slug.insert(slug.clone(), (slug, item.full_path, rel));
+            }
+        }
+    }
+
+    // 2. Merge any component pipelines recorded in workspace.db
+    if let Some(db) = db {
+        if let Ok(db_comps) = db.load_component_pipelines() {
+            for (slug, full_path, relative_path) in db_comps {
+                components_by_slug
+                    .entry(slug.clone())
+                    .or_insert((slug, full_path, relative_path));
+            }
+        }
+    }
+
+    let mut components: Vec<(String, String, String)> = components_by_slug.into_values().collect();
+    components.sort_by(|a, b| a.0.cmp(&b.0));
+    components
+}
+
 #[tauri::command]
 pub fn load_workspace_node_contracts(root_path: String) -> Result<Vec<Value>, String> {
     let root = Path::new(&root_path);
@@ -901,7 +984,7 @@ pub fn load_workspace_node_contracts(root_path: String) -> Result<Vec<Value>, St
     let structs: Vec<Value> = serde_json::from_str(&structs_json).unwrap_or_default();
     palette.extend(build_struct_palette_items(&structs));
 
-    let components = db.load_component_pipelines()?;
+    let components = discover_component_pipelines(root, Some(&db));
     palette.extend(build_component_palette_items(root, &components));
 
     Ok(palette)
@@ -1054,9 +1137,11 @@ mod tests {
         assert_eq!(builtins[0]["key"], "Sequence");
         assert_eq!(builtins[0]["source"], "BuiltIn");
         assert_eq!(builtins[1]["key"], "Joint");
-        assert_eq!(builtins[1]["capabilities"]["pinAddMode"], "ChannelPair");
-        assert_eq!(builtins[1]["inputs"][1]["id"], "in_1");
-        assert_eq!(builtins[1]["outputs"][1]["id"], "out_1");
+        assert_eq!(builtins[1]["hasDynamicPins"], false);
+        assert_eq!(builtins[1]["inputs"][1]["id"], "in");
+        assert_eq!(builtins[1]["inputs"][2]["id"], "take");
+        assert_eq!(builtins[1]["inputs"][2]["defaultValue"], 10);
+        assert_eq!(builtins[1]["outputs"][1]["id"], "out");
 
         let structs = vec![json!({
             "slug": "char_info",

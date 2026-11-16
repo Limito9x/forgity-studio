@@ -104,8 +104,13 @@ fn build_execution_bundle(
     let mut raw_constants: Vec<super::node_contracts::RawConstantItem> = Vec::new();
 
     let db_file = root_path.join(".forgity").join("workspace.db");
-    if db_file.is_file() {
-        if let Ok(db) = WorkspaceDb::open(root_path) {
+    let db_opt = if db_file.is_file() {
+        WorkspaceDb::open(root_path).ok()
+    } else {
+        None
+    };
+    if let Some(ref db) = db_opt {
+        {
             // 1. Load scripts (palette_json is a JSON object { key: scriptObj } from WorkspaceDb, or an array)
             if let Ok(palette_json) = db.load_palette_json() {
                 if let Ok(parsed_palette) = serde_json::from_str::<Value>(&palette_json) {
@@ -189,21 +194,22 @@ fn build_execution_bundle(
                 raw_constants = const_items;
             }
 
-            // 3. Load component YAMLs
-            if let Ok(components) = db.load_component_pipelines() {
-                for (slug, full_path, relative_path) in components {
-                    let p_path = PathBuf::from(&full_path);
-                    let resolved = if p_path.is_file() {
-                        p_path
-                    } else {
-                        root_path.join(&relative_path)
-                    };
-                    if let Ok(yaml_str) = std::fs::read_to_string(&resolved) {
-                        if let Ok(parsed_comp) = serde_yaml::from_str::<Value>(&yaml_str) {
-                            components_map.insert(slug, parsed_comp);
-                        }
-                    }
-                }
+        }
+    }
+
+    // 3. Load component YAMLs (disk scan + workspace.db merge via SSOT discover_component_pipelines)
+    for (slug, full_path, relative_path) in
+        super::node_contracts::discover_component_pipelines(root_path, db_opt.as_ref())
+    {
+        let p_path = PathBuf::from(&full_path);
+        let resolved = if p_path.is_file() {
+            p_path
+        } else {
+            root_path.join(&relative_path)
+        };
+        if let Ok(yaml_str) = std::fs::read_to_string(&resolved) {
+            if let Ok(parsed_comp) = serde_yaml::from_str::<Value>(&yaml_str) {
+                components_map.insert(slug, parsed_comp);
             }
         }
     }

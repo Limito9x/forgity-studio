@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Save,
   RefreshCw,
@@ -70,6 +71,7 @@ interface LocalWorkspacePageProps {
 }
 
 export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
+  const queryClient = useQueryClient();
   const {
     rootPath,
     config,
@@ -485,9 +487,14 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
       pipelineSlug,
       filePath: activeDraftPipeline?.fullPath || "",
       onRunDraft: (runtimeInputs) => handleRunDraftRef.current(runtimeInputs),
-      onDraftSaved: (savedGraph) => setLoadedGraph(savedGraph),
+      onDraftSaved: (savedGraph) => {
+        setLoadedGraph(savedGraph);
+        if (rootPath) {
+          queryClient.invalidateQueries({ queryKey: ["local-node-contracts", rootPath] });
+        }
+      },
     });
-  }, [rootPath, pipelineSlug, activeDraftPipeline?.fullPath]);
+  }, [rootPath, pipelineSlug, activeDraftPipeline?.fullPath, queryClient]);
 
   const localStructCatalogue = useMemo(
     () => localStructsToCatalogue(localStructs || []),
@@ -577,7 +584,13 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
             openPipelineTab(projectId, draft);
           }}
           onOpenPalette={() => openSingletonTab(projectId, "palette")}
-          onSyncPalette={() => requestPaletteScan(projectId)}
+          onSyncPalette={() => {
+            requestPaletteScan(projectId);
+            if (rootPath) {
+              queryClient.invalidateQueries({ queryKey: ["local-node-contracts", rootPath] });
+              queryClient.invalidateQueries({ queryKey: ["local-workspace", "pipelines", rootPath] });
+            }
+          }}
           onOpenConfig={() => useDialogStore.getState().openDialog("workspace-config", { projectId })}
           onOpenConstants={() => openSingletonTab(projectId, "constants")}
           onOpenStructs={() => openSingletonTab(projectId, "structs")}

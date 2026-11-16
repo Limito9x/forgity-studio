@@ -14,6 +14,17 @@ const createRequiredStringSchema = (props: any, field?: any) => {
     : z.string().optional().nullable();
 };
 
+const createPathInputSchema = (props: any, field?: any) => {
+  const isReq = props?.required === true;
+  const msg = `${field?.label || field?.name || "This field"} is required`;
+  if (props?.multiple) {
+    return isReq
+      ? z.array(z.string(), { message: msg }).min(1, msg)
+      : z.array(z.string()).optional().nullable();
+  }
+  return createRequiredStringSchema(props, field);
+};
+
 /**
  * Sàn Registry dành riêng cho Pipeline Inspector và Pipeline Form.
  * Kế thừa toàn bộ các Form Control cơ sở (input, number, switch, select, textarea, tagsInput, keyValue, v.v.)
@@ -55,13 +66,13 @@ pipelineRegistry.register({
 pipelineRegistry.register({
   type: "pin:path",
   component: FormPinPathInput,
-  buildSchema: createRequiredStringSchema,
+  buildSchema: createPathInputSchema,
 });
 
 pipelineRegistry.register({
   type: "pin:pathInput",
   component: FormPinPathInput,
-  buildSchema: createRequiredStringSchema,
+  buildSchema: createPathInputSchema,
 });
 
 pipelineRegistry.register({

@@ -232,6 +232,11 @@ impl DagScheduler {
             .unwrap_or_default()
     }
 
+    /// Kiểm tra xem trong ready_queue có node nào đang chờ thực thi không
+    pub fn has_ready_nodes(&self) -> bool {
+        !self.ready_queue.is_empty()
+    }
+
     /// Kiểm tra xem toàn bộ đồ thị đã hoàn thành chưa
     pub fn is_completed(&self) -> bool {
         self.completed_nodes.len() == self.nodes_state.len()

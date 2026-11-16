@@ -319,11 +319,13 @@ export function RunPipelineModal({
     });
 
     additionalMissingInputs.forEach((input) => {
-      defaults[`${input.nodeId}.${input.pinId}`] = "";
+      const key = `${input.nodeId}.${input.pinId}`;
+      const f = missingFields.find((field) => field.name === key);
+      defaults[key] = f?.properties?.multiple || f?.type === "tagsInput" ? [] : "";
     });
 
     return defaults;
-  }, [pipelineInputs, startFields, additionalMissingInputs]);
+  }, [pipelineInputs, startFields, additionalMissingInputs, missingFields]);
 
   const form = useForm<any>({
     resolver: zodResolver(validationSchema as any),
