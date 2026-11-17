@@ -52,12 +52,45 @@ public class AddTemplateToLibraryEndpoint(PipelineDbContext db)
 
         if (existing is null)
         {
+            Guid? profileId = req.ConstantProfileId;
+            ConstantProfile? createdProfile = null;
+
+            if (!profileId.HasValue)
+            {
+                var envValues = new Dictionary<string, object?>();
+                if (pkg.ContainerManifestJson.RootElement.TryGetProperty("constants", out var constArr)
+                    && constArr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    foreach (var item in constArr.EnumerateArray())
+                    {
+                        if (item.TryGetProperty("key", out var keyProp) || item.TryGetProperty("Key", out keyProp))
+                        {
+                            var key = keyProp.GetString();
+                            if (!string.IsNullOrWhiteSpace(key))
+                            {
+                                envValues[key] = "";
+                            }
+                        }
+                    }
+                }
+
+                createdProfile = new ConstantProfile
+                {
+                    OwnerUserId = ownerUserId,
+                    Name = $"{pkg.Title} (.env)",
+                    ValuesJson = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(envValues)),
+                };
+                db.ConstantProfiles.Add(createdProfile);
+                profileId = createdProfile.Id;
+            }
+
             existing = new TemplateLibraryItem
             {
                 TemplatePackageId = templatePackageId,
                 OwnerUserId = ownerUserId,
                 MachineKey = machineKey,
-                ConstantProfileId = req.ConstantProfileId,
+                ConstantProfileId = profileId,
+                ConstantProfile = createdProfile,
                 UsedRuns = 0,
                 MaxRuns = pkg.DefaultQuotaLimit,
                 PeriodKey = "lifetime",
@@ -86,9 +119,8 @@ public class AddTemplateToLibraryEndpoint(PipelineDbContext db)
                 existing.MaxRuns,
                 remaining,
                 existing.AddedAt,
-                pkg.PrimaryMasterVersion?.ContractsJson,
-                CloudTemplateClaimHelper.ExtractRootPipeline(pkg.PrimaryMasterVersion),
-                pkg.ContainerManifestJson
+                [],
+                CloudTemplateClaimHelper.ExtractConstants(pkg.ContainerManifestJson)
             ),
             ct
         );

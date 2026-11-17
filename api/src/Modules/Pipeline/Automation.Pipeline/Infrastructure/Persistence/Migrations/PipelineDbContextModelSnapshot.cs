@@ -51,7 +51,7 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("ProjectId")
+                    b.Property<Guid?>("ProjectId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Slug")
@@ -65,6 +65,9 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
 
                     b.ToTable("Pipelines", "pipeline");
                 });
@@ -104,6 +107,52 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("ConstantProfiles", "pipeline");
+                });
+
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineScript", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Executor")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<JsonDocument>("RequirementsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("ScriptHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SourceCode")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key", "ScriptHash")
+                        .IsUnique();
+
+                    b.ToTable("PipelineScripts", "pipeline");
                 });
 
             modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineScriptArtifact", b =>
@@ -166,6 +215,10 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ContractsHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<JsonDocument>("ContractsJson")
                         .IsRequired()
                         .HasColumnType("jsonb");
@@ -209,6 +262,21 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                     b.HasIndex("PipelineId");
 
                     b.ToTable("PipelineVersions", "pipeline");
+                });
+
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineVersionScript", b =>
+                {
+                    b.Property<Guid>("PipelineVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PipelineScriptId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("PipelineVersionId", "PipelineScriptId");
+
+                    b.HasIndex("PipelineScriptId");
+
+                    b.ToTable("PipelineVersionScripts", "pipeline");
                 });
 
             modelBuilder.Entity("Automation.Pipeline.Domain.Entities.ProjectPipelineView", b =>
@@ -312,6 +380,9 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Category")
                         .IsRequired()
                         .HasColumnType("text");
@@ -342,9 +413,15 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("SupersedesId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<long>("TotalAssetBytes")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -352,11 +429,36 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                     b.Property<string>("UpdatedBy")
                         .HasColumnType("text");
 
+                    b.Property<int>("VersionNumber")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("PrimaryMasterVersionId");
 
                     b.ToTable("TemplatePackages", "pipeline");
+                });
+
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.TemplatePackageMember", b =>
+                {
+                    b.Property<Guid>("TemplatePackageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PipelineVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("TemplatePackageId", "PipelineVersionId");
+
+                    b.HasIndex("PipelineVersionId");
+
+                    b.ToTable("TemplatePackageMembers", "pipeline");
                 });
 
             modelBuilder.Entity("Wolverine.EntityFrameworkCore.Internals.IncomingMessage", b =>
@@ -473,6 +575,25 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                     b.Navigation("Pipeline");
                 });
 
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineVersionScript", b =>
+                {
+                    b.HasOne("Automation.Pipeline.Domain.Entities.PipelineScript", "PipelineScript")
+                        .WithMany("VersionScripts")
+                        .HasForeignKey("PipelineScriptId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Automation.Pipeline.Domain.Entities.PipelineVersion", "PipelineVersion")
+                        .WithMany("VersionScripts")
+                        .HasForeignKey("PipelineVersionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PipelineScript");
+
+                    b.Navigation("PipelineVersion");
+                });
+
             modelBuilder.Entity("Automation.Pipeline.Domain.Entities.ProjectPipelineView", b =>
                 {
                     b.HasOne("Automation.Pipeline.Domain.Entities.PipelineVersion", "PinnedVersion")
@@ -520,14 +641,45 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                     b.Navigation("PrimaryMasterVersion");
                 });
 
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.TemplatePackageMember", b =>
+                {
+                    b.HasOne("Automation.Pipeline.Domain.Entities.PipelineVersion", "PipelineVersion")
+                        .WithMany()
+                        .HasForeignKey("PipelineVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Automation.Pipeline.Domain.Entities.TemplatePackage", "TemplatePackage")
+                        .WithMany("Members")
+                        .HasForeignKey("TemplatePackageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PipelineVersion");
+
+                    b.Navigation("TemplatePackage");
+                });
+
             modelBuilder.Entity("Automation.Pipeline.Domain.Entities.CloudPipeline", b =>
                 {
                     b.Navigation("Versions");
                 });
 
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineScript", b =>
+                {
+                    b.Navigation("VersionScripts");
+                });
+
             modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineVersion", b =>
                 {
                     b.Navigation("ScriptArtifacts");
+
+                    b.Navigation("VersionScripts");
+                });
+
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.TemplatePackage", b =>
+                {
+                    b.Navigation("Members");
                 });
 #pragma warning restore 612, 618
         }

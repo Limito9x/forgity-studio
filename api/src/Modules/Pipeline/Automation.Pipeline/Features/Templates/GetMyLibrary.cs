@@ -53,11 +53,8 @@ public class GetMyLibraryEndpoint(PipelineDbContext db)
                     x.MaxRuns,
                     remaining,
                     x.AddedAt,
-                    x.TemplatePackage.PrimaryMasterVersion?.ContractsJson,
-                    CloudTemplateClaimHelper.ExtractRootPipeline(
-                        x.TemplatePackage.PrimaryMasterVersion
-                    ),
-                    x.TemplatePackage.ContainerManifestJson
+                    [],
+                    []
                 );
             })
             .ToList();

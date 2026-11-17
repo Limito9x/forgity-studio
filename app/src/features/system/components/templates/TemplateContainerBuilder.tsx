@@ -10,6 +10,9 @@ import {
   FileCode,
   FolderArchive,
   Save,
+  RefreshCw,
+  AlertTriangle,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -24,15 +27,21 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useCreateTemplateContainer } from "@/gen/endpoints/templates/templates";
+import { useIngestCloudDataManifest } from "@/gen/endpoints/cloud-data/cloud-data";
 import { useLocalWorkspaceConfig, useLocalPipelinesQuery } from "@/features/pipelines/hooks/workspace";
 import type { ScannedPipelineYamlItemRust } from "@/features/pipelines/types/workspaceConfig";
+import {
+  useTemplateDependencyScan,
+  type TemplateDependencyManifest,
+  type ManifestDiagnostic,
+} from "../../hooks/useTemplateDependencyScan";
 
 interface TemplateItemSelect {
   id: string;
   slug: string;
   name: string;
-  filePath?: string;
-  engine?: string;
+  relativePath: string;
+  graphHash?: string;
 }
 
 interface ConstantConfigItem {
@@ -49,12 +58,15 @@ interface ScriptItem {
   id: string;
   name: string;
   path: string;
+  executor: string;
+  contentHash: string;
 }
 
 interface AssetItem {
   name: string;
   relativePath?: string;
   sizeBytes?: number;
+  hash?: string;
 }
 
 interface TemplateContainerBuilderProps {
@@ -67,9 +79,11 @@ export function TemplateContainerBuilder({
   onSuccess,
 }: TemplateContainerBuilderProps) {
   const createContainerMutation = useCreateTemplateContainer();
+  const ingestManifestMutation = useIngestCloudDataManifest();
+  const scanMutation = useTemplateDependencyScan();
 
-  // Root workspace & local scanned pipelines
-  const { rootPath, config } = useLocalWorkspaceConfig("global");
+  // Root workspace & local scanned pipelines (dùng chung key "local-default" với Local Workspace)
+  const { rootPath, config } = useLocalWorkspaceConfig("local-default");
   const { masterPipelines: localMasters, componentPipes: localComponents } =
     useLocalPipelinesQuery(rootPath, config?.pipelinesDir);
 
@@ -83,7 +97,9 @@ export function TemplateContainerBuilder({
   const [masterPipelines, setMasterPipelines] = useState<TemplateItemSelect[]>([]);
   const [components, setComponents] = useState<TemplateItemSelect[]>([]);
 
-  // 3-Column Bottom State (Rỗng mặc định, trích xuất từ pipeline thật hoặc thêm thủ công)
+  // Scanned Manifest & 3-Column Bottom State (100% từ Rust Scanner)
+  const [lastManifest, setLastManifest] = useState<TemplateDependencyManifest | null>(null);
+  const [diagnostics, setDiagnostics] = useState<ManifestDiagnostic[]>([]);
   const [constants, setConstants] = useState<ConstantConfigItem[]>([]);
   const [scripts, setScripts] = useState<ScriptItem[]>([]);
   const [assets, setAssets] = useState<AssetItem[]>([]);
@@ -91,102 +107,149 @@ export function TemplateContainerBuilder({
   // Dialog State for adding items
   const [pickerModal, setPickerModal] = useState<"master" | "component" | null>(null);
 
-  // Available local pipelines parsed from disk
   const availableMasters = useMemo(() => {
     const list = localMasters || [];
-    const selectedIds = new Set(masterPipelines.map((m) => m.slug));
-    return list.filter((p: ScannedPipelineYamlItemRust) => !selectedIds.has(p.relativePath));
+    const selectedPaths = new Set(masterPipelines.map((m) => m.relativePath));
+    return list.filter((p: ScannedPipelineYamlItemRust) => !selectedPaths.has(p.relativePath));
   }, [localMasters, masterPipelines]);
 
   const availableComponents = useMemo(() => {
     const list = localComponents || [];
-    const selectedIds = new Set(components.map((c) => c.slug));
-    return list.filter((c: ScannedPipelineYamlItemRust) => !selectedIds.has(c.relativePath));
+    const selectedPaths = new Set(components.map((c) => c.relativePath));
+    return list.filter((c: ScannedPipelineYamlItemRust) => !selectedPaths.has(c.relativePath));
   }, [localComponents, components]);
 
-  const extractDependenciesFromYaml = (yamlContent?: string) => {
-    if (!yamlContent) return;
-
-    // Trích xuất script paths (ví dụ: script: blender/export.py hoặc .py)
-    const scriptMatches = Array.from(
-      yamlContent.matchAll(/([a-zA-Z0-9_\-/\\]+\.py)\b/g)
-    ).map((m) => m[1].replace(/\\/g, "/"));
-
-    if (scriptMatches.length > 0) {
-      setScripts((prev) => {
-        const existingPaths = new Set(prev.map((s) => s.path));
-        const added: ScriptItem[] = [];
-        for (const p of scriptMatches) {
-          if (!existingPaths.has(p)) {
-            existingPaths.add(p);
-            added.push({
-              id: p,
-              name: p.split("/").pop() || p,
-              path: p,
-            });
-          }
-        }
-        return added.length > 0 ? [...prev, ...added] : prev;
-      });
+  const runDependencyScan = async (rootPipelinePaths: string[]) => {
+    if (!rootPath || rootPipelinePaths.length === 0) {
+      setLastManifest(null);
+      setDiagnostics([]);
+      setComponents([]);
+      setConstants([]);
+      setScripts([]);
+      setAssets([]);
+      return;
     }
 
-    // Trích xuất constant references (${constants.KEY} hoặc constants.KEY)
-    const constMatches = Array.from(
-      yamlContent.matchAll(/constants\.([a-zA-Z0-9_]+)/g)
-    ).map((m) => m[1]);
-
-    if (constMatches.length > 0) {
-      setConstants((prev) => {
-        const existingKeys = new Set(prev.map((c) => c.key));
-        const added: ConstantConfigItem[] = [];
-        for (const key of constMatches) {
-          if (!existingKeys.has(key)) {
-            existingKeys.add(key);
-            added.push({
-              key,
-              label: key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
-              dataType: "string",
-              scope: "project",
-              isRequired: true,
-              defaultValue: "",
-            });
-          }
-        }
-        return added.length > 0 ? [...prev, ...added] : prev;
+    try {
+      const manifest = await scanMutation.mutateAsync({
+        rootPath,
+        rootPipelinePaths,
+        persist: true,
       });
+
+      setLastManifest(manifest);
+      setDiagnostics(manifest.diagnostics || []);
+
+      // Đồng bộ Master & Component từ manifest
+      setMasterPipelines(
+        manifest.pipelines
+          .filter((p) => p.kind === "master")
+          .map((p) => ({
+            id: p.slug,
+            slug: p.slug,
+            name: p.slug,
+            relativePath: p.relativePath,
+            graphHash: p.graphHash,
+          }))
+      );
+
+      setComponents(
+        manifest.pipelines
+          .filter((p) => p.kind === "component")
+          .map((p) => ({
+            id: p.slug,
+            slug: p.slug,
+            name: p.slug,
+            relativePath: p.relativePath,
+            graphHash: p.graphHash,
+          }))
+      );
+
+      setConstants(
+        manifest.constants.map((c) => ({
+          key: c.key,
+          label: c.key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
+          dataType: c.dataType || "String",
+          scope: c.scope || "General",
+          isRequired: true,
+          defaultValue: c.valueJson,
+        }))
+      );
+
+      setScripts(
+        manifest.scripts.map((s) => ({
+          id: s.key,
+          name: s.key.split("/").pop() || s.key,
+          path: s.key,
+          executor: s.executor,
+          contentHash: s.contentHash,
+        }))
+      );
+
+      setAssets(
+        manifest.assets.map((a) => ({
+          name: a.name,
+          relativePath: a.relativePath,
+          sizeBytes: a.sizeBytes,
+          hash: a.hash,
+        }))
+      );
+
+      if (manifest.totals.errorCount > 0) {
+        toast.warning(`Scan completed with ${manifest.totals.errorCount} error(s).`);
+      } else {
+        toast.success(
+          `Scanned ${manifest.totals.masterCount} master, ${manifest.totals.componentCount} components, ${manifest.totals.scriptCount} scripts.`
+        );
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to scan template dependencies");
     }
   };
 
-  const handleAddMaster = (item: ScannedPipelineYamlItemRust) => {
-    const displayName = item.fileName.replace(/\.(pipeline|component)\.ya?ml$/i, "");
-    setMasterPipelines((prev) => [
-      ...prev,
-      { id: item.relativePath, slug: item.relativePath, name: displayName, filePath: item.fullPath },
-    ]);
-    extractDependenciesFromYaml(item.content);
+  const handleAddMaster = async (item: ScannedPipelineYamlItemRust) => {
+    const nextPaths = Array.from(
+      new Set([...masterPipelines.map((m) => m.relativePath), item.relativePath])
+    );
+    await runDependencyScan(nextPaths);
   };
 
-  const handleRemoveMaster = (slug: string) => {
-    setMasterPipelines((prev) => prev.filter((m) => m.slug !== slug));
+  const handleRemoveMaster = async (relativePath: string) => {
+    const nextPaths = masterPipelines
+      .filter((m) => m.relativePath !== relativePath)
+      .map((m) => m.relativePath);
+    await runDependencyScan(nextPaths);
   };
 
   const handleAddComponent = (item: ScannedPipelineYamlItemRust) => {
     const displayName = item.fileName.replace(/\.(pipeline|component)\.ya?ml$/i, "");
     setComponents((prev) => [
       ...prev,
-      { id: item.relativePath, slug: item.relativePath, name: displayName, filePath: item.fullPath },
+      { id: item.relativePath, slug: displayName, name: displayName, relativePath: item.relativePath },
     ]);
-    extractDependenciesFromYaml(item.content);
   };
 
   const handleRemoveComponent = (slug: string) => {
     setComponents((prev) => prev.filter((c) => c.slug !== slug));
   };
 
-  // Constant management
   const handleToggleRequired = (index: number) => {
     setConstants((prev) =>
       prev.map((c, i) => (i === index ? { ...c, isRequired: !c.isRequired } : c))
+    );
+  };
+
+  const handleToggleClearValue = (index: number) => {
+    setConstants((prev) =>
+      prev.map((c, i) =>
+        i === index
+          ? {
+              ...c,
+              defaultValue: c.defaultValue ? "" : c.defaultValue,
+              isRequired: true,
+            }
+          : c
+      )
     );
   };
 
@@ -194,57 +257,106 @@ export function TemplateContainerBuilder({
     setConstants((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleAddConstant = () => {
-    const key = `custom_constant_${constants.length + 1}`;
-    setConstants((prev) => [
-      ...prev,
-      {
-        key,
-        label: `Custom Constant ${prev.length + 1}`,
-        dataType: "string",
-        scope: "job",
-        isRequired: true,
-        defaultValue: "",
-      },
-    ]);
-  };
-
-  // Script management
   const handleRemoveScript = (id: string) => {
     setScripts((prev) => prev.filter((s) => s.id !== id));
   };
 
-  const handleAddScript = () => {
-    const name = prompt("Enter script relative path (e.g. unreal/custom_task.py):");
-    if (!name?.trim()) return;
-    setScripts((prev) => [
-      ...prev,
-      { id: String(Date.now()), name: name.trim().split("/").pop() || name.trim(), path: name.trim() },
-    ]);
-  };
-
-  // Asset management
   const handleRemoveAsset = (index: number) => {
     setAssets((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleAddAsset = () => {
-    const name = prompt("Enter asset filename (e.g. starter_template.zip):");
-    if (!name?.trim()) return;
-    setAssets((prev) => [
-      ...prev,
-      { name: name.trim(), relativePath: `Content/${name.trim()}`, sizeBytes: 1024 * 1024 },
-    ]);
-  };
+  const isBusy =
+    scanMutation.isPending ||
+    ingestManifestMutation.isPending ||
+    createContainerMutation.isPending;
 
-  // Packaging and submit
+  // Packaging: Phase 1 (Ingest Cloud Data Pool) -> Phase 2 (Create Template Container)
   const handlePackageTemplate = async () => {
     if (!templateName.trim()) {
       toast.error("Please enter a Template Name.");
       return;
     }
 
+    if (!lastManifest || masterPipelines.length === 0) {
+      toast.error("Please select at least one Master Pipeline and scan dependencies first.");
+      return;
+    }
+
     try {
+      const { invoke } = await import("@tauri-apps/api/core");
+
+      // Lấy snapshot graph thật cho từng pipeline từ SQLite local
+      const graphs = await Promise.all(
+        lastManifest.pipelines.map(async (p) => {
+          let dagBundleJson: Record<string, any> = {};
+          let contractsJson: Record<string, any> = {};
+          try {
+            const snapshotStr = await invoke<string | null>("load_local_pipeline_snapshot", {
+              rootPath: lastManifest.rootPath,
+              pipelineSlug: p.slug,
+            });
+            if (snapshotStr) {
+              const parsed = JSON.parse(snapshotStr);
+              dagBundleJson = parsed;
+              if (parsed?.contracts) {
+                contractsJson = parsed.contracts;
+              }
+            }
+          } catch {
+            // Fallback nếu chưa có snapshot
+          }
+          return {
+            slug: p.slug,
+            graphHash: p.graphHash,
+            dagBundleJson,
+            contractsJson,
+          };
+        })
+      );
+
+      // 1. Ingest canonical pipelines & scripts into Unified Cloud Data Pool
+      const ingestRes = await ingestManifestMutation.mutateAsync({
+        data: {
+          manifest: {
+            rootPath: lastManifest.rootPath,
+            pipelines: lastManifest.pipelines.map((p) => ({
+              slug: p.slug,
+              kind: p.kind,
+              relativePath: p.relativePath,
+              graphSource: p.graphSource,
+              graphHash: p.graphHash,
+              dependsOn: p.dependsOn,
+              scriptKeys: p.scriptKeys,
+            })),
+            scripts: lastManifest.scripts.map((s) => ({
+              key: s.key,
+              executor: s.executor,
+              contentHash: s.contentHash,
+              sourceCode: s.sourceCode,
+              requirements: s.requirements,
+              usedBy: s.usedBy,
+            })),
+          },
+          graphs,
+        },
+      });
+
+      const versionIdsBySlug = ingestRes.versionIdsBySlug || {};
+      const scriptIdsByKey = ingestRes.scriptIdsByKey || {};
+
+      const masterVersionIds = masterPipelines
+        .map((m) => versionIdsBySlug[m.slug])
+        .filter((id): id is string => Boolean(id));
+
+      const componentVersionIds = components
+        .map((c) => versionIdsBySlug[c.slug])
+        .filter((id): id is string => Boolean(id));
+
+      const scriptArtifactIds = scripts
+        .map((s) => scriptIdsByKey[s.path])
+        .filter((id): id is string => Boolean(id));
+
+      // 2. Create Template Container referencing ingested PipelineVersions
       await createContainerMutation.mutateAsync({
         data: {
           templateId: null,
@@ -252,9 +364,9 @@ export function TemplateContainerBuilder({
           description: description.trim() || null,
           category: category.trim() || null,
           defaultQuotaLimit: dailyQuotaLimit ? Number(dailyQuotaLimit) : 20,
-          masterVersionIds: [],
-          componentVersionIds: [],
-          scriptArtifactIds: [],
+          masterVersionIds,
+          componentVersionIds,
+          scriptArtifactIds,
           constants: constants.map((c) => ({
             key: c.key,
             label: c.label,
@@ -268,13 +380,13 @@ export function TemplateContainerBuilder({
             relativePath: a.relativePath || null,
             belongsToNodeId: null,
             belongsToPinId: null,
-            sizeBytes: a.sizeBytes || null,
+            sizeBytes: a.sizeBytes ?? null,
           })),
           paletteNodesJson: null as any,
         },
       });
 
-      toast.success(`Template Container "${templateName}" packaged successfully!`);
+      toast.success(`Template Container "${templateName}" packaged & published!`);
       onSuccess();
     } catch (err: any) {
       toast.error(err?.message || "Failed to package template container");
@@ -305,19 +417,56 @@ export function TemplateContainerBuilder({
         </div>
 
         <div className="flex items-center gap-2">
+          {masterPipelines.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onPress={() => runDependencyScan(masterPipelines.map((m) => m.relativePath))}
+              isDisabled={isBusy}
+              className="h-8 gap-1.5 text-xs cursor-pointer"
+            >
+              <RefreshCw className={`size-3.5 ${scanMutation.isPending ? "animate-spin" : ""}`} />
+              <span>Re-scan</span>
+            </Button>
+          )}
           <Button
             size="sm"
             onPress={handlePackageTemplate}
-            isDisabled={createContainerMutation.isPending}
+            isDisabled={isBusy || masterPipelines.length === 0}
             className="h-8 gap-2 text-xs font-medium cursor-pointer"
           >
             <Save className="size-3.5" />
-            <span>{createContainerMutation.isPending ? "Packaging..." : "Package & Publish Container"}</span>
+            <span>
+              {ingestManifestMutation.isPending
+                ? "Ingesting Data..."
+                : createContainerMutation.isPending
+                  ? "Packaging..."
+                  : "Package & Publish Container"}
+            </span>
           </Button>
         </div>
       </div>
 
-      {/* Main Scaffold Container matching Excalidraw Sketch */}
+      {/* Diagnostics Banner */}
+      {diagnostics.length > 0 && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 space-y-1.5">
+          {diagnostics.map((d, idx) => (
+            <div key={idx} className="flex items-center gap-2 text-xs">
+              {d.level === "error" ? (
+                <AlertCircle className="size-4 text-destructive shrink-0" />
+              ) : (
+                <AlertTriangle className="size-4 text-amber-500 shrink-0" />
+              )}
+              <Badge variant="outline" className="text-[10px] font-mono">
+                {d.code}
+              </Badge>
+              <span className="text-foreground">{d.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Main Scaffold Container */}
       <div className="rounded-xl border border-border/80 bg-card/60 p-6 shadow-sm space-y-6">
         {/* 1. Template Name Section */}
         <div className="space-y-2">
@@ -344,7 +493,7 @@ export function TemplateContainerBuilder({
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Daily Quota Limit</Label>
+            <Label className="text-xs text-muted-foreground">Quota Limit</Label>
             <Input
               type="number"
               value={dailyQuotaLimit}
@@ -355,7 +504,7 @@ export function TemplateContainerBuilder({
           </div>
         </div>
 
-        {/* 2. Master Pipelines Section (+ Cards) */}
+        {/* 2. Master Pipelines Section */}
         <div className="space-y-2.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -370,6 +519,7 @@ export function TemplateContainerBuilder({
               variant="outline"
               size="sm"
               onPress={() => setPickerModal("master")}
+              isDisabled={isBusy}
               className="h-7 text-xs gap-1.5 border-dashed cursor-pointer"
             >
               <Plus className="size-3.5" />
@@ -380,21 +530,23 @@ export function TemplateContainerBuilder({
           <div className="min-h-24 rounded-lg border border-border/70 bg-background/50 p-3 flex flex-wrap gap-3 items-center">
             {masterPipelines.length === 0 ? (
               <div className="w-full text-center py-4 text-xs text-muted-foreground">
-                No master pipeline added yet. Click <strong>+ Add Master Pipeline</strong> to select.
+                No master pipeline added yet. Click <strong>+ Add Master Pipeline</strong> to scan dependencies.
               </div>
             ) : (
               masterPipelines.map((m) => (
                 <div
-                  key={m.slug}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-md border border-border bg-card shadow-xs group"
+                  key={m.relativePath}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-md border border-border bg-card shadow-xs"
                 >
                   <Workflow className="size-4 text-primary" />
                   <div className="text-left">
                     <div className="text-xs font-semibold leading-tight">{m.name}</div>
-                    <div className="text-[10px] text-muted-foreground font-mono">{m.slug}</div>
+                    <div className="text-[10px] text-muted-foreground font-mono">
+                      {m.graphHash ? `#${m.graphHash.slice(0, 8)}` : m.relativePath}
+                    </div>
                   </div>
                   <button
-                    onClick={() => handleRemoveMaster(m.slug)}
+                    onClick={() => handleRemoveMaster(m.relativePath)}
                     className="text-muted-foreground hover:text-destructive p-0.5 rounded transition-colors"
                   >
                     <X className="size-3.5" />
@@ -405,7 +557,7 @@ export function TemplateContainerBuilder({
           </div>
         </div>
 
-        {/* 3. Components Section (+ Cards) */}
+        {/* 3. Components Section */}
         <div className="space-y-2.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -420,6 +572,7 @@ export function TemplateContainerBuilder({
               variant="outline"
               size="sm"
               onPress={() => setPickerModal("component")}
+              isDisabled={isBusy}
               className="h-7 text-xs gap-1.5 border-dashed cursor-pointer"
             >
               <Plus className="size-3.5" />
@@ -430,18 +583,20 @@ export function TemplateContainerBuilder({
           <div className="min-h-24 rounded-lg border border-border/70 bg-background/50 p-3 flex flex-wrap gap-3 items-center">
             {components.length === 0 ? (
               <div className="w-full text-center py-4 text-xs text-muted-foreground">
-                No component pipes attached. Click <strong>+ Add Component</strong> to include child pipes.
+                Components are auto-discovered when you select a Master Pipeline.
               </div>
             ) : (
               components.map((c) => (
                 <div
                   key={c.slug}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-md border border-border bg-card shadow-xs group"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-md border border-border bg-card shadow-xs"
                 >
                   <Layers className="size-4 text-amber-500" />
                   <div className="text-left">
                     <div className="text-xs font-semibold leading-tight">{c.name}</div>
-                    <div className="text-[10px] text-muted-foreground font-mono">{c.slug}</div>
+                    <div className="text-[10px] text-muted-foreground font-mono">
+                      {c.graphHash ? `#${c.graphHash.slice(0, 8)}` : c.relativePath}
+                    </div>
                   </div>
                   <button
                     onClick={() => handleRemoveComponent(c.slug)}
@@ -464,59 +619,78 @@ export function TemplateContainerBuilder({
                 <div className="flex items-center gap-1.5">
                   <KeyRound className="size-3.5 text-amber-500" />
                   <span className="text-xs font-mono font-semibold uppercase text-foreground">
-                    Constant Configure
+                    Constant Configure ({constants.length})
                   </span>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onPress={handleAddConstant}
-                  className="h-6 w-6 text-muted-foreground hover:text-foreground cursor-pointer"
-                >
-                  <Plus className="size-3.5" />
-                </Button>
               </div>
 
-              <div className="space-y-2.5">
-                {constants.map((c, idx) => (
-                  <div
-                    key={c.key}
-                    className="rounded-md border border-border/60 bg-card p-2.5 text-xs space-y-1.5 shadow-xs"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-foreground flex items-center gap-1">
-                        {c.label}
-                        {c.isRequired && <span className="text-amber-500 font-bold">*</span>}
-                      </span>
-                      <button
-                        onClick={() => handleRemoveConstant(idx)}
-                        className="text-muted-foreground hover:text-destructive p-0.5"
-                      >
-                        <X className="size-3" />
-                      </button>
+              {constants.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-4 text-center">
+                  No constants detected yet.
+                </p>
+              ) : (
+                <div className="space-y-2.5">
+                  {constants.map((c, idx) => (
+                    <div
+                      key={c.key}
+                      className="rounded-md border border-border/60 bg-card p-2.5 text-xs space-y-1.5 shadow-xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-foreground flex items-center gap-1">
+                          {c.label}
+                          {c.isRequired && <span className="text-amber-500 font-bold">*</span>}
+                        </span>
+                        <button
+                          onClick={() => handleRemoveConstant(idx)}
+                          className="text-muted-foreground hover:text-destructive p-0.5"
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </div>
+                      <div className="text-[10px] font-mono text-muted-foreground truncate">
+                        {c.key} ({c.scope})
+                      </div>
+                      {c.defaultValue ? (
+                        <div className="text-[10px] font-mono text-emerald-500/90 bg-emerald-500/10 px-1.5 py-0.5 rounded truncate">
+                          Keep: {c.defaultValue}
+                        </div>
+                      ) : (
+                        <div className="text-[10px] font-mono text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                          Cleared — User must input
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between pt-1 gap-1">
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleRequired(idx)}
+                            className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                              c.isRequired
+                                ? "bg-amber-500/10 text-amber-500 font-semibold"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {c.isRequired ? "Priority *" : "Optional"}
+                          </button>
+                          {c.defaultValue && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleClearValue(idx)}
+                              title="Clear value so user must input this constant"
+                              className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
+                            >
+                              Clear value
+                            </button>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground uppercase font-mono">
+                          {c.dataType}
+                        </span>
+                      </div>
                     </div>
-                    <div className="text-[10px] font-mono text-muted-foreground truncate">
-                      {c.key} ({c.scope})
-                    </div>
-                    <div className="flex items-center justify-between pt-1">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleRequired(idx)}
-                        className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                          c.isRequired
-                            ? "bg-amber-500/10 text-amber-500 font-semibold"
-                            : "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {c.isRequired ? "Required *" : "Optional"}
-                      </button>
-                      <span className="text-[10px] text-muted-foreground uppercase font-mono">
-                        {c.dataType}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <p className="text-[10px] text-muted-foreground pt-2 border-t border-border/40">
@@ -531,45 +705,45 @@ export function TemplateContainerBuilder({
                 <div className="flex items-center gap-1.5">
                   <FileCode className="size-3.5 text-sky-500" />
                   <span className="text-xs font-mono font-semibold uppercase text-foreground">
-                    Scripts
+                    Scripts ({scripts.length})
                   </span>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onPress={handleAddScript}
-                  className="h-6 w-6 text-muted-foreground hover:text-foreground cursor-pointer"
-                >
-                  <Plus className="size-3.5" />
-                </Button>
               </div>
 
-              <div className="space-y-2">
-                {scripts.map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex items-center justify-between rounded-md border border-border/60 bg-card p-2 text-xs shadow-xs"
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      <FileCode className="size-3.5 text-muted-foreground shrink-0" />
-                      <div className="truncate">
-                        <div className="font-medium truncate">{s.name}</div>
-                        <div className="text-[10px] font-mono text-muted-foreground truncate">{s.path}</div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleRemoveScript(s.id)}
-                      className="text-muted-foreground hover:text-destructive p-0.5 shrink-0 ml-1"
+              {scripts.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-4 text-center">
+                  No scripts detected yet.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {scripts.map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex items-center justify-between rounded-md border border-border/60 bg-card p-2 text-xs shadow-xs"
                     >
-                      <X className="size-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+                      <div className="flex items-center gap-2 truncate">
+                        <FileCode className="size-3.5 text-muted-foreground shrink-0" />
+                        <div className="truncate">
+                          <div className="font-medium truncate">{s.name}</div>
+                          <div className="text-[10px] font-mono text-muted-foreground truncate">
+                            {s.path} · {s.executor}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveScript(s.id)}
+                        className="text-muted-foreground hover:text-destructive p-0.5 shrink-0 ml-1"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <p className="text-[10px] text-muted-foreground pt-2 border-t border-border/40">
-              Python and DCC scripts packaged into immutable container artifact.
+              Content-addressed scripts ingested into Cloud Data Pool.
             </p>
           </div>
 
@@ -580,45 +754,45 @@ export function TemplateContainerBuilder({
                 <div className="flex items-center gap-1.5">
                   <FolderArchive className="size-3.5 text-emerald-500" />
                   <span className="text-xs font-mono font-semibold uppercase text-foreground">
-                    Assets
+                    Assets ({assets.length})
                   </span>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onPress={handleAddAsset}
-                  className="h-6 w-6 text-muted-foreground hover:text-foreground cursor-pointer"
-                >
-                  <Plus className="size-3.5" />
-                </Button>
               </div>
 
-              <div className="space-y-2">
-                {assets.map((a, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between rounded-md border border-border/60 bg-card p-2 text-xs shadow-xs"
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      <FolderArchive className="size-3.5 text-muted-foreground shrink-0" />
-                      <div className="truncate">
-                        <div className="font-medium truncate">{a.name}</div>
-                        <div className="text-[10px] font-mono text-muted-foreground truncate">{a.relativePath}</div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleRemoveAsset(idx)}
-                      className="text-muted-foreground hover:text-destructive p-0.5 shrink-0 ml-1"
+              {assets.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-4 text-center">
+                  No assets detected yet.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {assets.map((a, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between rounded-md border border-border/60 bg-card p-2 text-xs shadow-xs"
                     >
-                      <X className="size-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+                      <div className="flex items-center gap-2 truncate">
+                        <FolderArchive className="size-3.5 text-muted-foreground shrink-0" />
+                        <div className="truncate">
+                          <div className="font-medium truncate">{a.name}</div>
+                          <div className="text-[10px] font-mono text-muted-foreground truncate">
+                            {a.relativePath} {a.sizeBytes ? `(${(a.sizeBytes / 1024).toFixed(1)} KB)` : ""}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveAsset(idx)}
+                        className="text-muted-foreground hover:text-destructive p-0.5 shrink-0 ml-1"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <p className="text-[10px] text-muted-foreground pt-2 border-t border-border/40">
-              Starter packages and Unreal/Blender binary assets bundled.
+              Verified workspace assets with SHA-256 & byte size.
             </p>
           </div>
         </div>
@@ -641,7 +815,7 @@ export function TemplateContainerBuilder({
             )}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Choose from pipelines scanned in your local workspace or draft registry.
+            Choose from pipelines scanned in your local workspace.
           </DialogDescription>
         </DialogHeader>
 
@@ -656,8 +830,8 @@ export function TemplateContainerBuilder({
                 <div
                   key={m.relativePath}
                   onClick={() => {
-                    handleAddMaster(m);
                     setPickerModal(null);
+                    handleAddMaster(m);
                   }}
                   className="flex items-center justify-between p-2.5 rounded-lg border border-border hover:bg-accent/50 cursor-pointer transition-colors text-xs"
                 >

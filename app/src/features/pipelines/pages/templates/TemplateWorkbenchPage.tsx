@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, KeyRound, Play, AlertTriangle } from "lucide-react";
+import { ArrowLeft, KeyRound, Play, AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,10 +9,8 @@ import { useDispatchCloudBundle } from "@/gen/endpoints/pipelines/pipelines";
 import { PipelineCanvas } from "../../components/canvas/PipelineCanvas";
 import { RunPipelineModal } from "../../dialogs/RunPipelineModal";
 import { ConstantProfileEditorDrawer } from "../../components/templates/ConstantProfileEditorDrawer";
-import {
-  extractConstantFields,
-  templateRootToPipelineGraphDto,
-} from "../../adapters/templateGraphAdapter";
+import { TemplateOutliner } from "../../components/templates/TemplateOutliner";
+import { useTemplateGraph } from "../../hooks/useTemplateGraph";
 import { isTauriRuntime } from "@/lib/platform/filePickerStrategy";
 
 interface TemplateWorkbenchPageProps {
@@ -30,21 +28,27 @@ export function TemplateWorkbenchPage({
 
   const [isConstantDrawerOpen, setIsConstantDrawerOpen] = useState(false);
   const [isRunModalOpen, setIsRunModalOpen] = useState(false);
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
 
-  const graph = useMemo(() => {
-    if (!item) return null;
-    return templateRootToPipelineGraphDto(
-      item.id,
-      item.title,
-      item.rootPipelineJson,
-      item.contractsJson
-    );
-  }, [item]);
+  useEffect(() => {
+    if (!item) return;
+    if (selectedVersionId && item.members.some((m) => m.pipelineVersionId === selectedVersionId)) {
+      return;
+    }
+    const firstMaster = item.members.find((m) => m.role === "master");
+    const initial =
+      item.primaryMasterVersionId ||
+      firstMaster?.pipelineVersionId ||
+      item.members[0]?.pipelineVersionId ||
+      null;
+    setSelectedVersionId(initial);
+  }, [item, selectedVersionId]);
 
-  const constantFields = useMemo(
-    () => (item ? extractConstantFields(item.contractsJson) : []),
-    [item]
-  );
+  const { graph, isLoading: isGraphLoading } = useTemplateGraph(selectedVersionId);
+  const constantFields = (item?.constants || []).map((c) => ({
+    ...c,
+    description: c.description ?? undefined,
+  }));
 
   const isExhausted =
     item?.maxRuns != null && (item.remainingRuns ?? 0) <= 0;
@@ -154,15 +158,33 @@ export function TemplateWorkbenchPage({
         </div>
       </div>
 
-      {/* Read-Only Canvas with Live Execution Tracking */}
-      <div className="flex-1 overflow-hidden">
-        <PipelineCanvas
-          projectId="cloud-template"
-          graph={graph}
-          paletteItems={(item.contractsJson as any)?.nodes || []}
-          readOnly
-          onRequestRun={() => setIsRunModalOpen(true)}
+      {/* Outliner + Read-Only Canvas with Live Execution Tracking */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        <TemplateOutliner
+          members={item.members}
+          selectedVersionId={selectedVersionId}
+          onSelect={setSelectedVersionId}
         />
+
+        <div className="flex-1 min-w-0 min-h-0">
+          {isGraphLoading ? (
+            <div className="flex h-full items-center justify-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              <span>Loading pipeline graph...</span>
+            </div>
+          ) : graph ? (
+            <PipelineCanvas
+              projectId="cloud-template"
+              graph={graph as any}
+              readOnly
+              onRequestRun={() => setIsRunModalOpen(true)}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+              Select a Master Pipeline or Component from the left outliner.
+            </div>
+          )}
+        </div>
       </div>
 
       <ConstantProfileEditorDrawer
@@ -180,7 +202,7 @@ export function TemplateWorkbenchPage({
         projectId="cloud-template"
         nodes={[]}
         edges={[]}
-        parameters={graph.parameters || []}
+        parameters={graph?.parameters || []}
         isOpen={isRunModalOpen}
         onClose={() => setIsRunModalOpen(false)}
         isLocalMode={true}

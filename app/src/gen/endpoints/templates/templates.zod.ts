@@ -23,9 +23,7 @@ export const GetCloudTemplatesResponseItem = /*#__PURE__*/ zod.object({
   "usedRuns": /*#__PURE__*/ zod.int(),
   "isAddedToLibrary": /*#__PURE__*/ zod.boolean(),
   "libraryItemId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
-  "contractsJson": /*#__PURE__*/ zod.unknown(),
-  "rootPipelineJson": /*#__PURE__*/ zod.unknown(),
-  "containerManifestJson": /*#__PURE__*/ zod.unknown()
+  "versionNumber": /*#__PURE__*/ zod.int()
 })
 export const GetCloudTemplatesResponse = /*#__PURE__*/ zod.array(GetCloudTemplatesResponseItem)
 
@@ -94,6 +92,59 @@ export const CreateTemplateContainerResponse = /*#__PURE__*/ zod.object({
 })
 
 /**
+ * @summary Get Template Package Container details including relational members and manifest
+ */
+export const GetTemplateContainerByIdParams = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid()
+})
+
+export const GetTemplateContainerByIdResponse = /*#__PURE__*/ zod.object({
+  "templatePackageId": /*#__PURE__*/ zod.uuid(),
+  "title": /*#__PURE__*/ zod.string(),
+  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "category": /*#__PURE__*/ zod.string(),
+  "versionNumber": /*#__PURE__*/ zod.int(),
+  "supersedesId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "archivedAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
+  "totalAssetBytes": /*#__PURE__*/ zod.int(),
+  "defaultQuotaLimit": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
+  "primaryMasterVersionId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "members": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "pipelineVersionId": /*#__PURE__*/ zod.uuid(),
+  "slug": /*#__PURE__*/ zod.string(),
+  "pipelineKind": /*#__PURE__*/ zod.string(),
+  "versionNumber": /*#__PURE__*/ zod.int(),
+  "graphHash": /*#__PURE__*/ zod.string(),
+  "role": /*#__PURE__*/ zod.string(),
+  "sortOrder": /*#__PURE__*/ zod.int()
+})),
+  "constants": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "key": /*#__PURE__*/ zod.string(),
+  "label": /*#__PURE__*/ zod.string(),
+  "dataType": /*#__PURE__*/ zod.string(),
+  "scope": /*#__PURE__*/ zod.string(),
+  "isRequired": /*#__PURE__*/ zod.boolean(),
+  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+})),
+  "containerManifestJson": /*#__PURE__*/ zod.unknown(),
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
+})
+
+/**
+ * @summary Publish a new immutable version of a Template Package Container and archive the previous version
+ */
+export const PublishTemplateContainerParams = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid()
+})
+
+export const PublishTemplateContainerResponse = /*#__PURE__*/ zod.object({
+  "newTemplatePackageId": /*#__PURE__*/ zod.uuid(),
+  "previousTemplatePackageId": /*#__PURE__*/ zod.uuid(),
+  "versionNumber": /*#__PURE__*/ zod.int(),
+  "title": /*#__PURE__*/ zod.string()
+})
+
+/**
  * @summary List all subscribed templates in user's library
  */
 export const GetMyLibraryResponseItem = /*#__PURE__*/ zod.object({
@@ -110,9 +161,23 @@ export const GetMyLibraryResponseItem = /*#__PURE__*/ zod.object({
   "maxRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
   "remainingRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
   "addedAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
-  "contractsJson": /*#__PURE__*/ zod.unknown(),
-  "rootPipelineJson": /*#__PURE__*/ zod.unknown(),
-  "containerManifestJson": /*#__PURE__*/ zod.unknown()
+  "members": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "pipelineVersionId": /*#__PURE__*/ zod.uuid(),
+  "slug": /*#__PURE__*/ zod.string(),
+  "pipelineKind": /*#__PURE__*/ zod.string(),
+  "versionNumber": /*#__PURE__*/ zod.int(),
+  "graphHash": /*#__PURE__*/ zod.string(),
+  "role": /*#__PURE__*/ zod.string(),
+  "sortOrder": /*#__PURE__*/ zod.int()
+})),
+  "constants": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "key": /*#__PURE__*/ zod.string(),
+  "label": /*#__PURE__*/ zod.string(),
+  "dataType": /*#__PURE__*/ zod.string(),
+  "scope": /*#__PURE__*/ zod.string(),
+  "isRequired": /*#__PURE__*/ zod.boolean(),
+  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+}))
 })
 export const GetMyLibraryResponse = /*#__PURE__*/ zod.array(GetMyLibraryResponseItem)
 
@@ -137,9 +202,23 @@ export const GetMyLibraryItemResponse = /*#__PURE__*/ zod.object({
   "maxRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
   "remainingRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
   "addedAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
-  "contractsJson": /*#__PURE__*/ zod.unknown(),
-  "rootPipelineJson": /*#__PURE__*/ zod.unknown(),
-  "containerManifestJson": /*#__PURE__*/ zod.unknown()
+  "members": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "pipelineVersionId": /*#__PURE__*/ zod.uuid(),
+  "slug": /*#__PURE__*/ zod.string(),
+  "pipelineKind": /*#__PURE__*/ zod.string(),
+  "versionNumber": /*#__PURE__*/ zod.int(),
+  "graphHash": /*#__PURE__*/ zod.string(),
+  "role": /*#__PURE__*/ zod.string(),
+  "sortOrder": /*#__PURE__*/ zod.int()
+})),
+  "constants": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "key": /*#__PURE__*/ zod.string(),
+  "label": /*#__PURE__*/ zod.string(),
+  "dataType": /*#__PURE__*/ zod.string(),
+  "scope": /*#__PURE__*/ zod.string(),
+  "isRequired": /*#__PURE__*/ zod.boolean(),
+  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+}))
 })
 
 /**
@@ -167,9 +246,23 @@ export const UpdateLibraryConstantProfileResponse = /*#__PURE__*/ zod.object({
   "maxRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
   "remainingRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
   "addedAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
-  "contractsJson": /*#__PURE__*/ zod.unknown(),
-  "rootPipelineJson": /*#__PURE__*/ zod.unknown(),
-  "containerManifestJson": /*#__PURE__*/ zod.unknown()
+  "members": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "pipelineVersionId": /*#__PURE__*/ zod.uuid(),
+  "slug": /*#__PURE__*/ zod.string(),
+  "pipelineKind": /*#__PURE__*/ zod.string(),
+  "versionNumber": /*#__PURE__*/ zod.int(),
+  "graphHash": /*#__PURE__*/ zod.string(),
+  "role": /*#__PURE__*/ zod.string(),
+  "sortOrder": /*#__PURE__*/ zod.int()
+})),
+  "constants": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "key": /*#__PURE__*/ zod.string(),
+  "label": /*#__PURE__*/ zod.string(),
+  "dataType": /*#__PURE__*/ zod.string(),
+  "scope": /*#__PURE__*/ zod.string(),
+  "isRequired": /*#__PURE__*/ zod.boolean(),
+  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+}))
 })
 
 /**
@@ -200,8 +293,22 @@ export const AddTemplateToLibraryResponse = /*#__PURE__*/ zod.object({
   "maxRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
   "remainingRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
   "addedAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
-  "contractsJson": /*#__PURE__*/ zod.unknown(),
-  "rootPipelineJson": /*#__PURE__*/ zod.unknown(),
-  "containerManifestJson": /*#__PURE__*/ zod.unknown()
+  "members": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "pipelineVersionId": /*#__PURE__*/ zod.uuid(),
+  "slug": /*#__PURE__*/ zod.string(),
+  "pipelineKind": /*#__PURE__*/ zod.string(),
+  "versionNumber": /*#__PURE__*/ zod.int(),
+  "graphHash": /*#__PURE__*/ zod.string(),
+  "role": /*#__PURE__*/ zod.string(),
+  "sortOrder": /*#__PURE__*/ zod.int()
+})),
+  "constants": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "key": /*#__PURE__*/ zod.string(),
+  "label": /*#__PURE__*/ zod.string(),
+  "dataType": /*#__PURE__*/ zod.string(),
+  "scope": /*#__PURE__*/ zod.string(),
+  "isRequired": /*#__PURE__*/ zod.boolean(),
+  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+}))
 })
 

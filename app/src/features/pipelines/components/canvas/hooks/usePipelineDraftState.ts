@@ -274,7 +274,11 @@ export function usePipelineDraftState(
   // Flush any pending unsaved changes immediately when unmounting (e.g., switching tabs)
   useEffect(() => {
     return () => {
-      if (isDirtyRef.current && !isAutoSavingRef.current) {
+      if (
+        isDirtyRef.current &&
+        !isAutoSavingRef.current &&
+        typeof storageRef.current?.saveDraft === "function"
+      ) {
         isDirtyRef.current = false;
         const currentGraph = buildCurrentGraphDto();
         void storageRef.current.saveDraft(graphRef.current.id, currentGraph);

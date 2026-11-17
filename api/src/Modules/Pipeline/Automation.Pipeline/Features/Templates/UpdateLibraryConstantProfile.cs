@@ -75,11 +75,8 @@ public class UpdateLibraryConstantProfileEndpoint(PipelineDbContext db)
                 item.MaxRuns,
                 remaining,
                 item.AddedAt,
-                item.TemplatePackage.PrimaryMasterVersion?.ContractsJson,
-                CloudTemplateClaimHelper.ExtractRootPipeline(
-                    item.TemplatePackage.PrimaryMasterVersion
-                ),
-                item.TemplatePackage.ContainerManifestJson
+                [],
+                []
             ),
             ct
         );

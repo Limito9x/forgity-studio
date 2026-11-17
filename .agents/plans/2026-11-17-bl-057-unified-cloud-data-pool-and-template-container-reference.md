@@ -2,7 +2,7 @@
 
 - **Mã Backlog**: `BL-057`
 - **Ngày lập**: 17/11/2026
-- **Trạng thái**: `Master Plan: Approved` — `Phase 0: MVP Plan sẵn sàng code`
+- **Trạng thái**: `Master Plan: Approved` — `Phase 0: Đã triển khai (chờ review)` — `Phase 1: sẵn sàng code`
 - **Tài liệu kiến trúc nền tảng**:
   - [ADR-006: Local-First Script Authoring & Ephemeral Draft](file:///d:/FullStack/Automation/docs/adr/ADR-006-local-first-script-authoring-and-ephemeral-draft-lifecycle.md)
   - [ADR-007: Two-Tier Pipeline & Local SQLite Index](file:///d:/FullStack/Automation/docs/adr/ADR-007-two-tier-component-master-pipeline-and-local-sqlite-index.md)
@@ -155,7 +155,7 @@
 4. **Phase 3** — Builder UI theo sketch.
 5. **Phase 4** — Dispatch/Consume (tách BL-058 nếu cần).
 
-> **Review Gate**: Master Plan đã duyệt. Phase 0 đã chốt quyết định, chờ duyệt bắt đầu code.
+> **Review Gate**: Master Plan đã duyệt. Phase 0 đã triển khai xong (20 unit + 10 integration test xanh; `cargo build`/`cargo check` Tauri xanh; workspace thật `daz_to_unreal`: 1 master + 4 component + 11 script + 3 asset, `errorCount=0`). Chờ review để bắt đầu Phase 1.
 
 ---
 

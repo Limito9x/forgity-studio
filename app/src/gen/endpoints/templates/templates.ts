@@ -29,6 +29,8 @@ import type {
   CreateTemplateContainerResponse,
   ListOfCloudTemplateSummaryDto,
   ListOfTemplateLibraryItemDto,
+  PublishTemplateContainerResponse,
+  TemplateContainerDetailDto,
   TemplateLibraryItemDto,
   UpdateLibraryConstantProfileRequest,
 } from "../../model";
@@ -445,6 +447,242 @@ export const useCreateTemplateContainer = <TError = void, TContext = unknown>(
 > => {
   return useMutation(
     getCreateTemplateContainerMutationOptions(options),
+    queryClient,
+  );
+};
+/**
+ * @summary Get Template Package Container details including relational members and manifest
+ */
+export const getTemplateContainerById = (id: string, signal?: AbortSignal) => {
+  return customInstance<TemplateContainerDetailDto>({
+    url: `/api/templates/containers/${id}`,
+    method: "GET",
+    signal,
+  });
+};
+
+export const getGetTemplateContainerByIdQueryKey = (id: string) => {
+  return [`/api/templates/containers/${id}`] as const;
+};
+
+export const getGetTemplateContainerByIdQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTemplateContainerById>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTemplateContainerById>>,
+        TError,
+        TData
+      >
+    >;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetTemplateContainerByIdQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getTemplateContainerById>>
+  > = ({ signal }) => getTemplateContainerById(id, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: id !== null && id !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTemplateContainerById>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetTemplateContainerByIdQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTemplateContainerById>>
+>;
+export type GetTemplateContainerByIdQueryError = void;
+
+export function useGetTemplateContainerById<
+  TData = Awaited<ReturnType<typeof getTemplateContainerById>>,
+  TError = void,
+>(
+  id: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTemplateContainerById>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTemplateContainerById>>,
+          TError,
+          Awaited<ReturnType<typeof getTemplateContainerById>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetTemplateContainerById<
+  TData = Awaited<ReturnType<typeof getTemplateContainerById>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTemplateContainerById>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTemplateContainerById>>,
+          TError,
+          Awaited<ReturnType<typeof getTemplateContainerById>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetTemplateContainerById<
+  TData = Awaited<ReturnType<typeof getTemplateContainerById>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTemplateContainerById>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary Get Template Package Container details including relational members and manifest
+ */
+
+export function useGetTemplateContainerById<
+  TData = Awaited<ReturnType<typeof getTemplateContainerById>>,
+  TError = void,
+>(
+  id: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTemplateContainerById>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetTemplateContainerByIdQueryOptions(id, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * @summary Publish a new immutable version of a Template Package Container and archive the previous version
+ */
+export const publishTemplateContainer = (id: string, signal?: AbortSignal) => {
+  return customInstance<PublishTemplateContainerResponse>({
+    url: `/api/templates/containers/${id}/publish`,
+    method: "POST",
+    signal,
+  });
+};
+
+export const getPublishTemplateContainerMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof publishTemplateContainer>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof publishTemplateContainer>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["publishTemplateContainer"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof publishTemplateContainer>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return publishTemplateContainer(id);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PublishTemplateContainerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof publishTemplateContainer>>
+>;
+
+export type PublishTemplateContainerMutationError = void;
+
+/**
+ * @summary Publish a new immutable version of a Template Package Container and archive the previous version
+ */
+export const usePublishTemplateContainer = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof publishTemplateContainer>>,
+      TError,
+      { id: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof publishTemplateContainer>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(
+    getPublishTemplateContainerMutationOptions(options),
     queryClient,
   );
 };

@@ -5,7 +5,6 @@
  * Digital Content Creation Automation Studio Engine & API
  * OpenAPI spec version: 1.0.0
  */
-import type { JsonDocument } from "./jsonDocument";
 
 export interface CloudTemplateSummaryDto {
   templatePackageId: string;
@@ -24,7 +23,5 @@ export interface CloudTemplateSummaryDto {
   isAddedToLibrary: boolean;
   /** @nullable */
   libraryItemId: string | null;
-  contractsJson: JsonDocument;
-  rootPipelineJson: JsonDocument;
-  containerManifestJson: JsonDocument;
+  versionNumber: number;
 }

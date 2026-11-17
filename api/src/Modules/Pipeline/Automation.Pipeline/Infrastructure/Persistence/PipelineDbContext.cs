@@ -13,8 +13,11 @@ public class PipelineDbContext : DbContext
     public DbSet<CloudPipeline> Pipelines => Set<CloudPipeline>();
     public DbSet<PipelineVersion> PipelineVersions => Set<PipelineVersion>();
     public DbSet<PipelineScriptArtifact> PipelineScriptArtifacts => Set<PipelineScriptArtifact>();
+    public DbSet<PipelineScript> PipelineScripts => Set<PipelineScript>();
+    public DbSet<PipelineVersionScript> PipelineVersionScripts => Set<PipelineVersionScript>();
     public DbSet<ProjectPipelineView> ProjectPipelineViews => Set<ProjectPipelineView>();
     public DbSet<TemplatePackage> TemplatePackages => Set<TemplatePackage>();
+    public DbSet<TemplatePackageMember> TemplatePackageMembers => Set<TemplatePackageMember>();
     public DbSet<TemplateLibraryItem> TemplateLibraryItems => Set<TemplateLibraryItem>();
     public DbSet<ConstantProfile> ConstantProfiles => Set<ConstantProfile>();
 
@@ -27,11 +30,57 @@ public class PipelineDbContext : DbContext
         modelBuilder.Entity<CloudPipeline>().ToTable("Pipelines");
 
         modelBuilder
+            .Entity<CloudPipeline>()
+            .HasIndex(x => x.Slug)
+            .IsUnique();
+
+        modelBuilder
+            .Entity<PipelineScript>()
+            .HasIndex(x => new { x.Key, x.ScriptHash })
+            .IsUnique();
+
+        modelBuilder
+            .Entity<PipelineVersionScript>()
+            .HasKey(x => new { x.PipelineVersionId, x.PipelineScriptId });
+
+        modelBuilder
+            .Entity<PipelineVersionScript>()
+            .HasOne(x => x.PipelineVersion)
+            .WithMany(v => v.VersionScripts)
+            .HasForeignKey(x => x.PipelineVersionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder
+            .Entity<PipelineVersionScript>()
+            .HasOne(x => x.PipelineScript)
+            .WithMany(s => s.VersionScripts)
+            .HasForeignKey(x => x.PipelineScriptId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder
             .Entity<TemplatePackage>()
             .HasOne(x => x.PrimaryMasterVersion)
             .WithMany()
             .HasForeignKey(x => x.PrimaryMasterVersionId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder
+            .Entity<TemplatePackageMember>()
+            .HasKey(x => new { x.TemplatePackageId, x.PipelineVersionId });
+
+        modelBuilder
+            .Entity<TemplatePackageMember>()
+            .HasOne(x => x.TemplatePackage)
+            .WithMany(p => p.Members)
+            .HasForeignKey(x => x.TemplatePackageId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder
+            .Entity<TemplatePackageMember>()
+            .HasOne(x => x.PipelineVersion)
+            .WithMany()
+            .HasForeignKey(x => x.PipelineVersionId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder
             .Entity<TemplateLibraryItem>()

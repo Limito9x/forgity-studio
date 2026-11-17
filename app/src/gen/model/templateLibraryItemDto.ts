@@ -5,7 +5,8 @@
  * Digital Content Creation Automation Studio Engine & API
  * OpenAPI spec version: 1.0.0
  */
-import type { JsonDocument } from "./jsonDocument";
+import type { ListOfTemplateConstantDeclarationDto } from "./listOfTemplateConstantDeclarationDto";
+import type { ListOfTemplateContainerMemberDto } from "./listOfTemplateContainerMemberDto";
 
 export interface TemplateLibraryItemDto {
   id: string;
@@ -27,7 +28,6 @@ export interface TemplateLibraryItemDto {
   /** @nullable */
   remainingRuns: number | null;
   addedAt: string;
-  contractsJson: JsonDocument;
-  rootPipelineJson: JsonDocument;
-  containerManifestJson: JsonDocument;
+  members: ListOfTemplateContainerMemberDto;
+  constants: ListOfTemplateConstantDeclarationDto;
 }

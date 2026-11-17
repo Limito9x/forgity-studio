@@ -20,7 +20,6 @@ import {
   useGetCloudTemplates,
   useAddTemplateToLibrary,
 } from "@/gen/endpoints/templates/templates";
-import { extractConstantFields } from "../../adapters/templateGraphAdapter";
 
 export function TemplatesCatalogPage({ machineKey = "local-workstation" }: { machineKey?: string }) {
   const navigate = useNavigate();
@@ -129,11 +128,6 @@ export function TemplatesCatalogPage({ machineKey = "local-workstation" }: { mac
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((tpl) => {
-            const nodeCount = Array.isArray((tpl.rootPipelineJson as any)?.nodes)
-              ? (tpl.rootPipelineJson as any).nodes.length
-              : 0;
-            const constCount = extractConstantFields(tpl.contractsJson).length;
-
             return (
               <Card key={tpl.templatePackageId} className="flex flex-col justify-between border-border/70">
                 <CardHeader className="space-y-2">
@@ -148,13 +142,13 @@ export function TemplatesCatalogPage({ machineKey = "local-workstation" }: { mac
 
                 <CardContent className="space-y-3">
                   <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-1">
+                    <span className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-1 font-mono">
                       <Workflow className="h-3.5 w-3.5" />
-                      {nodeCount} nodes
+                      v{tpl.versionNumber}
                     </span>
                     <span className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-1">
                       <KeyRound className="h-3.5 w-3.5" />
-                      {constCount} constants
+                      {tpl.quotaStrategy}
                     </span>
                     {tpl.defaultQuotaLimit != null && (
                       <span className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-1">

@@ -57,9 +57,7 @@ public class GetCloudTemplatesEndpoint(PipelineDbContext db)
                     used,
                     libItem is not null,
                     libItem?.Id,
-                    t.PrimaryMasterVersion?.ContractsJson,
-                    CloudTemplateClaimHelper.ExtractRootPipeline(t.PrimaryMasterVersion),
-                    t.ContainerManifestJson
+                    t.VersionNumber
                 );
             })
             .ToList();

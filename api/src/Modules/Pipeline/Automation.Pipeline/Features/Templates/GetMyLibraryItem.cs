@@ -24,12 +24,41 @@ public class GetMyLibraryItemEndpoint(PipelineDbContext db)
             .Include(i => i.ConstantProfile)
             .Include(i => i.TemplatePackage)
                 .ThenInclude(t => t.PrimaryMasterVersion)
+            .Include(i => i.TemplatePackage)
+                .ThenInclude(t => t.Members)
+                    .ThenInclude(m => m.PipelineVersion)
             .FirstOrDefaultAsync(i => i.Id == libraryItemId && i.OwnerUserId == ownerUserId, ct);
 
         if (x is null)
         {
             await Send.NotFoundAsync(ct);
             return;
+        }
+
+        var members = x.TemplatePackage.Members
+            .OrderBy(m => m.SortOrder)
+            .Select(m => new TemplateContainerMemberDto(
+                m.PipelineVersionId,
+                m.PipelineVersion.Slug,
+                m.PipelineVersion.PipelineKind,
+                m.PipelineVersion.VersionNumber,
+                m.PipelineVersion.GraphHash,
+                m.Role,
+                m.SortOrder
+            ))
+            .ToList();
+
+        if (members.Count == 0 && x.TemplatePackage.PrimaryMasterVersion is not null)
+        {
+            members.Add(new TemplateContainerMemberDto(
+                x.TemplatePackage.PrimaryMasterVersion.Id,
+                x.TemplatePackage.PrimaryMasterVersion.Slug,
+                x.TemplatePackage.PrimaryMasterVersion.PipelineKind,
+                x.TemplatePackage.PrimaryMasterVersion.VersionNumber,
+                x.TemplatePackage.PrimaryMasterVersion.GraphHash,
+                "master",
+                0
+            ));
         }
 
         var remaining = x.MaxRuns.HasValue ? Math.Max(0, x.MaxRuns.Value - x.UsedRuns) : (int?)null;
@@ -49,11 +78,8 @@ public class GetMyLibraryItemEndpoint(PipelineDbContext db)
                 x.MaxRuns,
                 remaining,
                 x.AddedAt,
-                x.TemplatePackage.PrimaryMasterVersion?.ContractsJson,
-                CloudTemplateClaimHelper.ExtractRootPipeline(
-                    x.TemplatePackage.PrimaryMasterVersion
-                ),
-                x.TemplatePackage.ContainerManifestJson
+                members,
+                CloudTemplateClaimHelper.ExtractConstants(x.TemplatePackage.ContainerManifestJson)
             ),
             ct
         );

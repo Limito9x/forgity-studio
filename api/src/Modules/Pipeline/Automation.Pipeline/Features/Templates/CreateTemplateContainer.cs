@@ -60,15 +60,31 @@ public class CreateTemplateContainerEndpoint(PipelineDbContext db)
 
     public override async Task HandleAsync(CreateTemplateContainerRequest req, CancellationToken ct)
     {
-        Guid? primaryMasterVerId = req.MasterVersionIds.Count > 0 ? req.MasterVersionIds[0] : null;
-        PipelineVersion? primaryMaster = null;
+        var allRequestedVersionIds = req.MasterVersionIds
+            .Concat(req.ComponentVersionIds)
+            .Distinct()
+            .ToList();
 
-        if (primaryMasterVerId.HasValue)
+        var existingVersions = await db.PipelineVersions
+            .Include(v => v.Pipeline)
+            .Where(v => allRequestedVersionIds.Contains(v.Id))
+            .ToDictionaryAsync(v => v.Id, ct);
+
+        var missingIds = allRequestedVersionIds
+            .Where(id => !existingVersions.ContainsKey(id))
+            .ToList();
+
+        if (missingIds.Count > 0)
         {
-            primaryMaster = await db.PipelineVersions
-                .Include(v => v.Pipeline)
-                .FirstOrDefaultAsync(v => v.Id == primaryMasterVerId.Value, ct);
+            ThrowError($"Invalid PipelineVersionIds: {string.Join(", ", missingIds)}");
         }
+
+        Guid? primaryMasterVerId = req.MasterVersionIds.Count > 0 ? req.MasterVersionIds[0] : null;
+        PipelineVersion? primaryMaster = primaryMasterVerId.HasValue
+            ? existingVersions.GetValueOrDefault(primaryMasterVerId.Value)
+            : null;
+
+        var totalAssetBytes = req.Assets.Sum(a => a.SizeBytes ?? 0);
 
         var manifestObj = new
         {
@@ -84,7 +100,9 @@ public class CreateTemplateContainerEndpoint(PipelineDbContext db)
         TemplatePackage? pkg = null;
         if (req.TemplateId.HasValue)
         {
-            pkg = await db.TemplatePackages.FirstOrDefaultAsync(x => x.Id == req.TemplateId.Value, ct);
+            pkg = await db.TemplatePackages
+                .Include(x => x.Members)
+                .FirstOrDefaultAsync(x => x.Id == req.TemplateId.Value, ct);
         }
 
         var resolvedTitle = !string.IsNullOrWhiteSpace(req.Title)
@@ -102,6 +120,8 @@ public class CreateTemplateContainerEndpoint(PipelineDbContext db)
                 IsPublic = true,
                 QuotaStrategy = "PerComponentRun",
                 DefaultQuotaLimit = req.DefaultQuotaLimit,
+                VersionNumber = 1,
+                TotalAssetBytes = totalAssetBytes,
                 ContainerManifestJson = manifestDoc
             };
             db.TemplatePackages.Add(pkg);
@@ -113,7 +133,40 @@ public class CreateTemplateContainerEndpoint(PipelineDbContext db)
             pkg.Description = req.Description;
             pkg.Category = string.IsNullOrWhiteSpace(req.Category) ? "General" : req.Category.Trim();
             pkg.DefaultQuotaLimit = req.DefaultQuotaLimit;
+            pkg.TotalAssetBytes = totalAssetBytes;
             pkg.ContainerManifestJson = manifestDoc;
+            db.TemplatePackageMembers.RemoveRange(pkg.Members);
+            pkg.Members.Clear();
+        }
+
+        int sortOrder = 0;
+        var addedVersionIds = new HashSet<Guid>();
+        foreach (var masterId in req.MasterVersionIds)
+        {
+            if (addedVersionIds.Add(masterId))
+            {
+                pkg.Members.Add(new TemplatePackageMember
+                {
+                    TemplatePackage = pkg,
+                    PipelineVersionId = masterId,
+                    Role = "master",
+                    SortOrder = sortOrder++
+                });
+            }
+        }
+
+        foreach (var compId in req.ComponentVersionIds)
+        {
+            if (addedVersionIds.Add(compId))
+            {
+                pkg.Members.Add(new TemplatePackageMember
+                {
+                    TemplatePackage = pkg,
+                    PipelineVersionId = compId,
+                    Role = "component",
+                    SortOrder = sortOrder++
+                });
+            }
         }
 
         await db.SaveChangesAsync(ct);

@@ -16,9 +16,7 @@ public record CloudTemplateSummaryDto(
     int UsedRuns,
     bool IsAddedToLibrary,
     Guid? LibraryItemId,
-    JsonDocument? ContractsJson,
-    JsonDocument? RootPipelineJson,
-    JsonDocument ContainerManifestJson
+    int VersionNumber
 );
 
 public record TemplateLibraryItemDto(
@@ -35,9 +33,8 @@ public record TemplateLibraryItemDto(
     int? MaxRuns,
     int? RemainingRuns,
     DateTimeOffset AddedAt,
-    JsonDocument? ContractsJson,
-    JsonDocument? RootPipelineJson,
-    JsonDocument ContainerManifestJson
+    List<TemplateContainerMemberDto> Members,
+    List<TemplateConstantDeclarationDto> Constants
 );
 
 public static class CloudTemplateClaimHelper
@@ -47,6 +44,35 @@ public static class CloudTemplateClaimHelper
         var userIdStr =
             user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub");
         return Guid.TryParse(userIdStr, out var parsed) ? parsed : Guid.Empty;
+    }
+
+    public static List<TemplateConstantDeclarationDto> ExtractConstants(JsonDocument manifest)
+    {
+        var result = new List<TemplateConstantDeclarationDto>();
+        if (manifest.RootElement.TryGetProperty("constants", out var arr) && arr.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in arr.EnumerateArray())
+            {
+                var key = item.TryGetProperty("key", out var k) || item.TryGetProperty("Key", out k) ? k.GetString() : null;
+                if (string.IsNullOrWhiteSpace(key)) continue;
+
+                var label = item.TryGetProperty("label", out var l) || item.TryGetProperty("Label", out l) ? l.GetString() : key;
+                var dataType = item.TryGetProperty("dataType", out var dt) || item.TryGetProperty("DataType", out dt) ? dt.GetString() : "String";
+                var scope = item.TryGetProperty("scope", out var sc) || item.TryGetProperty("Scope", out sc) ? sc.GetString() : "General";
+                var isRequired = (item.TryGetProperty("isRequired", out var req) || item.TryGetProperty("IsRequired", out req)) && req.ValueKind == JsonValueKind.True;
+                var desc = item.TryGetProperty("description", out var d) || item.TryGetProperty("Description", out d) ? d.GetString() : null;
+
+                result.Add(new TemplateConstantDeclarationDto(
+                    key,
+                    label ?? key,
+                    dataType ?? "String",
+                    scope ?? "General",
+                    isRequired,
+                    desc
+                ));
+            }
+        }
+        return result;
     }
 
     public static JsonDocument? ExtractRootPipeline(PipelineVersion? version)
