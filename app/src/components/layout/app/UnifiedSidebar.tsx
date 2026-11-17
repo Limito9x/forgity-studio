@@ -8,6 +8,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
@@ -456,46 +457,43 @@ export function UnifiedSidebar() {
                             </SidebarMenuButton>
 
                             {/* Dropdown Menu ... */}
-                            <div className="absolute right-1 top-1.5 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                              <DropdownMenuTrigger>
-                                <button
-                                  type="button"
-                                  className="flex h-5 w-5 items-center justify-center rounded hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-muted-foreground"
-                                  title="Workspace Options"
+                            <DropdownMenuTrigger>
+                              <SidebarMenuAction
+                                showOnHover
+                                aria-label="Workspace Options"
+                              >
+                                <MoreHorizontal className="size-3.5" />
+                              </SidebarMenuAction>
+                              <DropdownMenu placement="bottom end" className="w-44 text-xs">
+                                <DropdownMenuItem
+                                  onAction={() =>
+                                    navigate({
+                                      to: "/workspaces/$workspaceId" as any,
+                                      params: { workspaceId: ws.id } as any,
+                                    })
+                                  }
                                 >
-                                  <MoreHorizontal className="size-3.5" />
-                                </button>
-                                <DropdownMenu placement="bottom end" className="w-44 text-xs">
-                                  <DropdownMenuItem
-                                    onAction={() =>
-                                      navigate({
-                                        to: "/workspaces/$workspaceId" as any,
-                                        params: { workspaceId: ws.id } as any,
-                                      })
-                                    }
-                                  >
-                                    <ExternalLink className="size-3.5 mr-2" />
-                                    <span>Open Workspace</span>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onAction={() => revealInExplorer(ws.rootPath)}>
-                                    <FolderOpen className="size-3.5 mr-2" />
-                                    <span>Reveal in Explorer</span>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onAction={() => handleCopyPath(ws.rootPath)}>
-                                    <Copy className="size-3.5 mr-2" />
-                                    <span>Copy Path</span>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onAction={() => removeWorkspace(ws.id)}
-                                    className="text-destructive focus:text-destructive"
-                                  >
-                                    <Trash2 className="size-3.5 mr-2" />
-                                    <span>Remove from list</span>
-                                  </DropdownMenuItem>
-                                </DropdownMenu>
-                              </DropdownMenuTrigger>
-                            </div>
+                                  <ExternalLink className="size-3.5 mr-2" />
+                                  <span>Open Workspace</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onAction={() => revealInExplorer(ws.rootPath)}>
+                                  <FolderOpen className="size-3.5 mr-2" />
+                                  <span>Reveal in Explorer</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onAction={() => handleCopyPath(ws.rootPath)}>
+                                  <Copy className="size-3.5 mr-2" />
+                                  <span>Copy Path</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onAction={() => removeWorkspace(ws.id)}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="size-3.5 mr-2" />
+                                  <span>Remove from list</span>
+                                </DropdownMenuItem>
+                              </DropdownMenu>
+                            </DropdownMenuTrigger>
                           </SidebarMenuItem>
                         );
                       })

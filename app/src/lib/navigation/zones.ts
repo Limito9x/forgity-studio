@@ -3,7 +3,7 @@ import { useAuthStore } from "@/stores/authStore";
 export type AppZone = "local" | "studio" | "admin" | "templates";
 
 export function resolveZoneFromPathname(pathname: string): AppZone {
-  if (pathname.startsWith("/local")) return "local";
+  if (pathname.startsWith("/local") || pathname.startsWith("/workspaces")) return "local";
   if (pathname.startsWith("/templates")) return "templates";
   if (pathname.startsWith("/admin")) return "admin";
   return "studio";
