@@ -386,4 +386,33 @@ pub fn remove_workspace_from_registry(app: tauri::AppHandle, workspace_id: Strin
     registry.remove_workspace(&workspace_id)
 }
 
+#[tauri::command]
+pub fn reveal_workspace_in_explorer(root_path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&root_path)
+            .spawn()
+            .map_err(|e| format!("Failed to open explorer for path '{}': {}", root_path, e))?;
+        Ok(())
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&root_path)
+            .spawn()
+            .map_err(|e| format!("Failed to open finder for path '{}': {}", root_path, e))?;
+        Ok(())
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&root_path)
+            .spawn()
+            .map_err(|e| format!("Failed to open file manager for path '{}': {}", root_path, e))?;
+        Ok(())
+    }
+}
+
+
 

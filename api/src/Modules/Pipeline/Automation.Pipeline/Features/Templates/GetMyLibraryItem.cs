@@ -44,7 +44,9 @@ public class GetMyLibraryItemEndpoint(PipelineDbContext db)
                 m.PipelineVersion.VersionNumber,
                 m.PipelineVersion.GraphHash,
                 m.Role,
-                m.SortOrder
+                m.SortOrder,
+                null,
+                m.PipelineVersion.DagBundleJson
             ))
             .ToList();
 
@@ -57,7 +59,9 @@ public class GetMyLibraryItemEndpoint(PipelineDbContext db)
                 x.TemplatePackage.PrimaryMasterVersion.VersionNumber,
                 x.TemplatePackage.PrimaryMasterVersion.GraphHash,
                 "master",
-                0
+                0,
+                null,
+                x.TemplatePackage.PrimaryMasterVersion.DagBundleJson
             ));
         }
 

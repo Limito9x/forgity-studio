@@ -98,7 +98,13 @@ pub fn fork_template_into_local_workspace(
             .to_string();
 
         if let Some(ref snap) = pipe.snapshot_json {
-            let _ = db.save_pipeline_snapshot(&slug, snap);
+            let _ = db.save_pipeline_entry_with_snapshot(
+                &slug,
+                &pipe.file_name,
+                &pipe.relative_path,
+                &pipe.pipeline_kind,
+                snap,
+            );
         }
 
         staged_pipelines_count += 1;

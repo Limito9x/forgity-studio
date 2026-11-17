@@ -12,6 +12,12 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
   Laptop,
   Building2,
   Shield,
@@ -31,6 +37,12 @@ import {
   ChevronDown,
   PackagePlus,
   FolderGit2,
+  Plus,
+  MoreHorizontal,
+  FolderOpen,
+  Trash2,
+  ExternalLink,
+  Copy,
 } from "lucide-react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
@@ -44,6 +56,9 @@ import {
 } from "@/lib/navigation/zones";
 import { NavUser } from "./NavUser";
 import { StudioSwitcherDialog } from "./StudioSwitcherDialog";
+import { useWorkspaceRegistry } from "@/features/pipelines/hooks/workspace/useWorkspaceRegistry";
+import { openNativeFileOrFolderDialog, isTauriRuntime } from "@/lib/platform/filePickerStrategy";
+import { toast } from "sonner";
 
 export function UnifiedSidebar() {
   const navigate = useNavigate();
@@ -213,6 +228,47 @@ export function UnifiedSidebar() {
     },
   ];
 
+  const {
+    workspaces,
+    registerWorkspace,
+    removeWorkspace,
+    revealInExplorer,
+  } = useWorkspaceRegistry();
+
+  const handleOpenNewWorkspace = async () => {
+    if (!isTauriRuntime()) {
+      navigate({ to: "/workspaces" as any });
+      return;
+    }
+
+    try {
+      const selected = await openNativeFileOrFolderDialog({
+        mode: "folder",
+        title: "Open Workspace Folder",
+      });
+      if (!selected) return;
+
+      const folderName = selected.replace(/\\/g, "/").split("/").filter(Boolean).pop() || "Local Workspace";
+      const registered = await registerWorkspace({
+        name: folderName,
+        rootPath: selected,
+      });
+
+      toast.success(`Opened workspace "${registered.name}"`);
+      navigate({
+        to: "/workspaces/$workspaceId" as any,
+        params: { workspaceId: registered.id } as any,
+      });
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to open workspace folder");
+    }
+  };
+
+  const handleCopyPath = (path: string) => {
+    navigator.clipboard.writeText(path);
+    toast.success("Copied workspace path to clipboard");
+  };
+
   const currentItems =
     activeZone === "local"
       ? localItems
@@ -340,25 +396,166 @@ export function UnifiedSidebar() {
         </SidebarHeader>
 
         <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel>{zoneLabel}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {currentItems.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      tooltip={item.title}
-                      isActive={item.isActive}
-                      onPress={() => navigate({ to: item.url as any })}
-                    >
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          {activeZone === "local" ? (
+            <>
+              {/* AI-Chat style Workspaces list with + action */}
+              <SidebarGroup>
+                <div className="flex items-center justify-between px-2 py-1.5">
+                  <SidebarGroupLabel className="p-0 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Workspaces
+                  </SidebarGroupLabel>
+                  <button
+                    type="button"
+                    onClick={handleOpenNewWorkspace}
+                    title="Open or Create Workspace"
+                    className="flex h-5 w-5 items-center justify-center rounded hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-muted-foreground transition-colors"
+                  >
+                    <Plus className="size-3.5" />
+                  </button>
+                </div>
+                <SidebarGroupContent>
+                  <SidebarMenu className="space-y-0.5">
+                    {workspaces.length === 0 ? (
+                      <div className="px-3 py-3 text-center">
+                        <p className="text-xs text-muted-foreground">No local workspaces yet.</p>
+                        <button
+                          type="button"
+                          onClick={handleOpenNewWorkspace}
+                          className="mt-1.5 text-xs text-primary hover:underline font-medium inline-flex items-center gap-1"
+                        >
+                          <Plus className="size-3" />
+                          <span>Open folder</span>
+                        </button>
+                      </div>
+                    ) : (
+                      workspaces.map((ws) => {
+                        const isCurrent =
+                          pathname === `/workspaces/${ws.id}` ||
+                          (pathname === "/local" && ws.linkedProjectId === "local-default");
+                        const isForked = Boolean(ws.originTemplateId);
+
+                        return (
+                          <SidebarMenuItem key={ws.id} className="group/item relative">
+                            <SidebarMenuButton
+                              tooltip={ws.name}
+                              isActive={isCurrent}
+                              onPress={() =>
+                                navigate({
+                                  to: "/workspaces/$workspaceId" as any,
+                                  params: { workspaceId: ws.id } as any,
+                                })
+                              }
+                              className="pr-7 text-xs"
+                            >
+                              {isForked ? (
+                                <Sparkles className="size-3.5 text-amber-500 shrink-0" />
+                              ) : (
+                                <FolderGit2 className="size-3.5 text-blue-500 shrink-0" />
+                              )}
+                              <span className="truncate">{ws.name}</span>
+                            </SidebarMenuButton>
+
+                            {/* Dropdown Menu ... */}
+                            <div className="absolute right-1 top-1.5 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                              <DropdownMenuTrigger>
+                                <button
+                                  type="button"
+                                  className="flex h-5 w-5 items-center justify-center rounded hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-muted-foreground"
+                                  title="Workspace Options"
+                                >
+                                  <MoreHorizontal className="size-3.5" />
+                                </button>
+                                <DropdownMenu placement="bottom end" className="w-44 text-xs">
+                                  <DropdownMenuItem
+                                    onAction={() =>
+                                      navigate({
+                                        to: "/workspaces/$workspaceId" as any,
+                                        params: { workspaceId: ws.id } as any,
+                                      })
+                                    }
+                                  >
+                                    <ExternalLink className="size-3.5 mr-2" />
+                                    <span>Open Workspace</span>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onAction={() => revealInExplorer(ws.rootPath)}>
+                                    <FolderOpen className="size-3.5 mr-2" />
+                                    <span>Reveal in Explorer</span>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onAction={() => handleCopyPath(ws.rootPath)}>
+                                    <Copy className="size-3.5 mr-2" />
+                                    <span>Copy Path</span>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onAction={() => removeWorkspace(ws.id)}
+                                    className="text-destructive focus:text-destructive"
+                                  >
+                                    <Trash2 className="size-3.5 mr-2" />
+                                    <span>Remove from list</span>
+                                  </DropdownMenuItem>
+                                </DropdownMenu>
+                              </DropdownMenuTrigger>
+                            </div>
+                          </SidebarMenuItem>
+                        );
+                      })
+                    )}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+
+              {/* General Local Tools: My Machine, etc */}
+              <SidebarGroup className="mt-2 border-t border-sidebar-border pt-2">
+                <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Tools
+                </SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        tooltip="All Workspaces"
+                        isActive={pathname === "/workspaces"}
+                        onPress={() => navigate({ to: "/workspaces" as any })}
+                      >
+                        <FolderKanban className="size-4" />
+                        <span>Workspaces Directory</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        tooltip="My Machine"
+                        isActive={pathname.startsWith("/local/machine")}
+                        onPress={() => navigate({ to: "/local/machine" as any })}
+                      >
+                        <Cpu className="size-4" />
+                        <span>My Machine</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            </>
+          ) : (
+            <SidebarGroup>
+              <SidebarGroupLabel>{zoneLabel}</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {currentItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        tooltip={item.title}
+                        isActive={item.isActive}
+                        onPress={() => navigate({ to: item.url as any })}
+                      >
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
         </SidebarContent>
 
         <SidebarFooter>

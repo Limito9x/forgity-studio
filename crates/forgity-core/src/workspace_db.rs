@@ -417,7 +417,6 @@ impl WorkspaceDb {
     }
 
     pub fn save_pipeline_snapshot(&self, slug: &str, snapshot_json: &str) -> Result<(), String> {
-        // Upsert into local_pipelines: update snapshot_json if row exists, or insert stub row if not scanned yet
         let affected = self
             .conn
             .execute(
@@ -438,6 +437,32 @@ impl WorkspaceDb {
                 )
                 .map_err(|e| format!("Failed to insert pipeline snapshot for '{}': {}", slug, e))?;
         }
+
+        Ok(())
+    }
+
+    pub fn save_pipeline_entry_with_snapshot(
+        &self,
+        slug: &str,
+        file_name: &str,
+        relative_path: &str,
+        pipeline_kind: &str,
+        snapshot_json: &str,
+    ) -> Result<(), String> {
+        self.conn
+            .execute(
+                "
+                INSERT INTO local_pipelines (slug, file_name, relative_path, full_path, pipeline_kind, content_hash, last_modified_ms, snapshot_json)
+                VALUES (?1, ?2, ?3, ?3, ?4, '', 0, ?5)
+                ON CONFLICT(slug) DO UPDATE SET 
+                    file_name = excluded.file_name,
+                    relative_path = excluded.relative_path,
+                    pipeline_kind = excluded.pipeline_kind,
+                    snapshot_json = excluded.snapshot_json
+                ",
+                params![slug, file_name, relative_path, pipeline_kind, snapshot_json],
+            )
+            .map_err(|e| format!("Failed to upsert pipeline snapshot for '{}': {}", slug, e))?;
 
         Ok(())
     }

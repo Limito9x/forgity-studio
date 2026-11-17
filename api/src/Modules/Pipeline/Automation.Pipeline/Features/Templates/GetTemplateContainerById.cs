@@ -12,7 +12,9 @@ public record TemplateContainerMemberDto(
     int VersionNumber,
     string GraphHash,
     string Role,
-    int SortOrder
+    int SortOrder,
+    string? DagYaml = null,
+    JsonDocument? DagBundleJson = null
 );
 
 public record TemplateContainerDetailDto(
@@ -69,7 +71,9 @@ public class GetTemplateContainerByIdEndpoint(PipelineDbContext db)
                 m.PipelineVersion.VersionNumber,
                 m.PipelineVersion.GraphHash,
                 m.Role,
-                m.SortOrder
+                m.SortOrder,
+                null,
+                m.PipelineVersion.DagBundleJson
             ))
             .ToList();
 
@@ -82,7 +86,9 @@ public class GetTemplateContainerByIdEndpoint(PipelineDbContext db)
                 pkg.PrimaryMasterVersion.VersionNumber,
                 pkg.PrimaryMasterVersion.GraphHash,
                 "master",
-                0
+                0,
+                null,
+                pkg.PrimaryMasterVersion.DagBundleJson
             ));
         }
 

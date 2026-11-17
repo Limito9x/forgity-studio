@@ -92,6 +92,16 @@ export function useWorkspaceRegistry() {
     },
   });
 
+  const revealInExplorer = async (rootPath: string) => {
+    if (!isTauriRuntime()) return;
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("reveal_workspace_in_explorer", { rootPath });
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to open folder in explorer");
+    }
+  };
+
   return {
     workspaces: query.data || [],
     isLoading: query.isLoading,
@@ -103,5 +113,6 @@ export function useWorkspaceRegistry() {
     touchWorkspace: touchMutation.mutateAsync,
     removeWorkspace: removeMutation.mutateAsync,
     isRemoving: removeMutation.isPending,
+    revealInExplorer,
   };
 }

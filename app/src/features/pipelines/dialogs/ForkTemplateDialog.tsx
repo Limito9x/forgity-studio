@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { openNativeFileOrFolderDialog, isTauriRuntime } from "@/lib/platform/filePickerStrategy";
 import { toast } from "sonner";
 import type { TemplateContainerDetailDto } from "@/gen/model/templateContainerDetailDto";
+import { graphToPipelineYaml } from "../utils/pipelineDslConverter";
+import { getCloudDataPipelineVersion } from "@/gen/endpoints/cloud-data/cloud-data";
 
 interface ForkTemplateDialogProps {
   isOpen: boolean;
@@ -73,16 +75,75 @@ export function ForkTemplateDialog({
     try {
       setIsForking(true);
 
-      // Extract pipeline files to stage from template members
-      const pipelines = template.members.map((m) => {
-        const isMaster = m.role === "master";
-        const fileName = `${m.slug}.${isMaster ? "pipeline" : "component"}.yaml`;
+      // Option 2: Build declarative YAML directly from Snapshot (dagBundleJson)
+      const pipelines = await Promise.all(
+        template.members.map(async (m) => {
+          const isMaster = m.role === "master";
+          const kind = isMaster ? "master" : "component";
+          const fileName = `${m.slug}.${isMaster ? "pipeline" : "component"}.yaml`;
+
+          let dagBundle: any = (m as any).dagBundleJson;
+          if (!dagBundle && m.pipelineVersionId) {
+            try {
+              const res = await getCloudDataPipelineVersion(m.pipelineVersionId);
+              dagBundle = res.dagBundleJson;
+            } catch (fetchErr) {
+              console.warn(`Could not fetch dagBundleJson for member ${m.slug}:`, fetchErr);
+            }
+          }
+
+          const rootPipeline = dagBundle?.rootPipeline ?? dagBundle;
+          const nodes = Array.isArray(rootPipeline?.nodes) ? rootPipeline.nodes : [];
+          const edges = Array.isArray(rootPipeline?.edges) ? rootPipeline.edges : [];
+
+          // Generate valid declarative YAML from AST nodes and edges
+          let yamlContent = "";
+          if (nodes.length > 0) {
+            yamlContent = graphToPipelineYaml(
+              m.slug,
+              nodes,
+              edges,
+              undefined,
+              kind as "master" | "component"
+            );
+          } else if ((m as any).dagYaml) {
+            yamlContent = (m as any).dagYaml;
+          } else {
+            // Minimal valid fallback YAML structure
+            yamlContent = `name: ${m.slug}\nkind: ${kind}\nnodes: []\nedges: []\n`;
+          }
+
+          const snapshotJson = dagBundle ? JSON.stringify(dagBundle) : null;
+
+          return {
+            fileName,
+            relativePath: `pipelines/${fileName}`,
+            pipelineKind: kind,
+            yamlContent,
+            snapshotJson,
+          };
+        })
+      );
+
+      // Serialize constants with non-null values if present in manifest/declaration
+      const constantsList = (template.constants || []).map((c: any) => {
+        let value = null;
+        if (c.defaultValue !== undefined && c.defaultValue !== null && c.defaultValue !== "") {
+          try {
+            value = typeof c.defaultValue === "string" && (c.defaultValue.startsWith("{") || c.defaultValue.startsWith("["))
+              ? JSON.parse(c.defaultValue)
+              : c.defaultValue;
+          } catch {
+            value = c.defaultValue;
+          }
+        }
         return {
-          fileName,
-          relativePath: `pipelines/${fileName}`,
-          pipelineKind: isMaster ? "master" : "component",
-          yamlContent: (m as any).dagYaml || "",
-          snapshotJson: null,
+          id: c.id || c.key,
+          key: c.key,
+          value,
+          dataType: c.dataType || "String",
+          scope: c.scope || "General",
+          description: c.description || "",
         };
       });
 
@@ -102,7 +163,7 @@ export function ForkTemplateDialog({
           pipelines,
           paletteJson: template.paletteNodesJson ? JSON.stringify(template.paletteNodesJson) : null,
           structsJson: null,
-          constantsJson: template.constants ? JSON.stringify(template.constants) : null,
+          constantsJson: JSON.stringify(constantsList),
           assets: [],
         },
       });

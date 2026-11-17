@@ -62,6 +62,9 @@ public static class CloudTemplateClaimHelper
                 var scope = item.TryGetProperty("scope", out var sc) || item.TryGetProperty("Scope", out sc) ? sc.GetString() : "General";
                 var isRequired = (item.TryGetProperty("isRequired", out var req) || item.TryGetProperty("IsRequired", out req)) && req.ValueKind == JsonValueKind.True;
                 var desc = item.TryGetProperty("description", out var d) || item.TryGetProperty("Description", out d) ? d.GetString() : null;
+                var defaultValue = item.TryGetProperty("defaultValue", out var def) || item.TryGetProperty("DefaultValue", out def) || item.TryGetProperty("valueJson", out def)
+                    ? def.GetString() ?? def.GetRawText()
+                    : null;
 
                 result.Add(new TemplateConstantDeclarationDto(
                     key,
@@ -69,7 +72,8 @@ public static class CloudTemplateClaimHelper
                     dataType ?? "String",
                     scope ?? "General",
                     isRequired,
-                    desc
+                    desc,
+                    defaultValue
                 ));
             }
 

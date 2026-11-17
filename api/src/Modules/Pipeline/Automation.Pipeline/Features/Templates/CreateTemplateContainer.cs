@@ -12,7 +12,8 @@ public record TemplateConstantDeclarationDto(
     string DataType,
     string Scope,
     bool IsRequired,
-    string? Description
+    string? Description,
+    string? DefaultValue = null
 );
 
 public record TemplateAssetDto(

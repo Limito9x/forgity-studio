@@ -580,6 +580,7 @@ export function TemplateContainerBuilder({
             scope: c.scope,
             isRequired: c.isRequired,
             description: c.description || null,
+            defaultValue: c.defaultValue || null,
           })),
           assets: assets.map((a) => ({
             name: a.name,

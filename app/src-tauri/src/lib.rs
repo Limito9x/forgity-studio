@@ -64,6 +64,7 @@ pub fn run() {
             register_workspace,
             touch_workspace_opened,
             remove_workspace_from_registry,
+            commands::workspace::reveal_workspace_in_explorer,
             fork_template_workspace
         ])
         .run(tauri::generate_context!())
