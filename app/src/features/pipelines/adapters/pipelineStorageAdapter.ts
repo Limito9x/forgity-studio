@@ -8,8 +8,7 @@ export interface PipelineStorageSaveResult {
 export interface PipelineRunOptions {
   projectId: string;
   pipelineId: string;
-  parameters?: Record<string, unknown>;
-  preferredRunnerId?: string;
+  runtimeInputs?: Record<string, unknown>;
 }
 
 /**
@@ -18,7 +17,7 @@ export interface PipelineRunOptions {
  * - Cloud mode: FastEndpoints API, EF Core PostgreSQL
  */
 export interface IPipelineStorageAdapter {
-  readonly mode: "local" | "cloud";
+  readonly source: "local" | "cloud";
 
   /**
    * Tải đồ thị ban đầu
@@ -43,7 +42,7 @@ export interface IPipelineStorageAdapter {
   ): Promise<PipelineStorageSaveResult>;
 
   /**
-   * Khởi chạy thực thi Pipeline (Draft Run trên Runner hoặc Queue Run trên Central)
+   * Khởi chạy thực thi trên desktop hiện tại.
    */
   run(options: PipelineRunOptions): Promise<any>;
 }

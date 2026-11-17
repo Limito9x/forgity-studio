@@ -74,7 +74,7 @@ export function LiveExecutionDrawer({
 
   const workspaceCtx = useOptionalPipelineWorkspace();
   const isLocalMode =
-    workspaceCtx?.mode === "local" ||
+    workspaceCtx?.source === "local" ||
     Boolean(executionId?.startsWith("local_")) ||
     !pipelineId ||
     pipelineId.includes("/") ||

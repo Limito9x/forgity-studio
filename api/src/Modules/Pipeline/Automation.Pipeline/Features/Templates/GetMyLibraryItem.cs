@@ -79,7 +79,8 @@ public class GetMyLibraryItemEndpoint(PipelineDbContext db)
                 remaining,
                 x.AddedAt,
                 members,
-                CloudTemplateClaimHelper.ExtractConstants(x.TemplatePackage.ContainerManifestJson)
+                CloudTemplateClaimHelper.ExtractConstants(x.TemplatePackage.ContainerManifestJson),
+                CloudTemplateClaimHelper.ExtractPaletteNodes(x.TemplatePackage.ContainerManifestJson)
             ),
             ct
         );

@@ -30,4 +30,5 @@ export interface TemplateLibraryItemDto {
   addedAt: string;
   members: ListOfTemplateContainerMemberDto;
   constants: ListOfTemplateConstantDeclarationDto;
+  paletteNodesJson?: unknown;
 }

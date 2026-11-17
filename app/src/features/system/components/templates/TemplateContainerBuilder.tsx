@@ -28,8 +28,14 @@ import {
 } from "@/components/ui/dialog";
 import { useCreateTemplateContainer } from "@/gen/endpoints/templates/templates";
 import { useIngestCloudDataManifest } from "@/gen/endpoints/cloud-data/cloud-data";
-import { useLocalWorkspaceConfig, useLocalPipelinesQuery } from "@/features/pipelines/hooks/workspace";
+import {
+  loadLocalNodeContracts,
+  useLocalWorkspaceConfig,
+  useLocalPipelinesQuery,
+} from "@/features/pipelines/hooks/workspace";
 import type { ScannedPipelineYamlItemRust } from "@/features/pipelines/types/workspaceConfig";
+import type { NodePaletteItemDto } from "@/features/pipelines/types/pipelineGraphTypes";
+import { uploadMultipleAssetsFlow } from "@/lib/upload-utils";
 import {
   useTemplateDependencyScan,
   type TemplateDependencyManifest,
@@ -74,6 +80,184 @@ interface TemplateContainerBuilderProps {
   onSuccess: () => void;
 }
 
+type JsonRecord = Record<string, unknown>;
+
+interface TemplateGraphSnapshot {
+  slug: string;
+  graphHash: string;
+  dagBundleJson: JsonRecord;
+  contractsJson: JsonRecord;
+}
+
+interface LocalFilePinCandidate {
+  key: string;
+  node: JsonRecord;
+  pinId: string;
+  filePath: string;
+  fileName: string;
+}
+
+function isRecord(value: unknown): value is JsonRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getGraphNodes(graph: JsonRecord): JsonRecord[] {
+  const rootGraph = isRecord(graph.rootPipeline) ? graph.rootPipeline : graph;
+  const graphRecords = [rootGraph];
+  const components = isRecord(graph.components) ? graph.components : {};
+
+  for (const component of Object.values(components)) {
+    if (isRecord(component)) graphRecords.push(component);
+  }
+
+  return graphRecords.flatMap((record) =>
+    Array.isArray(record.nodes) ? record.nodes.filter(isRecord) : []
+  );
+}
+
+function getFileName(path: string): string {
+  const parts = path.split(/[/\\]/).filter(Boolean);
+  return parts[parts.length - 1] || path;
+}
+
+function isAbsoluteLocalPath(path: string): boolean {
+  return path.startsWith("/") || path.startsWith("\\\\") || /^[A-Za-z]:[\\/]/.test(path);
+}
+
+function isLocalPathValue(path: string): boolean {
+  const hasUriScheme = /^[a-z][a-z\d+.-]*:/i.test(path);
+  return !hasUriScheme || /^[A-Za-z]:[\\/]/.test(path);
+}
+
+function collectLocalFilePins(
+  graphs: TemplateGraphSnapshot[],
+  paletteItems: NodePaletteItemDto[]
+): LocalFilePinCandidate[] {
+  const paletteByRefId = new Map(paletteItems.map((item) => [item.refId, item]));
+  const candidates: LocalFilePinCandidate[] = [];
+
+  for (const graph of graphs) {
+    for (const node of getGraphNodes(graph.dagBundleJson)) {
+      const configValues = isRecord(node.configValues) ? node.configValues : {};
+      const nodeInputs = Array.isArray(node.inputs)
+        ? node.inputs.filter(isRecord)
+        : [];
+      const nodeDefinition =
+        typeof node.refId === "string" ? paletteByRefId.get(node.refId) : undefined;
+      const pins = nodeInputs.length > 0 ? nodeInputs : nodeDefinition?.inputs ?? [];
+      const nodeId =
+        typeof node.id === "string"
+          ? node.id
+          : typeof node.refId === "string"
+            ? node.refId
+            : null;
+
+      for (const pin of pins) {
+        if (!isRecord(pin)) continue;
+        const pinType =
+          typeof pin.primitiveType === "string" ? pin.primitiveType : pin.type;
+        if (pinType !== "File" && pinType !== "FilePath") continue;
+
+        const pinId =
+          typeof pin.id === "string" && pin.id
+            ? pin.id
+            : typeof pin.name === "string"
+              ? pin.name
+              : null;
+        if (!pinId || !nodeId) continue;
+
+        const value = configValues[pinId];
+        if (
+          typeof value !== "string" ||
+          !value.trim() ||
+          !isLocalPathValue(value) ||
+          (!value.includes("/") && !value.includes("\\") && !value.startsWith("."))
+        ) {
+          continue;
+        }
+
+        candidates.push({
+          key: `${graph.slug}:${nodeId}:${pinId}`,
+          node,
+          pinId,
+          filePath: value,
+          fileName: getFileName(value),
+        });
+      }
+    }
+  }
+
+  return candidates;
+}
+
+async function uploadLocalFilePins(
+  graphs: TemplateGraphSnapshot[],
+  rootPath: string,
+  paletteItems: NodePaletteItemDto[]
+): Promise<void> {
+  const candidates = collectLocalFilePins(graphs, paletteItems);
+  if (candidates.length === 0) return;
+
+  const { readFile } = await import("@tauri-apps/plugin-fs");
+  const { join } = await import("@tauri-apps/api/path");
+  const uploadItems = await Promise.all(
+    candidates.map(async (candidate) => {
+      const filePath = isAbsoluteLocalPath(candidate.filePath)
+        ? candidate.filePath
+        : await join(rootPath, candidate.filePath);
+      const contents = await readFile(filePath);
+      if (contents.byteLength === 0) {
+        throw new Error(`File pin "${candidate.fileName}" is empty and cannot be uploaded.`);
+      }
+      return {
+        key: candidate.key,
+        file: new File([contents], candidate.fileName),
+      };
+    })
+  );
+
+  const uploadedAssets = await uploadMultipleAssetsFlow(uploadItems);
+  const assetsByKey = new Map(uploadedAssets.map((asset) => [asset.key, asset]));
+
+  for (const candidate of candidates) {
+    const asset = assetsByKey.get(candidate.key);
+    if (!asset?.publicUrl) {
+      throw new Error(`Cloud upload did not return a public URL for "${candidate.fileName}".`);
+    }
+
+    const configValues = isRecord(candidate.node.configValues)
+      ? candidate.node.configValues
+      : {};
+    candidate.node.configValues = {
+      ...configValues,
+      [candidate.pinId]: {
+        assetId: asset.assetId,
+        fileName: candidate.fileName,
+        originalName: candidate.fileName,
+        publicUrl: asset.publicUrl,
+        url: asset.publicUrl,
+        filename: candidate.fileName,
+      },
+    };
+
+    const fileAssets = isRecord(candidate.node.fileAssets)
+      ? candidate.node.fileAssets
+      : {};
+    candidate.node.fileAssets = {
+      ...fileAssets,
+      [candidate.pinId]: {
+        id: asset.assetId,
+        name: candidate.fileName,
+        originalName: candidate.fileName,
+        sizeBytes: asset.asset.size,
+        contentType: asset.asset.contentType,
+        downloadUrl: asset.publicUrl,
+        publicUrl: asset.publicUrl,
+      },
+    };
+  }
+}
+
 export function TemplateContainerBuilder({
   onBack,
   onSuccess,
@@ -92,6 +276,7 @@ export function TemplateContainerBuilder({
   const [description] = useState("");
   const [category, setCategory] = useState("VFX / 3D Pipeline");
   const [dailyQuotaLimit, setDailyQuotaLimit] = useState("20");
+  const [isPackaging, setIsPackaging] = useState(false);
 
   // Selected Master Pipelines & Components
   const [masterPipelines, setMasterPipelines] = useState<TemplateItemSelect[]>([]);
@@ -268,7 +453,8 @@ export function TemplateContainerBuilder({
   const isBusy =
     scanMutation.isPending ||
     ingestManifestMutation.isPending ||
-    createContainerMutation.isPending;
+    createContainerMutation.isPending ||
+    isPackaging;
 
   // Packaging: Phase 1 (Ingest Cloud Data Pool) -> Phase 2 (Create Template Container)
   const handlePackageTemplate = async () => {
@@ -282,36 +468,56 @@ export function TemplateContainerBuilder({
       return;
     }
 
+    setIsPackaging(true);
     try {
       const { invoke } = await import("@tauri-apps/api/core");
 
       // Lấy snapshot graph thật cho từng pipeline từ SQLite local
       const graphs = await Promise.all(
         lastManifest.pipelines.map(async (p) => {
-          let dagBundleJson: Record<string, any> = {};
-          let contractsJson: Record<string, any> = {};
-          try {
-            const snapshotStr = await invoke<string | null>("load_local_pipeline_snapshot", {
-              rootPath: lastManifest.rootPath,
-              pipelineSlug: p.slug,
-            });
-            if (snapshotStr) {
-              const parsed = JSON.parse(snapshotStr);
-              dagBundleJson = parsed;
-              if (parsed?.contracts) {
-                contractsJson = parsed.contracts;
-              }
-            }
-          } catch {
-            // Fallback nếu chưa có snapshot
+          const snapshotStr = await invoke<string | null>("load_local_pipeline_snapshot", {
+            rootPath: lastManifest.rootPath,
+            pipelineSlug: p.slug,
+          });
+          if (!snapshotStr) {
+            throw new Error(`Pipeline snapshot "${p.slug}" is missing from Local Workspace.`);
           }
+
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(snapshotStr);
+          } catch {
+            throw new Error(`Pipeline snapshot "${p.slug}" contains invalid JSON.`);
+          }
+          if (!isRecord(parsed)) {
+            throw new Error(`Pipeline snapshot "${p.slug}" does not match the workspace contract.`);
+          }
+
           return {
             slug: p.slug,
             graphHash: p.graphHash,
-            dagBundleJson,
-            contractsJson,
+            dagBundleJson: parsed,
+            contractsJson: isRecord(parsed.contracts) ? parsed.contracts : {},
           };
         })
+      ) satisfies TemplateGraphSnapshot[];
+
+      const localNodeContracts = await loadLocalNodeContracts(lastManifest.rootPath);
+      const usedNodeRefs = new Set(
+        graphs.flatMap((graph) =>
+          getGraphNodes(graph.dagBundleJson)
+            .map((node) => node.refId)
+            .filter((refId): refId is string => typeof refId === "string")
+        )
+      );
+      const paletteNodesJson = localNodeContracts.filter((item) =>
+        usedNodeRefs.has(item.refId)
+      );
+
+      await uploadLocalFilePins(
+        graphs,
+        lastManifest.rootPath,
+        paletteNodesJson
       );
 
       // 1. Ingest canonical pipelines & scripts into Unified Cloud Data Pool
@@ -382,7 +588,7 @@ export function TemplateContainerBuilder({
             belongsToPinId: null,
             sizeBytes: a.sizeBytes ?? null,
           })),
-          paletteNodesJson: null as any,
+          paletteNodesJson,
         },
       });
 
@@ -390,6 +596,8 @@ export function TemplateContainerBuilder({
       onSuccess();
     } catch (err: any) {
       toast.error(err?.message || "Failed to package template container");
+    } finally {
+      setIsPackaging(false);
     }
   };
 

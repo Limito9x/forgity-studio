@@ -7,7 +7,6 @@ export interface PipelineDslNode {
   label?: string;
   category?: string;
   executor?: string;
-  stage?: string;
   inputs?: Record<string, any>;
   metadata?: Record<string, any>;
   isBatch?: boolean;
@@ -24,10 +23,26 @@ export interface PipelineDslEdge {
 export interface PipelineDslDocument {
   name: string;
   version?: string;
-  runner?: string;
   description?: string;
   nodes: PipelineDslNode[];
   edges?: PipelineDslEdge[];
+}
+
+export function isLegacyScopeContainerNode(node: {
+  type?: unknown;
+  data?: unknown;
+  refId?: unknown;
+  tool?: unknown;
+}): boolean {
+  const data =
+    node.data && typeof node.data === "object"
+      ? (node.data as Record<string, unknown>)
+      : {};
+  const refId = data.refId ?? node.refId ?? node.tool;
+  return (
+    node.type === "scopeContainer" ||
+    String(refId || "").toLowerCase() === "scopecontainer"
+  );
 }
 
 /**
@@ -42,9 +57,12 @@ export function graphToPipelineYaml(
   executor?: string
 ): string {
   const dslNodes: PipelineDslNode[] = [];
+  const legacyScopeIds = new Set(
+    nodes.filter(isLegacyScopeContainerNode).map((node) => String(node.id))
+  );
 
   for (const n of nodes) {
-    if (n.type === "scopeContainer") continue; // Stage scopes are mapped via node.stage
+    if (isLegacyScopeContainerNode(n)) continue;
 
     // Hỗ trợ cả ReactFlow Node (n.data) lẫn ExtendedPipelineGraphDto Node (phẳng)
     const data = n.data && typeof n.data === "object" ? n.data : n;
@@ -96,7 +114,6 @@ export function graphToPipelineYaml(
       label,
       category: isControlNode ? undefined : category,
       executor: isControlNode ? undefined : executor,
-      stage: (n.parentId as string) || undefined,
       inputs: Object.keys(inputsConfig).length > 0 ? inputsConfig : undefined,
       metadata: isLocalDraft ? { isLocalDraft: true, sourcePath } : undefined,
       ...(isBatch
@@ -116,7 +133,7 @@ export function graphToPipelineYaml(
       const srcPin = e.sourceHandle || e.sourcePin || "out";
       const dst = e.target || e.targetNodeId;
       const dstPin = e.targetHandle || e.targetPin || "in";
-      if (!src || !dst) return null;
+      if (!src || !dst || legacyScopeIds.has(String(src)) || legacyScopeIds.has(String(dst))) return null;
       return {
         from: `${src}.${srcPin}`,
         to: `${dst}.${dstPin}`,
@@ -127,7 +144,6 @@ export function graphToPipelineYaml(
   const doc: PipelineDslDocument & { kind?: string; executor?: string } = {
     name: pipelineName || "Draft Pipeline",
     version: "draft",
-    runner: "local",
     ...(kind ? { kind } : {}),
     ...(kind === "component" && executor ? { executor } : {}),
     description: description || undefined,
@@ -158,12 +174,18 @@ export function pipelineYamlToGraph(yamlContent: string): {
 
   const nodes: Node[] = [];
   const edges: Edge[] = [];
+  const legacyScopeIds = new Set(
+    parsed.nodes
+      .filter((item) => String(item.tool || "").toLowerCase() === "scopecontainer")
+      .map((item) => item.id)
+  );
 
   // Auto layout position tracking
   let currentX = 100;
   let currentY = 150;
 
   for (const item of parsed.nodes) {
+    if (legacyScopeIds.has(item.id)) continue;
     const isStart = item.id.toLowerCase() === "start" || item.tool.toLowerCase() === "start";
     const isReturn = item.id.toLowerCase() === "return" || item.tool.toLowerCase() === "return";
 
@@ -178,7 +200,6 @@ export function pipelineYamlToGraph(yamlContent: string): {
       id: item.id,
       type: "pipelineNode",
       position: nodePos,
-      parentId: item.stage,
       data: {
         id: item.id,
         refId: item.tool,
@@ -213,7 +234,7 @@ export function pipelineYamlToGraph(yamlContent: string): {
       const [sourceId, sourceHandle] = (edge.from || "").split(".");
       const [targetId, targetHandle] = (edge.to || "").split(".");
 
-      if (sourceId && targetId) {
+      if (sourceId && targetId && !legacyScopeIds.has(sourceId) && !legacyScopeIds.has(targetId)) {
         edges.push({
           id: `e-${sourceId}-${targetId}-${idx}`,
           source: sourceId,

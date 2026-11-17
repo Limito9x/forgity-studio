@@ -33,11 +33,6 @@ export type SavePipelineGraphData = Omit<SavePipelineGraphRequest, "parameters">
   parameters?: PipelineParameterDto[] | any[] | null;
 };
 
-export interface RunPipelineRequest {
-  runtimeInputs?: Record<string, any>;
-  [key: string]: any;
-}
-
 export interface ValidatePipelineQuery {
   [key: string]: any;
 }
@@ -157,16 +152,6 @@ export const useSavePipelineGraph = (_pipelineId?: string) => {
     isPending: false,
     mutate: (_data: SavePipelineGraphData, _options?: any) => {},
     mutateAsync: async (_data: SavePipelineGraphData, _options?: any) => ({} as any),
-  };
-};
-
-export const useRunPipeline = (_pipelineId?: string) => {
-  return {
-    isPending: false,
-    mutate: (_data: RunPipelineRequest, _options?: any) => {},
-    mutateAsync: async (_data: RunPipelineRequest, _options?: any): Promise<any> => {
-      throw new Error("Legacy .NET pipeline run is removed; use Local Runner or Cloud Template Dispatch.");
-    },
   };
 };
 

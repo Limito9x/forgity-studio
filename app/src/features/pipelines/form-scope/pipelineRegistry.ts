@@ -3,7 +3,6 @@ import { ScopedFieldRegistry, baseRegistry } from "@/lib/field-registry";
 import { FormPinVariableSelect } from "../form-controls/FormPinVariableSelect";
 import { FormPinAssetUpload } from "../form-controls/FormPinAssetUpload";
 import { FormPinPathInput } from "../form-controls/FormPinPathInput";
-import { FormPinRunnerSelect } from "../form-controls/FormPinRunnerSelect";
 import { FormPinTextInput } from "../form-controls/FormPinTextInput";
 
 const createRequiredStringSchema = (props: any, field?: any) => {
@@ -74,18 +73,5 @@ pipelineRegistry.register({
   component: FormPinPathInput,
   buildSchema: createPathInputSchema,
 });
-
-pipelineRegistry.register({
-  type: "pin:runnerSelect",
-  component: FormPinRunnerSelect,
-  buildSchema: createRequiredStringSchema,
-});
-
-pipelineRegistry.register({
-  type: "runner",
-  component: FormPinRunnerSelect,
-  buildSchema: createRequiredStringSchema,
-});
-
 
 

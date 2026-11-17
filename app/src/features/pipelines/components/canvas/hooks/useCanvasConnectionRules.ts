@@ -56,24 +56,7 @@ export function useCanvasConnectionRules({
       const targetNode = nodes.find((n) => n.id === connection.target);
       if (!sourceNode || !targetNode) return false;
 
-      // 2. Stage-to-Stage connection (Scope boundary exec wires) or Runner binding pin
-      const isSourceStage = sourceNode.type === "scopeContainer";
-      const isTargetStage = targetNode.type === "scopeContainer";
-      if (isSourceStage || isTargetStage) {
-        // Allow data connection to ScopeContainer's runner pin
-        if (isTargetStage && connection.targetHandle === "runner") {
-          return true;
-        }
-
-        return (
-          isSourceStage &&
-          isTargetStage &&
-          connection.sourceHandle === "exec_out" &&
-          connection.targetHandle === "exec_in"
-        );
-      }
-
-      // 3. Exec Flow between nodes (can cross scopes freely)
+      // 2. Exec Flow between nodes
       const isSourceExec = isNodeHandleExec(sourceNode, connection.sourceHandle, false);
       const isTargetExec = isNodeHandleExec(targetNode, connection.targetHandle, true);
       if (isSourceExec || isTargetExec) {
@@ -81,7 +64,7 @@ export function useCanvasConnectionRules({
         return true;
       }
 
-      // 4. Data Flow (can cross scopes freely)
+      // 3. Data Flow
       const targetPin = (targetNode.data as any)?.inputs?.find(
         (p: any) => p.id === connection.targetHandle
       );
@@ -106,19 +89,15 @@ export function useCanvasConnectionRules({
 
       const sourceNode = nodes.find((n) => n.id === params.source);
       const targetNode = nodes.find((n) => n.id === params.target);
-      const isRunnerEdge = targetNode?.type === "scopeContainer" && params.targetHandle === "runner";
-      const isStageEdge = sourceNode?.type === "scopeContainer" && targetNode?.type === "scopeContainer";
       const isSourceExec = isNodeHandleExec(sourceNode, params.sourceHandle, false);
       const isTargetExec = isNodeHandleExec(targetNode, params.targetHandle, true);
-      const isExec = !isRunnerEdge && (isStageEdge || (isSourceExec && isTargetExec));
+      const isExec = isSourceExec && isTargetExec;
 
       const newEdgeId = crypto.randomUUID();
       setEdges((eds) => {
-        // If connecting ExecOut (1-to-1 rule) or Runner pin (1-to-1 rule), remove existing edge
+        // Exec outputs accept a single outgoing connection.
         const filtered = isExec
           ? eds.filter((e) => !(e.source === params.source && e.sourceHandle === params.sourceHandle))
-          : isRunnerEdge
-          ? eds.filter((e) => !(e.target === params.target && e.targetHandle === "runner"))
           : eds;
 
         return addEdge(
@@ -128,19 +107,16 @@ export function useCanvasConnectionRules({
             animated: !isExec,
             markerEnd: {
               type: MarkerType.ArrowClosed,
-              color: isExec ? "currentColor" : isRunnerEdge ? "#f59e0b" : "#38bdf8",
+              color: isExec ? "currentColor" : "#38bdf8",
               width: 16,
               height: 16,
             },
-            className: isExec ? "text-foreground" : isRunnerEdge ? "text-amber-500" : "text-sky-400",
+            className: isExec ? "text-foreground" : "text-sky-400",
             type: "smoothstep",
             pathOptions: { borderRadius: 12 },
             style: isExec
               ? { stroke: "currentColor", strokeWidth: 3.5, strokeDasharray: "none" }
-              : isRunnerEdge
-              ? { stroke: "#f59e0b", strokeWidth: 2.5 }
               : { stroke: "#38bdf8", strokeWidth: 2 },
-            data: isStageEdge ? { isStageEdge: true } : isRunnerEdge ? { isRunnerEdge: true } : undefined,
           } as any,
           filtered
         );
@@ -148,7 +124,7 @@ export function useCanvasConnectionRules({
       setIsDirty(true);
 
       // Auto-Infer Struct Type for BreakStruct node when wired to Target pin
-      if (!isStageEdge && targetNode) {
+      if (targetNode) {
         const isTargetBreakStruct = (targetNode.data as any)?.refId?.toLowerCase() === "breakstruct";
         if (isTargetBreakStruct && (params.targetHandle === "Target" || params.targetHandle === "target")) {
           let inferredStructType = "";

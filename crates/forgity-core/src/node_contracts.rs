@@ -657,6 +657,14 @@ pub fn build_component_palette_items(
     root_path: &Path,
     components: &[(String, String, String)],
 ) -> Vec<Value> {
+    build_component_palette_items_with_snapshots(root_path, components, &HashMap::new())
+}
+
+fn build_component_palette_items_with_snapshots(
+    root_path: &Path,
+    components: &[(String, String, String)],
+    snapshots_by_slug: &HashMap<String, Value>,
+) -> Vec<Value> {
     let mut items = Vec::new();
 
     for (slug, full_path, relative_path) in components {
@@ -675,9 +683,11 @@ pub fn build_component_palette_items(
             .join(".forgity")
             .join("snapshots")
             .join(format!("{}.snap.json", slug));
-        let parsed_snap = std::fs::read_to_string(&snap_path)
-            .ok()
-            .and_then(|s| serde_json::from_str::<Value>(&s).ok());
+        let parsed_snap = snapshots_by_slug.get(slug).cloned().or_else(|| {
+            std::fs::read_to_string(&snap_path)
+                .ok()
+                .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+        });
 
         let component_name = parsed_snap
             .as_ref()
@@ -718,7 +728,77 @@ pub fn build_component_palette_items(
         })];
 
         let mut used_snapshot_pins = false;
-        if let Some(snap_nodes) = parsed_snap
+        if let Some(parameters) = parsed_snap
+            .as_ref()
+            .and_then(|snapshot| snapshot.get("parameters").and_then(Value::as_array))
+        {
+            for parameter in parameters {
+                let Some(kind) = parameter.get("kind") else {
+                    continue;
+                };
+                let target_pins = if parameter_kind_matches(kind, "Input", 1) {
+                    Some(&mut input_pins)
+                } else if parameter_kind_matches(kind, "Output", 2) {
+                    Some(&mut output_pins)
+                } else {
+                    None
+                };
+                let Some(target_pins) = target_pins else {
+                    continue;
+                };
+
+                let Some(key) = parameter
+                    .get("key")
+                    .or_else(|| parameter.get("name"))
+                    .or_else(|| parameter.get("id"))
+                    .and_then(Value::as_str)
+                    .filter(|value| !value.trim().is_empty())
+                else {
+                    continue;
+                };
+                let label = parameter
+                    .get("label")
+                    .or_else(|| parameter.get("name"))
+                    .or_else(|| parameter.get("key"))
+                    .and_then(Value::as_str)
+                    .filter(|value| !value.trim().is_empty())
+                    .unwrap_or(key);
+                let primitive_type = parameter
+                    .get("type")
+                    .or_else(|| parameter.get("primitiveType"))
+                    .filter(|value| !value.is_null())
+                    .cloned()
+                    .unwrap_or_else(|| json!("String"));
+                let cardinality = parameter
+                    .get("cardinality")
+                    .filter(|value| !value.is_null())
+                    .cloned()
+                    .unwrap_or_else(|| json!("Single"));
+                let mut pin = json!({
+                    "id": key,
+                    "label": label,
+                    "kind": "Data",
+                    "primitiveType": primitive_type,
+                    "cardinality": cardinality,
+                    "isRequired": parameter.get("isRequired").and_then(Value::as_bool).unwrap_or(false)
+                });
+                if let Some(object) = pin.as_object_mut() {
+                    for field in ["structType", "defaultValue", "description"] {
+                        if let Some(value) = parameter.get(field) {
+                            object.insert(field.to_string(), value.clone());
+                        }
+                    }
+                    if let Some(context_data) = parameter
+                        .get("contextData")
+                        .filter(|value| !value.is_null())
+                    {
+                        object.insert("metadata".to_string(), json!(context_data.to_string()));
+                    }
+                }
+                target_pins.push(pin);
+            }
+            used_snapshot_pins = true;
+        } else if let Some(snap_nodes) = parsed_snap
             .as_ref()
             .and_then(|v| v.get("nodes").and_then(|n| n.as_array()))
         {
@@ -797,6 +877,13 @@ pub fn build_component_palette_items(
     items
 }
 
+fn parameter_kind_matches(value: &Value, name: &str, numeric_value: i64) -> bool {
+    value
+        .as_str()
+        .map(|kind| kind.eq_ignore_ascii_case(name))
+        .unwrap_or_else(|| value.as_i64() == Some(numeric_value))
+}
+
 pub fn load_constant_palette(root_path: String) -> Result<Vec<Value>, String> {
     let root = Path::new(&root_path);
     let db = WorkspaceDb::open(root)?;
@@ -870,7 +957,20 @@ pub fn load_workspace_node_contracts(root_path: String) -> Result<Vec<Value>, St
     palette.extend(build_constant_palette_items(&const_items));
 
     let components = discover_component_pipelines(root, Some(&db));
-    palette.extend(build_component_palette_items(root, &components));
+    let mut snapshots_by_slug = HashMap::new();
+    for (slug, _, _) in &components {
+        if let Some(snapshot_json) = db.load_pipeline_snapshot(slug)? {
+            let snapshot = serde_json::from_str(&snapshot_json).map_err(|error| {
+                format!("Component snapshot '{}' is invalid JSON: {}", slug, error)
+            })?;
+            snapshots_by_slug.insert(slug.clone(), snapshot);
+        }
+    }
+    palette.extend(build_component_palette_items_with_snapshots(
+        root,
+        &components,
+        &snapshots_by_slug,
+    ));
 
     Ok(palette)
 }
@@ -1107,6 +1207,102 @@ mod tests {
         assert_eq!(items[1]["inputs"][1]["primitiveType"], "Number");
         assert_eq!(items[1]["outputs"][1]["id"], "ok");
         assert_eq!(items[1]["outputs"][1]["primitiveType"], "Boolean");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn test_component_palette_regenerates_and_clears_pins_from_parameter_contract() {
+        let root = std::env::temp_dir().join(format!("forgity_comp_params_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("pipelines").join("components")).unwrap();
+
+        let components = vec![
+            (
+                "updated".to_string(),
+                root.join("pipelines/components/updated.component.yaml")
+                    .to_string_lossy()
+                    .to_string(),
+                "pipelines/components/updated.component.yaml".to_string(),
+            ),
+            (
+                "cleared".to_string(),
+                root.join("pipelines/components/cleared.component.yaml")
+                    .to_string_lossy()
+                    .to_string(),
+                "pipelines/components/cleared.component.yaml".to_string(),
+            ),
+        ];
+        let mut snapshots = HashMap::new();
+        snapshots.insert(
+            "updated".to_string(),
+            json!({
+                "parameters": [
+                    {
+                        "id": "guid-input",
+                        "key": "input_path",
+                        "label": "Input Path",
+                        "kind": "Input",
+                        "type": "Asset",
+                        "contextData": { "type": "path", "pathKind": "file" }
+                    },
+                    {
+                        "id": "guid-output",
+                        "key": "textures",
+                        "label": "Textures",
+                        "kind": "Output",
+                        "type": "Asset",
+                        "cardinality": "Array"
+                    }
+                ],
+                "nodes": [
+                    {
+                        "id": "start",
+                        "kind": "Start",
+                        "outputs": [{ "id": "stale", "kind": "Data" }]
+                    },
+                    {
+                        "id": "return",
+                        "kind": "Return",
+                        "inputs": [{ "id": "stale", "kind": "Data" }]
+                    }
+                ]
+            }),
+        );
+        snapshots.insert(
+            "cleared".to_string(),
+            json!({
+                "parameters": [],
+                "nodes": [
+                    {
+                        "id": "start",
+                        "kind": "Start",
+                        "outputs": [{ "id": "stale", "kind": "Data" }]
+                    },
+                    {
+                        "id": "return",
+                        "kind": "Return",
+                        "inputs": [{ "id": "stale", "kind": "Data" }]
+                    }
+                ]
+            }),
+        );
+
+        let items = build_component_palette_items_with_snapshots(&root, &components, &snapshots);
+        assert_eq!(items[0]["inputs"][1]["id"], "input_path");
+        assert_eq!(items[0]["inputs"][1]["label"], "Input Path");
+        assert_eq!(items[0]["inputs"][1]["primitiveType"], "Asset");
+        let metadata: Value = serde_json::from_str(
+            items[0]["inputs"][1]["metadata"]
+                .as_str()
+                .expect("file pin metadata"),
+        )
+        .expect("valid file pin metadata");
+        assert_eq!(metadata, json!({ "type": "path", "pathKind": "file" }));
+        assert_eq!(items[0]["outputs"][1]["id"], "textures");
+        assert_eq!(items[0]["outputs"][1]["cardinality"], "Array");
+        assert_eq!(items[1]["inputs"].as_array().unwrap().len(), 1);
+        assert_eq!(items[1]["outputs"].as_array().unwrap().len(), 1);
 
         let _ = std::fs::remove_dir_all(&root);
     }

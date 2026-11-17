@@ -1,6 +1,10 @@
 import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import type { Node, Edge } from "@xyflow/react";
 import type { PipelineParameterDto, PinDefinition } from "@/features/pipelines/types/pipelineGraphTypes";
+import {
+  getPipelineParameterPinId,
+  pipelineParameterToPin,
+} from "../../../adapters/pipelineParameterPins";
 import type { CustomPipelineNodeData } from "../nodes/types";
 
 interface UsePipelineContractSyncOptions {
@@ -106,18 +110,7 @@ export function usePipelineContractSync({
 
           // Ghép các tham số Input của Pipeline thành Data Pins đầu ra của Start
           for (const p of inputParams) {
-            startOutputs.push({
-              id: p.name || p.id || "",
-              name: p.name || p.id || "",
-              direction: "Output",
-              label: p.name || p.id || "",
-              kind: "Data",
-              primitiveType: p.type as any,
-              cardinality: p.cardinality as any,
-              metadata: (p as any).structType as any,
-              defaultValue: p.defaultValue,
-              isRequired: Boolean((p as any).isRequired),
-            });
+            startOutputs.push(pipelineParameterToPin(p, "Output"));
           }
 
           hasChanges = true;
@@ -145,18 +138,7 @@ export function usePipelineContractSync({
 
           // Ghép các tham số Output của Pipeline thành Data Pins đầu vào của Return
           for (const p of outputParams) {
-            returnInputs.push({
-              id: p.name || p.id || "",
-              name: p.name || p.id || "",
-              direction: "Input",
-              label: p.name || p.id || "",
-              kind: "Data",
-              primitiveType: p.type as any,
-              cardinality: p.cardinality as any,
-              metadata: (p as any).structType as any,
-              defaultValue: p.defaultValue,
-              isRequired: Boolean((p as any).isRequired),
-            });
+            returnInputs.push(pipelineParameterToPin(p, "Input"));
           }
 
           hasChanges = true;
@@ -183,11 +165,11 @@ export function usePipelineContractSync({
       "exec_out",
       "resources",
       "repository",
-      ...inputParams.map((p) => p.key),
+      ...inputParams.map(getPipelineParameterPinId),
     ]);
     const validReturnInputIds = new Set([
       "exec_in",
-      ...outputParams.map((p) => p.key),
+      ...outputParams.map(getPipelineParameterPinId),
     ]);
 
     setEdges((currentEdges) =>

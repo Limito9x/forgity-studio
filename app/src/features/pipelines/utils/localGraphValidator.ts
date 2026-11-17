@@ -62,7 +62,7 @@ export function validateLocalPipelineGraph(
 
   for (const n of nodes) {
     const kind = (n.data as any)?.kind;
-    if (kind === "Start" || kind === "Capsule" || n.type === "scopeContainer") continue;
+    if (kind === "Start" || kind === "Capsule") continue;
     const inputs = ((n.data as any)?.inputs || []) as any[];
     const incomingEdges = edges.filter((e) => e.target === n.id);
     const hasExecIn = incomingEdges.some((e) =>

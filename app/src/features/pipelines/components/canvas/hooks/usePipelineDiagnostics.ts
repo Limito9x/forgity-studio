@@ -74,43 +74,6 @@ export function usePipelineDiagnostics({
   // Helper to build draft snapshot payload matching backend expected format
   const buildDraftSnapshot = useCallback(() => {
     const nodeItems = nodes.map((node) => {
-      if (node.type === "scopeContainer") {
-        const stageData = (node.data ?? {}) as any;
-        const nodeW =
-          typeof node.width === "number"
-            ? node.width
-            : typeof node.measured?.width === "number"
-              ? node.measured.width
-              : typeof node.style?.width === "number"
-                ? node.style.width
-                : 520;
-        const nodeH =
-          typeof node.height === "number"
-            ? node.height
-            : typeof node.measured?.height === "number"
-              ? node.measured.height
-              : typeof node.style?.height === "number"
-                ? node.style.height
-                : 380;
-        return {
-          id: node.id,
-          refId: "ScopeContainer",
-          kind: "Container",
-          parentId: null,
-          positionX: node.position.x,
-          positionY: node.position.y,
-          width: Math.round(nodeW),
-          height: Math.round(nodeH),
-          configValues: {},
-          metadata: {
-            name: stageData.name,
-            kind: stageData.kind,
-            executorKey: stageData.executorKey || "blender",
-            targetRunnerId: stageData.targetRunnerId || null,
-          },
-        };
-      }
-
       if (node.type === "capsuleNode") {
         const cData = (node.data ?? {}) as any;
         return {

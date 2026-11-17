@@ -34,7 +34,8 @@ public record TemplateLibraryItemDto(
     int? RemainingRuns,
     DateTimeOffset AddedAt,
     List<TemplateContainerMemberDto> Members,
-    List<TemplateConstantDeclarationDto> Constants
+    List<TemplateConstantDeclarationDto> Constants,
+    JsonDocument? PaletteNodesJson = null
 );
 
 public static class CloudTemplateClaimHelper
@@ -71,8 +72,22 @@ public static class CloudTemplateClaimHelper
                     desc
                 ));
             }
+
         }
         return result;
+    }
+
+    public static JsonDocument? ExtractPaletteNodes(JsonDocument manifest)
+    {
+        if (
+            !manifest.RootElement.TryGetProperty("paletteNodes", out var paletteNodes)
+            || paletteNodes.ValueKind != JsonValueKind.Array
+        )
+        {
+            return null;
+        }
+
+        return JsonDocument.Parse(paletteNodes.GetRawText());
     }
 
     public static JsonDocument? ExtractRootPipeline(PipelineVersion? version)

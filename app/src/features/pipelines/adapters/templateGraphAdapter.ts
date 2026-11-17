@@ -50,6 +50,7 @@ export function templateRootToPipelineGraphDto(
       outputs: Array.isArray(n.outputs) ? n.outputs : [],
       configValues: n.configValues || {},
       metadata: n.metadata || {},
+      fileAssets: n.fileAssets || {},
     })),
     edges: rawEdges.map((e: any, idx: number) => ({
       id: e.id || `edge_${idx}`,

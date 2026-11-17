@@ -7,11 +7,20 @@ import { Badge } from "@/components/ui/badge";
 import { useGetMyLibraryItem } from "@/gen/endpoints/templates/templates";
 import { useDispatchCloudBundle } from "@/gen/endpoints/pipelines/pipelines";
 import { PipelineCanvas } from "../../components/canvas/PipelineCanvas";
+import { PipelineWorkspaceProvider } from "../../context/PipelineWorkspaceContext";
 import { RunPipelineModal } from "../../dialogs/RunPipelineModal";
 import { ConstantProfileEditorDrawer } from "../../components/templates/ConstantProfileEditorDrawer";
 import { TemplateOutliner } from "../../components/templates/TemplateOutliner";
-import { useTemplateGraph } from "../../hooks/useTemplateGraph";
+import { useCloudTemplateWorkspace } from "../../hooks/useCloudTemplateWorkspace";
+import type { PipelineWorkspaceCapabilities } from "../../types/pipelineWorkspaceContract";
 import { isTauriRuntime } from "@/lib/platform/filePickerStrategy";
+
+const WORKBENCH_CAPABILITIES: PipelineWorkspaceCapabilities = {
+  canEditGraph: false,
+  canSaveDraft: false,
+  canSaveSnapshot: false,
+  canRun: true,
+};
 
 interface TemplateWorkbenchPageProps {
   libraryItemId: string;
@@ -44,7 +53,18 @@ export function TemplateWorkbenchPage({
     setSelectedVersionId(initial);
   }, [item, selectedVersionId]);
 
-  const { graph, isLoading: isGraphLoading } = useTemplateGraph(selectedVersionId);
+  const {
+    graph,
+    workspace,
+    isLoading: isGraphLoading,
+    isError: isWorkspaceError,
+    error: workspaceError,
+  } = useCloudTemplateWorkspace({
+    versionId: selectedVersionId,
+    projectId: "cloud-template",
+    paletteNodesJson: item?.paletteNodesJson,
+    capabilities: WORKBENCH_CAPABILITIES,
+  });
   const constantFields = (item?.constants || []).map((c) => ({
     ...c,
     description: c.description ?? undefined,
@@ -90,7 +110,15 @@ export function TemplateWorkbenchPage({
     );
   }
 
-  if (!item || !graph) {
+  if (isWorkspaceError) {
+    return (
+      <div className="page-container space-y-4 text-sm text-destructive">
+        {workspaceError?.message || "Failed to load the template workspace contract."}
+      </div>
+    );
+  }
+
+  if (!item || (!isGraphLoading && !graph)) {
     return (
       <div className="page-container space-y-4">
         <Button variant="ghost" onPress={() => navigate({ to: "/templates/library" as any })}>
@@ -172,13 +200,15 @@ export function TemplateWorkbenchPage({
               <Loader2 className="size-4 animate-spin" />
               <span>Loading pipeline graph...</span>
             </div>
-          ) : graph ? (
-            <PipelineCanvas
-              projectId="cloud-template"
-              graph={graph as any}
-              readOnly
-              onRequestRun={() => setIsRunModalOpen(true)}
-            />
+          ) : graph && workspace ? (
+            <PipelineWorkspaceProvider workspace={workspace}>
+              <PipelineCanvas
+                projectId="cloud-template"
+                graph={graph}
+                readOnly
+                onRequestRun={() => setIsRunModalOpen(true)}
+              />
+            </PipelineWorkspaceProvider>
           ) : (
             <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
               Select a Master Pipeline or Component from the left outliner.
@@ -205,7 +235,6 @@ export function TemplateWorkbenchPage({
         parameters={graph?.parameters || []}
         isOpen={isRunModalOpen}
         onClose={() => setIsRunModalOpen(false)}
-        isLocalMode={true}
         onRunLocal={handleRunTemplate}
       />
     </div>

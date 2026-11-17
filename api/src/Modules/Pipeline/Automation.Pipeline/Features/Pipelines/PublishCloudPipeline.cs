@@ -109,20 +109,39 @@ public class PublishCloudPipelineEndpoint(PipelineDbContext db)
         };
         db.PipelineVersions.Add(newVersion);
 
-        // Save script artifacts
+        var scriptsByIdentity = new Dictionary<string, PipelineScript>(StringComparer.OrdinalIgnoreCase);
         foreach (var s in req.Scripts)
         {
             var raw = s.SourceCode ?? string.Empty;
             var scriptHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw))).ToLowerInvariant();
+            var identity = $"{s.Key}\0{scriptHash}";
+            if (!scriptsByIdentity.TryGetValue(identity, out var script))
+            {
+                script = await db.PipelineScripts.FirstOrDefaultAsync(
+                    x => x.Key == s.Key && x.ScriptHash == scriptHash,
+                    ct
+                );
 
-            db.PipelineScriptArtifacts.Add(new PipelineScriptArtifact
+                if (script is null)
+                {
+                    script = new PipelineScript
+                    {
+                        Key = s.Key,
+                        Executor = s.Executor,
+                        ScriptHash = scriptHash,
+                        SourceCode = raw,
+                        RequirementsJson = s.RequirementsJson ?? JsonDocument.Parse("[]")
+                    };
+                    db.PipelineScripts.Add(script);
+                }
+
+                scriptsByIdentity.Add(identity, script);
+            }
+
+            newVersion.VersionScripts.Add(new PipelineVersionScript
             {
                 PipelineVersion = newVersion,
-                ScriptKey = s.Key,
-                ScriptHash = scriptHash,
-                Executor = s.Executor,
-                SourceCode = raw,
-                RequirementsJson = s.RequirementsJson ?? JsonDocument.Parse("[]")
+                PipelineScript = script
             });
         }
 

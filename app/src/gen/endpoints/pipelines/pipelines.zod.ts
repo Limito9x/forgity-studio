@@ -9,31 +9,6 @@ import * as zod from 'zod/mini';
 
 
 /**
- * @summary Slice 1: Ingest, hash & deduplicate Pipelines, Components & Scripts into Cloud Data Pool
- */
-export const IngestCloudPipelineDataBody = /*#__PURE__*/ zod.object({
-  "pipelines": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
-  "slug": /*#__PURE__*/ zod.string(),
-  "name": /*#__PURE__*/ zod.string(),
-  "pipelineKind": /*#__PURE__*/ zod.string(),
-  "executor": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
-  "graphJson": /*#__PURE__*/ zod.unknown(),
-  "contractsJson": /*#__PURE__*/ zod.unknown()
-})),
-  "scripts": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
-  "key": /*#__PURE__*/ zod.string(),
-  "executor": /*#__PURE__*/ zod.string(),
-  "sourceCode": /*#__PURE__*/ zod.string(),
-  "requirementsJson": /*#__PURE__*/ zod.unknown()
-}))
-})
-
-export const IngestCloudPipelineDataResponse = /*#__PURE__*/ zod.object({
-  "pipelineVersionMap": /*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.uuid()),
-  "scriptArtifactMap": /*#__PURE__*/ zod.record(/*#__PURE__*/ zod.string(), /*#__PURE__*/ zod.uuid())
-})
-
-/**
  * @summary Dispatch execution bundle for a template or project pipeline to local runner
  */
 export const DispatchCloudBundleBody = /*#__PURE__*/ zod.object({

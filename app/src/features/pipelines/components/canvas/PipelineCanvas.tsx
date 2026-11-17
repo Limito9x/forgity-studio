@@ -114,21 +114,26 @@ function PipelineCanvasContent({
   componentExecutor,
   viewMode = "visual",
   onToggleViewMode,
-  readOnly = false,
+  readOnly: requestedReadOnly,
   onRequestRun,
   onOpenPublishModal,
 }: PipelineCanvasProps) {
   const { screenToFlowPosition, setCenter } = useReactFlow();
   const workspaceCtx = usePipelineWorkspaceOptional();
-  const storage = (directStorage || workspaceCtx?.storage || { mode: "local" }) as IPipelineStorageAdapter;
-  const isLocalMode = storage.mode === "local";
+  const readOnly =
+    requestedReadOnly ||
+    workspaceCtx?.capabilities.canEditGraph === false;
+  const canSaveDraft = workspaceCtx?.capabilities.canSaveDraft ?? true;
+  const canRun = workspaceCtx?.capabilities.canRun ?? !requestedReadOnly;
+  const storage = (directStorage || workspaceCtx?.storage || { source: "local" }) as IPipelineStorageAdapter;
+  const isLocalMode = (workspaceCtx?.source ?? storage.source) === "local";
   const structCatalogue = workspaceCtx?.structCatalogue ?? [];
   const [isAutoFollow, setIsAutoFollow] = useState(true);
 
   // 1. Headless Draft State & Flat Storage Strategy (NO STAGES)
   const draft = usePipelineDraftState(graph, structCatalogue, {
     storage,
-    isReadOnly: readOnly,
+    canSaveDraft,
   });
 
   // 1b. Real-time Diagnostics Scope
@@ -264,6 +269,8 @@ function PipelineCanvasContent({
           pipelineName={graph.name}
           triggerType={graph.triggerType}
           isSaving={draft.isSaving}
+          canSaveDraft={canSaveDraft}
+          canRun={canRun}
           isLocalMode={isLocalMode}
           viewMode={viewMode}
           onToggleViewMode={onToggleViewMode}
@@ -340,8 +347,6 @@ function PipelineCanvasContent({
               onDeleteParameter={(key) => {
                 draft.setParameters(draft.parameters.filter((p) => p.key !== key));
               }}
-              onSpawnCapsule={() => {}}
-              onSpawnAction={() => {}}
             />
 
             {/* Diagnostics Overlay Panel */}
@@ -477,14 +482,8 @@ function PipelineCanvasContent({
           parameters={draft.parameters}
           isOpen={isRunModalOpen}
           onClose={() => setIsRunModalOpen(false)}
-          isLocalMode={isLocalMode}
-          onExecutionStarted={(executionId) => {
-            live.setActiveExecutionId(executionId);
-            live.setDrawerDefaultTab("logs");
-            setIsDrawerOpen(true);
-          }}
           onRunLocal={(runtimeInputs) =>
-            storage.run({ projectId, pipelineId: graph.id, runtimeInputs } as any)
+            storage.run({ projectId, pipelineId: graph.id, runtimeInputs })
           }
         />
       </div>

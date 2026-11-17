@@ -47,7 +47,6 @@ public class PipelineVersion : AuditableEntity
     public JsonDocument DagBundleJson { get; set; } = JsonDocument.Parse("{}");
     public JsonDocument ContractsJson { get; set; } = JsonDocument.Parse("{}");
 
-    public List<PipelineScriptArtifact> ScriptArtifacts { get; set; } = [];
     public List<PipelineVersionScript> VersionScripts { get; set; } = [];
 }
 
@@ -74,20 +73,6 @@ public class PipelineVersionScript
     public PipelineVersion PipelineVersion { get; set; } = null!;
     public Guid PipelineScriptId { get; set; }
     public PipelineScript PipelineScript { get; set; } = null!;
-}
-
-/// <summary>
-/// Private Python script source blob tied to an immutable PipelineVersion (served in-RAM for Templates).
-/// </summary>
-public class PipelineScriptArtifact : BaseEntity
-{
-    public Guid PipelineVersionId { get; set; }
-    public PipelineVersion PipelineVersion { get; set; } = null!;
-    public string ScriptKey { get; set; } = string.Empty;
-    public string ScriptHash { get; set; } = string.Empty;
-    public string Executor { get; set; } = "python";
-    public string SourceCode { get; set; } = string.Empty;
-    public JsonDocument RequirementsJson { get; set; } = JsonDocument.Parse("[]");
 }
 
 /// <summary>

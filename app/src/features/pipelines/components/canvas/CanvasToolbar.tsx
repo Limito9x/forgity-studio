@@ -33,6 +33,8 @@ interface CanvasToolbarProps {
   pipelineName: string;
   triggerType?: number | string;
   isSaving: boolean;
+  canSaveDraft?: boolean;
+  canRun?: boolean;
   onOpenRunModal: () => void;
   onOpenHistory?: () => void;
   onOpenSnapshots?: () => void;
@@ -61,6 +63,8 @@ export function CanvasToolbar({
   pipelineName,
   triggerType,
   isSaving,
+  canSaveDraft = true,
+  canRun = true,
   onOpenRunModal,
   onOpenHistory,
   onOpenSnapshots,
@@ -220,7 +224,7 @@ export function CanvasToolbar({
           {!isLocalMode && renderTriggerBadge()}
 
           {/* Autosave Indicator */}
-          {!readOnly && (
+          {canSaveDraft && (
             <div className="hidden lg:flex items-center gap-1.5 pl-2 text-xs text-muted-foreground">
               {isSaving ? (
                 <>
@@ -420,7 +424,7 @@ export function CanvasToolbar({
         )}
 
         {/* Run Pipeline Button */}
-        {!readOnly && (isManual ? (
+        {canRun && (isManual ? (
           <Button
             size="sm"
             onPress={onOpenRunModal}

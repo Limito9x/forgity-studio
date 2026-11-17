@@ -27,22 +27,45 @@ import { toast } from "sonner";
 import { isExecHandle } from "./canvasUtils";
 import { usePipelineContractSync } from "./usePipelineContractSync";
 import type { IPipelineStorageAdapter } from "../../../adapters/pipelineStorageAdapter";
+import { isLegacyScopeContainerNode } from "../../../utils/pipelineDslConverter";
 
 interface UsePipelineDraftStateOptions {
   storage: IPipelineStorageAdapter;
-  isReadOnly?: boolean;
+  canSaveDraft?: boolean;
 }
 
 export function usePipelineDraftState(
   graph: ExtendedPipelineGraphDto,
   structCatalogue: StructDefinitionDto[] | undefined,
-  { storage, isReadOnly: _isReadOnly = false }: UsePipelineDraftStateOptions
+  { storage, canSaveDraft = true }: UsePipelineDraftStateOptions
 ) {
   const definitions = useNodeDefinitionsMap();
 
   // 1. Initial Flat Nodes (No Stage Scoping) — hydrate static shapes from Palette (SSOT)
   const initialNodes: Node[] = useMemo(() => {
-    return (graph.nodes || []).map((n) => {
+    const graphNodes = graph.nodes || [];
+    const graphNodesById = new Map(graphNodes.map((node) => [node.id, node]));
+    const getFlatPosition = (node: (typeof graphNodes)[number]) => {
+      const position = {
+        x: node.position?.x ?? 100,
+        y: node.position?.y ?? 100,
+      };
+      const visited = new Set([node.id]);
+      let parentId = node.parentId;
+
+      while (parentId && !visited.has(parentId)) {
+        const parent = graphNodesById.get(parentId);
+        if (!parent) break;
+        visited.add(parentId);
+        position.x += parent.position?.x ?? 0;
+        position.y += parent.position?.y ?? 0;
+        parentId = parent.parentId;
+      }
+
+      return position;
+    };
+
+    return graphNodes.filter((n) => !isLegacyScopeContainerNode(n)).map((n) => {
       let nodeType = "pipelineNode";
       if (n.kind === PipelineNodeKind.Capsule) {
         nodeType = "capsuleNode";
@@ -65,7 +88,7 @@ export function usePipelineDraftState(
         id: n.id,
         type: nodeType,
         parentId: undefined, // Flat DAG: no parent stages
-        position: n.position || { x: 100, y: 100 },
+        position: getFlatPosition(n),
         data: {
           refId: n.refId,
           kind: n.kind,
@@ -85,7 +108,16 @@ export function usePipelineDraftState(
 
   // 2. Initial Flat Edges
   const initialEdges: Edge[] = useMemo(() => {
-    return (graph.edges || []).map((e) => {
+    const legacyScopeIds = new Set(
+      (graph.nodes || []).filter(isLegacyScopeContainerNode).map((node) => node.id)
+    );
+    return (graph.edges || [])
+      .filter(
+        (edge) =>
+          !legacyScopeIds.has(edge.sourceNodeId) &&
+          !legacyScopeIds.has(edge.targetNodeId)
+      )
+      .map((e) => {
       const sourceHandle = e.sourcePin || "out";
       const targetHandle = e.targetPin || "in";
       const isExec = isExecHandle(sourceHandle) || isExecHandle(targetHandle);
@@ -110,7 +142,7 @@ export function usePipelineDraftState(
           ? { stroke: "currentColor", strokeWidth: 3.5, strokeDasharray: "none" }
           : { stroke: "#38bdf8", strokeWidth: 2 },
       };
-    });
+      });
   }, [graph.edges]);
 
   const [nodes, setNodes, rawOnNodesChange] = useNodesState(initialNodes);
@@ -208,6 +240,8 @@ export function usePipelineDraftState(
   parametersRef.current = parameters;
   const storageRef = useRef(storage);
   storageRef.current = storage;
+  const canSaveDraftRef = useRef(canSaveDraft);
+  canSaveDraftRef.current = canSaveDraft;
   const graphRef = useRef(graph);
   graphRef.current = graph;
 
@@ -248,7 +282,7 @@ export function usePipelineDraftState(
       isInitialMount.current = false;
       return;
     }
-    if (!isDirty || isAutoSavingRef.current) return;
+    if (!canSaveDraft || !isDirty || isAutoSavingRef.current) return;
 
     const timer = setTimeout(async () => {
       if (isAutoSavingRef.current) return;
@@ -258,7 +292,10 @@ export function usePipelineDraftState(
       try {
         setIsSaving(true);
         const currentGraph = buildCurrentGraphDto();
-        await storage.saveDraft(graph.id, currentGraph);
+        const result = await storage.saveDraft(graph.id, currentGraph);
+        if (!result.success) {
+          throw new Error(result.message || "Failed to save the pipeline draft.");
+        }
       } catch (err) {
         console.warn("[usePipelineDraftState] Auto-save error:", err);
         setIsDirty(true);
@@ -269,7 +306,16 @@ export function usePipelineDraftState(
     }, 600);
 
     return () => clearTimeout(timer);
-  }, [nodes, edges, parameters, isDirty, storage, graph, buildCurrentGraphDto]);
+  }, [
+    nodes,
+    edges,
+    parameters,
+    isDirty,
+    canSaveDraft,
+    storage,
+    graph,
+    buildCurrentGraphDto,
+  ]);
 
   // Flush any pending unsaved changes immediately when unmounting (e.g., switching tabs)
   useEffect(() => {
@@ -277,11 +323,24 @@ export function usePipelineDraftState(
       if (
         isDirtyRef.current &&
         !isAutoSavingRef.current &&
+        canSaveDraftRef.current &&
         typeof storageRef.current?.saveDraft === "function"
       ) {
         isDirtyRef.current = false;
         const currentGraph = buildCurrentGraphDto();
-        void storageRef.current.saveDraft(graphRef.current.id, currentGraph);
+        void storageRef.current
+          .saveDraft(graphRef.current.id, currentGraph)
+          .then((result) => {
+            if (!result.success) {
+              console.warn(
+                "[usePipelineDraftState] Flush save failed:",
+                result.message || "Failed to save the pipeline draft."
+              );
+            }
+          })
+          .catch((err) => {
+            console.warn("[usePipelineDraftState] Flush save error:", err);
+          });
       }
     };
   }, [buildCurrentGraphDto]);

@@ -15,8 +15,6 @@ import type {
 
 import type {
   DispatchBundleRequest,
-  IngestCloudPipelineDataRequest,
-  IngestCloudPipelineDataResponse,
   JsonObject,
   PublishCloudPipelineRequest,
   PublishCloudPipelineResponse,
@@ -24,90 +22,6 @@ import type {
 
 import { customInstance } from "../../../lib/api-client";
 
-/**
- * @summary Slice 1: Ingest, hash & deduplicate Pipelines, Components & Scripts into Cloud Data Pool
- */
-export const ingestCloudPipelineData = (
-  ingestCloudPipelineDataRequest: IngestCloudPipelineDataRequest,
-  signal?: AbortSignal,
-) => {
-  return customInstance<IngestCloudPipelineDataResponse>({
-    url: `/api/pipelines/cloud-data/ingest`,
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    data: ingestCloudPipelineDataRequest,
-    signal,
-  });
-};
-
-export const getIngestCloudPipelineDataMutationOptions = <
-  TError = void,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof ingestCloudPipelineData>>,
-    TError,
-    { data: IngestCloudPipelineDataRequest },
-    TContext
-  >;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof ingestCloudPipelineData>>,
-  TError,
-  { data: IngestCloudPipelineDataRequest },
-  TContext
-> => {
-  const mutationKey = ["ingestCloudPipelineData"];
-  const { mutation: mutationOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof ingestCloudPipelineData>>,
-    { data: IngestCloudPipelineDataRequest }
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return ingestCloudPipelineData(data);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type IngestCloudPipelineDataMutationResult = NonNullable<
-  Awaited<ReturnType<typeof ingestCloudPipelineData>>
->;
-export type IngestCloudPipelineDataMutationBody =
-  IngestCloudPipelineDataRequest;
-export type IngestCloudPipelineDataMutationError = void;
-
-/**
- * @summary Slice 1: Ingest, hash & deduplicate Pipelines, Components & Scripts into Cloud Data Pool
- */
-export const useIngestCloudPipelineData = <TError = void, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof ingestCloudPipelineData>>,
-      TError,
-      { data: IngestCloudPipelineDataRequest },
-      TContext
-    >;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<ReturnType<typeof ingestCloudPipelineData>>,
-  TError,
-  { data: IngestCloudPipelineDataRequest },
-  TContext
-> => {
-  return useMutation(
-    getIngestCloudPipelineDataMutationOptions(options),
-    queryClient,
-  );
-};
 /**
  * @summary Dispatch execution bundle for a template or project pipeline to local runner
  */

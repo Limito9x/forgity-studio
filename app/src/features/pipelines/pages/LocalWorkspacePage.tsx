@@ -16,6 +16,7 @@ import {
   saveLocalPipelineSnapshot,
 } from "../hooks/workspace";
 import type { NodePaletteItemDto, StructDefinitionDto } from "@/features/pipelines/types/pipelineGraphTypes";
+import type { PipelineWorkspaceContract } from "../types/pipelineWorkspaceContract";
 import { LocalWorkspaceEmptyState } from "../components/workspace/LocalWorkspaceEmptyState";
 import { LocalWorkspaceWelcomeState } from "../components/workspace/LocalWorkspaceWelcomeState";
 import { LocalWorkspaceOutliner } from "../components/workspace/LocalWorkspaceOutliner";
@@ -94,7 +95,10 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     savePipelineDraft,
   } = useLocalPipelinesQuery(rootPath, config?.pipelinesDir);
 
-  const { data: nodeContractItems } = useLocalNodeContractsQuery(rootPath);
+  const {
+    data: nodeContractItems,
+    isLoading: isLoadingNodeContracts,
+  } = useLocalNodeContractsQuery(rootPath);
 
   const {
     getProjectState,
@@ -335,12 +339,10 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
               const refIdLower = String(n.data?.refId || n.id).toLowerCase();
               const isStart = refIdLower === "start" || refIdLower === "beginexecute";
               const isReturn = refIdLower === "return" || refIdLower === "endexecute";
-              const isStage = n.type === "scopeContainer";
 
               let kind: any = PipelineNodeKind.Tool;
               if (isStart) kind = PipelineNodeKind.Start;
               else if (isReturn) kind = PipelineNodeKind.Return;
-              else if (isStage) kind = PipelineNodeKind.Container;
               else if (n.data?.isLocalDraft) kind = PipelineNodeKind.Custom;
 
               const matchedScript = Object.values(draftNodes).find(
@@ -370,7 +372,6 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                       (n.data?.executor as string) ||
                       "python",
                 position: n.position,
-                parentId: n.parentId || null,
                 configValues: (n.data?.configValues as any) || {},
                 inputs: isReturn
                   ? [{ id: "exec_in", label: "Exec", kind: "Exec" as any, isRequired: false }]
@@ -457,12 +458,10 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
             const refIdLower = String(n.data?.refId || n.id).toLowerCase();
             const isStart = refIdLower === "start" || refIdLower === "beginexecute";
             const isReturn = refIdLower === "return" || refIdLower === "endexecute";
-            const isStage = n.type === "scopeContainer";
 
             let kind: any = PipelineNodeKind.Tool;
             if (isStart) kind = PipelineNodeKind.Start;
             else if (isReturn) kind = PipelineNodeKind.Return;
-            else if (isStage) kind = PipelineNodeKind.Container;
             else if (n.data?.isLocalDraft) kind = PipelineNodeKind.Custom;
 
             const matchedScript = Object.values(draftNodes).find(
@@ -477,7 +476,6 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
               category: isStart || isReturn ? "Flow Control" : matchedScript?.executor || (n.data?.category as string) || "Tool",
               executor: isStart || isReturn ? "server" : matchedScript?.executor || (n.data?.executor as string) || "python",
               position: existingPos || n.position || { x: 100 + idx * 250, y: 100 },
-              parentId: n.parentId || null,
               size: existingSize || { width: 240, height: 120 },
               configValues: (n.data?.configValues as any) || {},
               inputs: matchedScript?.inputs || [],
@@ -664,6 +662,34 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     []
   );
 
+  const workspaceContract = useMemo<PipelineWorkspaceContract>(
+    () => ({
+      source: "local",
+      projectId,
+      storage: storageAdapter,
+      paletteItems: localPaletteItems,
+      structCatalogue: localStructCatalogue,
+      isLoadingPalette: isLoadingNodeContracts,
+      capabilities: {
+        canEditGraph: true,
+        canSaveDraft: true,
+        canSaveSnapshot: true,
+        canRun: true,
+      },
+      validateGraph: handleValidateLocalGraph,
+      cancelExecution: handleCancelLocalExecution,
+    }),
+    [
+      projectId,
+      storageAdapter,
+      localPaletteItems,
+      localStructCatalogue,
+      isLoadingNodeContracts,
+      handleValidateLocalGraph,
+      handleCancelLocalExecution,
+    ]
+  );
+
   if (isConfigLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -681,18 +707,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
   }
 
   return (
-    <PipelineWorkspaceProvider
-      mode="local"
-      projectId={projectId}
-      rootPath={rootPath}
-      storage={storageAdapter}
-      paletteItems={localPaletteItems}
-      structCatalogue={localStructCatalogue}
-      runners={[]}
-      isLoadingRunners={false}
-      validateGraph={handleValidateLocalGraph}
-      cancelExecution={handleCancelLocalExecution}
-    >
+    <PipelineWorkspaceProvider workspace={workspaceContract}>
       <div className="flex h-[calc(100vh-3.5rem)] w-full overflow-hidden bg-background">
         {/* Docked Left Sidebar */}
         <LocalWorkspaceOutliner

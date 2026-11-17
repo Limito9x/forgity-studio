@@ -6,7 +6,6 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export * from "./acquireTemplateScriptRequest";
 export * from "./addToLibraryRequest";
 export * from "./archiveCommand";
 export * from "./assetUploadDto";
@@ -116,14 +115,10 @@ export * from "./importProjectPackageRequestModel";
 export * from "./importProjectPackageResultDto";
 export * from "./ingestCloudDataManifestRequest";
 export * from "./ingestCloudDataManifestResponse";
-export * from "./ingestCloudPipelineDataRequest";
-export * from "./ingestCloudPipelineDataResponse";
 export * from "./ingestGraphPayloadDto";
 export * from "./ingestManifestDto";
 export * from "./ingestManifestPipelineItemDto";
 export * from "./ingestManifestScriptItemDto";
-export * from "./ingestPipelineItemDto";
-export * from "./ingestScriptItemDto";
 export * from "./iReadOnlyListOfAssetUploadDto";
 export * from "./iReadOnlyListOfConfirmAssetDto";
 export * from "./iReadOnlyListOfDirectoryNodeDto";
@@ -164,8 +159,6 @@ export * from "./listOfIError";
 export * from "./listOfIngestGraphPayloadDto";
 export * from "./listOfIngestManifestPipelineItemDto";
 export * from "./listOfIngestManifestScriptItemDto";
-export * from "./listOfIngestPipelineItemDto";
-export * from "./listOfIngestScriptItemDto";
 export * from "./listOfIReason";
 export * from "./listOfMigrateAssetItem";
 export * from "./listOfMigrateAssetItemResult";

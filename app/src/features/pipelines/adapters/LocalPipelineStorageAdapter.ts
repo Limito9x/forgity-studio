@@ -12,7 +12,7 @@ export interface LocalStorageAdapterConfig {
 }
 
 export class LocalPipelineStorageAdapter implements IPipelineStorageAdapter {
-  readonly mode = "local" as const;
+  readonly source = "local" as const;
   private config: LocalStorageAdapterConfig;
 
   constructor(config: LocalStorageAdapterConfig) {
@@ -87,7 +87,7 @@ export class LocalPipelineStorageAdapter implements IPipelineStorageAdapter {
 
   async run(options: PipelineRunOptions): Promise<any> {
     if (this.config.onRunDraft) {
-      return this.config.onRunDraft((options as any)?.runtimeInputs);
+      return this.config.onRunDraft(options.runtimeInputs);
     }
     throw new Error("No runner delegate provided for local execution");
   }

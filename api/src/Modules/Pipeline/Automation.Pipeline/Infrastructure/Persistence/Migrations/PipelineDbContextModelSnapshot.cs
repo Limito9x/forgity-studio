@@ -155,60 +155,6 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                     b.ToTable("PipelineScripts", "pipeline");
                 });
 
-            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineScriptArtifact", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Executor")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("PipelineVersionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<JsonDocument>("RequirementsJson")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("ScriptHash")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ScriptKey")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("SourceCode")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PipelineVersionId");
-
-                    b.ToTable("PipelineScriptArtifacts", "pipeline");
-                });
-
             modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineVersion", b =>
                 {
                     b.Property<Guid>("Id")
@@ -553,17 +499,6 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineScriptArtifact", b =>
-                {
-                    b.HasOne("Automation.Pipeline.Domain.Entities.PipelineVersion", "PipelineVersion")
-                        .WithMany("ScriptArtifacts")
-                        .HasForeignKey("PipelineVersionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("PipelineVersion");
-                });
-
             modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineVersion", b =>
                 {
                     b.HasOne("Automation.Pipeline.Domain.Entities.CloudPipeline", "Pipeline")
@@ -672,8 +607,6 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineVersion", b =>
                 {
-                    b.Navigation("ScriptArtifacts");
-
                     b.Navigation("VersionScripts");
                 });
 

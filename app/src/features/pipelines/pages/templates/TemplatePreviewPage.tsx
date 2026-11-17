@@ -16,8 +16,17 @@ import {
   useAddTemplateToLibrary,
 } from "@/gen/endpoints/templates/templates";
 import { PipelineCanvas } from "../../components/canvas/PipelineCanvas";
+import { PipelineWorkspaceProvider } from "../../context/PipelineWorkspaceContext";
 import { TemplateOutliner } from "../../components/templates/TemplateOutliner";
-import { useTemplateGraph } from "../../hooks/useTemplateGraph";
+import { useCloudTemplateWorkspace } from "../../hooks/useCloudTemplateWorkspace";
+import type { PipelineWorkspaceCapabilities } from "../../types/pipelineWorkspaceContract";
+
+const PREVIEW_CAPABILITIES: PipelineWorkspaceCapabilities = {
+  canEditGraph: false,
+  canSaveDraft: false,
+  canSaveSnapshot: false,
+  canRun: false,
+};
 
 interface TemplatePreviewPageProps {
   templateId: string;
@@ -58,9 +67,16 @@ export function TemplatePreviewPage({
 
   const {
     graph,
+    workspace,
     isLoading: isGraphLoading,
     isError: isGraphError,
-  } = useTemplateGraph(selectedVersionId);
+    error: graphError,
+  } = useCloudTemplateWorkspace({
+    versionId: selectedVersionId,
+    projectId: "template-preview",
+    paletteNodesJson: detail?.paletteNodesJson,
+    capabilities: PREVIEW_CAPABILITIES,
+  });
 
   const constantDeclarations = detail?.constants || [];
 
@@ -176,14 +192,16 @@ export function TemplatePreviewPage({
             </div>
           ) : isGraphError ? (
             <div className="flex h-full items-center justify-center text-xs text-destructive">
-              Failed to load pipeline graph.
+              {graphError?.message || "Failed to load pipeline graph or workspace contract."}
             </div>
-          ) : graph ? (
-            <PipelineCanvas
-              projectId="template-preview"
-              graph={graph as any}
-              readOnly={true}
-            />
+          ) : graph && workspace ? (
+            <PipelineWorkspaceProvider workspace={workspace}>
+              <PipelineCanvas
+                projectId="template-preview"
+                graph={graph}
+                readOnly
+              />
+            </PipelineWorkspaceProvider>
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-1 text-xs text-muted-foreground px-4 text-center">
               <span>Graph data is empty for this pipeline version.</span>

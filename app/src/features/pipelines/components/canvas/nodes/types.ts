@@ -33,6 +33,7 @@ const PIN_BG_CLASSES: Record<NormalizedPinType, { bgClass: string; textClass: st
   String: { bgClass: "bg-sky-500", textClass: "text-sky-600 dark:text-sky-400" },
   Number: { bgClass: "bg-purple-500", textClass: "text-purple-600 dark:text-purple-400" },
   Boolean: { bgClass: "bg-amber-500", textClass: "text-amber-600 dark:text-amber-400" },
+  Asset: { bgClass: "bg-pink-500", textClass: "text-pink-600 dark:text-pink-400" },
 };
 
 export function getPinVisual(type?: PinPrimitiveType | number | string, pin?: PinDefinition): PinTypeVisual {
@@ -76,7 +77,7 @@ export function isEntityRefPin(_type?: unknown) {
   return false;
 }
 export function isAssetPin(_type?: unknown) {
-  return false;
+  return normalizePinType(_type) === "Asset";
 }
 export function isVariablePin(structType?: string | null, _pinId?: string, _type?: unknown) {
   return structType === "Variable";
@@ -122,8 +123,8 @@ export function formatPinTypeLabel(type?: PinPrimitiveType | number | string, ca
         rawVal = "Asset";
       } else if (pinIdLower === "material_roles") {
         rawVal = "Text";
-      } else if (visual.label === "File Upload" || visual.label === "Asset") {
-        rawVal = "Asset";
+      } else if (visual.label === "File") {
+        rawVal = "File";
       } else {
         rawVal = "Text";
       }

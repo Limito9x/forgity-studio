@@ -3,7 +3,137 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback } from "react";
 import { toast } from "sonner";
 import type { WorkspaceConstantItem } from "../../types/workspaceConfig";
-import type { NodePaletteItemDto } from "@/features/pipelines/types/pipelineGraphTypes";
+import type { LocalDraftNode } from "../../types/workspaceConfig";
+import {
+  PipelineNodeKind,
+  type NodePaletteItemDto,
+} from "@/features/pipelines/types/pipelineGraphTypes";
+
+type LocalDraftPaletteContract = Pick<
+  LocalDraftNode,
+  "key" | "fileName" | "executor" | "inputs" | "outputs"
+> &
+  Partial<
+    Pick<
+      LocalDraftNode,
+      "fullPath" | "suggestedName" | "suggestedLabel" | "description"
+    >
+  >;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isLocalDraftNode(value: unknown): value is LocalDraftPaletteContract {
+  return (
+    isRecord(value) &&
+    typeof value.key === "string" &&
+    typeof value.fileName === "string" &&
+    typeof value.executor === "string" &&
+    Array.isArray(value.inputs) &&
+    Array.isArray(value.outputs)
+  );
+}
+
+function normalizeWorkspaceNodeContract(
+  value: unknown,
+  index: number
+): NodePaletteItemDto {
+  if (!isRecord(value)) {
+    throw new Error(`Local Workspace node contract ${index} is invalid.`);
+  }
+
+  const refId =
+    (typeof value.refId === "string" && value.refId) ||
+    (typeof value.key === "string" && value.key) ||
+    (typeof value.id === "string" && value.id);
+  if (!refId) {
+    throw new Error(`Local Workspace node contract ${index} has no reference ID.`);
+  }
+
+  const source = typeof value.source === "string" ? value.source : "";
+  const contractKind = Object.values(PipelineNodeKind).find(
+    (kind) => kind === value.kind
+  );
+  const kind =
+    contractKind ??
+    (source === "BuiltIn"
+      ? PipelineNodeKind.FlowControl
+      : source === "SubPipeline"
+        ? PipelineNodeKind.SubPipeline
+        : source === "Custom" || source === "LocalDraft"
+          ? PipelineNodeKind.Custom
+          : source === "Tool"
+            ? PipelineNodeKind.Tool
+            : undefined);
+  if (!kind) {
+    throw new Error(`Local Workspace node contract "${refId}" has an invalid kind.`);
+  }
+
+  return {
+    ...value,
+    refId,
+    name:
+      (typeof value.name === "string" && value.name) ||
+      (typeof value.label === "string" && value.label) ||
+      refId,
+    kind,
+  } as NodePaletteItemDto;
+}
+
+export async function loadLocalNodeContracts(
+  rootPath: string
+): Promise<NodePaletteItemDto[]> {
+  if (!rootPath) {
+    throw new Error("A Local Workspace root is required to load node contracts.");
+  }
+
+  const paletteJson = await invoke<string>("load_local_palette", { rootPath });
+  let parsedPalette: unknown;
+  try {
+    parsedPalette = JSON.parse(paletteJson);
+  } catch {
+    throw new Error("Local Workspace returned invalid palette JSON.");
+  }
+  if (!isRecord(parsedPalette)) {
+    throw new Error("Local Workspace returned an invalid palette contract.");
+  }
+  const workspaceItems = await invoke<unknown[]>(
+    "load_workspace_node_contracts",
+    { rootPath }
+  );
+  if (!Array.isArray(workspaceItems)) {
+    throw new Error("Local Workspace returned an invalid node contract collection.");
+  }
+
+  const draftItems = Object.values(parsedPalette).map((value, index) => {
+    if (!isLocalDraftNode(value)) {
+      throw new Error(`Local Workspace palette item ${index} is invalid.`);
+    }
+
+    return {
+      refId: `local:${value.key}`,
+      name: value.suggestedLabel || value.suggestedName || value.fileName,
+      kind: PipelineNodeKind.Custom,
+      key: `local:${value.key}`,
+      label: value.suggestedLabel || value.suggestedName || value.fileName,
+      category: "Local Scripts",
+      source: "LocalDraft",
+      executor: value.executor,
+      inputs: value.inputs,
+      outputs: value.outputs,
+      description: value.description || value.fullPath,
+      id: `local:${value.key}`,
+      isVisibleInPalette: true,
+    };
+  });
+
+  const items = [
+    ...draftItems,
+    ...workspaceItems.map(normalizeWorkspaceNodeContract),
+  ];
+  return [...new Map(items.map((item) => [item.refId, item])).values()];
+}
 
 export function useLocalConstantsQuery(rootPath: string | null) {
   const queryClient = useQueryClient();
@@ -119,10 +249,7 @@ export function useLocalNodeContractsQuery(rootPath: string | null) {
     queryFn: async (): Promise<NodePaletteItemDto[]> => {
       if (!rootPath) return [];
       try {
-        const items = await invoke<NodePaletteItemDto[]>("load_workspace_node_contracts", {
-          rootPath,
-        });
-        return Array.isArray(items) ? items : [];
+        return await loadLocalNodeContracts(rootPath);
       } catch (err) {
         console.warn("[useLocalNodeContractsQuery] Failed to load node contracts:", err);
         return [];

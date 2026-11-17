@@ -1,10 +1,8 @@
-import { useState, useMemo, useEffect } from "react";
-import { cn } from "@/lib/utils";
+import { useMemo } from "react";
 import type { Node, Edge } from "@xyflow/react";
 import { useForm } from "react-hook-form";
-import { useRunners } from "@/features/runners/hooks/useRunners";
-import { usePipelineWorkspaceOptional } from "../context/PipelineWorkspaceContext";
-import { useRunPipeline, type PipelineParameterDto } from "../hooks/usePipelineGraph";
+import type { PipelineParameterDto } from "../hooks/usePipelineGraph";
+import { getPipelineParameterPinId } from "../adapters/pipelineParameterPins";
 import {
   Dialog,
   DialogHeader,
@@ -12,25 +10,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
-import {
-  Play,
-  Loader2,
-  AlertCircle,
-  Sparkles,
-  Server,
-  AlertTriangle,
-  Boxes,
-  ShieldCheck,
-  PackageCheck,
-} from "lucide-react";
+import { Play, Loader2, AlertCircle, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { buildDynamicSchema } from "@/lib/schema-builder";
@@ -62,9 +42,7 @@ interface RunPipelineModalProps {
   parameters?: PipelineParameterDto[];
   isOpen: boolean;
   onClose: () => void;
-  onExecutionStarted?: (executionId: string) => void;
-  isLocalMode?: boolean;
-  onRunLocal?: (runtimeInputs: Record<string, any>) => Promise<void> | void;
+  onRunLocal: (runtimeInputs: Record<string, any>) => Promise<void> | void;
 }
 
 export function RunPipelineModal({
@@ -76,137 +54,26 @@ export function RunPipelineModal({
   parameters = [],
   isOpen,
   onClose,
-  onExecutionStarted,
-  isLocalMode = false,
   onRunLocal,
 }: RunPipelineModalProps) {
-  const workspace = usePipelineWorkspaceOptional();
-  const { data: fallbackAgents = [] } = useRunners({
-    enabled: !workspace && !isLocalMode,
-  });
-  const agents = workspace ? workspace.runners : fallbackAgents;
-
-  const [selectedAgentId, setSelectedAgentId] = useState<string>("");
-  const runMutation = useRunPipeline(pipelineId);
-
-  // Auto-select active or first agent in background
-  useEffect(() => {
-    if (agents && agents.length > 0 && !selectedAgentId) {
-      const active = agents.find((a: any) => a.isOnline || a.isActive || a.status === "Active" || a.status === 1);
-      setSelectedAgentId(active?.id || agents[0].id);
-    }
-  }, [agents, selectedAgentId]);
-
-  const requiresExternalRunner = useMemo(() => {
-    if (isLocalMode) return false;
-    return nodes.some((n: any) => {
-      if (n.type === "scopeContainer") {
-        const executor = n.data?.executorKey || n.data?.executor;
-        return executor && !["builtin", "dotnet", "system", "server", "pure"].includes(String(executor).toLowerCase());
-      }
-      const executor = n.data?.executor;
-      return executor && !["builtin", "dotnet", "system", "server", "pure"].includes(String(executor).toLowerCase());
-    });
-  }, [nodes, isLocalMode]);
-
-  const selectedAgent = useMemo(() => {
-    return (agents || []).find((a: any) => a.id === selectedAgentId);
-  }, [agents, selectedAgentId]);
-
-  const isSelectedAgentOnline = useMemo(() => {
-    if (!selectedAgent) return false;
-    return Boolean(
-      (selectedAgent as any).isOnline ||
-      (selectedAgent as any).isActive ||
-      (selectedAgent as any).status === "Active" ||
-      (selectedAgent as any).status === 1
-    );
-  }, [selectedAgent]);
-
-  const requiredExecutors = useMemo(() => {
-    const set = new Set<string>();
-    nodes.forEach((n: any) => {
-      const exec = n.data?.executorKey || n.data?.executor;
-      if (exec && !["builtin", "dotnet", "system"].includes(String(exec).toLowerCase())) {
-        set.add(String(exec).toLowerCase());
-      }
-    });
-    return Array.from(set);
-  }, [nodes]);
-
-  const executorReadiness = useMemo(() => {
-    if (!selectedAgent) return [];
-    const configs: any[] = (selectedAgent as any).executorConfigs || [];
-    return requiredExecutors.map((execKey) => {
-      const config = configs.find(
-        (c: any) => c.executorKey?.toLowerCase() === execKey || c.id?.toLowerCase() === execKey
-      );
-      // Native Python runtime is inherently available if the runner agent is online
-      const isAvailable = execKey === "python"
-        ? isSelectedAgentOnline || Boolean(config && config.isEnabled !== false)
-        : Boolean(config && config.isEnabled !== false);
-
-      return {
-        executorKey: execKey,
-        isAvailable,
-        version: config?.version || (execKey === "python" ? "3.10+" : null),
-        path: config?.executablePath || null,
-      };
-    });
-  }, [selectedAgent, requiredExecutors, isSelectedAgentOnline]);
-
-  const hasMissingExecutors = useMemo(() => {
-    return executorReadiness.some((item) => !item.isAvailable);
-  }, [executorReadiness]);
-
-  // Aggregate external dependencies declared across nodes
-  const aggregatedDependencies = useMemo(() => {
-    const set = new Set<string>();
-    nodes.forEach((n: any) => {
-      const data = n.data || {};
-      const def = data.definition || data.nodeDefinition;
-      // 1. From node definition
-      if (Array.isArray(def?.dependencies)) {
-        def.dependencies.forEach((d: any) => {
-          const pkg = typeof d === "string" ? d : d?.packageName || d?.module;
-          if (pkg) set.add(pkg);
-        });
-      }
-      // 2. From node data directly
-      if (Array.isArray(data.dependencies)) {
-        data.dependencies.forEach((d: any) => {
-          const pkg = typeof d === "string" ? d : d?.packageName || d?.module;
-          if (pkg) set.add(pkg);
-        });
-      }
-    });
-    return Array.from(set);
-  }, [nodes]);
-
-  // Hard-block execution gate if external runner is required but environment is unready
-  const isBlockedByEnvironment = useMemo(() => {
-    if (!requiresExternalRunner) return false;
-    if (!selectedAgent) return true;
-    if (!isSelectedAgentOnline) return true;
-    if (hasMissingExecutors) return true;
-    return false;
-  }, [requiresExternalRunner, selectedAgent, isSelectedAgentOnline, hasMissingExecutors]);
-
   // Derived inputs: strictly rely on unified parameters (kind === "Input" or 1)
   const pipelineInputs = useMemo(() => {
     return (parameters || [])
       .filter((p) => p.kind === "Input" || (p.kind as any) === 1)
-      .map((p) => ({
-        id: p.id,
-        key: p.key,
-        label: p.label || p.key,
-        type: p.type,
-        cardinality: p.cardinality,
-        structType: p.structType,
-        defaultValue: p.defaultValue,
-        isRequired: p.isRequired,
-        contextData: p.contextData,
-      }));
+      .map((p) => {
+        const key = getPipelineParameterPinId(p);
+        return {
+          id: p.id,
+          key,
+          label: p.label || p.name || key,
+          type: p.type ?? p.primitiveType,
+          cardinality: p.cardinality,
+          structType: p.structType,
+          defaultValue: p.defaultValue,
+          isRequired: p.isRequired,
+          contextData: p.contextData,
+        };
+      });
   }, [parameters]);
 
   // Compute unwired & unconfigured required inputs on internal nodes (excluding Start node)
@@ -322,12 +189,10 @@ export function RunPipelineModal({
     mode: "onSubmit",
   });
 
-  const isSubmitting = runMutation.isPending || form.formState.isSubmitting;
+  const isSubmitting = form.formState.isSubmitting;
 
   const handleRun = form.handleSubmit(
     async (values: any) => {
-      if (runMutation.isPending) return;
-
       // Separate start inputs vs node overrides
       const runtimeInputs: Record<string, any> = {};
 
@@ -344,44 +209,11 @@ export function RunPipelineModal({
         }
       });
 
-      if (isLocalMode && onRunLocal) {
-        try {
-          await onRunLocal(runtimeInputs);
-          onClose();
-        } catch (err: any) {
-          toast.error(err?.message || "Failed to start local pipeline");
-        }
-        return;
-      }
-
-      // Inject selectedAgentId vào runtimeInputs nếu chưa được chọn qua form
-      if (selectedAgentId) {
-        const runnerRef = `runner:${selectedAgentId}`;
-        if (!runtimeInputs["Runner"] || runtimeInputs["Runner"] === "") {
-          runtimeInputs["Runner"] = runnerRef;
-        }
-        if (!runtimeInputs["runner"] || runtimeInputs["runner"] === "") {
-          runtimeInputs["runner"] = runnerRef;
-        }
-        if (!runtimeInputs["targetRunnerId"]) {
-          runtimeInputs["targetRunnerId"] = selectedAgentId;
-        }
-      }
-
       try {
-        const execution = await runMutation.mutateAsync({
-          runtimeInputs,
-        });
-
-        toast.success("Pipeline execution started!");
+        await onRunLocal(runtimeInputs);
         onClose();
-        if (execution?.id && onExecutionStarted) {
-          onExecutionStarted(execution.id);
-        }
       } catch (err: any) {
-        const msg =
-          err?.response?.data?.message || err?.message || "Failed to start pipeline execution";
-        toast.error(msg);
+        toast.error(err?.message || "Failed to start local pipeline");
       }
     },
     (errors: any) => {
@@ -414,164 +246,6 @@ export function RunPipelineModal({
       <PipelineFormScopeProvider value={{ projectId: projectId || "", pipelineId }}>
         <form onSubmit={handleRun} className="space-y-4">
           <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
-            {/* 0. Target Runner Machine Section (Shown when pipeline requires DCC runners) */}
-            {requiresExternalRunner && (
-              <div className="rounded-xl border border-border/80 bg-muted/20 p-3.5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                    <Server className="h-4 w-4 text-primary" />
-                    <span>Target Runner Machine</span>
-                  </div>
-                  {selectedAgent && (
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "text-[10px] px-2 py-0.5 font-medium gap-1.5",
-                        isSelectedAgentOnline
-                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                          : "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "h-1.5 w-1.5 rounded-full",
-                          isSelectedAgentOnline ? "bg-emerald-500" : "bg-amber-500"
-                        )}
-                      />
-                      {isSelectedAgentOnline ? "Online" : "Offline"}
-                    </Badge>
-                  )}
-                </div>
-
-                <Select
-                  placeholder="Select target runner..."
-                  selectedKey={selectedAgentId || null}
-                  onSelectionChange={(key) => setSelectedAgentId(String(key))}
-                  className="w-full"
-                >
-                  <SelectTrigger className="h-8 text-xs font-medium">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {agents.map((a: any) => {
-                      const isOnline = Boolean(
-                        a.isOnline || a.isActive || a.status === "Active" || a.status === 1
-                      );
-                      return (
-                        <SelectItem key={a.id} id={a.id} textValue={a.name || a.id}>
-                          <div className="flex items-center justify-between w-full gap-2">
-                            <span>{a.name || a.id}</span>
-                            <span
-                              className={cn(
-                                "text-[10px] font-mono",
-                                isOnline ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
-                              )}
-                            >
-                              {isOnline ? "Online" : "Offline"}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-
-                {!isSelectedAgentOnline && (
-                  <div className="flex items-start gap-2.5 p-2.5 rounded-lg border border-destructive/30 bg-destructive/10 text-xs text-destructive">
-                    <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
-                    <div className="space-y-0.5">
-                      <p className="font-semibold text-[11px]">Runner is currently Offline</p>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed">
-                        Execution is locked because the selected runner is offline. Please launch the runner daemon on your workstation before starting this pipeline.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {hasMissingExecutors && isSelectedAgentOnline && (
-                  <div className="flex items-start gap-2.5 p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-amber-900 dark:text-amber-200">
-                    <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                    <div className="space-y-0.5">
-                      <p className="font-semibold text-[11px]">Missing Required DCC Environments</p>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed">
-                        The runner does not have executable paths configured for:{" "}
-                        <strong className="text-foreground">
-                          {executorReadiness.filter((i) => !i.isAvailable).map((i) => i.executorKey).join(", ")}
-                        </strong>
-                        . Configure paths in Runner Settings to enable execution.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Pre-flight DCC Environment Readiness Checklist */}
-                {requiredExecutors.length > 0 && (
-                  <div className="space-y-1.5 pt-1.5 border-t border-border/50">
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <Boxes className="size-3 text-primary" />
-                        <span>Pipeline DCC Requirements</span>
-                      </div>
-                      {hasMissingExecutors && isSelectedAgentOnline && (
-                        <span className="text-amber-600 dark:text-amber-400 font-medium normal-case text-[10px]">
-                          ⚠️ Missing config detected
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {executorReadiness.map((item) => (
-                        <Badge
-                          key={item.executorKey}
-                          variant="outline"
-                          className={cn(
-                            "text-[10px] px-2 py-0.5 font-mono gap-1",
-                            item.isAvailable
-                              ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400"
-                              : "border-destructive/40 bg-destructive/5 text-destructive"
-                          )}
-                          title={item.path ? `Path: ${item.path}` : "Executable path not detected on runner"}
-                        >
-                          <span>{item.isAvailable ? "✓" : "⚠️"}</span>
-                          <span className="uppercase font-semibold">{item.executorKey}</span>
-                          {item.version && <span className="opacity-80">v{item.version}</span>}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Dynamic Python Dependencies (Sandbox via site.addsitedir) */}
-                {aggregatedDependencies.length > 0 && (
-                  <div className="space-y-1.5 pt-1.5 border-t border-border/50">
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <PackageCheck className="size-3 text-sky-500" />
-                        <span>Dynamic Python Dependencies ({aggregatedDependencies.length})</span>
-                      </div>
-                      <span className="text-emerald-600 dark:text-emerald-400 font-medium normal-case text-[10px] flex items-center gap-1">
-                        <ShieldCheck className="size-3" />
-                        Isolated sandbox
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {aggregatedDependencies.map((pkg) => (
-                        <Badge
-                          key={pkg}
-                          variant="secondary"
-                          className="text-[10px] px-2 py-0.5 font-mono bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20"
-                        >
-                          {pkg}
-                        </Badge>
-                      ))}
-                    </div>
-                    <p className="text-[10px] text-muted-foreground italic">
-                      Packages will be loaded in an isolated directory via <code className="font-mono text-[9px] bg-muted px-1 rounded">site.addsitedir</code> without modifying global system environments.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* 1. Pipeline Start Inputs Section (From Unified Parameters) */}
             {pipelineInputs.length > 0 ? (
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 space-y-3">
@@ -620,27 +294,18 @@ export function RunPipelineModal({
             <Button
               size="sm"
               type="submit"
-              isDisabled={isSubmitting || isBlockedByEnvironment}
-              className={cn(
-                "gap-1.5 min-w-[120px]",
-                isBlockedByEnvironment && "opacity-60 cursor-not-allowed"
-              )}
+              isDisabled={isSubmitting}
+              className="gap-1.5 min-w-[120px]"
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   <span>Triggering...</span>
                 </>
-              ) : !selectedAgent && requiresExternalRunner ? (
-                <span>Select a Runner</span>
-              ) : !isSelectedAgentOnline && requiresExternalRunner ? (
-                <span>Runner Offline</span>
-              ) : !isLocalMode && hasMissingExecutors ? (
-                <span>Environment Incomplete</span>
               ) : (
                 <>
                   <Play className="h-3.5 w-3.5 fill-current" />
-                  <span>Execute Run</span>
+                  <span>Run on this desktop</span>
                 </>
               )}
             </Button>

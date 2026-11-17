@@ -50,7 +50,7 @@ Trước khi bắt đầu bất kỳ tác vụ nào, hãy đọc và tuân thủ
 
 > **QUYẾT ĐỊNH KIẾN TRÚC:** Xem tại docs/adr
 
-> **PLAYBOOKS**: Xem tại .agents/playbooks
+> **PLAYBOOKS**: Xem tại .agents/playbooks; với Pipeline Canvas, custom nodes và Cloud Template data, đọc [pipeline-canvas-sync.md](./playbooks/pipeline-canvas-sync.md): `source` tách biệt với workspace capabilities; graph phẳng, không mang runner identity/transport URL; `ScopeContainer` chỉ là layout legacy; Component palette pins lấy từ snapshot Input/Output và parameters được tính vào ingest graph hash.
 
 > **QUY TẮC LƯU TRỮ & TRA CỨU:**
 >

@@ -14,6 +14,7 @@ import { FormRenderer } from "@/components/dynamic-form/FormRenderer";
 import { pipelineRegistry } from "../../../form-scope/pipelineRegistry";
 import { pipelineInputToFieldDefinition } from "../../../form-scope/pinToFieldDefinition";
 import type { PipelineParameterDto, PipelineParameterKind } from "../../../hooks/usePipelineGraph";
+import { getPipelineParameterPinId } from "../../../adapters/pipelineParameterPins";
 import type { StructDefinitionDto } from "@/features/pipelines/types/pipelineGraphTypes";
 import {
   TYPE_OPTIONS,
@@ -190,7 +191,6 @@ export function ParameterEditorForm({
       const kindMap: Record<ParameterTab, PipelineParameterKind> = {
         inputs: "Input",
         outputs: "Output",
-        variables: "Variable",
       };
 
       const newParam: PipelineParameterDto = {
@@ -212,8 +212,9 @@ export function ParameterEditorForm({
       onSaveCreate(newParam);
       toast.success(`Added ${activeTab.slice(0, -1)} '${trimmedKey}'`);
     } else if (mode === "edit" && editingParam) {
-      onSaveEdit(editingParam.key, {
-        label: data.label.trim() || editingParam.key,
+      const parameterKey = getPipelineParameterPinId(editingParam);
+      onSaveEdit(parameterKey, {
+        label: data.label.trim() || parameterKey,
         type: data.type as any,
         cardinality: data.cardinality as any,
         structType: isEntityRef(data.type) ? data.structType : null,

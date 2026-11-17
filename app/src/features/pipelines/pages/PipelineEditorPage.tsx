@@ -1,11 +1,11 @@
 import { useMemo, useCallback } from "react";
 import { useNodePalette, useCancelPipelineExecution } from "../hooks/usePipelines";
-import { useRunners } from "@/features/runners/hooks/useRunners";
 import type { PipelineDiagnostic } from "../hooks/usePipelineGraph";
 import type {
   PipelineValidationSummary,
   ResolveToolPinsParams,
 } from "../context/PipelineWorkspaceContext";
+import type { PipelineWorkspaceContract } from "../types/pipelineWorkspaceContract";
 import { ReactFlowProvider } from "@xyflow/react";
 import { usePipelineGraph } from "../hooks/usePipelineGraph";
 import { PipelineCanvas } from "../components/canvas/PipelineCanvas";
@@ -27,7 +27,6 @@ export function PipelineEditorPage({ projectId, pipelineId }: PipelineEditorPage
   const { data: graph, isLoading } = usePipelineGraph(pipelineId);
   const { data: paletteItems = [], isLoading: isLoadingPalette } = useNodePalette(projectId);
   const structCatalogue: any[] = [];
-  const { data: runners = [], isLoading: isLoadingRunners } = useRunners();
   const cancelMutation = useCancelPipelineExecution(pipelineId);
   const { studioSlug } = useCurrentStudio();
 
@@ -62,6 +61,36 @@ export function PipelineEditorPage({ projectId, pipelineId }: PipelineEditorPage
     }
   };
 
+  const workspaceContract = useMemo<PipelineWorkspaceContract>(
+    () => ({
+      source: "cloud",
+      projectId,
+      storage: cloudStorage,
+      paletteItems,
+      structCatalogue,
+      isLoadingPalette,
+      capabilities: {
+        canEditGraph: false,
+        canSaveDraft: false,
+        canSaveSnapshot: false,
+        canRun: false,
+      },
+      resolveToolPins: handleResolveToolPins,
+      validateGraph: handleValidateGraph,
+      cancelExecution: handleCancelExecution,
+    }),
+    [
+      projectId,
+      cloudStorage,
+      paletteItems,
+      structCatalogue,
+      isLoadingPalette,
+      handleResolveToolPins,
+      handleValidateGraph,
+      handleCancelExecution,
+    ]
+  );
+
   if (isLoading) {
     return (
       <div className="flex h-[calc(100vh-3.5rem)] w-full flex-col items-center justify-center bg-background text-muted-foreground gap-3">
@@ -94,19 +123,7 @@ export function PipelineEditorPage({ projectId, pipelineId }: PipelineEditorPage
   }
 
   return (
-    <PipelineWorkspaceProvider
-      mode="cloud"
-      projectId={projectId}
-      storage={cloudStorage}
-      paletteItems={paletteItems}
-      structCatalogue={structCatalogue}
-      isLoadingPalette={isLoadingPalette}
-      runners={runners}
-      isLoadingRunners={isLoadingRunners}
-      resolveToolPins={handleResolveToolPins}
-      validateGraph={handleValidateGraph}
-      cancelExecution={handleCancelExecution}
-    >
+    <PipelineWorkspaceProvider workspace={workspaceContract}>
       <div className="h-[calc(100vh-3.5rem)] w-full overflow-hidden bg-background">
         <ReactFlowProvider>
           <PipelineCanvas projectId={projectId} graph={graph} storage={cloudStorage} />

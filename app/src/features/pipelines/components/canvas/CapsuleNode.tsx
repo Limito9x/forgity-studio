@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
-import { Variable, Laptop, FolderGit2, PlayCircle } from "lucide-react";
+import { Variable, PlayCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getPinVisual } from "./nodes/types";
 
@@ -26,26 +26,8 @@ export const CapsuleNode = memo(function CapsuleNode({
   const visual = getPinVisual(pinType);
 
   const isInput = nodeData.category === "Input" || nodeData.refId === "GetInput";
-  const isRunner =
-    nodeData.category === "Runner" ||
-    nodeData.refId === "RunnerContext" ||
-    nodeData.structType === "Runner";
-  const isRepository =
-    nodeData.category === "Repository" ||
-    nodeData.refId === "RepositoryContext" ||
-    nodeData.structType === "Repository" ||
-    nodeData.category === "Workspace" ||
-    nodeData.refId === "WorkspaceContext" ||
-    nodeData.structType === "Workspace";
-
-  const IconComponent = isInput ? PlayCircle : isRunner ? Laptop : isRepository ? FolderGit2 : Variable;
-  const iconColor = isInput
-    ? "text-emerald-400"
-    : isRunner
-    ? "text-sky-400"
-    : isRepository
-    ? "text-amber-400"
-    : "text-violet-400";
+  const IconComponent = isInput ? PlayCircle : Variable;
+  const iconColor = isInput ? "text-emerald-400" : "text-violet-400";
 
   return (
     <div

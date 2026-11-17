@@ -159,14 +159,22 @@ export interface PipelineFileAssetDto {
 
 export interface PipelineParameterDto {
   id?: string;
-  name: string;
-  type?: string;
-  kind?: PipelineParameterKind | string;
+  key?: string;
+  name?: string;
+  label?: string;
+  type?: string | number;
+  primitiveType?: string | number;
+  kind?: PipelineParameterKind | string | number;
   direction?: "Input" | "Output" | string;
+  cardinality?: PinCardinality | number;
+  structType?: string | null;
+  isRequired?: boolean;
   defaultValue?: any;
   value?: any;
   isExposed?: boolean;
   description?: string;
+  contextData?: Record<string, unknown> | string | null;
+  metadata?: unknown;
   [key: string]: any;
 }
 

@@ -1,7 +1,8 @@
 export type NormalizedPinType =
   | "String"
   | "Number"
-  | "Boolean";
+  | "Boolean"
+  | "Asset";
 
 export interface PinVisualInfo {
   code: NormalizedPinType;
@@ -38,6 +39,14 @@ export const STATIC_PIN_CATALOGUE: Record<NormalizedPinType, PinVisualInfo> = {
     handleColor: "#f59e0b",
     defaultControl: "boolean",
   },
+  Asset: {
+    code: "Asset",
+    label: "File",
+    color: "#ec4899",
+    badgeStyle: "bg-pink-500/10 text-pink-400 border-pink-500/30",
+    handleColor: "#ec4899",
+    defaultControl: "file",
+  },
 };
 
 /**
@@ -54,6 +63,10 @@ export function normalizePinType(rawType: unknown): NormalizedPinType {
     case "2":
     case "boolean":
       return "Boolean";
+    case "5":
+    case "asset":
+    case "file":
+      return "Asset";
     case "0":
     case "string":
     case "path":

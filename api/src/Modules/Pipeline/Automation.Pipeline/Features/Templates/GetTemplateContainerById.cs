@@ -28,6 +28,7 @@ public record TemplateContainerDetailDto(
     Guid? PrimaryMasterVersionId,
     List<TemplateContainerMemberDto> Members,
     List<TemplateConstantDeclarationDto> Constants,
+    JsonDocument? PaletteNodesJson,
     JsonDocument ContainerManifestJson,
     DateTimeOffset CreatedAt
 );
@@ -100,6 +101,7 @@ public class GetTemplateContainerByIdEndpoint(PipelineDbContext db)
             pkg.PrimaryMasterVersionId,
             members,
             constants,
+            CloudTemplateClaimHelper.ExtractPaletteNodes(pkg.ContainerManifestJson),
             pkg.ContainerManifestJson,
             pkg.CreatedAt
         ), ct);

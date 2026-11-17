@@ -28,17 +28,6 @@ export const GetCloudTemplatesResponseItem = /*#__PURE__*/ zod.object({
 export const GetCloudTemplatesResponse = /*#__PURE__*/ zod.array(GetCloudTemplatesResponseItem)
 
 /**
- * @summary Acquire script source code for an immutable template pipeline
- */
-export const AcquireTemplateScriptBody = /*#__PURE__*/ zod.object({
-  "pipelineVersionId": /*#__PURE__*/ zod.uuid(),
-  "scriptKey": /*#__PURE__*/ zod.string(),
-  "machineKey": /*#__PURE__*/ zod.string()
-})
-
-export const AcquireTemplateScriptResponse = /*#__PURE__*/ zod.void()
-
-/**
  * @summary Consume run quota for an execution on a workstation
  */
 export const consumeTemplateQuotaBodyCountDefault = 1;
@@ -126,6 +115,7 @@ export const GetTemplateContainerByIdResponse = /*#__PURE__*/ zod.object({
   "isRequired": /*#__PURE__*/ zod.boolean(),
   "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
 })),
+  "paletteNodesJson": /*#__PURE__*/ zod.unknown(),
   "containerManifestJson": /*#__PURE__*/ zod.unknown(),
   "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
 })
@@ -177,7 +167,8 @@ export const GetMyLibraryResponseItem = /*#__PURE__*/ zod.object({
   "scope": /*#__PURE__*/ zod.string(),
   "isRequired": /*#__PURE__*/ zod.boolean(),
   "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
-}))
+})),
+  "paletteNodesJson": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
 })
 export const GetMyLibraryResponse = /*#__PURE__*/ zod.array(GetMyLibraryResponseItem)
 
@@ -218,7 +209,8 @@ export const GetMyLibraryItemResponse = /*#__PURE__*/ zod.object({
   "scope": /*#__PURE__*/ zod.string(),
   "isRequired": /*#__PURE__*/ zod.boolean(),
   "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
-}))
+})),
+  "paletteNodesJson": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
 })
 
 /**
@@ -262,7 +254,8 @@ export const UpdateLibraryConstantProfileResponse = /*#__PURE__*/ zod.object({
   "scope": /*#__PURE__*/ zod.string(),
   "isRequired": /*#__PURE__*/ zod.boolean(),
   "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
-}))
+})),
+  "paletteNodesJson": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
 })
 
 /**
@@ -309,6 +302,7 @@ export const AddTemplateToLibraryResponse = /*#__PURE__*/ zod.object({
   "scope": /*#__PURE__*/ zod.string(),
   "isRequired": /*#__PURE__*/ zod.boolean(),
   "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
-}))
+})),
+  "paletteNodesJson": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
 })
 

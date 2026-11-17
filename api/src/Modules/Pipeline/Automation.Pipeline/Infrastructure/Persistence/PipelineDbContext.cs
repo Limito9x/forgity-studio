@@ -12,7 +12,6 @@ public class PipelineDbContext : DbContext
     // Unified Cloud Pipeline + Views + Library + ConstantProfile
     public DbSet<CloudPipeline> Pipelines => Set<CloudPipeline>();
     public DbSet<PipelineVersion> PipelineVersions => Set<PipelineVersion>();
-    public DbSet<PipelineScriptArtifact> PipelineScriptArtifacts => Set<PipelineScriptArtifact>();
     public DbSet<PipelineScript> PipelineScripts => Set<PipelineScript>();
     public DbSet<PipelineVersionScript> PipelineVersionScripts => Set<PipelineVersionScript>();
     public DbSet<ProjectPipelineView> ProjectPipelineViews => Set<ProjectPipelineView>();

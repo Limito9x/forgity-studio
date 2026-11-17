@@ -246,7 +246,7 @@ fn canonical_from_yaml(document: &Value) -> Option<CanonicalGraph> {
         }
     }
 
-    Some(finalize_graph(nodes, edges))
+    Some(finalize_graph(nodes, edges, document.get("parameters")))
 }
 
 fn canonical_from_snapshot(document: &Value) -> Option<CanonicalGraph> {
@@ -346,10 +346,14 @@ fn canonical_from_snapshot(document: &Value) -> Option<CanonicalGraph> {
         }
     }
 
-    Some(finalize_graph(nodes, edges))
+    Some(finalize_graph(nodes, edges, document.get("parameters")))
 }
 
-fn finalize_graph(mut nodes: Vec<CanonicalNode>, mut edges: Vec<CanonicalEdge>) -> CanonicalGraph {
+fn finalize_graph(
+    mut nodes: Vec<CanonicalNode>,
+    mut edges: Vec<CanonicalEdge>,
+    parameters: Option<&Value>,
+) -> CanonicalGraph {
     nodes.sort_by(|a, b| a.id.cmp(&b.id));
     edges.sort_by(|a, b| a.from.cmp(&b.from).then_with(|| a.to.cmp(&b.to)));
 
@@ -359,7 +363,11 @@ fn finalize_graph(mut nodes: Vec<CanonicalNode>, mut edges: Vec<CanonicalEdge>) 
         .map(|edge| serde_json::json!({ "from": edge.from, "to": edge.to }))
         .collect();
 
-    let document = serde_json::json!({ "nodes": node_values, "edges": edge_values });
+    let document = serde_json::json!({
+        "nodes": node_values,
+        "edges": edge_values,
+        "parameters": parameters.unwrap_or(&Value::Null),
+    });
     let serialized = serde_json::to_string(&document).unwrap_or_else(|_| "{}".to_string());
 
     CanonicalGraph {
@@ -1919,6 +1927,39 @@ nodes:
         assert_ne!(
             canonical_from_yaml(&yaml_a).expect("a").hash,
             canonical_from_yaml(&yaml_b).expect("b").hash
+        );
+    }
+
+    #[test]
+    fn canonical_hash_changes_with_component_parameter_contract() {
+        let snapshot_a = serde_json::json!({
+            "nodes": [{ "id": "start", "refId": "Start" }],
+            "parameters": [{
+                "key": "input_path",
+                "label": "Input Path",
+                "kind": "Input",
+                "type": "Asset",
+                "cardinality": "Single"
+            }]
+        });
+        let snapshot_b = serde_json::json!({
+            "nodes": [{ "id": "start", "refId": "Start" }],
+            "parameters": [{
+                "key": "input_path",
+                "label": "Source File",
+                "kind": "Input",
+                "type": "Asset",
+                "cardinality": "Single"
+            }]
+        });
+
+        assert_ne!(
+            canonical_from_snapshot(&snapshot_a)
+                .expect("snapshot a")
+                .hash,
+            canonical_from_snapshot(&snapshot_b)
+                .expect("snapshot b")
+                .hash
         );
     }
 

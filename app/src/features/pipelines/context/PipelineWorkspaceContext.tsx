@@ -1,126 +1,31 @@
-import { createContext, useContext, useMemo, type ReactNode } from "react";
-import type { Node, Edge } from "@xyflow/react";
-import type { NodePaletteItemDto, PinDefinition, StructDefinitionDto } from "@/features/pipelines/types/pipelineGraphTypes";
-import type { IPipelineStorageAdapter } from "../adapters/pipelineStorageAdapter";
-import type { PipelineDiagnostic } from "../hooks/usePipelineGraph";
+import { createContext, useContext, type ReactNode } from "react";
+import type { PipelineWorkspaceContract } from "../types/pipelineWorkspaceContract";
 
-export interface ResolveToolPinsParams {
-  toolId: string;
-  configValues: Record<string, unknown>;
-  projectId?: string;
-}
+export type {
+  PipelineValidationSummary,
+  ResolveToolPinsParams,
+  ResolveToolPinsResult,
+} from "../types/pipelineWorkspaceContract";
 
-export interface ResolveToolPinsResult {
-  inputs?: PinDefinition[];
-  outputs?: PinDefinition[];
-}
-
-export interface PipelineValidationSummary {
-  isValid?: boolean;
-  diagnostics: PipelineDiagnostic[];
-  cycleNodeIds?: string[];
-  unresolvedPins?: Array<{ pinLabel?: string; pinKey?: string }>;
-}
-
-interface PipelineWorkspaceContextValue {
-  mode: "local" | "cloud";
-  projectId: string;
-  rootPath?: string | null;
-  storage: IPipelineStorageAdapter;
-  paletteItems: NodePaletteItemDto[];
-  structCatalogue: StructDefinitionDto[];
-  isLoadingPalette: boolean;
-  runners: any[];
-  isLoadingRunners: boolean;
-  resolveToolPins?: (
-    params: ResolveToolPinsParams,
-    signal?: AbortSignal
-  ) => Promise<ResolveToolPinsResult | null>;
-  validateGraph?: (
-    snapshot: Record<string, unknown>,
-    context: { nodes: Node[]; edges: Edge[] }
-  ) => Promise<PipelineValidationSummary>;
-  cancelExecution?: (executionId: string) => Promise<void> | void;
-}
-
-const PipelineWorkspaceContext = createContext<PipelineWorkspaceContextValue | null>(null);
+const PipelineWorkspaceContext = createContext<PipelineWorkspaceContract | null>(null);
 
 export interface PipelineWorkspaceProviderProps {
-  mode: "local" | "cloud";
-  projectId: string;
-  rootPath?: string | null;
-  storage: IPipelineStorageAdapter;
-  paletteItems?: NodePaletteItemDto[];
-  structCatalogue?: readonly StructDefinitionDto[];
-  isLoadingPalette?: boolean;
-  runners?: readonly any[];
-  isLoadingRunners?: boolean;
-  resolveToolPins?: (
-    params: ResolveToolPinsParams,
-    signal?: AbortSignal
-  ) => Promise<ResolveToolPinsResult | null>;
-  validateGraph?: (
-    snapshot: Record<string, unknown>,
-    context: { nodes: Node[]; edges: Edge[] }
-  ) => Promise<PipelineValidationSummary>;
-  cancelExecution?: (executionId: string) => Promise<void> | void;
+  workspace: PipelineWorkspaceContract;
   children: ReactNode;
 }
 
 export function PipelineWorkspaceProvider({
-  mode,
-  projectId,
-  rootPath,
-  storage,
-  paletteItems = [],
-  structCatalogue = [],
-  isLoadingPalette = false,
-  runners = [],
-  isLoadingRunners = false,
-  resolveToolPins,
-  validateGraph,
-  cancelExecution,
+  workspace,
   children,
 }: PipelineWorkspaceProviderProps) {
-  const value = useMemo<PipelineWorkspaceContextValue>(
-    () => ({
-      mode,
-      projectId,
-      rootPath,
-      storage,
-      paletteItems,
-      structCatalogue: [...structCatalogue],
-      isLoadingPalette,
-      runners: [...runners],
-      isLoadingRunners,
-      resolveToolPins,
-      validateGraph,
-      cancelExecution,
-    }),
-    [
-      mode,
-      projectId,
-      rootPath,
-      storage,
-      paletteItems,
-      structCatalogue,
-      isLoadingPalette,
-      runners,
-      isLoadingRunners,
-      resolveToolPins,
-      validateGraph,
-      cancelExecution,
-    ]
-  );
-
   return (
-    <PipelineWorkspaceContext.Provider value={value}>
+    <PipelineWorkspaceContext.Provider value={workspace}>
       {children}
     </PipelineWorkspaceContext.Provider>
   );
 }
 
-export function usePipelineWorkspace(): PipelineWorkspaceContextValue {
+export function usePipelineWorkspace(): PipelineWorkspaceContract {
   const ctx = useContext(PipelineWorkspaceContext);
   if (!ctx) {
     throw new Error("usePipelineWorkspace must be used within a PipelineWorkspaceProvider");
@@ -128,7 +33,7 @@ export function usePipelineWorkspace(): PipelineWorkspaceContextValue {
   return ctx;
 }
 
-export function usePipelineWorkspaceOptional(): PipelineWorkspaceContextValue | null {
+export function usePipelineWorkspaceOptional(): PipelineWorkspaceContract | null {
   return useContext(PipelineWorkspaceContext);
 }
 

@@ -27,6 +27,7 @@ export interface TemplateContainerDetailDto {
   primaryMasterVersionId: string | null;
   members: ListOfTemplateContainerMemberDto;
   constants: ListOfTemplateConstantDeclarationDto;
+  paletteNodesJson: JsonDocument;
   containerManifestJson: JsonDocument;
   createdAt: string;
 }

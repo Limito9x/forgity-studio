@@ -22,7 +22,6 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  AcquireTemplateScriptRequest,
   AddToLibraryRequest,
   ConsumeTemplateQuotaRequest,
   CreateTemplateContainerRequest,
@@ -200,89 +199,6 @@ export function useGetCloudTemplates<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-/**
- * @summary Acquire script source code for an immutable template pipeline
- */
-export const acquireTemplateScript = (
-  acquireTemplateScriptRequest: AcquireTemplateScriptRequest,
-  signal?: AbortSignal,
-) => {
-  return customInstance<void>({
-    url: `/api/templates/acquire-script`,
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    data: acquireTemplateScriptRequest,
-    signal,
-  });
-};
-
-export const getAcquireTemplateScriptMutationOptions = <
-  TError = void,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof acquireTemplateScript>>,
-    TError,
-    { data: AcquireTemplateScriptRequest },
-    TContext
-  >;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof acquireTemplateScript>>,
-  TError,
-  { data: AcquireTemplateScriptRequest },
-  TContext
-> => {
-  const mutationKey = ["acquireTemplateScript"];
-  const { mutation: mutationOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof acquireTemplateScript>>,
-    { data: AcquireTemplateScriptRequest }
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return acquireTemplateScript(data);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type AcquireTemplateScriptMutationResult = NonNullable<
-  Awaited<ReturnType<typeof acquireTemplateScript>>
->;
-export type AcquireTemplateScriptMutationBody = AcquireTemplateScriptRequest;
-export type AcquireTemplateScriptMutationError = void;
-
-/**
- * @summary Acquire script source code for an immutable template pipeline
- */
-export const useAcquireTemplateScript = <TError = void, TContext = unknown>(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof acquireTemplateScript>>,
-      TError,
-      { data: AcquireTemplateScriptRequest },
-      TContext
-    >;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<ReturnType<typeof acquireTemplateScript>>,
-  TError,
-  { data: AcquireTemplateScriptRequest },
-  TContext
-> => {
-  return useMutation(
-    getAcquireTemplateScriptMutationOptions(options),
-    queryClient,
-  );
-};
 /**
  * @summary Consume run quota for an execution on a workstation
  */

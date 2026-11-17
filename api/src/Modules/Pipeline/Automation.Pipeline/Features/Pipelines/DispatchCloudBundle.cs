@@ -161,21 +161,22 @@ public class DispatchCloudBundleEndpoint(PipelineDbContext db)
                 );
         }
 
-        // Fetch Script Artifacts
-        var scriptArtifacts = await db
-            .PipelineScriptArtifacts.AsNoTracking()
-            .Where(a => a.PipelineVersionId == version.Id)
+        // Fetch scripts linked to this immutable pipeline version.
+        var scripts = await db
+            .PipelineVersionScripts.AsNoTracking()
+            .Where(link => link.PipelineVersionId == version.Id)
+            .Select(link => link.PipelineScript)
             .ToListAsync(ct);
 
         var scriptsNode = new JsonObject();
-        foreach (var art in scriptArtifacts)
+        foreach (var script in scripts)
         {
-            scriptsNode[art.ScriptKey] = new JsonObject
+            scriptsNode[script.Key] = new JsonObject
             {
-                ["sourceCode"] = art.SourceCode,
-                ["scriptHash"] = art.ScriptHash,
-                ["executor"] = art.Executor,
-                ["requirements"] = JsonNode.Parse(art.RequirementsJson.RootElement.GetRawText()),
+                ["sourceCode"] = script.SourceCode,
+                ["scriptHash"] = script.ScriptHash,
+                ["executor"] = script.Executor,
+                ["requirements"] = JsonNode.Parse(script.RequirementsJson.RootElement.GetRawText()),
             };
         }
 

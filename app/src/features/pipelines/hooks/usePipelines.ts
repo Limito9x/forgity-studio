@@ -8,7 +8,6 @@ import type {
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import {
-  useIngestCloudPipelineData,
   useDispatchCloudBundle,
   usePublishCloudPipeline,
 } from "@/gen/endpoints/pipelines/pipelines";
@@ -123,7 +122,6 @@ export function useCustomNodeById(_id?: string) {
 }
 
 export {
-  useIngestCloudPipelineData,
   useDispatchCloudBundle,
   usePublishCloudPipeline,
 };
