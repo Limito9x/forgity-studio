@@ -63,7 +63,8 @@ pub fn run() {
             get_registered_workspace,
             register_workspace,
             touch_workspace_opened,
-            remove_workspace_from_registry
+            remove_workspace_from_registry,
+            fork_template_workspace
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

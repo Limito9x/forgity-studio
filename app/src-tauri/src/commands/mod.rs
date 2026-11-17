@@ -8,6 +8,7 @@ pub mod runner;
 pub mod local_execution;
 pub mod node_contracts;
 pub mod template_manifest;
+pub mod template_fork;
 
 pub use machine::*;
 pub use workspace::*;
@@ -19,4 +20,5 @@ pub use runner::*;
 pub use local_execution::*;
 pub use node_contracts::*;
 pub use template_manifest::*;
+pub use template_fork::*;
 

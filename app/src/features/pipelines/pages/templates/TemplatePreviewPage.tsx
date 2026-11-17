@@ -6,6 +6,7 @@ import {
   KeyRound,
   Loader2,
   Plus,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import {
 import { PipelineCanvas } from "../../components/canvas/PipelineCanvas";
 import { PipelineWorkspaceProvider } from "../../context/PipelineWorkspaceContext";
 import { TemplateOutliner } from "../../components/templates/TemplateOutliner";
+import { ForkTemplateDialog } from "../../dialogs/ForkTemplateDialog";
 import { useCloudTemplateWorkspace } from "../../hooks/useCloudTemplateWorkspace";
 import type { PipelineWorkspaceCapabilities } from "../../types/pipelineWorkspaceContract";
 
@@ -43,6 +45,7 @@ export function TemplatePreviewPage({
   const addToLibrary = useAddTemplateToLibrary();
 
   const [isAdding, setIsAdding] = useState(false);
+  const [isForkModalOpen, setIsForkModalOpen] = useState(false);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
 
   const summary = useMemo(
@@ -151,6 +154,15 @@ export function TemplatePreviewPage({
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onPress={() => setIsForkModalOpen(true)}
+            className="gap-1.5 cursor-pointer bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-sm"
+          >
+            <Sparkles className="size-3.5" />
+            <span>Use Template (Fork)</span>
+          </Button>
+
           {summary?.isAddedToLibrary && summary.libraryItemId ? (
             <Button
               size="sm"
@@ -164,10 +176,10 @@ export function TemplatePreviewPage({
               className="gap-1.5 cursor-pointer"
             >
               <CheckCircle2 className="size-3.5 text-emerald-500" />
-              <span>Open in My Library</span>
+              <span>In Library</span>
             </Button>
           ) : (
-            <Button size="sm" onPress={handleAdd} isDisabled={isAdding} className="gap-1.5 cursor-pointer">
+            <Button size="sm" variant="outline" onPress={handleAdd} isDisabled={isAdding} className="gap-1.5 cursor-pointer">
               {isAdding ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
               <span>Add to Library</span>
             </Button>
@@ -250,6 +262,14 @@ export function TemplatePreviewPage({
           )}
         </aside>
       </div>
+
+      {detail && (
+        <ForkTemplateDialog
+          isOpen={isForkModalOpen}
+          onClose={() => setIsForkModalOpen(false)}
+          template={detail}
+        />
+      )}
     </div>
   );
 }

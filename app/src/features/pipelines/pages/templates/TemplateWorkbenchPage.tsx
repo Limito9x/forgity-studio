@@ -1,42 +1,33 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, KeyRound, Play, AlertTriangle, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { ArrowLeft, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useGetMyLibraryItem } from "@/gen/endpoints/templates/templates";
-import { useDispatchCloudBundle } from "@/gen/endpoints/pipelines/pipelines";
 import { PipelineCanvas } from "../../components/canvas/PipelineCanvas";
 import { PipelineWorkspaceProvider } from "../../context/PipelineWorkspaceContext";
-import { RunPipelineModal } from "../../dialogs/RunPipelineModal";
-import { ConstantProfileEditorDrawer } from "../../components/templates/ConstantProfileEditorDrawer";
 import { TemplateOutliner } from "../../components/templates/TemplateOutliner";
+import { ForkTemplateDialog } from "../../dialogs/ForkTemplateDialog";
 import { useCloudTemplateWorkspace } from "../../hooks/useCloudTemplateWorkspace";
 import type { PipelineWorkspaceCapabilities } from "../../types/pipelineWorkspaceContract";
-import { isTauriRuntime } from "@/lib/platform/filePickerStrategy";
 
 const WORKBENCH_CAPABILITIES: PipelineWorkspaceCapabilities = {
   canEditGraph: false,
   canSaveDraft: false,
   canSaveSnapshot: false,
-  canRun: true,
+  canRun: false,
 };
 
 interface TemplateWorkbenchPageProps {
   libraryItemId: string;
-  machineKey?: string;
 }
 
 export function TemplateWorkbenchPage({
   libraryItemId,
-  machineKey = "local-workstation",
 }: TemplateWorkbenchPageProps) {
   const navigate = useNavigate();
-  const { data: item, isLoading, refetch } = useGetMyLibraryItem(libraryItemId);
-  const dispatchBundle = useDispatchCloudBundle();
-
-  const [isConstantDrawerOpen, setIsConstantDrawerOpen] = useState(false);
-  const [isRunModalOpen, setIsRunModalOpen] = useState(false);
+  const { data: item, isLoading } = useGetMyLibraryItem(libraryItemId);
+  const [isForkModalOpen, setIsForkModalOpen] = useState(false);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,42 +56,23 @@ export function TemplateWorkbenchPage({
     paletteNodesJson: item?.paletteNodesJson,
     capabilities: WORKBENCH_CAPABILITIES,
   });
-  const constantFields = (item?.constants || []).map((c) => ({
-    ...c,
-    description: c.description ?? undefined,
-  }));
 
-  const isExhausted =
-    item?.maxRuns != null && (item.remainingRuns ?? 0) <= 0;
-
-  const handleRunTemplate = async (runtimeInputs: Record<string, any>) => {
-    if (!item) return;
-    if (!isTauriRuntime()) {
-      toast.error("Template execution requires Forgity Studio Desktop (Tauri Runtime).");
-      return;
-    }
-
-    const bundle = await dispatchBundle.mutateAsync({
-      data: {
-        libraryItemId: item.id,
+  const templateDetailShim = item
+    ? {
         templatePackageId: item.templatePackageId,
-        projectViewId: null,
-        targetPipelineVersionId: item.primaryMasterVersionId ?? null,
-        constantProfileId: item.constantProfileId ?? null,
-        machineKey,
-        runtimeInputs,
-      },
-    });
-
-    const { invoke } = await import("@tauri-apps/api/core");
-    await invoke("run_cloud_bundle", {
-      bundleJson: JSON.stringify(bundle),
-      runId: (bundle as any)?.runId || null,
-    });
-
-    await refetch();
-    toast.success("Template execution dispatched to local runner.");
-  };
+        title: item.title,
+        description: item.description,
+        versionNumber: 1,
+        category: item.category,
+        primaryMasterVersionId: item.primaryMasterVersionId,
+        paletteNodesJson: item.paletteNodesJson,
+        constants: item.constants,
+        members: item.members.map((m) => ({
+          ...m,
+          dagYaml: (m as any).dagYaml || "",
+        })),
+      }
+    : null;
 
   if (isLoading) {
     return (
@@ -149,44 +121,23 @@ export function TemplateWorkbenchPage({
             <div className="flex items-center gap-2">
               <h1 className="truncate text-base font-semibold">{item.title}</h1>
               <Badge variant="secondary">{item.category}</Badge>
-              <Badge variant={isExhausted ? "destructive" : "outline"}>
-                {item.maxRuns != null
-                  ? `${item.remainingRuns ?? 0} / ${item.maxRuns} runs left`
-                  : "Unlimited"}
-              </Badge>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
           <Button
-            variant="outline"
             size="sm"
-            onPress={() => setIsConstantDrawerOpen(true)}
+            onPress={() => setIsForkModalOpen(true)}
+            className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-sm"
           >
-            <KeyRound className="mr-1.5 h-3.5 w-3.5" />
-            {item.constantProfileName ? (
-              <span>Constants: {item.constantProfileName}</span>
-            ) : (
-              <span className="flex items-center gap-1 text-amber-500">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Configure Constants
-              </span>
-            )}
-          </Button>
-
-          <Button
-            size="sm"
-            isDisabled={isExhausted}
-            onPress={() => setIsRunModalOpen(true)}
-          >
-            <Play className="mr-1.5 h-3.5 w-3.5" />
-            Run Template
+            <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+            Fork to Local Workspace
           </Button>
         </div>
       </div>
 
-      {/* Outliner + Read-Only Canvas with Live Execution Tracking */}
+      {/* Outliner + Read-Only Canvas */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
         <TemplateOutliner
           members={item.members}
@@ -206,7 +157,6 @@ export function TemplateWorkbenchPage({
                 projectId="cloud-template"
                 graph={graph}
                 readOnly
-                onRequestRun={() => setIsRunModalOpen(true)}
               />
             </PipelineWorkspaceProvider>
           ) : (
@@ -217,26 +167,13 @@ export function TemplateWorkbenchPage({
         </div>
       </div>
 
-      <ConstantProfileEditorDrawer
-        open={isConstantDrawerOpen}
-        onOpenChange={setIsConstantDrawerOpen}
-        libraryItemId={item.id}
-        currentProfileId={item.constantProfileId}
-        constantFields={constantFields}
-        onSaved={() => refetch()}
-      />
-
-      <RunPipelineModal
-        pipelineId={item.id}
-        pipelineName={item.title}
-        projectId="cloud-template"
-        nodes={[]}
-        edges={[]}
-        parameters={graph?.parameters || []}
-        isOpen={isRunModalOpen}
-        onClose={() => setIsRunModalOpen(false)}
-        onRunLocal={handleRunTemplate}
-      />
+      {templateDetailShim && (
+        <ForkTemplateDialog
+          isOpen={isForkModalOpen}
+          onClose={() => setIsForkModalOpen(false)}
+          template={templateDetailShim as any}
+        />
+      )}
     </div>
   );
 }
