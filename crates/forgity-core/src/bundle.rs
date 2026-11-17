@@ -12,6 +12,8 @@ pub struct ResolvedScriptBundleDto {
     pub key: String,
     pub executor: String,
     pub full_path: String,
+    #[serde(default)]
+    pub inline_source: Option<String>,
     pub requirements: Vec<String>,
     pub default_inputs: HashMap<String, Value>,
 }
@@ -102,12 +104,18 @@ pub fn build_execution_bundle(
                         }
                     }
 
+                    let inline_source = item
+                        .get("inlineSource")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+
                     scripts_map.insert(
                         key.clone(),
                         ResolvedScriptBundleDto {
                             key,
                             executor,
                             full_path,
+                            inline_source,
                             requirements,
                             default_inputs,
                         },
@@ -150,6 +158,26 @@ pub fn build_execution_bundle(
         }
         for val in runtime_inputs.values_mut() {
             node_contracts::expand_vars_in_json_value(val, &raw_constants);
+        }
+    }
+
+    // Remap workspace://assets/ references in runtime_inputs and default_inputs to physical paths
+    let assets_dir = root_path.join("assets");
+    let remap_asset_ref = |val: &mut Value| {
+        if let Some(s) = val.as_str() {
+            if let Some(rel) = s.strip_prefix("workspace://assets/") {
+                let physical = assets_dir.join(rel);
+                *val = Value::String(physical.to_string_lossy().to_string());
+            }
+        }
+    };
+
+    for val in runtime_inputs.values_mut() {
+        remap_asset_ref(val);
+    }
+    for script_dto in scripts_map.values_mut() {
+        for val in script_dto.default_inputs.values_mut() {
+            remap_asset_ref(val);
         }
     }
 

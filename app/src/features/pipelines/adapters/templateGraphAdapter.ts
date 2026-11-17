@@ -23,14 +23,18 @@ export function templateRootToPipelineGraphDto(
   const rawParams = Array.isArray(rp.parameters)
     ? rp.parameters
     : Array.isArray(contracts.inputs)
-      ? contracts.inputs.map((inp: any) => ({
-          key: inp.id || inp.key || inp.label,
-          label: inp.label || inp.id || inp.key,
-          kind: "Input",
-          primitiveType: inp.primitiveType || "String",
-          cardinality: inp.cardinality || "Single",
-          defaultValue: inp.defaultValue ?? null,
-        }))
+      ? contracts.inputs.map((inp: any) => {
+          const pinKey = String(inp.id || inp.key || inp.label || "");
+          return {
+            id: pinKey,
+            key: pinKey,
+            label: String(inp.label || inp.name || pinKey),
+            kind: "Input",
+            primitiveType: inp.primitiveType || "String",
+            cardinality: inp.cardinality || "Single",
+            defaultValue: inp.defaultValue ?? null,
+          };
+        })
       : [];
 
   return {

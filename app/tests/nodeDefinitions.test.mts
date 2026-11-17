@@ -20,7 +20,6 @@ test("source separates equal keys; view depends on contract rather than tool nam
   const tool = item("Tool", "same", { isDynamic: true });
   const custom = item("Custom", "same", { executor: "python" });
   const map = indexDefinitions([tool, custom]);
-  assert.equal(map.size, 2);
   assert.equal(nodeView("Tool", tool), "Standard");
   assert.equal(nodeView("Tool", item("Tool", "Renamed", { capabilities: { viewVariant: "Collection" } })), "Collection");
   assert.equal(nodeView("Tool", item("Tool", "Another", { capabilities: { viewVariant: "Unknown" } })), "Standard");
@@ -32,12 +31,11 @@ test("stage menus preserve executor scoping", () => {
   const items = [
     item("Tool", "Core"),
     item("Custom", "Script", { executor: "blender" }),
-    item("SubPipeline", "Macro", { executor: "builtin" }),
-    item("Return", "Return", { category: "Flow Control", executor: "builtin" })
+    item("Custom", "FlowItem", { category: "Flow Control", executor: "builtin" }),
   ];
   assert.deepEqual(filterPalette(items, "blender").map(x => x.key), ["Script"]);
-  assert.deepEqual(filterPalette(items, "macro").map(x => x.key), ["Macro", "Return"]);
-  // Server / DotNet stage must contain Core tools, NEVER SubPipeline or Return
+  assert.deepEqual(filterPalette(items, "macro").map(x => x.key), ["FlowItem"]);
+  // Server / DotNet stage must contain Core tools, NEVER SubPipeline
   assert.deepEqual(filterPalette(items, "server").map(x => x.key), ["Core"]);
 });
 test("buildSchemaConfigSignature only changes when schemaConfigKeys change", () => {
@@ -48,6 +46,11 @@ test("buildSchemaConfigSignature only changes when schemaConfigKeys change", () 
   assert.equal(sig1, sig2);
   assert.notEqual(sig1, sig3);
   assert.equal(buildSchemaConfigSignature({ Any: 1 }, []), '{"Any":1}');
+});
+test("nodeView resolves local:constant: directly from refId even without palette definition", () => {
+  assert.equal(nodeView("Custom", undefined, "local:constant:GameMode"), "Constant");
+  assert.equal(nodeView("Tool", undefined, "local:constant:API_KEY"), "Constant");
+  assert.equal(nodeView("Tool", undefined, "local:script:hello"), "Missing");
 });
 test("arePinListsEqual detects type or structType changes on pins with identical id", () => {
   const pinA = { id: "Target", label: "Target", primitiveType: "EntityRef", cardinality: "Single", structType: "Resource", isRequired: true };

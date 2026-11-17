@@ -159,8 +159,15 @@ export function usePipelineDraftState(
       prevGraphIdRef.current = graph.id;
       setNodes(initialNodes);
       setEdges(initialEdges);
+      setParameters(
+        (graph.parameters || []).filter(
+          (p) => p.kind !== "Variable" && (p.kind as any) !== 3
+        )
+      );
+      setSelectedNodeId(null);
+      setIsDirty(false);
     }
-  }, [graph.id, initialNodes, initialEdges, setNodes, setEdges]);
+  }, [graph.id, graph.parameters, initialNodes, initialEdges, setNodes, setEdges]);
 
   // Reconcile live canvas nodes & edges whenever Palette definitions update (e.g. after Sync)
   const prevDefinitionsRef = useRef(definitions);

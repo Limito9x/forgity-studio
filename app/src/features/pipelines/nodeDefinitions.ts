@@ -28,10 +28,10 @@ export function indexDefinitions(items: NodePaletteItemDto[]) {
   }
   return definitions;
 }
-export function nodeView(kind: string, definition?: NodePaletteItemDto) {
+export function nodeView(kind: string, definition?: NodePaletteItemDto, refId?: string) {
   if (["Start", "Return", "FlowControl"].includes(kind)) return kind;
+  if (refId?.startsWith("local:constant:") || (definition?.capabilities as any)?.isConstantNode) return "Constant";
   if (!definition) return "Missing";
-  if ((definition.capabilities as any)?.isConstantNode) return "Constant";
   const variant = definition.capabilities?.viewVariant;
   return variant === "Collection" || variant === "Struct" || variant === "Constant" ? variant : "Standard";
 }

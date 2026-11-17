@@ -35,7 +35,7 @@ export const PipelineNodeRouter = memo((props: NodeProps) => {
     hasExistingPins: (data.inputs?.length ?? 0) > 0,
   });
 
-  const view = nodeView(data.kind, definition);
+  const view = nodeView(data.kind, definition, data.refId);
   if (view === "Start") return <StartPipelineNodeView {...props} />;
   if (view === "Return") return <ReturnNodeView {...props} />;
   if (view === "FlowControl") return <FlowControlNodeView {...props} />;
