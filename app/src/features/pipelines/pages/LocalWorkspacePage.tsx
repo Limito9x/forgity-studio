@@ -317,6 +317,8 @@ export function LocalWorkspacePage({ projectId, explicitRootPath }: LocalWorkspa
           if (snapJson) {
             const parsedDto = JSON.parse(snapJson) as ExtendedPipelineGraphDto;
             if (parsedDto && Array.isArray(parsedDto.nodes) && parsedDto.nodes.length > 0) {
+              // Ensure loaded graph ID matches the active draft pipeline path in current workspace
+              parsedDto.id = currentActivePipeline.fullPath;
               setLoadedGraph(parsedDto);
               setGraphRevision((v) => v + 1);
               return;
