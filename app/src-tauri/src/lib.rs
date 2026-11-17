@@ -58,7 +58,12 @@ pub fn run() {
             get_local_runner_config,
             save_local_runner_config,
             scan_local_dcc_executors,
-            commands::template_manifest::scan_template_dependencies
+            commands::template_manifest::scan_template_dependencies,
+            list_registered_workspaces,
+            get_registered_workspace,
+            register_workspace,
+            touch_workspace_opened,
+            remove_workspace_from_registry
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

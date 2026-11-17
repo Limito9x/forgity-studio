@@ -6,3 +6,4 @@ pub mod pipeline;
 pub mod script_contracts;
 pub mod template_manifest;
 pub mod workspace_db;
+pub mod workspace_registry;

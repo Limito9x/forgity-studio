@@ -36,6 +36,8 @@ import { Route as ProtectedLayoutAdminUsersRouteRouteImport } from './routes/_pr
 import { Route as ProtectedLayoutStudioIndexRouteImport } from './routes/_protected/_layout/studio/index'
 import { Route as ProtectedLayoutTemplatesIndexRouteImport } from './routes/_protected/_layout/templates/index'
 import { Route as ProtectedLayoutTemplatesTemplateIdRouteImport } from './routes/_protected/_layout/templates/$templateId'
+import { Route as ProtectedLayoutWorkspacesIndexRouteImport } from './routes/_protected/_layout/workspaces/index'
+import { Route as ProtectedLayoutWorkspacesWorkspaceIdRouteImport } from './routes/_protected/_layout/workspaces/$workspaceId'
 import { Route as ProtectedLayoutAccountSettingsIndexRouteImport } from './routes/_protected/_layout/account/settings/index'
 import { Route as ProtectedLayoutAccountSettingsNotificationsRouteImport } from './routes/_protected/_layout/account/settings/notifications'
 import { Route as ProtectedLayoutAccountSettingsProfileRouteImport } from './routes/_protected/_layout/account/settings/profile'
@@ -215,6 +217,18 @@ const ProtectedLayoutTemplatesTemplateIdRoute =
   ProtectedLayoutTemplatesTemplateIdRouteImport.update({
     id: '/templates/$templateId',
     path: '/templates/$templateId',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutWorkspacesIndexRoute =
+  ProtectedLayoutWorkspacesIndexRouteImport.update({
+    id: '/workspaces/',
+    path: '/workspaces/',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutWorkspacesWorkspaceIdRoute =
+  ProtectedLayoutWorkspacesWorkspaceIdRouteImport.update({
+    id: '/workspaces/$workspaceId',
+    path: '/workspaces/$workspaceId',
     getParentRoute: () => ProtectedLayoutRoute,
   } as any)
 const ProtectedLayoutAccountSettingsIndexRoute =
@@ -510,9 +524,11 @@ export interface FileRoutesByFullPath {
   '/admin/studios': typeof ProtectedLayoutAdminStudiosRoute
   '/admin/templates': typeof ProtectedLayoutAdminTemplatesRoute
   '/templates/$templateId': typeof ProtectedLayoutTemplatesTemplateIdRoute
+  '/workspaces/$workspaceId': typeof ProtectedLayoutWorkspacesWorkspaceIdRoute
   '/admin/': typeof ProtectedLayoutAdminIndexRoute
   '/studio/': typeof ProtectedLayoutStudioIndexRoute
   '/templates/': typeof ProtectedLayoutTemplatesIndexRoute
+  '/workspaces/': typeof ProtectedLayoutWorkspacesIndexRoute
   '/account/settings/notifications': typeof ProtectedLayoutAccountSettingsNotificationsRoute
   '/account/settings/profile': typeof ProtectedLayoutAccountSettingsProfileRoute
   '/account/settings/security': typeof ProtectedLayoutAccountSettingsSecurityRoute
@@ -568,9 +584,11 @@ export interface FileRoutesByTo {
   '/admin/studios': typeof ProtectedLayoutAdminStudiosRoute
   '/admin/templates': typeof ProtectedLayoutAdminTemplatesRoute
   '/templates/$templateId': typeof ProtectedLayoutTemplatesTemplateIdRoute
+  '/workspaces/$workspaceId': typeof ProtectedLayoutWorkspacesWorkspaceIdRoute
   '/admin': typeof ProtectedLayoutAdminIndexRoute
   '/studio': typeof ProtectedLayoutStudioIndexRoute
   '/templates': typeof ProtectedLayoutTemplatesIndexRoute
+  '/workspaces': typeof ProtectedLayoutWorkspacesIndexRoute
   '/account/settings/notifications': typeof ProtectedLayoutAccountSettingsNotificationsRoute
   '/account/settings/profile': typeof ProtectedLayoutAccountSettingsProfileRoute
   '/account/settings/security': typeof ProtectedLayoutAccountSettingsSecurityRoute
@@ -631,9 +649,11 @@ export interface FileRoutesById {
   '/_protected/_layout/admin/studios': typeof ProtectedLayoutAdminStudiosRoute
   '/_protected/_layout/admin/templates': typeof ProtectedLayoutAdminTemplatesRoute
   '/_protected/_layout/templates/$templateId': typeof ProtectedLayoutTemplatesTemplateIdRoute
+  '/_protected/_layout/workspaces/$workspaceId': typeof ProtectedLayoutWorkspacesWorkspaceIdRoute
   '/_protected/_layout/admin/': typeof ProtectedLayoutAdminIndexRoute
   '/_protected/_layout/studio/': typeof ProtectedLayoutStudioIndexRoute
   '/_protected/_layout/templates/': typeof ProtectedLayoutTemplatesIndexRoute
+  '/_protected/_layout/workspaces/': typeof ProtectedLayoutWorkspacesIndexRoute
   '/_protected/_layout/account/settings/notifications': typeof ProtectedLayoutAccountSettingsNotificationsRoute
   '/_protected/_layout/account/settings/profile': typeof ProtectedLayoutAccountSettingsProfileRoute
   '/_protected/_layout/account/settings/security': typeof ProtectedLayoutAccountSettingsSecurityRoute
@@ -696,9 +716,11 @@ export interface FileRouteTypes {
     | '/admin/studios'
     | '/admin/templates'
     | '/templates/$templateId'
+    | '/workspaces/$workspaceId'
     | '/admin/'
     | '/studio/'
     | '/templates/'
+    | '/workspaces/'
     | '/account/settings/notifications'
     | '/account/settings/profile'
     | '/account/settings/security'
@@ -754,9 +776,11 @@ export interface FileRouteTypes {
     | '/admin/studios'
     | '/admin/templates'
     | '/templates/$templateId'
+    | '/workspaces/$workspaceId'
     | '/admin'
     | '/studio'
     | '/templates'
+    | '/workspaces'
     | '/account/settings/notifications'
     | '/account/settings/profile'
     | '/account/settings/security'
@@ -816,9 +840,11 @@ export interface FileRouteTypes {
     | '/_protected/_layout/admin/studios'
     | '/_protected/_layout/admin/templates'
     | '/_protected/_layout/templates/$templateId'
+    | '/_protected/_layout/workspaces/$workspaceId'
     | '/_protected/_layout/admin/'
     | '/_protected/_layout/studio/'
     | '/_protected/_layout/templates/'
+    | '/_protected/_layout/workspaces/'
     | '/_protected/_layout/account/settings/notifications'
     | '/_protected/_layout/account/settings/profile'
     | '/_protected/_layout/account/settings/security'
@@ -1054,6 +1080,20 @@ declare module '@tanstack/react-router' {
       path: '/templates/$templateId'
       fullPath: '/templates/$templateId'
       preLoaderRoute: typeof ProtectedLayoutTemplatesTemplateIdRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
+    }
+    '/_protected/_layout/workspaces/': {
+      id: '/_protected/_layout/workspaces/'
+      path: '/workspaces'
+      fullPath: '/workspaces/'
+      preLoaderRoute: typeof ProtectedLayoutWorkspacesIndexRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
+    }
+    '/_protected/_layout/workspaces/$workspaceId': {
+      id: '/_protected/_layout/workspaces/$workspaceId'
+      path: '/workspaces/$workspaceId'
+      fullPath: '/workspaces/$workspaceId'
+      preLoaderRoute: typeof ProtectedLayoutWorkspacesWorkspaceIdRouteImport
       parentRoute: typeof ProtectedLayoutRoute
     }
     '/_protected/_layout/account/settings/': {
@@ -1405,9 +1445,11 @@ interface ProtectedLayoutRouteChildren {
   ProtectedLayoutAdminStudiosRoute: typeof ProtectedLayoutAdminStudiosRoute
   ProtectedLayoutAdminTemplatesRoute: typeof ProtectedLayoutAdminTemplatesRoute
   ProtectedLayoutTemplatesTemplateIdRoute: typeof ProtectedLayoutTemplatesTemplateIdRoute
+  ProtectedLayoutWorkspacesWorkspaceIdRoute: typeof ProtectedLayoutWorkspacesWorkspaceIdRoute
   ProtectedLayoutAdminIndexRoute: typeof ProtectedLayoutAdminIndexRoute
   ProtectedLayoutStudioIndexRoute: typeof ProtectedLayoutStudioIndexRoute
   ProtectedLayoutTemplatesIndexRoute: typeof ProtectedLayoutTemplatesIndexRoute
+  ProtectedLayoutWorkspacesIndexRoute: typeof ProtectedLayoutWorkspacesIndexRoute
   ProtectedLayoutStudioStudioSlugRunnersRoute: typeof ProtectedLayoutStudioStudioSlugRunnersRoute
   ProtectedLayoutStudioStudioSlugStorageRoute: typeof ProtectedLayoutStudioStudioSlugStorageRoute
   ProtectedLayoutTemplatesLibraryLibraryItemIdRoute: typeof ProtectedLayoutTemplatesLibraryLibraryItemIdRoute
@@ -1433,9 +1475,12 @@ const ProtectedLayoutRouteChildren: ProtectedLayoutRouteChildren = {
   ProtectedLayoutAdminTemplatesRoute: ProtectedLayoutAdminTemplatesRoute,
   ProtectedLayoutTemplatesTemplateIdRoute:
     ProtectedLayoutTemplatesTemplateIdRoute,
+  ProtectedLayoutWorkspacesWorkspaceIdRoute:
+    ProtectedLayoutWorkspacesWorkspaceIdRoute,
   ProtectedLayoutAdminIndexRoute: ProtectedLayoutAdminIndexRoute,
   ProtectedLayoutStudioIndexRoute: ProtectedLayoutStudioIndexRoute,
   ProtectedLayoutTemplatesIndexRoute: ProtectedLayoutTemplatesIndexRoute,
+  ProtectedLayoutWorkspacesIndexRoute: ProtectedLayoutWorkspacesIndexRoute,
   ProtectedLayoutStudioStudioSlugRunnersRoute:
     ProtectedLayoutStudioStudioSlugRunnersRoute,
   ProtectedLayoutStudioStudioSlugStorageRoute:

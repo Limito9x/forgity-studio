@@ -30,6 +30,7 @@ import {
   LayoutGrid,
   ChevronDown,
   PackagePlus,
+  FolderGit2,
 } from "lucide-react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
@@ -189,6 +190,12 @@ export function UnifiedSidebar() {
   ].filter((item) => item.visible);
 
   const templateItems = [
+    {
+      title: "Workspaces",
+      url: "/workspaces",
+      icon: FolderGit2,
+      isActive: pathname.startsWith("/workspaces"),
+    },
     {
       title: "Templates",
       url: "/templates",

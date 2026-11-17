@@ -72,16 +72,17 @@ function localStructsToCatalogue(structs: LocalStructDefinition[]): StructDefini
 
 interface LocalWorkspacePageProps {
   projectId: string;
+  explicitRootPath?: string | null;
 }
 
-export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
+export function LocalWorkspacePage({ projectId, explicitRootPath }: LocalWorkspacePageProps) {
   const queryClient = useQueryClient();
   const {
     rootPath,
     config,
     isLoading: isConfigLoading,
     switchRootFolder,
-  } = useLocalWorkspaceConfig(projectId);
+  } = useLocalWorkspaceConfig(projectId, explicitRootPath);
 
   const {
     draftNodes,

@@ -286,3 +286,104 @@ pub fn list_unreal_content_items(
     Ok(items)
 }
 
+// ==========================================
+// Workspace Registry Commands (AppData SSOT)
+// ==========================================
+
+pub use forgity_core::workspace_registry::{RegisteredWorkspace, WorkspaceRegistryDb};
+use tauri::Manager;
+
+fn get_app_data_registry(app: &tauri::AppHandle) -> Result<WorkspaceRegistryDb, String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app_data_dir: {}", e))?;
+    WorkspaceRegistryDb::open(&app_data_dir)
+}
+
+#[tauri::command]
+pub fn list_registered_workspaces(app: tauri::AppHandle) -> Result<Vec<RegisteredWorkspace>, String> {
+    let registry = get_app_data_registry(&app)?;
+    registry.list_workspaces()
+}
+
+#[tauri::command]
+pub fn get_registered_workspace(
+    app: tauri::AppHandle,
+    workspace_id: String,
+) -> Result<Option<RegisteredWorkspace>, String> {
+    let registry = get_app_data_registry(&app)?;
+    registry.get_workspace_by_id(&workspace_id)
+}
+
+#[tauri::command]
+pub fn register_workspace(
+    app: tauri::AppHandle,
+    name: String,
+    root_path: String,
+    linked_project_id: Option<String>,
+    origin_template_id: Option<String>,
+    origin_version_id: Option<String>,
+    origin_template_title: Option<String>,
+) -> Result<RegisteredWorkspace, String> {
+    let root = Path::new(&root_path);
+    if !root.is_dir() {
+        return Err(format!("Workspace root path is not a valid directory: {}", root_path));
+    }
+
+    // Ensure workspace is initialized
+    let _ = open_or_init_workspace_root(root_path.clone())?;
+
+    let registry = get_app_data_registry(&app)?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs().to_string())
+        .unwrap_or_else(|_| "0".to_string());
+
+    // Check if already registered by root_path
+    if let Ok(Some(mut existing)) = registry.get_workspace_by_root_path(&root_path) {
+        existing.last_opened_at = now.clone();
+        if !name.trim().is_empty() {
+            existing.name = name;
+        }
+        if linked_project_id.is_some() {
+            existing.linked_project_id = linked_project_id;
+        }
+        registry.upsert_workspace(&existing)?;
+        return Ok(existing);
+    }
+
+    let id = format!("ws_{}", &now);
+    let ws = RegisteredWorkspace {
+        id,
+        name,
+        root_path,
+        linked_project_id,
+        origin_template_id,
+        origin_version_id,
+        origin_template_title,
+        last_opened_at: now.clone(),
+        created_at: now,
+    };
+
+    registry.upsert_workspace(&ws)?;
+    Ok(ws)
+}
+
+#[tauri::command]
+pub fn touch_workspace_opened(app: tauri::AppHandle, workspace_id: String) -> Result<(), String> {
+    let registry = get_app_data_registry(&app)?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs().to_string())
+        .unwrap_or_else(|_| "0".to_string());
+    registry.touch_workspace(&workspace_id, &now)
+}
+
+#[tauri::command]
+pub fn remove_workspace_from_registry(app: tauri::AppHandle, workspace_id: String) -> Result<(), String> {
+    let registry = get_app_data_registry(&app)?;
+    registry.remove_workspace(&workspace_id)
+}
+
+
