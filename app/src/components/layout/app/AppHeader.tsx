@@ -2,7 +2,6 @@ import { Separator } from '@/components/ui/separator'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { AppBreadcrumb } from './AppBreadcrumb'
 import { ThemeToggle } from '@/components/custom-ui/theme/ThemeToggle'
-import { ModeSwitcher } from './ModeSwitcher'
 import { Link } from '@tanstack/react-router'
 import forgityLogo from '@/assets/forgity.svg'
 import { appConfig } from '@/config/appConfig'
@@ -30,7 +29,6 @@ export function AppHeader({ showSidebarTrigger = true }: AppHeaderProps) {
         <AppBreadcrumb />
       </div>
       <div className="flex items-center gap-2">
-        <ModeSwitcher />
         <ThemeToggle />
       </div>
     </header>

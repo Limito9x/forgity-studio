@@ -15,7 +15,7 @@ import type {
   PinDefinition,
   PipelineParameterDto,
   StructDefinitionDto,
-} from "@/gen/model";
+} from "@/features/pipelines/types/pipelineGraphTypes";
 import {
   applyNodeConfigUpdate,
   definitionKey,
@@ -30,12 +30,13 @@ import type { IPipelineStorageAdapter } from "../../../adapters/pipelineStorageA
 
 interface UsePipelineDraftStateOptions {
   storage: IPipelineStorageAdapter;
+  isReadOnly?: boolean;
 }
 
 export function usePipelineDraftState(
   graph: ExtendedPipelineGraphDto,
   structCatalogue: StructDefinitionDto[] | undefined,
-  { storage }: UsePipelineDraftStateOptions
+  { storage, isReadOnly: _isReadOnly = false }: UsePipelineDraftStateOptions
 ) {
   const definitions = useNodeDefinitionsMap();
 

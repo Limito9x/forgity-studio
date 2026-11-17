@@ -405,32 +405,18 @@ pub fn save_local_pipeline_snapshot(
     pipeline_slug: String,
     snapshot_json: String,
 ) -> Result<(), String> {
-    let snaps_dir = Path::new(&root_path).join(".forgity").join("snapshots");
-    std::fs::create_dir_all(&snaps_dir)
-        .map_err(|e| format!("Failed to create .forgity/snapshots directory: {}", e))?;
-
-    let snap_file = snaps_dir.join(format!("{}.snap.json", pipeline_slug));
-    std::fs::write(snap_file, snapshot_json)
-        .map_err(|e| format!("Failed to write snapshot json: {}", e))?;
-    Ok(())
+    let db = crate::workspace_db::WorkspaceDb::open(Path::new(&root_path))
+        .map_err(|e| format!("Failed to open workspace.db: {}", e))?;
+    db.save_pipeline_snapshot(&pipeline_slug, &snapshot_json)
 }
 
 pub fn load_local_pipeline_snapshot(
     root_path: String,
     pipeline_slug: String,
 ) -> Result<Option<String>, String> {
-    let snap_file = Path::new(&root_path)
-        .join(".forgity")
-        .join("snapshots")
-        .join(format!("{}.snap.json", pipeline_slug));
-
-    if !snap_file.is_file() {
-        return Ok(None);
-    }
-
-    let content = std::fs::read_to_string(snap_file)
-        .map_err(|e| format!("Failed to read snapshot json: {}", e))?;
-    Ok(Some(content))
+    let db = crate::workspace_db::WorkspaceDb::open(Path::new(&root_path))
+        .map_err(|e| format!("Failed to open workspace.db: {}", e))?;
+    db.load_pipeline_snapshot(&pipeline_slug)
 }
 
 pub fn delete_local_pipeline_draft(file_path: String) -> Result<(), String> {
@@ -441,13 +427,14 @@ pub fn delete_local_pipeline_draft(file_path: String) -> Result<(), String> {
             .and_then(|s| s.to_str())
             .unwrap_or("pipeline")
             .trim_end_matches(".pipeline.yaml")
-            .trim_end_matches(".pipeline.yml");
+            .trim_end_matches(".pipeline.yml")
+            .trim_end_matches(".component.yaml")
+            .trim_end_matches(".component.yml");
 
         if let Some(parent) = p.parent() {
             if let Some(root) = parent.parent() {
-                let snap_file = root.join(".forgity").join("snapshots").join(format!("{}.snap.json", file_stem));
-                if snap_file.is_file() {
-                    let _ = std::fs::remove_file(snap_file);
+                if let Ok(db) = crate::workspace_db::WorkspaceDb::open(root) {
+                    let _ = db.delete_pipeline(file_stem);
                 }
             }
         }

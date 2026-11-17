@@ -1,58 +1,85 @@
-import {
-  ChevronsUpDown,
-  LogOut,
-  Settings,
-} from "lucide-react";
-
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { ChevronsUpDown, LogIn, LogOut, Settings, User } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  useSidebar,
 } from "@/components/ui/sidebar";
-import { useNavigate } from "@tanstack/react-router";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { useAuthStore } from "@/stores/authStore";
+import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLogout } from "@/gen/endpoints/auth/auth";
-import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 
 export function NavUser() {
-  const { isMobile } = useSidebar();
   const navigate = useNavigate();
-  const profile = useAuthStore((state) => state.profile);
-  const { clearToken, clearProfile } = useAuthStore();
-  const logout = useLogout();
+  const queryClient = useQueryClient();
+  const logoutMutation = useLogout();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const profile = useAuthStore((s) => s.profile);
 
-  const { studio: currentStudio } = useCurrentStudio();
+  const handleSignIn = () => {
+    navigate({ to: "/auth/login" as any });
+  };
 
   const handleLogout = async () => {
     try {
-      await logout.mutateAsync(undefined);
+      await logoutMutation.mutateAsync(undefined);
     } catch {
-      // Ignore error on logout
+      // Bỏ qua lỗi mạng backend nếu có, ưu tiên dọn sạch client
     } finally {
-      clearToken();
-      clearProfile();
+      useAuthStore.getState().logout();
+      localStorage.removeItem("automation_current_studio_slug");
+      localStorage.removeItem("automation_current_studio_id");
+      queryClient.clear();
       window.location.href = "/auth/login";
     }
   };
 
-  const displayName = profile?.displayName || profile?.userName || "User";
-  const email = profile?.email || "";
-  const avatarUrl = profile?.avatarUrl ?? undefined;
-  const initial = displayName.charAt(0).toUpperCase();
+  if (!accessToken || !profile) {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            size="lg"
+            onPress={handleSignIn}
+            className="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground cursor-pointer"
+          >
+            <Avatar className="h-8 w-8 rounded-lg">
+              <AvatarFallback className="rounded-lg bg-muted text-muted-foreground">
+                <User className="size-4" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="grid flex-1 text-left text-sm leading-tight">
+              <span className="truncate font-medium">Guest</span>
+              <span className="truncate text-xs text-muted-foreground">
+                Local Mode
+              </span>
+            </div>
+            <LogIn className="ml-auto size-4 text-muted-foreground" />
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    );
+  }
+
+  const displayName =
+    profile?.firstName || profile?.lastName
+      ? `${profile?.firstName || ""} ${profile?.lastName || ""}`.trim()
+      : profile?.userName || profile?.email || "User";
+
+  const initials = displayName
+    .split(" ")
+    .filter(Boolean)
+    .map((n: string) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <SidebarMenu>
@@ -60,63 +87,36 @@ export function NavUser() {
         <DropdownMenuTrigger>
           <SidebarMenuButton
             size="lg"
-            className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+            className="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground cursor-pointer"
           >
-            <Avatar className="h-8 w-8 rounded-lg shrink-0">
-              <AvatarImage src={avatarUrl} alt={displayName} className="object-cover" />
-              <AvatarFallback className="rounded-lg">{initial}</AvatarFallback>
+            <Avatar className="h-8 w-8 rounded-lg">
+              <AvatarImage src={undefined} alt={displayName} />
+              <AvatarFallback className="rounded-lg font-semibold">
+                {initials || "U"}
+              </AvatarFallback>
             </Avatar>
-            <div className="grid flex-1 text-left text-sm leading-tight min-w-0">
+            <div className="grid flex-1 text-left text-sm leading-tight">
               <span className="truncate font-semibold">{displayName}</span>
-              <span className="truncate text-xs text-muted-foreground flex items-center gap-1">
-                <span className="truncate">{currentStudio ? currentStudio.name : "Select Studio"}</span>
+              <span className="truncate text-xs text-muted-foreground">
+                {profile?.email || ""}
               </span>
             </div>
-            <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground" />
+            <ChevronsUpDown className="ml-auto size-4" />
           </SidebarMenuButton>
 
-          <DropdownMenu
-            className="w-(--trigger-width) min-w-56 rounded-xl p-1.5 shadow-xl"
-            placement={isMobile ? "bottom" : "top"}
-            offset={6}
-          >
-            {/* User Profile Header */}
-            <DropdownMenuLabel className="p-0 font-normal">
-              <div className="flex items-center gap-2.5 px-2 py-2 text-left text-sm">
-                <Avatar className="h-9 w-9 rounded-lg shrink-0">
-                  <AvatarImage src={avatarUrl} alt={displayName} className="object-cover" />
-                  <AvatarFallback className="rounded-lg">{initial}</AvatarFallback>
-                </Avatar>
-                <div className="grid flex-1 text-left text-sm leading-tight min-w-0">
-                  <span className="truncate font-semibold text-foreground">{displayName}</span>
-                  <span className="truncate text-xs text-muted-foreground">{email}</span>
-                </div>
-              </div>
-            </DropdownMenuLabel>
-
-            <DropdownMenuSeparator className="my-1" />
-
-            {/* Account & Settings Section */}
-            <DropdownMenuGroup>
-              <DropdownMenuItem
-                id="account-settings-action"
-                textValue="Account Settings"
-                onAction={() => navigate({ to: "/settings" })}
-                className="flex items-center gap-2 cursor-pointer py-1.5 px-2 rounded-lg text-sm"
-              >
-                <Settings className="size-4 text-muted-foreground" />
-                <span>Account Settings</span>
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-
-            <DropdownMenuSeparator className="my-1" />
-
-            {/* Log out */}
+          <DropdownMenu placement="top start" offset={8} className="w-56">
             <DropdownMenuItem
-              id="logout-action"
-              textValue="Log out"
+              onAction={() => navigate({ to: "/account/settings/profile" as any })}
+              className="gap-2 cursor-pointer"
+            >
+              <Settings className="size-4" />
+              <span>Account Settings</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
               onAction={handleLogout}
-              className="flex items-center gap-2 cursor-pointer py-1.5 px-2 rounded-lg text-sm text-destructive focus:text-destructive focus:bg-destructive/10"
+              variant="destructive"
+              className="gap-2 cursor-pointer text-destructive focus:text-destructive"
             >
               <LogOut className="size-4" />
               <span>Log out</span>

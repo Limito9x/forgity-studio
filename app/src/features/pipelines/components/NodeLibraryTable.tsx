@@ -1,6 +1,6 @@
 import { BaseTable } from "@/components/table/BaseTable";
 import type { ColumnDef, Table } from "@tanstack/react-table";
-import type { NodePaletteItemDto } from "@/gen/model";
+import type { NodePaletteItemDto } from "@/features/pipelines/types/pipelineGraphTypes";
 
 export interface NodeLibraryTableProps {
     table: Table<NodePaletteItemDto>;

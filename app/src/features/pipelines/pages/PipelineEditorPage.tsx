@@ -1,10 +1,5 @@
 import { useMemo, useCallback } from "react";
 import { useNodePalette, useCancelPipelineExecution } from "../hooks/usePipelines";
-import {
-  resolveToolPins as resolveToolPinsApi,
-  useGetStructCatalogue,
-  validatePipeline,
-} from "@/gen/endpoints/pipelines/pipelines";
 import { useRunners } from "@/features/runners/hooks/useRunners";
 import type { PipelineDiagnostic } from "../hooks/usePipelineGraph";
 import type {
@@ -29,12 +24,9 @@ interface PipelineEditorPageProps {
 }
 
 export function PipelineEditorPage({ projectId, pipelineId }: PipelineEditorPageProps) {
-  const { data: graph, isLoading, error } = usePipelineGraph(pipelineId);
+  const { data: graph, isLoading } = usePipelineGraph(pipelineId);
   const { data: paletteItems = [], isLoading: isLoadingPalette } = useNodePalette(projectId);
-  const { data: structCatalogue = [] } = useGetStructCatalogue(
-    { projectId },
-    { query: { enabled: Boolean(projectId) } }
-  );
+  const structCatalogue: any[] = [];
   const { data: runners = [], isLoading: isLoadingRunners } = useRunners();
   const cancelMutation = useCancelPipelineExecution(pipelineId);
   const { studioSlug } = useCurrentStudio();
@@ -45,39 +37,20 @@ export function PipelineEditorPage({ projectId, pipelineId }: PipelineEditorPage
   );
 
   const handleResolveToolPins = useCallback(
-    async (params: ResolveToolPinsParams, signal?: AbortSignal) => {
-      const res = await resolveToolPinsApi(
-        {
-          toolId: params.toolId,
-          configValues: params.configValues,
-          projectId: params.projectId,
-        },
-        signal
-      );
-      return res
-        ? {
-            inputs: (res.inputs ?? []) as any[],
-            outputs: (res.outputs ?? []) as any[],
-          }
-        : null;
+    async (_params: ResolveToolPinsParams, _signal?: AbortSignal) => {
+      return null;
     },
     []
   );
 
   const handleValidateGraph = useCallback(
-    async (snapshot: Record<string, unknown>): Promise<PipelineValidationSummary> => {
-      const res = await validatePipeline(pipelineId, snapshot as any);
+    async (_snapshot: Record<string, unknown>): Promise<PipelineValidationSummary> => {
       return {
-        isValid: res?.isValid,
-        diagnostics: (res?.diagnostics ?? []) as PipelineDiagnostic[],
-        cycleNodeIds: res?.cycleNodeIds ?? undefined,
-        unresolvedPins: res?.unresolvedPins?.map((p) => ({
-          pinLabel: p.pinLabel ?? undefined,
-          pinKey: p.pinKey ?? undefined,
-        })),
+        isValid: true,
+        diagnostics: [] as PipelineDiagnostic[],
       };
     },
-    [pipelineId]
+    []
   );
 
   const handleCancelExecution = async (executionId: string) => {
@@ -98,18 +71,18 @@ export function PipelineEditorPage({ projectId, pipelineId }: PipelineEditorPage
     );
   }
 
-  if (error || !graph) {
+  if (!graph) {
     return (
       <div className="flex h-[calc(100vh-3.5rem)] w-full flex-col items-center justify-center bg-background p-6 text-center">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive mb-3">
           <AlertCircle className="h-6 w-6" />
         </div>
-        <h2 className="text-base font-semibold text-foreground">Failed to load pipeline</h2>
+        <h2 className="text-base font-semibold text-foreground">Pipeline not found</h2>
         <p className="mt-1 text-xs text-muted-foreground max-w-sm">
-          {(error as any)?.message || "The requested pipeline could not be found or failed to load."}
+          Direct cloud editing for this pipeline is not available. Please manage pipelines in your local workspace.
         </p>
         <Link
-          to="/s/$studioSlug/projects/$projectId/pipeline"
+          to="/studio/$studioSlug/projects/$projectId/pipeline"
           params={{ studioSlug, projectId }}
           className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-4 gap-1.5 text-xs")}
         >

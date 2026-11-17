@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { PinDefinition } from "@/gen/model";
+import type { PinDefinition } from "@/features/pipelines/types/pipelineGraphTypes";
 import {
   STATIC_PIN_CATALOGUE,
   normalizePinType,
@@ -271,32 +271,6 @@ export function PinConfigInspector({
             </SelectContent>
           </Select>
         </div>
-
-        {/* Struct Type for EntityRef */}
-        {normType === "EntityRef" && (
-          <div className="space-y-1.5 animate-in fade-in duration-150">
-            <Label className="text-xs font-semibold">Struct Type</Label>
-            <Select
-              selectedKey={pin.structType || "Resource"}
-              onSelectionChange={(key) =>
-                onUpdatePin({ ...pin, structType: String(key) })
-              }
-            >
-              <SelectTrigger className="text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem id="Resource">Resource</SelectItem>
-                <SelectItem id="Workstation">Workstation</SelectItem>
-                <SelectItem id="Repository">Repository</SelectItem>
-                <SelectItem id="Runner">Runner</SelectItem>
-                <SelectItem id="ContentItem">ContentItem</SelectItem>
-                <SelectItem id="ContentType">ContentType</SelectItem>
-                <SelectItem id="Tag">Tag</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
 
         {/* Cardinality (Single vs Array) */}
         <div className="space-y-1.5">

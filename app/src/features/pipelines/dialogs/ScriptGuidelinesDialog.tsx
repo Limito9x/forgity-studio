@@ -14,12 +14,10 @@ import {
   Check,
   Sparkles,
   Info,
-  ExternalLink,
   Code2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { SOFTWARE_DEFINITIONS, type SoftwareDefinition } from "@/features/runners/constants/dccEngines";
-import { Link } from "@tanstack/react-router";
 
 interface ScriptGuidelinesDialogProps {
   isOpen: boolean;
@@ -85,14 +83,9 @@ export function ScriptGuidelinesDialog({
             </div>
           </div>
           <div className="flex items-center justify-end pt-1">
-            <Link
-              to="/runners"
-              onClick={onClose}
-              className="text-[11px] text-primary hover:underline inline-flex items-center gap-1 font-medium"
-            >
-              <span>Verify Connected Runners & Installed Engines</span>
-              <ExternalLink className="size-3" />
-            </Link>
+            <span className="text-[11px] text-muted-foreground inline-flex items-center gap-1 font-medium">
+              <span>Managed by connected native Runners</span>
+            </span>
           </div>
         </div>
 

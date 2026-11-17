@@ -14,7 +14,7 @@ export function AuditLogDetailPage({ id }: { id: string }) {
         <SinglePageShell
             title="Audit Log Details"
             description="View details for log entry"
-            onBack={() => navigate({ to: "/system/audit-logs" })}
+            onBack={() => navigate({ to: "/admin/audit-logs" })}
         >
             {isLoading ? (
                 <div className="space-y-4">

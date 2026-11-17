@@ -1,7 +1,6 @@
 import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import type { Node, Edge } from "@xyflow/react";
-import type { PipelineParameterDto, PinDefinition } from "@/gen/model";
-import { PinKind } from "@/gen/model";
+import type { PipelineParameterDto, PinDefinition } from "@/features/pipelines/types/pipelineGraphTypes";
 import type { CustomPipelineNodeData } from "../nodes/types";
 
 interface UsePipelineContractSyncOptions {
@@ -72,8 +71,10 @@ export function usePipelineContractSync({
           const startOutputs: PinDefinition[] = [
             {
               id: "exec_out",
+              name: "Start",
+              direction: "Output",
               label: "Start",
-              kind: PinKind.Exec,
+              kind: "Exec",
               isRequired: false,
             },
           ];
@@ -83,16 +84,20 @@ export function usePipelineContractSync({
             startOutputs.push(
               {
                 id: "resources",
+                name: "Resources[]",
+                direction: "Output",
                 label: "Resources[]",
-                kind: PinKind.Data,
+                kind: "Data",
                 primitiveType: "Array" as any,
                 cardinality: "Array" as any,
                 isRequired: false,
               },
               {
                 id: "repository",
+                name: "Repository",
+                direction: "Output",
                 label: "Repository",
-                kind: PinKind.Data,
+                kind: "Data",
                 primitiveType: "EntityRef" as any,
                 isRequired: false,
               },
@@ -102,14 +107,16 @@ export function usePipelineContractSync({
           // Ghép các tham số Input của Pipeline thành Data Pins đầu ra của Start
           for (const p of inputParams) {
             startOutputs.push({
-              id: p.key,
-              label: p.label || p.key,
-              kind: PinKind.Data,
+              id: p.name || p.id || "",
+              name: p.name || p.id || "",
+              direction: "Output",
+              label: p.name || p.id || "",
+              kind: "Data",
               primitiveType: p.type as any,
               cardinality: p.cardinality as any,
-              metadata: p.structType as any,
+              metadata: (p as any).structType as any,
               defaultValue: p.defaultValue,
-              isRequired: Boolean(p.isRequired),
+              isRequired: Boolean((p as any).isRequired),
             });
           }
 
@@ -128,8 +135,10 @@ export function usePipelineContractSync({
           const returnInputs: PinDefinition[] = [
             {
               id: "exec_in",
+              name: "Exec",
+              direction: "Input",
               label: "Exec",
-              kind: PinKind.Exec,
+              kind: "Exec",
               isRequired: false,
             },
           ];
@@ -137,14 +146,16 @@ export function usePipelineContractSync({
           // Ghép các tham số Output của Pipeline thành Data Pins đầu vào của Return
           for (const p of outputParams) {
             returnInputs.push({
-              id: p.key,
-              label: p.label || p.key,
-              kind: PinKind.Data,
+              id: p.name || p.id || "",
+              name: p.name || p.id || "",
+              direction: "Input",
+              label: p.name || p.id || "",
+              kind: "Data",
               primitiveType: p.type as any,
               cardinality: p.cardinality as any,
-              metadata: p.structType as any,
+              metadata: (p as any).structType as any,
               defaultValue: p.defaultValue,
-              isRequired: Boolean(p.isRequired),
+              isRequired: Boolean((p as any).isRequired),
             });
           }
 

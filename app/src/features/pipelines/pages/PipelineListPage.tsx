@@ -3,9 +3,6 @@ import { Link } from "@tanstack/react-router";
 import {
   Workflow,
   Plus,
-  Loader2,
-  Download,
-  UploadCloud,
   Trash2,
   Cloud,
   Box,
@@ -19,7 +16,6 @@ import {
   useRestorePipelineMutation,
   type PipelineSummaryDto,
 } from "../hooks/usePipelines";
-import { usePipelineExport } from "../hooks/usePipelineExportImport";
 import { useDialogStore } from "@/stores/dialogStore";
 import { ActivePipelinesTab } from "../components/pipeline-list/ActivePipelinesTab";
 import { TrashPipelinesTab } from "../components/pipeline-list/TrashPipelinesTab";
@@ -44,7 +40,6 @@ export function PipelineListPage({ projectId }: PipelineListPageProps) {
     usePipelines(projectId, true);
 
   const restoreMutation = useRestorePipelineMutation(projectId);
-  const { exportSingle, exportBatch, isExportingBatch } = usePipelineExport();
   const openDialog = useDialogStore((state) => state.openDialog);
 
   const handleRestore = async (p: PipelineSummaryDto) => {
@@ -71,37 +66,17 @@ export function PipelineListPage({ projectId }: PipelineListPageProps) {
 
         {mainTab === "pipelines" ? (
           <div className="flex items-center gap-2">
-            {activeTab === "active" && activePipelines.length > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onPress={() =>
-                  exportBatch({
-                    pipelineIds: activePipelines.map((p) => p.id),
-                    customFileName: `all-pipelines-${activePipelines.length}-pkg.pipeline.json`,
-                  })
-                }
-                isDisabled={isExportingBatch}
-                className="gap-1.5 text-xs"
-              >
-                {isExportingBatch ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Download className="h-3.5 w-3.5 text-primary" />
-                )}
-                <span className="hidden sm:inline">Export All</span>
-              </Button>
-            )}
-
-            <Button
-              variant="outline"
-              size="sm"
-              onPress={() => openDialog("import-pipeline", { projectId })}
-              className="gap-1.5 text-xs"
+            <Link
+              to="/studio/$studioSlug/projects/$projectId/pipeline/workspace"
+              params={{ studioSlug, projectId }}
+              className={cn(
+                buttonVariants({ variant: "outline", size: "sm" }),
+                "gap-1.5 text-xs bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+              )}
             >
-              <UploadCloud className="h-3.5 w-3.5 text-primary" />
-              <span>Import Package</span>
-            </Button>
+              <Laptop className="h-3.5 w-3.5" />
+              <span>Open Local Workspace</span>
+            </Link>
 
             <Button
               size="sm"
@@ -115,7 +90,7 @@ export function PipelineListPage({ projectId }: PipelineListPageProps) {
         ) : (
           <div className="flex items-center gap-2">
             <Link
-              to="/s/$studioSlug/projects/$projectId/pipeline/workspace"
+              to="/studio/$studioSlug/projects/$projectId/pipeline/workspace"
               params={{ studioSlug, projectId }}
               className={cn(
                 buttonVariants({ variant: "outline", size: "sm" }),
@@ -245,7 +220,7 @@ export function PipelineListPage({ projectId }: PipelineListPageProps) {
               projectId={projectId}
               pipelines={activePipelines}
               isLoading={isActiveLoading}
-              onExportSingle={(id, mode) => exportSingle({ id, mode })}
+              onExportSingle={(_id, _mode) => {}}
             />
           ) : (
             <TrashPipelinesTab

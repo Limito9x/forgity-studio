@@ -31,7 +31,6 @@ import {
     ChevronDown,
 } from "lucide-react";
 import type { ContentItemDto } from "@/gen/model";
-import { ContentResourcesDrawer } from "./components/drawers/ContentResourcesDrawer";
 import { DynamicIcon } from "@/components/custom-ui/DynamicIcon";
 import { useExportContentItems } from "./hooks/useContentItemsExportImport";
 import {
@@ -56,8 +55,6 @@ export function ContentItemPage({ useSearch, useNavigate }: ResourcePageProps) {
 
     const { data: contentType } = useGetContentType(projectId, typeKey);
 
-    const [drawerContent, setDrawerContent] = useState<{ id: string; name: string } | null>(null);
-
     const resourceQuery = useResourceQuery(search, navigate);
 
     const { data, isLoading } = useContentItems(search as any, {
@@ -65,11 +62,7 @@ export function ContentItemPage({ useSearch, useNavigate }: ResourcePageProps) {
         contentTypeKey: typeKey,
     });
 
-    const handleViewResources = (item: ContentItemDto) => {
-        if (item.id) {
-            setDrawerContent({ id: item.id, name: item.name || "Content Item" });
-        }
-    };
+    const handleViewResources = (_item: ContentItemDto) => {};
 
     const { table, columns, rowSelection, setRowSelection } = useContentItemTable({
         data: data?.items ?? [],
@@ -263,15 +256,6 @@ export function ContentItemPage({ useSearch, useNavigate }: ResourcePageProps) {
                     />
                 )}
             </ResourcePageShell>
-
-            {/* Slide-over Drawer to View and Manage Linked Resources */}
-            <ContentResourcesDrawer
-                isOpen={Boolean(drawerContent)}
-                onClose={() => setDrawerContent(null)}
-                contentId={drawerContent?.id || null}
-                contentName={drawerContent?.name || ""}
-                projectId={projectId}
-            />
         </>
     );
 }

@@ -1,4 +1,4 @@
-import type { PinDefinition, PinPrimitiveType } from "@/gen/model";
+import type { PinDefinition, PinPrimitiveType } from "@/features/pipelines/types/pipelineGraphTypes";
 import type { PipelineFileAssetDto } from "../../../hooks/usePipelineGraph";
 import {
   normalizePinType,
@@ -33,26 +33,12 @@ const PIN_BG_CLASSES: Record<NormalizedPinType, { bgClass: string; textClass: st
   String: { bgClass: "bg-sky-500", textClass: "text-sky-600 dark:text-sky-400" },
   Number: { bgClass: "bg-purple-500", textClass: "text-purple-600 dark:text-purple-400" },
   Boolean: { bgClass: "bg-amber-500", textClass: "text-amber-600 dark:text-amber-400" },
-  EntityRef: { bgClass: "bg-emerald-500", textClass: "text-emerald-600 dark:text-emerald-400" },
-  Asset: { bgClass: "bg-pink-500", textClass: "text-pink-600 dark:text-pink-400" },
 };
 
 export function getPinVisual(type?: PinPrimitiveType | number | string, pin?: PinDefinition): PinTypeVisual {
-  let norm = normalizePinType(type);
-
-  // Chỉ chuyển sang Asset nếu metadata thực sự khai báo type là file/asset một cách tường minh, KHÔNG đoán mò theo tên ID
-  if (norm === "String" && pin?.metadata) {
-    try {
-      const metaObj = typeof pin.metadata === "string" ? JSON.parse(pin.metadata) : pin.metadata;
-      const hintType = metaObj?.type?.toLowerCase();
-      if (hintType === "file" || hintType === "asset") {
-        norm = "Asset";
-      }
-    } catch { }
-  }
-
+  const norm = normalizePinType(type);
   const visual = getCatalogueVisual(norm);
-  let style = PIN_BG_CLASSES[norm] || PIN_BG_CLASSES.String;
+  const style = PIN_BG_CLASSES[norm] || PIN_BG_CLASSES.String;
 
   const cardVal = pin?.cardinality as any;
   const isMap = cardVal === 2 || cardVal === "2" || cardVal === "Map" || cardVal === "map";
@@ -60,12 +46,11 @@ export function getPinVisual(type?: PinPrimitiveType | number | string, pin?: Pi
     const pinIdLower = (pin?.id || "").toLowerCase();
     const isAssetMap = (pin as any)?.valueType === "Asset" || pinIdLower.endsWith("_maps") || pinIdLower.includes("baked");
     if (isAssetMap) {
-      style = PIN_BG_CLASSES.Asset;
       return {
         label: "Asset Map",
         hex: "#ec4899",
-        bgClass: style.bgClass,
-        textClass: style.textClass,
+        bgClass: "bg-pink-500",
+        textClass: "text-pink-600 dark:text-pink-400",
       };
     }
   }
@@ -87,11 +72,11 @@ export function isNumberPin(type?: unknown) {
 export function isBooleanPin(type?: unknown) {
   return normalizePinType(type) === "Boolean";
 }
-export function isEntityRefPin(type?: unknown) {
-  return normalizePinType(type) === "EntityRef";
+export function isEntityRefPin(_type?: unknown) {
+  return false;
 }
-export function isAssetPin(type?: unknown) {
-  return normalizePinType(type) === "Asset";
+export function isAssetPin(_type?: unknown) {
+  return false;
 }
 export function isVariablePin(structType?: string | null, _pinId?: string, _type?: unknown) {
   return structType === "Variable";

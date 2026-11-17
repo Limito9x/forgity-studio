@@ -3,7 +3,7 @@ import { getAuthState } from '@/stores/authStore'
 
 export const Route = createFileRoute('/auth/logout')({
   beforeLoad: () => {
-    getAuthState().clearToken()
+    getAuthState().logout()
     throw redirect({
       to: '/auth/login',
     })

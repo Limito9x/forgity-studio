@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback } from "react";
 import { toast } from "sonner";
 import type { WorkspaceConstantItem } from "../../types/workspaceConfig";
-import type { NodePaletteItemDto } from "@/gen/model";
+import type { NodePaletteItemDto } from "@/features/pipelines/types/pipelineGraphTypes";
 
 export function useLocalConstantsQuery(rootPath: string | null) {
   const queryClient = useQueryClient();

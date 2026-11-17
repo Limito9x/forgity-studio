@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import type { NodePaletteItemDto } from "@/gen/model";
+import type { NodePaletteItemDto } from "@/features/pipelines/types/pipelineGraphTypes";
 import {
   ReactFlow,
   Background,
@@ -33,7 +33,7 @@ import {
   useCanvasContextMenu,
   usePipelineDiagnostics,
 } from "./hooks";
-import { usePipelineWorkspace } from "../../context/PipelineWorkspaceContext";
+import { usePipelineWorkspaceOptional } from "../../context/PipelineWorkspaceContext";
 import type { IPipelineStorageAdapter } from "../../adapters/pipelineStorageAdapter";
 
 interface PipelineCanvasProps {
@@ -45,7 +45,10 @@ interface PipelineCanvasProps {
   componentExecutor?: string;
   viewMode?: "visual" | "yaml";
   onToggleViewMode?: (mode: "visual" | "yaml") => void;
+  readOnly?: boolean;
+  onRequestRun?: () => void;
   onOpenPublishModal?: () => void;
+  paletteItems?: NodePaletteItemDto[];
 }
 
 const nodeTypes = {
@@ -61,12 +64,16 @@ const defaultEdgeOptions = {
 };
 
 export function PipelineCanvas(props: PipelineCanvasProps) {
-  const workspaceCtx = usePipelineWorkspace();
+  const workspaceCtx = usePipelineWorkspaceOptional();
 
-  // Normalize palette items from Context/Strategy (include unprefixed aliases for local script keys)
+  // Normalize palette items from Context/Strategy or explicit prop (include unprefixed aliases for local script keys)
   const allDefinitions = useMemo(() => {
+    const sourceItems =
+      props.paletteItems && props.paletteItems.length > 0
+        ? props.paletteItems
+        : workspaceCtx?.paletteItems ?? [];
     const list: NodePaletteItemDto[] = [];
-    for (const item of workspaceCtx.paletteItems) {
+    for (const item of sourceItems) {
       list.push(item);
       if (
         item.key &&
@@ -84,7 +91,7 @@ export function PipelineCanvas(props: PipelineCanvasProps) {
       }
     }
     return list;
-  }, [workspaceCtx.paletteItems]);
+  }, [workspaceCtx?.paletteItems]);
 
   return (
     <ReactFlowProvider>
@@ -107,18 +114,21 @@ function PipelineCanvasContent({
   componentExecutor,
   viewMode = "visual",
   onToggleViewMode,
+  readOnly = false,
+  onRequestRun,
   onOpenPublishModal,
 }: PipelineCanvasProps) {
   const { screenToFlowPosition, setCenter } = useReactFlow();
-  const workspaceCtx = usePipelineWorkspace();
-  const storage = directStorage || workspaceCtx.storage;
+  const workspaceCtx = usePipelineWorkspaceOptional();
+  const storage = (directStorage || workspaceCtx?.storage || { mode: "local" }) as IPipelineStorageAdapter;
   const isLocalMode = storage.mode === "local";
-  const structCatalogue = workspaceCtx.structCatalogue;
+  const structCatalogue = workspaceCtx?.structCatalogue ?? [];
   const [isAutoFollow, setIsAutoFollow] = useState(true);
 
   // 1. Headless Draft State & Flat Storage Strategy (NO STAGES)
   const draft = usePipelineDraftState(graph, structCatalogue, {
     storage,
+    isReadOnly: readOnly,
   });
 
   // 1b. Real-time Diagnostics Scope
@@ -187,7 +197,7 @@ function PipelineCanvasContent({
   const handleCancelExecution = async () => {
     if (!live.activeExecutionId) return;
     try {
-      await workspaceCtx.cancelExecution?.(live.activeExecutionId);
+      await workspaceCtx?.cancelExecution?.(live.activeExecutionId);
       toast.success("Pipeline cancellation requested.");
     } catch (err: any) {
       toast.error(err?.message || "Failed to cancel execution.");
@@ -258,7 +268,8 @@ function PipelineCanvasContent({
           viewMode={viewMode}
           onToggleViewMode={onToggleViewMode}
           isRunningDraft={false}
-          onOpenRunModal={() => setIsRunModalOpen(true)}
+          readOnly={readOnly}
+          onOpenRunModal={onRequestRun ?? (() => setIsRunModalOpen(true))}
           onOpenHistory={
             isLocalMode
               ? undefined
@@ -352,9 +363,9 @@ function PipelineCanvasContent({
             <ReactFlow
               nodes={draft.nodes}
               edges={draft.edges}
-              onNodesChange={isLocked ? undefined : draft.onNodesChange}
-              onEdgesChange={isLocked ? undefined : draft.onEdgesChange}
-              onConnect={isLocked ? undefined : conn.onConnect}
+              onNodesChange={isLocked || readOnly ? undefined : draft.onNodesChange}
+              onEdgesChange={isLocked || readOnly ? undefined : draft.onEdgesChange}
+              onConnect={isLocked || readOnly ? undefined : conn.onConnect}
               isValidConnection={conn.isValidConnection}
               nodeTypes={nodeTypes}
               defaultEdgeOptions={defaultEdgeOptions}
@@ -366,23 +377,23 @@ function PipelineCanvasContent({
                 draft.setSelectedNodeId(null);
                 ctxMenu.closePalette();
               }}
-              onPaneContextMenu={ctxMenu.onPaneContextMenu}
+              onPaneContextMenu={readOnly ? undefined : ctxMenu.onPaneContextMenu}
               onEdgeContextMenu={(event, edge) => {
                 event.preventDefault();
-                if (!isLocked) {
+                if (!isLocked && !readOnly) {
                   draft.onEdgesChange([{ type: "remove", id: edge.id }]);
                 }
               }}
-              onDragOver={handleCanvasDragOver}
-              onDrop={handleCanvasDrop}
+              onDragOver={readOnly ? undefined : handleCanvasDragOver}
+              onDrop={readOnly ? undefined : handleCanvasDrop}
               fitView
               fitViewOptions={{ padding: 0.2 }}
               minZoom={0.2}
               maxZoom={2}
-              nodesDraggable={!isLocked}
-              nodesConnectable={!isLocked}
+              nodesDraggable={!isLocked && !readOnly}
+              nodesConnectable={!isLocked && !readOnly}
               elementsSelectable={!isLocked}
-              deleteKeyCode={isLocked ? null : ["Backspace", "Delete"]}
+              deleteKeyCode={isLocked || readOnly ? null : ["Backspace", "Delete"]}
               className="bg-dot-pattern"
             >
               <Background
@@ -435,6 +446,7 @@ function PipelineCanvasContent({
               onUpdateConfig={(nodeId, pinId, val) => draft.handleUpdateConfig(nodeId, pinId, val)}
               onDeleteNode={() => draft.handleDeleteNode(draft.selectedNode!.id)}
               onRenameNode={(newLabel) => draft.handleRenameNode(draft.selectedNode!.id, newLabel)}
+              isReadOnly={readOnly}
             />
           )}
         </div>

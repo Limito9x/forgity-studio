@@ -11,7 +11,7 @@ import { PipelineStartNodeInspector } from "./PipelineStartNodeInspector";
 import { pipelineRegistry } from "../../form-scope/pipelineRegistry";
 import { usePipelineFormScope, useNodeDiagnostics } from "../../form-scope/PipelineFormScope";
 import { pinToFieldDefinition } from "../../form-scope/pinToFieldDefinition";
-import { usePipelineWorkspace } from "../../context/PipelineWorkspaceContext";
+import { usePipelineWorkspaceOptional } from "../../context/PipelineWorkspaceContext";
 import { NodeConfigHeader } from "./inspector/NodeConfigHeader";
 import { NodeConfigDiagnosticsBanner } from "./inspector/NodeConfigDiagnosticsBanner";
 import { NodeConfigStructSelector } from "./inspector/NodeConfigStructSelector";
@@ -43,7 +43,8 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
   isReadOnly = false,
 }: NodeConfigInspectorProps) {
   const { edges = [], nodes = [], projectId = "" } = usePipelineFormScope();
-  const { structCatalogue } = usePipelineWorkspace();
+  const workspaceCtx = usePipelineWorkspaceOptional();
+  const structCatalogue = workspaceCtx?.structCatalogue ?? [];
   const { nodeDiagnostics, errorCount, warningCount, hasErrors, getPinDiagnostics } =
     useNodeDiagnostics(node?.id);
 
@@ -58,7 +59,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
 
   const isStructSelector = definition?.capabilities?.inspectorMode === "StructSelector";
   const hasModeSelector = (definition?.capabilities?.schemaConfigKeys || []).some(
-    (k) => String(k).toLowerCase() === "mode"
+    (k: any) => String(k).toLowerCase() === "mode"
   );
 
   const isComponentPipeNode =
@@ -232,7 +233,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
                 maxConcurrency={Number(configValues["_maxConcurrency"]) || 2}
                 iterablePin={String(configValues["_iterablePin"] || "")}
                 skipOnError={configValues["_skipOnError"] !== false}
-                availablePins={configurableInputs.map((p) => ({ id: p.id || "", label: p.label }))}
+                availablePins={configurableInputs.map((p) => ({ id: p.id || "", label: p.name || p.id || "" }))}
                 isReadOnly={isReadOnly}
                 onUpdateBatch={(updates) => {
                   if (updates.isBatch !== undefined) onUpdateConfig(node.id, "_isBatch", updates.isBatch);

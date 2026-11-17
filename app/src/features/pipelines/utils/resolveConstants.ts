@@ -1,4 +1,4 @@
-import type { NodePaletteItemDto } from "@/gen/model";
+import type { NodePaletteItemDto } from "@/features/pipelines/types/pipelineGraphTypes";
 
 /**
  * Extracts a key -> value map of workspace Constants from paletteItems.

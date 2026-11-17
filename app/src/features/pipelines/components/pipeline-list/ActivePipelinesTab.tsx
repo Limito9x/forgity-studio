@@ -1,6 +1,6 @@
 import { Workflow, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { PipelineSummaryDto } from "@/gen/model";
+import type { PipelineSummaryDto } from "@/features/pipelines/types/pipelineGraphTypes";
 import { PipelineCard } from "./PipelineCard";
 import { useDialogStore } from "@/stores/dialogStore";
 

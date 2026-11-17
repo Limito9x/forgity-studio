@@ -1,4 +1,4 @@
-﻿use forgity_core::bundle::build_execution_bundle;
+use forgity_core::bundle::build_execution_bundle;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -119,6 +119,134 @@ pub fn export_execution_bundle(
         .map_err(|e| format!("Failed to write ExecutionBundle file: {}", e))?;
 
     Ok(target_path.to_string_lossy().to_string())
+}
+
+/// Build ExecutionBundle v2 JSON in memory for Cloud Publish (includes rootPipeline, components, scripts, constants).
+#[tauri::command]
+pub fn build_publish_bundle_json(
+    root_path: String,
+    pipeline_yaml_content: String,
+    pipeline_kind: String,
+) -> Result<Value, String> {
+    let root = Path::new(&root_path);
+    let bundle = build_execution_bundle(
+        root,
+        "publish_preview",
+        &pipeline_yaml_content,
+        &pipeline_kind,
+        HashMap::new(),
+    )?;
+    serde_json::to_value(&bundle)
+        .map_err(|e| format!("Failed to serialize ExecutionBundle: {}", e))
+}
+
+#[tauri::command]
+pub fn run_cloud_bundle(
+    app: AppHandle,
+    state: State<'_, LocalExecutionState>,
+    bundle_json: String,
+    run_id: Option<String>,
+) -> Result<LocalRunStartedResponse, String> {
+    let eff_run_id = run_id.unwrap_or_else(|| {
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        format!("cloud_{}", now_ms)
+    });
+
+    let runner_bin = resolve_runner_executable()?;
+    let runner_path_str = runner_bin.to_string_lossy().to_string();
+
+    let mut cmd = Command::new(&runner_bin);
+    cmd.arg("run-bundle")
+        .arg("--stdin")
+        .arg("--json-events")
+        .arg("--run-id")
+        .arg(&eff_run_id)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to spawn forgity-runner: {}", e))?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = stdin.write_all(bundle_json.as_bytes());
+        let _ = stdin.flush();
+    }
+
+    let stderr = child.stderr.take();
+    let stdout = child.stdout.take();
+    let app_clone = app.clone();
+    let run_id_clone = eff_run_id.clone();
+
+    if let Ok(mut map) = state.active_runs.lock() {
+        map.insert(eff_run_id.clone(), child);
+    }
+
+    if let Some(err_pipe) = stderr {
+        let app_err = app.clone();
+        let run_id_err = eff_run_id.clone();
+        std::thread::spawn(move || {
+            let reader = BufReader::new(err_pipe);
+            for line in reader.lines().map_while(Result::ok) {
+                if !line.trim().is_empty() {
+                    let _ = app_err.emit(
+                        "local-pipeline://log",
+                        serde_json::json!({ "runId": run_id_err, "line": line }),
+                    );
+                }
+            }
+        });
+    }
+
+    let active_runs_ref = state.active_runs.clone();
+    std::thread::spawn(move || {
+        let mut saw_run_completed = false;
+        if let Some(out) = stdout {
+            let reader = BufReader::new(out);
+            for line in reader.lines().map_while(Result::ok) {
+                let trimmed = line.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                if let Ok(val) = serde_json::from_str::<Value>(trimmed) {
+                    if val.get("type").and_then(|t| t.as_str()) == Some("run_completed") {
+                        saw_run_completed = true;
+                    }
+                    let _ = app_clone.emit("local-pipeline://event", val);
+                }
+            }
+        }
+        if let Ok(mut map) = active_runs_ref.lock() {
+            if let Some(mut c) = map.remove(&run_id_clone) {
+                let _ = c.wait();
+            }
+        }
+        if !saw_run_completed {
+            let _ = app_clone.emit(
+                "local-pipeline://event",
+                serde_json::json!({
+                    "type": "run_completed",
+                    "run_id": run_id_clone,
+                    "pipeline_id": "cloud_bundle",
+                    "succeeded": false,
+                    "error_message": "Runner process exited without emitting run_completed.",
+                    "duration_ms": 0
+                }),
+            );
+        }
+    });
+
+    Ok(LocalRunStartedResponse {
+        run_id: eff_run_id,
+        runner_path: runner_path_str,
+    })
 }
 
 #[tauri::command]

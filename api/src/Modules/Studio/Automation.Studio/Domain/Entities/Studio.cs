@@ -9,7 +9,6 @@ public class Studio : BaseEntity
     public string? Description { get; set; }
 
     public StudioPlanTier PlanTier { get; set; } = StudioPlanTier.Community;
-    public int ExecutionCreditsRemaining { get; set; } = 50;
     public long StudioManagedStorageQuotaBytes { get; set; } = 200L * 1024 * 1024; // 200MB default
     public long StudioManagedStorageUsedBytes { get; set; } = 0;
 

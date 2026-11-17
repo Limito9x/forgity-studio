@@ -15,7 +15,7 @@ import {
   loadLocalPipelineSnapshot,
   saveLocalPipelineSnapshot,
 } from "../hooks/workspace";
-import type { NodePaletteItemDto, StructDefinitionDto } from "@/gen/model";
+import type { NodePaletteItemDto, StructDefinitionDto } from "@/features/pipelines/types/pipelineGraphTypes";
 import { LocalWorkspaceEmptyState } from "../components/workspace/LocalWorkspaceEmptyState";
 import { LocalWorkspaceWelcomeState } from "../components/workspace/LocalWorkspaceWelcomeState";
 import { LocalWorkspaceOutliner } from "../components/workspace/LocalWorkspaceOutliner";
@@ -27,7 +27,7 @@ import {
   useProjectUiPrefs,
 } from "../stores/useWorkspaceUiPrefsStore";
 import { LocalNodeDetailDrawer } from "../components/workspace/LocalNodeDetailDrawer";
-import { LocalNodePaletteWorkbench } from "../components/workspace/LocalNodePaletteWorkbench";
+import { PublishCloudPipelineDialog } from "../dialogs/PublishCloudPipelineDialog";
 import { LocalPipelineStorageAdapter } from "../adapters/LocalPipelineStorageAdapter";
 import { PipelineWorkspaceProvider } from "../context/PipelineWorkspaceContext";
 import { PipelineCanvas } from "../components/canvas/PipelineCanvas";
@@ -40,7 +40,7 @@ import {
   useVerifyPipelineExecution,
   useCompletePipelineExecution,
 } from "@/features/studios/hooks/useStudioQuota";
-import { PipelineTriggerType } from "@/gen/model/pipelineTriggerType";
+import { PipelineTriggerType } from "@/features/pipelines/types/pipelineGraphTypes";
 import type {
   LocalDraftNode,
   LocalStructDefinition,
@@ -51,10 +51,14 @@ import { PipelineNodeKind } from "../hooks/usePipelineGraph";
 
 function localStructsToCatalogue(structs: LocalStructDefinition[]): StructDefinitionDto[] {
   return structs.map((s) => ({
+    refId: s.slug,
+    name: s.displayName || s.slug,
     structType: s.slug,
     label: s.displayName || s.slug,
     outputPins: s.fields.map((f) => ({
       id: f.name,
+      name: f.name,
+      direction: "Output",
       label: f.label || f.name,
       kind: "Data" as any,
       primitiveType: (f.type === "Struct" ? "EntityRef" : f.type) as any,
@@ -98,8 +102,6 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     openSingletonTab,
     closeTab,
     setActiveTab,
-    paletteScanRequest,
-    paletteInitialScriptKey,
     requestPaletteScan,
   } = useWorkspaceTabsStore();
 
@@ -145,6 +147,127 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
   const [selectedScript, setSelectedScript] = useState<LocalDraftNode | null>(null);
   const [isScriptDrawerOpen, setIsScriptDrawerOpen] = useState(false);
   const [isCreatingPipeline, setIsCreatingPipeline] = useState(false);
+  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
+  const [publishPayload, setPublishPayload] = useState<{
+    dagBundleJson: Record<string, any>;
+    contractsJson: Record<string, any>;
+    scripts: Array<{
+      key: string;
+      executor: string;
+      sourceCode: string;
+      requirementsJson?: string[];
+    }>;
+  } | null>(null);
+
+  const handleOpenPublishModal = async () => {
+    if (!loadedGraph) {
+      setPublishDialogOpen(true);
+      return;
+    }
+
+    let bundle: Record<string, any> = {};
+    if (rootPath) {
+      try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        const yamlStr = graphToPipelineYaml(
+          loadedGraph.name,
+          loadedGraph.nodes as any,
+          loadedGraph.edges as any
+        );
+        bundle = await invoke<Record<string, any>>("build_publish_bundle_json", {
+          rootPath,
+          pipelineYamlContent: yamlStr,
+          pipelineKind: activeDraftPipeline?.pipelineKind || "master",
+        });
+      } catch (err) {
+        console.warn("build_publish_bundle_json fallback:", err);
+      }
+    }
+
+    // Collect constant keys used across master + components + bundle
+    const usedConstantKeys = new Set<string>(
+      Object.keys((bundle.constants as Record<string, any>) || {})
+    );
+    const collectConstRefs = (nodesList: any[] | undefined) => {
+      if (!Array.isArray(nodesList)) return;
+      for (const n of nodesList) {
+        const refId = String(n?.refId || "");
+        if (refId.startsWith("local:constant:")) {
+          usedConstantKeys.add(refId.slice("local:constant:".length));
+        }
+      }
+    };
+    collectConstRefs(loadedGraph.nodes as any[]);
+    for (const comp of Object.values((bundle.components as Record<string, any>) || {})) {
+      collectConstRefs(comp?.nodes);
+    }
+
+    const sanitizedNodes = (localPaletteItems || []).map((item: any) => {
+      const caps = item?.capabilities || {};
+      const isConst =
+        Boolean(caps.isConstantNode) ||
+        String(item?.category || "").toLowerCase() === "constants" ||
+        String(item?.key || "").startsWith("local:constant:");
+      if (!isConst) return item;
+      return {
+        ...item,
+        capabilities: {
+          ...caps,
+          resolvedValue: null,
+          resolvedUnrealPath: null,
+        },
+        outputs: Array.isArray(item.outputs)
+          ? item.outputs.map((o: any) => ({ ...o, defaultValue: null }))
+          : [],
+      };
+    });
+
+    const constantsContract: any[] = [];
+    const seenConst = new Set<string>();
+    for (const item of sanitizedNodes) {
+      const caps = item?.capabilities || {};
+      const isConst =
+        Boolean(caps.isConstantNode) ||
+        String(item?.category || "").toLowerCase() === "constants" ||
+        String(item?.key || "").startsWith("local:constant:");
+      if (!isConst) continue;
+      const constKey = String(caps.constantKey || item?.name || "");
+      if (!constKey || seenConst.has(constKey)) continue;
+      if (usedConstantKeys.size > 0 && !usedConstantKeys.has(constKey)) continue;
+      seenConst.add(constKey);
+      constantsContract.push({
+        key: constKey,
+        label: String(item?.label || constKey).replace(/^Constant:\s*/i, ""),
+        dataType: String(caps.dataType || "String"),
+        scope: caps.scope || "Local",
+        description: item?.description || undefined,
+        isRequired: true,
+      });
+    }
+
+    const scriptsArr = Object.entries((bundle.scripts as Record<string, any>) || {}).map(
+      ([key, s]) => ({
+        key,
+        executor: String(s?.executor || "python"),
+        sourceCode: String(s?.sourceCode || s?.source_code || ""),
+        requirementsJson: Array.isArray(s?.requirements) ? s.requirements : [],
+      })
+    );
+
+    setPublishPayload({
+      dagBundleJson: {
+        ...bundle,
+        rootPipeline: loadedGraph,
+        constants: {}, // strip personal constant values from published bundle
+      },
+      contractsJson: {
+        nodes: sanitizedNodes,
+        constants: constantsContract,
+      },
+      scripts: scriptsArr,
+    });
+    setPublishDialogOpen(true);
+  };
   const viewMode = uiPrefs.canvasViewMode;
   const setViewMode = (mode: "visual" | "yaml") => setCanvasViewMode(projectId, mode);
   const [rawYamlContent, setRawYamlContent] = useState("");
@@ -506,6 +629,9 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
     if (draftNodes) {
       for (const draft of Object.values(draftNodes)) {
         items.push({
+          refId: `local:${draft.key}`,
+          name: draft.suggestedLabel || draft.suggestedName || draft.fileName,
+          kind: PipelineNodeKind.Custom,
           key: `local:${draft.key}`,
           label: draft.suggestedLabel || draft.suggestedName || draft.fileName,
           category: "Local Scripts",
@@ -595,7 +721,6 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
           isCreatingPipelineExternal={isCreatingPipeline}
           onCreatingPipelineChange={setIsCreatingPipeline}
           onOpenPullDialog={() => useDialogStore.getState().openDialog("workspace-pull-studio", { projectId })}
-          onOpenUnpackDialog={() => useDialogStore.getState().openDialog("workspace-unpack-package")}
         />
 
         {/* Right Column: Tab Bar + Main Workbench Area */}
@@ -609,16 +734,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
 
           {/* Center Content / Workbench Canvas Area */}
           <div className="flex-1 min-h-0 relative bg-background/50 overflow-hidden">
-            {activeTab?.kind === "palette" ? (
-              <LocalNodePaletteWorkbench
-                projectId={projectId}
-                rootPath={rootPath}
-                scriptsDir={config?.scriptsDir}
-                customIgnores={config?.ignorePatterns}
-                scanRequest={paletteScanRequest}
-                initialScriptKey={paletteInitialScriptKey}
-              />
-            ) : activeTab?.kind === "constants" ? (
+            {activeTab?.kind === "constants" ? (
               <LocalConstantsManagerPage
                 projectId={projectId}
                 rootPath={rootPath}
@@ -689,6 +805,7 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                     storage={storageAdapter}
                     pipelineKind={activeDraftPipeline.pipelineKind || "master"}
                     componentExecutor={activeDraftPipeline.executor || undefined}
+                    onOpenPublishModal={handleOpenPublishModal}
                     viewMode={viewMode}
                     onToggleViewMode={async (mode) => {
                       if (mode === "yaml" && pipelineSlug && rootPath) {
@@ -711,7 +828,6 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                         setViewMode(mode);
                       }
                     }}
-                    onOpenPublishModal={() => useDialogStore.getState().openDialog("workspace-publish-studio" as any, { graph: loadedGraph })}
                   />
                 </div>
               ) : (
@@ -724,7 +840,6 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
                 rootPath={rootPath}
                 onCreatePipeline={() => setIsCreatingPipeline(true)}
                 onPullFromStudio={() => useDialogStore.getState().openDialog("workspace-pull-studio", { projectId })}
-                onUnpackPackage={() => useDialogStore.getState().openDialog("workspace-unpack-package")}
               />
             )}
           </div>
@@ -748,6 +863,23 @@ export function LocalWorkspacePage({ projectId }: LocalWorkspacePageProps) {
           setIsScriptDrawerOpen(false);
           setSelectedScript(null);
         }}
+      />
+      <PublishCloudPipelineDialog
+        open={publishDialogOpen}
+        onOpenChange={setPublishDialogOpen}
+        pipelineName={loadedGraph?.name || activeDraftPipeline?.fileName || "Untitled Pipeline"}
+        dagBundleJson={
+          publishPayload?.dagBundleJson || {
+            rootPipeline: loadedGraph || {},
+          }
+        }
+        contractsJson={
+          publishPayload?.contractsJson || {
+            nodes: localPaletteItems || [],
+          }
+        }
+        scripts={publishPayload?.scripts || []}
+        projectId={projectId}
       />
     </PipelineWorkspaceProvider>
   );

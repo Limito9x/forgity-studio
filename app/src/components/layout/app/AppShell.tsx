@@ -1,5 +1,5 @@
 import { SidebarProvider, SidebarInset, useSidebar } from "@/components/ui/sidebar"
-import { GlobalSidebar } from "./GlobalSidebar"
+import { UnifiedSidebar } from "./UnifiedSidebar"
 import { useLocation } from "@tanstack/react-router"
 import { AppHeader } from "./AppHeader"
 
@@ -22,7 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider className="h-svh overflow-hidden">
       <MobileNavigationClose />
-      <GlobalSidebar />
+      <UnifiedSidebar />
       <SidebarInset className="flex flex-col h-full">
         <AppHeader showSidebarTrigger={true} />
         <div className="flex-1 bg-muted/20 min-w-0 overflow-auto">

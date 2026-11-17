@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useReactFlow } from "@xyflow/react";
-import type { PinDefinition } from "@/gen/model";
+import type { PinDefinition } from "@/features/pipelines/types/pipelineGraphTypes";
 import { usePipelineWorkspaceOptional } from "../../../../context/PipelineWorkspaceContext";
 import {
   arePinListsEqual,

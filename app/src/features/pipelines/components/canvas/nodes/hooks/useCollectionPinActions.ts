@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useReactFlow } from "@xyflow/react";
-import type { PinDefinition, NodeCapabilitiesDto } from "@/gen/model";
+import type { PinDefinition, NodeCapabilitiesDto } from "@/features/pipelines/types/pipelineGraphTypes";
 import { isExecPin } from "../types";
 
 interface UseCollectionPinActionsOptions {

@@ -99,7 +99,7 @@ export function AppBreadcrumb() {
                         key={p.id}
                         onAction={() =>
                           navigate({
-                            to: "/s/$studioSlug/projects/$projectId/pipeline",
+                            to: "/studio/$studioSlug/projects/$projectId/pipeline",
                             params: {
                               studioSlug: projectCtx.studioSlug,
                               projectId: p.id!,

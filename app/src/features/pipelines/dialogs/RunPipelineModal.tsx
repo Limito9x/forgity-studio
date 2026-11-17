@@ -262,6 +262,8 @@ export function RunPipelineModal({
       pinToFieldDefinition(
         {
           id: input.pinId,
+          name: input.pinLabel,
+          direction: "Input",
           label: input.pinLabel,
           primitiveType: input.primitiveType,
           cardinality: input.cardinality,

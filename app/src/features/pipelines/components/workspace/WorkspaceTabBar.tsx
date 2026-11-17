@@ -1,4 +1,4 @@
-import { Boxes, KeyRound, Layers, Workflow, X, Cpu } from "lucide-react";
+import { KeyRound, Layers, Workflow, X, Cpu } from "lucide-react";
 import type { WorkspaceTab } from "../../stores/useWorkspaceTabsStore";
 
 interface WorkspaceTabBarProps {
@@ -31,11 +31,10 @@ export function WorkspaceTabBar({
             <div
               key={tab.id}
               onClick={() => onSelectTab(tab.id)}
-              className={`group flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs cursor-pointer transition-colors shrink-0 max-w-[200px] border ${
-                isActive
+              className={`group flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs cursor-pointer transition-colors shrink-0 max-w-[200px] border ${isActive
                   ? "bg-background text-foreground border-border/80 shadow-xs font-medium"
                   : "bg-transparent text-muted-foreground border-transparent hover:bg-muted/40 hover:text-foreground"
-              }`}
+                }`}
             >
               {getTabIcon(tab)}
               <span className="truncate">{tab.title}</span>

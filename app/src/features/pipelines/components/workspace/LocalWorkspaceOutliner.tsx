@@ -77,7 +77,6 @@ export function LocalWorkspaceOutliner({
   onSyncPalette,
   onOpenConfig,
   onOpenConstants,
-  onOpenStructs,
   onOpenPullDialog,
   onOpenUnpackDialog,
   isCreatingPipelineExternal,

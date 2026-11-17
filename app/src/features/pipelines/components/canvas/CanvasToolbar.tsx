@@ -16,17 +16,14 @@ import {
   Zap,
   RefreshCw,
   Pencil,
-  Download,
   LocateFixed,
   GitCommit,
-  UploadCloud,
   Laptop,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useReactFlow } from "@xyflow/react";
 import { cn } from "@/lib/utils";
 import { useUpdatePipelineMutation } from "../../hooks/usePipelines";
-import { usePipelineExport } from "../../hooks/usePipelineExportImport";
 import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 import type { ValidationStatus } from "../../form-scope/PipelineFormScope";
 
@@ -55,6 +52,7 @@ interface CanvasToolbarProps {
   viewMode?: "visual" | "yaml";
   onToggleViewMode?: (mode: "visual" | "yaml") => void;
   isRunningDraft?: boolean;
+  readOnly?: boolean;
 }
 
 export function CanvasToolbar({
@@ -76,16 +74,16 @@ export function CanvasToolbar({
   isExecuting = false,
   isAutoFollow = true,
   onToggleAutoFollow,
-  onOpenPublishModal,
+  onOpenPublishModal: _onOpenPublishModal,
   isLocalMode = false,
   viewMode = "visual",
   onToggleViewMode,
   isRunningDraft = false,
+  readOnly = false,
 }: CanvasToolbarProps) {
   const { studioSlug } = useCurrentStudio();
   const { fitView, zoomIn, zoomOut } = useReactFlow();
   const updateMutation = useUpdatePipelineMutation(projectId, pipelineId);
-  const { exportSingle, isExportingSingle } = usePipelineExport();
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(pipelineName);
@@ -156,7 +154,7 @@ export function CanvasToolbar({
       <div className="flex items-center gap-3 min-w-0">
         {!isLocalMode && (
           <Link
-            to="/s/$studioSlug/projects/$projectId/pipeline"
+            to="/studio/$studioSlug/projects/$projectId/pipeline"
             params={{ studioSlug, projectId }}
             className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8 text-muted-foreground")}
           >
@@ -222,19 +220,21 @@ export function CanvasToolbar({
           {!isLocalMode && renderTriggerBadge()}
 
           {/* Autosave Indicator */}
-          <div className="hidden lg:flex items-center gap-1.5 pl-2 text-xs text-muted-foreground">
-            {isSaving ? (
-              <>
-                <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                <span className="text-[11px]">Saving...</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle className="h-3 w-3 text-emerald-500" />
-                <span className="text-[11px] text-muted-foreground/80">Saved</span>
-              </>
-            )}
-          </div>
+          {!readOnly && (
+            <div className="hidden lg:flex items-center gap-1.5 pl-2 text-xs text-muted-foreground">
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                  <span className="text-[11px]">Saving...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-3 w-3 text-emerald-500" />
+                  <span className="text-[11px] text-muted-foreground/80">Saved</span>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -355,42 +355,8 @@ export function CanvasToolbar({
           </Button>
         )}
 
-        {/* Publish to Studio Cloud Trigger */}
-        {onOpenPublishModal && (
-          <Button
-            variant="outline"
-            size="sm"
-            onPress={onOpenPublishModal}
-            className="h-8 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
-          >
-            <UploadCloud className="h-3.5 w-3.5 text-primary" />
-            <span className="hidden sm:inline">Publish to Studio</span>
-          </Button>
-        )}
-
-        {/* Export Pipeline Package */}
-        {!isLocalMode && (
-          <Button
-            variant="outline"
-            size="sm"
-            onPress={() => {
-              if (pipelineId) {
-                exportSingle({ id: pipelineId });
-              }
-            }}
-            isDisabled={!pipelineId || isExportingSingle}
-            className="h-8 text-xs gap-1.5"
-          >
-            {isExportingSingle ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Download className="h-3.5 w-3.5 text-primary" />
-            )}
-            <span className="hidden sm:inline">Export</span>
-          </Button>
-        )}
-
         {/* Validate Button with Diagnostic Badge */}
+        {!readOnly && (
         <div className="flex items-center">
           <Button
             variant="outline"
@@ -451,9 +417,10 @@ export function CanvasToolbar({
             </span>
           )}
         </div>
+        )}
 
         {/* Run Pipeline Button */}
-        {isManual ? (
+        {!readOnly && (isManual ? (
           <Button
             size="sm"
             onPress={onOpenRunModal}
@@ -489,7 +456,7 @@ export function CanvasToolbar({
               <span>Automated</span>
             </Button>
           </div>
-        )}
+        ))}
       </div>
     </div>
   );

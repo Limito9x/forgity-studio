@@ -24,7 +24,7 @@ import { usePipelineFormScope } from "../../form-scope/PipelineFormScope";
 import { TagsInput } from "@/components/custom-ui/inputs/tags-input/TagsInput";
 import { getPinVisual, formatPinTypeLabel } from "./nodes/types";
 import { toast } from "sonner";
-import { PipelineTriggerType } from "@/gen/model";
+import { PipelineTriggerType } from "@/features/pipelines/types/pipelineGraphTypes";
 
 interface PipelineStartNodeInspectorProps {
   pipelineId: string;

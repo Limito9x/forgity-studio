@@ -8,7 +8,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import type { StructDefinitionDto } from "@/gen/model";
+import type { StructDefinitionDto } from "@/features/pipelines/types/pipelineGraphTypes";
 
 interface NodeConfigStructSelectorProps {
   currentStructType: string;

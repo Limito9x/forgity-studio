@@ -1,6 +1,6 @@
 import { type MouseEvent } from "react";
 import { Handle, Position, useNodeId } from "@xyflow/react";
-import type { PinDefinition } from "@/gen/model";
+import type { PinDefinition } from "@/features/pipelines/types/pipelineGraphTypes";
 import { X, AlertCircle, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getPinVisual, formatPinTypeLabel } from "../types";

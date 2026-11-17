@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import type { NodePaletteItemDto } from "@/gen/model";
-import { usePipelineWorkspace } from "../../context/PipelineWorkspaceContext";
+import type { NodePaletteItemDto } from "@/features/pipelines/types/pipelineGraphTypes";
+import { usePipelineWorkspaceOptional } from "../../context/PipelineWorkspaceContext";
 
 interface ContextMenuPaletteProps {
   position: { x: number; y: number } | null;
@@ -25,7 +25,9 @@ export function ContextMenuPalette({
   const isComponentPipe = pipelineKind === "component";
   const executorParam = isComponentPipe ? componentExecutor || "blender" : undefined;
 
-  const { paletteItems, isLoadingPalette: isLoading } = usePipelineWorkspace();
+  const workspaceCtx = usePipelineWorkspaceOptional();
+  const paletteItems = workspaceCtx?.paletteItems ?? [];
+  const isLoading = workspaceCtx?.isLoadingPalette ?? false;
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 

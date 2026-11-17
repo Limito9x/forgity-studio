@@ -180,7 +180,10 @@ impl QuotaGate for UnlimitedQuotaGate {
 pub struct ResolvedScript {
     pub key: String,
     pub executor: String,
+    #[serde(default)]
     pub full_path: PathBuf,
+    #[serde(default)]
+    pub inline_source: Option<String>,
     #[serde(default)]
     pub requirements: Vec<String>,
     #[serde(default)]

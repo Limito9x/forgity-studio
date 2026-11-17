@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { LocalShell } from "@/components/layout/app/LocalShell";
+import { AppShell } from "@/components/layout/app/AppShell";
 
 export const Route = createFileRoute("/local")({
   staticData: {
@@ -10,8 +10,8 @@ export const Route = createFileRoute("/local")({
 
 function LocalLayoutComponent() {
   return (
-    <LocalShell>
+    <AppShell>
       <Outlet />
-    </LocalShell>
+    </AppShell>
   );
 }

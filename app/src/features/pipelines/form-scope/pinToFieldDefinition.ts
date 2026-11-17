@@ -1,4 +1,4 @@
-import type { PinDefinition, PipelineParameterDto } from "@/gen/model";
+import type { PinDefinition, PipelineParameterDto } from "@/features/pipelines/types/pipelineGraphTypes";
 import type { FieldDefinition } from "@/lib/field-registry";
 import { buildPinFieldContext, FIELD_ADAPTERS } from "./field-adapters/index.ts";
 
@@ -50,6 +50,8 @@ export function pipelineInputToFieldDefinition(
 
   const pinDef: PinDefinition = {
     id: input.key,
+    name: (input as any).name || (input as any).label || input.key,
+    direction: "Input",
     label: (input as any).label || (input as any).name || input.key,
     primitiveType: input.type as any,
     cardinality: (input.cardinality ?? "Single") as any,

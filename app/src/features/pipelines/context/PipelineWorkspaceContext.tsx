@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import type { Node, Edge } from "@xyflow/react";
-import type { NodePaletteItemDto, PinDefinition, StructDefinitionDto } from "@/gen/model";
+import type { NodePaletteItemDto, PinDefinition, StructDefinitionDto } from "@/features/pipelines/types/pipelineGraphTypes";
 import type { IPipelineStorageAdapter } from "../adapters/pipelineStorageAdapter";
 import type { PipelineDiagnostic } from "../hooks/usePipelineGraph";
 

@@ -5,7 +5,7 @@ import type { Connection, Edge, Node } from "@xyflow/react";
 import { toast } from "sonner";
 import { isExecHandle } from "./canvasUtils";
 import { isExecPin } from "../nodes/types";
-import type { StructDefinitionDto } from "@/gen/model";
+import type { StructDefinitionDto } from "@/features/pipelines/types/pipelineGraphTypes";
 
 interface UseCanvasConnectionRulesArgs {
   nodes: Node[];

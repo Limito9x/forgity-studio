@@ -41,10 +41,7 @@ interface WorkspaceTabsStoreState {
       executor?: string;
     },
   ) => void;
-  openSingletonTab: (
-    projectId: string,
-    kind: "palette" | "constants",
-  ) => void;
+  openSingletonTab: (projectId: string, kind: "palette" | "constants") => void;
   closeTab: (projectId: string, tabId: string) => void;
   setActiveTab: (projectId: string, tabId: string) => void;
   toggleOutliner: (projectId: string) => void;
@@ -269,4 +266,3 @@ export const useWorkspaceTabsStore = create<WorkspaceTabsStoreState>()(
     },
   ),
 );
-

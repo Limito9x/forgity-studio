@@ -12,7 +12,7 @@ import { DataTableRowActions } from "@/components/table/DataTableRowActions";
 import { PinBadge } from "../components/PinBadge";
 import { getSoftwareMetadata } from "@/features/runners/constants/dccEngines";
 import { Eye, Pencil, Trash2, ArrowRight } from "lucide-react";
-import type { NodePaletteItemDto, PinDefinition } from "@/gen/model";
+import type { NodePaletteItemDto, PinDefinition } from "@/features/pipelines/types/pipelineGraphTypes";
 
 export function isExecPin(pin: PinDefinition): boolean {
     return (

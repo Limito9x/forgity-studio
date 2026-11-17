@@ -1,4 +1,4 @@
-import type { PinDefinition } from "@/gen/model";
+import type { PinDefinition } from "@/features/pipelines/types/pipelineGraphTypes";
 import { normalizePinType } from "./normalizePinType.ts";
 import type { NormalizedCardinality, PinFieldContext, PinMetadataHint } from "./types";
 

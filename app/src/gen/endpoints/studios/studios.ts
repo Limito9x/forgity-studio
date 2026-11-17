@@ -22,7 +22,6 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
-  CompleteExecutionRequest,
   CreateStudioCommand,
   ErrorResponse,
   IReadOnlyListOfStudioDto,
@@ -30,7 +29,6 @@ import type {
   StudioDto,
   StudioQuotaDto,
   UpdateStudioCommand,
-  VerifyExecutionResponse,
 } from "../../model";
 
 import { customInstance } from "../../../lib/api-client";
@@ -457,170 +455,6 @@ export const useUpdateStudio = <
   TContext
 > => {
   return useMutation(getUpdateStudioMutationOptions(options), queryClient);
-};
-/**
- * Deducts execution credits from the studio after a pipeline DAG completes.
- * @summary Deduct Execution Credits
- */
-export const completeExecution = (
-  slug: string,
-  completeExecutionRequest: CompleteExecutionRequest,
-  signal?: AbortSignal,
-) => {
-  return customInstance<void>({
-    url: `/api/studios/${slug}/pipelines/complete-run`,
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    data: completeExecutionRequest,
-    signal,
-  });
-};
-
-export const getCompleteExecutionMutationOptions = <
-  TError = ProblemDetails | void,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof completeExecution>>,
-    TError,
-    { slug: string; data: CompleteExecutionRequest },
-    TContext
-  >;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof completeExecution>>,
-  TError,
-  { slug: string; data: CompleteExecutionRequest },
-  TContext
-> => {
-  const mutationKey = ["completeExecution"];
-  const { mutation: mutationOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof completeExecution>>,
-    { slug: string; data: CompleteExecutionRequest }
-  > = (props) => {
-    const { slug, data } = props ?? {};
-
-    return completeExecution(slug, data);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type CompleteExecutionMutationResult = NonNullable<
-  Awaited<ReturnType<typeof completeExecution>>
->;
-export type CompleteExecutionMutationBody = CompleteExecutionRequest;
-export type CompleteExecutionMutationError = ProblemDetails | void;
-
-/**
- * @summary Deduct Execution Credits
- */
-export const useCompleteExecution = <
-  TError = ProblemDetails | void,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof completeExecution>>,
-      TError,
-      { slug: string; data: CompleteExecutionRequest },
-      TContext
-    >;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<ReturnType<typeof completeExecution>>,
-  TError,
-  { slug: string; data: CompleteExecutionRequest },
-  TContext
-> => {
-  return useMutation(getCompleteExecutionMutationOptions(options), queryClient);
-};
-/**
- * Checks whether the studio has remaining execution credits before triggering a DAG run.
- * @summary Verify Pipeline Execution Quota
- */
-export const verifyExecution = (slug: string, signal?: AbortSignal) => {
-  return customInstance<VerifyExecutionResponse>({
-    url: `/api/studios/${slug}/pipelines/verify-run`,
-    method: "POST",
-    signal,
-  });
-};
-
-export const getVerifyExecutionMutationOptions = <
-  TError = void | ProblemDetails,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof verifyExecution>>,
-    TError,
-    { slug: string },
-    TContext
-  >;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof verifyExecution>>,
-  TError,
-  { slug: string },
-  TContext
-> => {
-  const mutationKey = ["verifyExecution"];
-  const { mutation: mutationOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof verifyExecution>>,
-    { slug: string }
-  > = (props) => {
-    const { slug } = props ?? {};
-
-    return verifyExecution(slug);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type VerifyExecutionMutationResult = NonNullable<
-  Awaited<ReturnType<typeof verifyExecution>>
->;
-
-export type VerifyExecutionMutationError = void | ProblemDetails;
-
-/**
- * @summary Verify Pipeline Execution Quota
- */
-export const useVerifyExecution = <
-  TError = void | ProblemDetails,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof verifyExecution>>,
-      TError,
-      { slug: string },
-      TContext
-    >;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<ReturnType<typeof verifyExecution>>,
-  TError,
-  { slug: string },
-  TContext
-> => {
-  return useMutation(getVerifyExecutionMutationOptions(options), queryClient);
 };
 /**
  * Retrieves the execution credits and managed cloud storage usage for a given studio.

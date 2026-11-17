@@ -1,0 +1,129 @@
+using System.Text.Json;
+using Automation.SharedKernel.Domain.Entities;
+
+namespace Automation.Pipeline.Domain.Entities;
+
+/// <summary>
+/// Lightweight Cloud Pipeline representing a logical DAG group (Master or Component) in the Cloud Data Pool.
+/// </summary>
+public class CloudPipeline : AuditableEntity
+{
+    public Guid ProjectId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Slug { get; set; } = string.Empty;
+    public string PipelineKind { get; set; } = "master"; // "master" | "component"
+    public string? Description { get; set; }
+
+    public List<PipelineVersion> Versions { get; set; } = [];
+
+    public CloudPipeline() { }
+
+    public CloudPipeline(Guid projectId, string name, string slug = "", string pipelineKind = "master")
+    {
+        ProjectId = projectId;
+        Name = name;
+        Slug = slug;
+        PipelineKind = pipelineKind;
+    }
+
+    public void UpdateName(string name)
+    {
+        Name = name;
+    }
+}
+
+/// <summary>
+/// Immutable Cloud Pipeline Version containing the DAG topology ("đường đi") and Contracts.
+/// </summary>
+public class PipelineVersion : AuditableEntity
+{
+    public Guid PipelineId { get; set; }
+    public CloudPipeline Pipeline { get; set; } = null!;
+    public int VersionNumber { get; set; }
+    public string GraphHash { get; set; } = string.Empty;
+    public string PipelineKind { get; set; } = "master"; // "master" | "component"
+    public string Slug { get; set; } = string.Empty;
+    public JsonDocument DagBundleJson { get; set; } = JsonDocument.Parse("{}");
+    public JsonDocument ContractsJson { get; set; } = JsonDocument.Parse("{}");
+
+    public List<PipelineScriptArtifact> ScriptArtifacts { get; set; } = [];
+}
+
+/// <summary>
+/// Private Python script source blob tied to an immutable PipelineVersion (served in-RAM for Templates).
+/// </summary>
+public class PipelineScriptArtifact : BaseEntity
+{
+    public Guid PipelineVersionId { get; set; }
+    public PipelineVersion PipelineVersion { get; set; } = null!;
+    public string ScriptKey { get; set; } = string.Empty;
+    public string ScriptHash { get; set; } = string.Empty;
+    public string Executor { get; set; } = "python";
+    public string SourceCode { get; set; } = string.Empty;
+    public JsonDocument RequirementsJson { get; set; } = JsonDocument.Parse("[]");
+}
+
+/// <summary>
+/// Explicit View binding an immutable PipelineVersion to a Project.
+/// </summary>
+public class ProjectPipelineView : AuditableEntity
+{
+    public Guid ProjectId { get; set; }
+    public Guid PipelineId { get; set; }
+    public CloudPipeline Pipeline { get; set; } = null!;
+    public Guid PinnedVersionId { get; set; }
+    public PipelineVersion PinnedVersion { get; set; } = null!;
+    public Guid? DefaultConstantProfileId { get; set; }
+}
+
+/// <summary>
+/// Packaging container exposing an immutable suite of master pipelines, components, scripts, constants schema, and assets as a reusable Template Package with Quota policy.
+/// </summary>
+public class TemplatePackage : AuditableEntity
+{
+    public string Title { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string Category { get; set; } = "General";
+    public bool IsPublic { get; set; } = true;
+    public string QuotaStrategy { get; set; } = "PerComponentRun";
+    public int? DefaultQuotaLimit { get; set; }
+
+    /// <summary>
+    /// Optional default/entry Master Pipeline to display or run initially.
+    /// </summary>
+    public Guid? PrimaryMasterVersionId { get; set; }
+    public PipelineVersion? PrimaryMasterVersion { get; set; }
+
+    /// <summary>
+    /// Manifest JSON containing masterVersionIds, componentVersionIds, scriptArtifactIds, constants schema, and assets metadata.
+    /// </summary>
+    public JsonDocument ContainerManifestJson { get; set; } = JsonDocument.Parse("{}");
+}
+
+/// <summary>
+/// User/Machine-owned library entry for a TemplatePackage, binding ConstantProfile and quota usage.
+/// </summary>
+public class TemplateLibraryItem : AuditableEntity
+{
+    public Guid TemplatePackageId { get; set; }
+    public TemplatePackage TemplatePackage { get; set; } = null!;
+    public Guid OwnerUserId { get; set; }
+    public string MachineKey { get; set; } = string.Empty;
+    public Guid? ConstantProfileId { get; set; }
+    public ConstantProfile? ConstantProfile { get; set; }
+    public int UsedRuns { get; set; }
+    public int? MaxRuns { get; set; }
+    public string PeriodKey { get; set; } = "lifetime";
+    public DateTimeOffset AddedAt { get; set; }
+}
+
+/// <summary>
+/// User/Machine-owned environment constants profile (single JSONB document, no secrets).
+/// </summary>
+public class ConstantProfile : AuditableEntity
+{
+    public Guid OwnerUserId { get; set; }
+    public Guid? RunnerId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public JsonDocument ValuesJson { get; set; } = JsonDocument.Parse("{}");
+}

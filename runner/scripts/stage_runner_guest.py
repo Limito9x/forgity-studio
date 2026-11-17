@@ -475,6 +475,30 @@ def main():
                 overall_success = False
                 error_msg = step_err
                 print(f"[GuestRunner] ERROR in pure step '{step_name}': {step_err}", flush=True)
+        inline_source = step.get("inline_source") or step.get("inlineSource")
+        if inline_source and isinstance(inline_source, str) and inline_source.strip():
+            try:
+                import types
+                sys.argv = [f"<cloud:{step_name}>"]
+                module = types.ModuleType(f"cloud_step_{idx}")
+                module.__file__ = f"<cloud:{step_name}>"
+                exec(compile(inline_source, module.__file__, "exec"), module.__dict__)
+                res = call_script_main(module, step_inputs, module.__file__)
+                if isinstance(res, dict):
+                    step_outputs.update(res)
+                hook_outs = PipelineHooks.get_outputs()
+                if hook_outs:
+                    step_outputs.update(hook_outs)
+                all_step_outputs[step_id] = step_outputs
+                print(f"[GuestRunner] In-RAM Cloud Step '{step_name}' completed. Outputs: {list(step_outputs.keys())}", flush=True)
+            except Exception as e:
+                step_succeeded = False
+                step_err = f"{e}\n{traceback.format_exc()}"
+                overall_success = False
+                error_msg = step_err
+                print(f"[GuestRunner] ERROR in cloud step '{step_name}': {step_err}", flush=True)
+            finally:
+                sys.argv = original_argv
         elif script_path and os.path.exists(script_path):
             try:
                 # Isolate sys.argv to avoid scripts reading host CLI flags like --pipe

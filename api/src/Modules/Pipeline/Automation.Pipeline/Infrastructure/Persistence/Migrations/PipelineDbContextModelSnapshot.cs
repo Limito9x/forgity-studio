@@ -28,15 +28,89 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "unaccent");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.NodeDefinition", b =>
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.CloudPipeline", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("ContentHash")
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("PipelineKind")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Pipelines", "pipeline");
+                });
+
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.ConstantProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("RunnerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<JsonDocument>("ValuesJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ConstantProfiles", "pipeline");
+                });
+
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineScriptArtifact", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -49,50 +123,29 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("DeletedBy")
                         .HasColumnType("text");
-
-                    b.Property<string>("Dependencies")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
 
                     b.Property<string>("Executor")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("Inputs")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("Key")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Label")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Outputs")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("OverrideTargetRefId")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("ProjectId")
+                    b.Property<Guid>("PipelineVersionId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("SemanticVersion")
+                    b.Property<JsonDocument>("RequirementsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("ScriptHash")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("SourceRepositoryPath")
+                    b.Property<string>("ScriptKey")
+                        .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
+                    b.Property<string>("SourceCode")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -102,21 +155,20 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Executor", "Name", "ProjectId")
-                        .IsUnique()
-                        .HasFilter("\"IsDeleted\" = false");
+                    b.HasIndex("PipelineVersionId");
 
-                    b.ToTable("NodeDefinitions", "pipeline");
+                    b.ToTable("PipelineScriptArtifacts", "pipeline");
                 });
 
-            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.Pipeline", b =>
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineVersion", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("ActiveSnapshotId")
-                        .HasColumnType("uuid");
+                    b.Property<JsonDocument>("ContractsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -124,156 +176,24 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                     b.Property<string>("CreatedBy")
                         .HasColumnType("text");
 
-                    b.Property<DateTimeOffset?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("GraphData")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("GraphHash")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
-
-                    b.Property<Guid>("ProjectId")
-                        .HasColumnType("uuid");
-
-                    b.Property<JsonDocument>("TriggerConfig")
-                        .HasColumnType("jsonb");
-
-                    b.Property<string>("TriggerType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ActiveSnapshotId");
-
-                    b.HasIndex("ProjectId", "Name")
-                        .IsUnique()
-                        .HasFilter("\"DeletedAt\" IS NULL");
-
-                    b.ToTable("Pipelines", "pipeline");
-                });
-
-            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineExecution", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CurrentBatchId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTimeOffset?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DeletedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ErrorMessage")
-                        .HasColumnType("text");
-
-                    b.Property<JsonDocument>("ExecutionState")
-                        .HasColumnType("jsonb");
-
-                    b.Property<DateTimeOffset?>("FinishedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("NextNodeIndex")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid?>("ParentExecutionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("PipelineId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("SnapshotId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset?>("StartedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<Guid?>("TriggeredByNodeId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ParentExecutionId");
-
-                    b.HasIndex("PipelineId");
-
-                    b.HasIndex("SnapshotId");
-
-                    b.ToTable("PipelineExecutions", "pipeline");
-                });
-
-            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineSnapshot", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("GraphData")
+                    b.Property<JsonDocument>("DagBundleJson")
                         .IsRequired()
                         .HasColumnType("jsonb");
 
                     b.Property<string>("GraphHash")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("PipelineId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Source")
+                    b.Property<string>("PipelineKind")
                         .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasColumnType("text");
 
-                    b.Property<string>("Summary")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -286,12 +206,157 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PipelineId", "CreatedAt");
+                    b.HasIndex("PipelineId");
 
-                    b.HasIndex("PipelineId", "VersionNumber")
+                    b.ToTable("PipelineVersions", "pipeline");
+                });
+
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.ProjectPipelineView", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("DefaultConstantProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PinnedVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PipelineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PinnedVersionId");
+
+                    b.HasIndex("PipelineId");
+
+                    b.ToTable("ProjectPipelineViews", "pipeline");
+                });
+
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.TemplateLibraryItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("AddedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ConstantProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("MachineKey")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int?>("MaxRuns")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("OwnerUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PeriodKey")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TemplatePackageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<int>("UsedRuns")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConstantProfileId");
+
+                    b.HasIndex("TemplatePackageId");
+
+                    b.HasIndex("OwnerUserId", "TemplatePackageId", "MachineKey", "PeriodKey")
                         .IsUnique();
 
-                    b.ToTable("PipelineSnapshots", "pipeline");
+                    b.ToTable("TemplateLibraryItems", "pipeline");
+                });
+
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.TemplatePackage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<JsonDocument>("ContainerManifestJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("DefaultQuotaLimit")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("PrimaryMasterVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("QuotaStrategy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PrimaryMasterVersionId");
+
+                    b.ToTable("TemplatePackages", "pipeline");
                 });
 
             modelBuilder.Entity("Wolverine.EntityFrameworkCore.Internals.IncomingMessage", b =>
@@ -386,50 +451,83 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.Pipeline", b =>
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineScriptArtifact", b =>
                 {
-                    b.HasOne("Automation.Pipeline.Domain.Entities.PipelineSnapshot", "ActiveSnapshot")
-                        .WithMany()
-                        .HasForeignKey("ActiveSnapshotId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("ActiveSnapshot");
-                });
-
-            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineExecution", b =>
-                {
-                    b.HasOne("Automation.Pipeline.Domain.Entities.PipelineExecution", "ParentExecution")
-                        .WithMany()
-                        .HasForeignKey("ParentExecutionId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("Automation.Pipeline.Domain.Entities.Pipeline", "Pipeline")
-                        .WithMany()
-                        .HasForeignKey("PipelineId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                    b.HasOne("Automation.Pipeline.Domain.Entities.PipelineVersion", "PipelineVersion")
+                        .WithMany("ScriptArtifacts")
+                        .HasForeignKey("PipelineVersionId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Automation.Pipeline.Domain.Entities.PipelineSnapshot", "Snapshot")
-                        .WithMany()
-                        .HasForeignKey("SnapshotId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("ParentExecution");
-
-                    b.Navigation("Pipeline");
-
-                    b.Navigation("Snapshot");
+                    b.Navigation("PipelineVersion");
                 });
 
-            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineSnapshot", b =>
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineVersion", b =>
                 {
-                    b.HasOne("Automation.Pipeline.Domain.Entities.Pipeline", "Pipeline")
-                        .WithMany()
+                    b.HasOne("Automation.Pipeline.Domain.Entities.CloudPipeline", "Pipeline")
+                        .WithMany("Versions")
                         .HasForeignKey("PipelineId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Pipeline");
+                });
+
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.ProjectPipelineView", b =>
+                {
+                    b.HasOne("Automation.Pipeline.Domain.Entities.PipelineVersion", "PinnedVersion")
+                        .WithMany()
+                        .HasForeignKey("PinnedVersionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Automation.Pipeline.Domain.Entities.CloudPipeline", "Pipeline")
+                        .WithMany()
+                        .HasForeignKey("PipelineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PinnedVersion");
+
+                    b.Navigation("Pipeline");
+                });
+
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.TemplateLibraryItem", b =>
+                {
+                    b.HasOne("Automation.Pipeline.Domain.Entities.ConstantProfile", "ConstantProfile")
+                        .WithMany()
+                        .HasForeignKey("ConstantProfileId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Automation.Pipeline.Domain.Entities.TemplatePackage", "TemplatePackage")
+                        .WithMany()
+                        .HasForeignKey("TemplatePackageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ConstantProfile");
+
+                    b.Navigation("TemplatePackage");
+                });
+
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.TemplatePackage", b =>
+                {
+                    b.HasOne("Automation.Pipeline.Domain.Entities.PipelineVersion", "PrimaryMasterVersion")
+                        .WithMany()
+                        .HasForeignKey("PrimaryMasterVersionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("PrimaryMasterVersion");
+                });
+
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.CloudPipeline", b =>
+                {
+                    b.Navigation("Versions");
+                });
+
+            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineVersion", b =>
+                {
+                    b.Navigation("ScriptArtifacts");
                 });
 #pragma warning restore 612, 618
         }

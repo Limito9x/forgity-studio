@@ -58,6 +58,7 @@ mod tests {
             bundle_version: 2,
             run_id: Some("run_1".to_string()),
             pipeline_kind: "component".to_string(),
+            cloud_lease: None,
             root_pipeline: DagPipelineDocument {
                 name: "empty".to_string(),
                 version: None,
@@ -260,6 +261,7 @@ mod tests {
                 ("comp_c".to_string(), make_simple_comp("comp_c", "mesh_c")),
             ]),
             constants: HashMap::new(),
+            cloud_lease: None,
         };
 
         let resolver = Arc::new(BundleResourceResolver::from_bundle(&bundle));
@@ -673,6 +675,7 @@ mod tests {
                 ("b2".to_string(), make_branch("b2", json!(["dress.fbx", "hat.fbx"]), json!("dress_bc.png"))),
             ]),
             constants: HashMap::new(),
+            cloud_lease: None,
         };
 
         let root = std::env::temp_dir().join(format!("forgity_test_joint_{}", uuid::Uuid::new_v4()));
@@ -900,6 +903,7 @@ mod tests {
                 ("fbx_to_unreal".to_string(), unreal_comp),
             ]),
             constants: HashMap::new(),
+            cloud_lease: None,
         };
 
         let root = std::env::temp_dir().join(format!("forgity_test_wave_{}", uuid::Uuid::new_v4()));
@@ -932,3 +936,4 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 }
+

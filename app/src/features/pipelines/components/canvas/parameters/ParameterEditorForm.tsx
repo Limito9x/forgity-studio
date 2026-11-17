@@ -14,7 +14,7 @@ import { FormRenderer } from "@/components/dynamic-form/FormRenderer";
 import { pipelineRegistry } from "../../../form-scope/pipelineRegistry";
 import { pipelineInputToFieldDefinition } from "../../../form-scope/pinToFieldDefinition";
 import type { PipelineParameterDto, PipelineParameterKind } from "../../../hooks/usePipelineGraph";
-import type { StructDefinitionDto } from "@/gen/model";
+import type { StructDefinitionDto } from "@/features/pipelines/types/pipelineGraphTypes";
 import {
   TYPE_OPTIONS,
   CARDINALITY_OPTIONS,
@@ -195,6 +195,7 @@ export function ParameterEditorForm({
 
       const newParam: PipelineParameterDto = {
         id: crypto.randomUUID(),
+        name: trimmedKey,
         key: trimmedKey,
         label: data.label.trim() || trimmedKey,
         kind: kindMap[activeTab],
@@ -202,7 +203,7 @@ export function ParameterEditorForm({
         cardinality: data.cardinality as any,
         structType: isEntityRef(data.type) ? data.structType : null,
         defaultValue: finalDefVal,
-        description: data.description.trim() || null,
+        description: data.description.trim() || undefined,
         isRequired: data.isRequired,
         order: existingKeys.length + 1,
         contextData: activeContextData,
@@ -217,7 +218,7 @@ export function ParameterEditorForm({
         cardinality: data.cardinality as any,
         structType: isEntityRef(data.type) ? data.structType : null,
         defaultValue: finalDefVal,
-        description: data.description.trim() || null,
+        description: data.description.trim() || undefined,
         isRequired: data.isRequired,
         contextData: activeContextData,
       });

@@ -50,7 +50,7 @@ export function UserDetailPage() {
                         <ShieldAlert className="mr-2 h-4 w-4" />
                         {t("actions.assignRoles", { defaultValue: "Assign Roles" })}
                     </Button>
-                    <Button onClick={() => navigate({ to: `/users/$id/edit`, params: { id } })}>
+                    <Button onClick={() => navigate({ to: `/admin/users/$id/edit`, params: { id } })}>
                         <Edit className="mr-2 h-4 w-4" />
                         {t("actions.edit", { defaultValue: "Edit User" })}
                     </Button>

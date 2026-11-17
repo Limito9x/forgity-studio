@@ -7,6 +7,7 @@ pub mod analyzer;
 pub mod runner;
 pub mod local_execution;
 pub mod node_contracts;
+pub mod template_manifest;
 
 pub use machine::*;
 pub use workspace::*;
@@ -17,4 +18,5 @@ pub use analyzer::*;
 pub use runner::*;
 pub use local_execution::*;
 pub use node_contracts::*;
+pub use template_manifest::*;
 

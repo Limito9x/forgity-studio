@@ -11,7 +11,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import type { DialogProps } from "@/lib/dialog-registry";
-import type { PipelineSummaryDto } from "@/gen/model";
+import type { PipelineSummaryDto } from "@/features/pipelines/types/pipelineGraphTypes";
 import { useUpdatePipelineMutation } from "../hooks/usePipelines";
 
 export function RenamePipelineDialog({

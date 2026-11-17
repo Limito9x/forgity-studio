@@ -1,10 +1,25 @@
 use anyhow::Result;
+use async_trait::async_trait;
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use super::dag::DagPipelineDocument;
-use super::traits::{ResolvedConstantSpec, ResolvedScript, ResourceResolver};
+use super::traits::{QuotaGate, ResolvedConstantSpec, ResolvedScript, ResourceResolver};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CloudLeaseConfig {
+    #[serde(default)]
+    pub api_url: Option<String>,
+    pub template_view_id: String,
+    pub pipeline_version_id: String,
+    pub machine_key: String,
+    #[serde(default)]
+    pub lease_token: Option<String>,
+}
 
 /// DTO tự chứa (Self-contained) do Local Client (Tauri) hoặc Cloud đóng gói gửi sang cho Runner thực thi.
 /// Runner chỉ cần nhận DTO này là chạy được ngay mà không cần biết SQLite hay cấu trúc thư mục workspace.
@@ -27,6 +42,8 @@ pub struct ExecutionBundle {
     pub components: HashMap<String, DagPipelineDocument>,
     #[serde(default)]
     pub constants: HashMap<String, ResolvedConstantSpec>,
+    #[serde(default)]
+    pub cloud_lease: Option<CloudLeaseConfig>,
 }
 
 fn default_bundle_version() -> u32 {
@@ -37,7 +54,6 @@ fn default_pipeline_kind() -> String {
     "master".to_string()
 }
 
-/// Bộ tiếp nhận DTO `ExecutionBundle` vào RAM để phục vụ `ComponentOrchestrator` & `MasterOrchestrator` tra cứu O(1).
 pub struct BundleResourceResolver {
     scripts: HashMap<String, ResolvedScript>,
     components: HashMap<String, DagPipelineDocument>,
@@ -93,3 +109,125 @@ impl ResourceResolver for BundleResourceResolver {
             .cloned())
     }
 }
+
+/// QuotaGate for Cloud Templates: deducts quota per component run via Backend API.
+pub struct CloudTemplateQuotaGate {
+    api_url: String,
+    lease: CloudLeaseConfig,
+    http: reqwest::Client,
+}
+
+impl CloudTemplateQuotaGate {
+    pub fn new(api_url: String, lease: CloudLeaseConfig) -> Self {
+        Self {
+            api_url: api_url.trim_end_matches('/').to_string(),
+            lease,
+            http: reqwest::Client::new(),
+        }
+    }
+}
+
+#[async_trait]
+impl QuotaGate for CloudTemplateQuotaGate {
+    async fn check_and_consume(&self, unit_count: usize) -> Result<()> {
+        if unit_count == 0 {
+            return Ok(());
+        }
+        let url = format!("{}/api/templates/consume-quota", self.api_url);
+        let resp = self
+            .http
+            .post(&url)
+            .json(&serde_json::json!({
+                "templateViewId": self.lease.template_view_id,
+                "machineKey": self.lease.machine_key,
+                "count": unit_count,
+            }))
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let text = resp.text().await.unwrap_or_default();
+            anyhow::bail!("Template quota check failed ({}): {}", status, text);
+        }
+        Ok(())
+    }
+}
+
+/// ResourceResolver for Cloud Templates: wraps BundleResourceResolver and fetches missing
+/// script source code into an in-RAM DashMap cache without writing .py files to disk.
+pub struct CloudTemplateResourceResolver {
+    inner: BundleResourceResolver,
+    api_url: String,
+    lease: CloudLeaseConfig,
+    ram_cache: Arc<DashMap<String, String>>,
+    http: reqwest::Client,
+}
+
+impl CloudTemplateResourceResolver {
+    pub fn from_bundle(bundle: &ExecutionBundle, api_url: String, lease: CloudLeaseConfig) -> Self {
+        Self {
+            inner: BundleResourceResolver::from_bundle(bundle),
+            api_url: api_url.trim_end_matches('/').to_string(),
+            lease,
+            ram_cache: Arc::new(DashMap::new()),
+            http: reqwest::Client::new(),
+        }
+    }
+}
+
+impl ResourceResolver for CloudTemplateResourceResolver {
+    fn resolve_script(&self, tool_ref: &str) -> Result<ResolvedScript> {
+        let mut script = self.inner.resolve_script(tool_ref)?;
+        if script.inline_source.is_some() || !script.full_path.as_os_str().is_empty() {
+            return Ok(script);
+        }
+
+        if let Some(cached) = self.ram_cache.get(&script.key) {
+            script.inline_source = Some(cached.value().clone());
+            return Ok(script);
+        }
+
+        let url = format!("{}/api/templates/acquire-script", self.api_url);
+        let payload: Value = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                let resp = self
+                    .http
+                    .post(&url)
+                    .json(&serde_json::json!({
+                        "pipelineVersionId": self.lease.pipeline_version_id,
+                        "scriptKey": script.key,
+                        "machineKey": self.lease.machine_key,
+                    }))
+                    .send()
+                    .await?;
+
+                if !resp.status().is_success() {
+                    let status = resp.status();
+                    let text = resp.text().await.unwrap_or_default();
+                    anyhow::bail!("Failed to acquire cloud script '{}' ({}): {}", script.key, status, text);
+                }
+
+                Ok::<Value, anyhow::Error>(resp.json().await?)
+            })
+        })?;
+        let source_code = payload
+            .get("sourceCode")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        self.ram_cache.insert(script.key.clone(), source_code.clone());
+        script.inline_source = Some(source_code);
+        Ok(script)
+    }
+
+    fn resolve_component(&self, component_ref: &str) -> Result<DagPipelineDocument> {
+        self.inner.resolve_component(component_ref)
+    }
+
+    fn resolve_constant_spec(&self, constant_ref: &str) -> Result<Option<ResolvedConstantSpec>> {
+        self.inner.resolve_constant_spec(constant_ref)
+    }
+}
+

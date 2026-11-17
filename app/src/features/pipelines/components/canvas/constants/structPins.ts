@@ -1,4 +1,4 @@
-import type { PinDefinition } from "@/gen/model";
+import type { PinDefinition } from "@/features/pipelines/types/pipelineGraphTypes";
 
 /**
  * Standard automatic pins provided by Start node when pipeline is in event trigger mode.
@@ -6,6 +6,8 @@ import type { PinDefinition } from "@/gen/model";
 export const EVENT_TRIGGER_START_PINS: PinDefinition[] = [
   {
     id: "Resources",
+    name: "Resources",
+    direction: "Output",
     label: "Resources",
     kind: "Data" as any,
     primitiveType: "EntityRef" as any,
@@ -14,6 +16,8 @@ export const EVENT_TRIGGER_START_PINS: PinDefinition[] = [
   },
   {
     id: "Workstation",
+    name: "Workstation",
+    direction: "Output",
     label: "Workstation",
     kind: "Data" as any,
     primitiveType: "EntityRef" as any,

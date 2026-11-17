@@ -12,9 +12,6 @@ import { AppSplashScreen } from "@/components/layout/app/AppSplashScreen";
 export const Route = createFileRoute("/_protected")({
   beforeLoad: ({ location }) => {
     if (!getAuthState().accessToken) {
-      if (useAppModeStore.getState().mode === "local") {
-        throw redirect({ to: "/local", replace: true });
-      }
       throw redirect({
         to: "/auth/login",
         search: () => ({ redirect: location.href }),

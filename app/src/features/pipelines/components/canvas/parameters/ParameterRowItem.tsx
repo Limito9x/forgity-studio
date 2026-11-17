@@ -22,7 +22,7 @@ export const ParameterRowItem = memo(function ParameterRowItem({
   onDelete,
   onSpawnCapsule,
 }: ParameterRowItemProps) {
-  const style = getTypeStyle(param.type, param.cardinality, param.structType);
+  const style = getTypeStyle(param.type ?? "", param.cardinality, param.structType);
 
   if (activeTab === "inputs") {
     return (

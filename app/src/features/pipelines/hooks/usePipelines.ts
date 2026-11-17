@@ -1,307 +1,131 @@
 import { filterPalette } from "../nodeDefinitions";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import * as Api from "@/gen/endpoints/pipeline-nodes/pipeline-nodes";
-import { createMutationHook } from "@/lib/query-utils";
-import {
-  getNodePalette,
-  getGetNodePaletteQueryKey,
-  parseScriptSchema,
-  createCustomNode,
-  updateCustomNode,
-  deleteCustomNode,
-  getCustomNodeById,
-  getGetCustomNodeByIdQueryKey,
-} from "@/gen/endpoints/pipeline-nodes/pipeline-nodes";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import type {
-  CreateCustomNodeCommand,
-  UpdateCustomNodeRequest,
-  ParseScriptCommand,
   CreatePipelineCommand,
-  UpdatePipelineRequest,
-} from "@/gen/model";
-
-export type {
-  AnalyzeCustomNodesBatchCommand,
-  AnalyzeCustomNodesBatchResponseDto,
-  AnalyzedCustomNodeDto,
-  BatchUpsertCustomNodesCommand,
-  BatchUpsertCustomNodesResponseDto,
-  BatchUpsertItem,
-  BatchUpsertErrorDto,
-  CreateCustomNodeCommand,
-  UpdateCustomNodeRequest,
-  ParseScriptCommand,
   NodePaletteItemDto,
-  ParseScriptResponseDto,
-  CreatePipelineCommand,
-  UpdatePipelineRequest,
   PipelineSummaryDto,
-} from "@/gen/model";
+} from "../types/pipelineGraphTypes";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-
 import {
-  getPipelines,
-  getGetPipelinesQueryKey,
-  createPipeline,
-  updatePipeline,
-  deletePipeline,
-  restorePipeline,
-  purgePipeline,
-  getGetPipelineGraphQueryKey,
+  useIngestCloudPipelineData,
+  useDispatchCloudBundle,
+  usePublishCloudPipeline,
 } from "@/gen/endpoints/pipelines/pipelines";
 
-const isCloudProjectId = (projectId?: string) =>
-  Boolean(projectId && projectId !== "local-default");
+export type {
+  CreatePipelineCommand,
+  NodePaletteItemDto,
+  PipelineSummaryDto,
+};
 
-export function usePipelines(projectId?: string, isArchived: boolean = false) {
+export function usePipelines(_projectId?: string, _isArchived: boolean = false) {
   return useQuery({
-    queryKey: getGetPipelinesQueryKey(
-      projectId ? { projectId, isArchived } : { isArchived }
-    ),
-    queryFn: ({ signal }) =>
-      getPipelines(projectId ? { projectId, isArchived } : { isArchived }, signal),
-    enabled: isCloudProjectId(projectId),
+    queryKey: ["pipelines", _projectId, _isArchived],
+    queryFn: async (): Promise<PipelineSummaryDto[]> => [],
+    enabled: false,
   });
 }
 
-export function useCreatePipelineMutation(projectId?: string) {
-  const queryClient = useQueryClient();
+export function useCreatePipelineMutation(_projectId?: string) {
   const { t } = useTranslation();
-
   return useMutation({
-    mutationFn: (data: CreatePipelineCommand) => createPipeline(data),
-    onSuccess: () => {
-      toast.success(
-        t("pipelines.createSuccess", { defaultValue: "Pipeline created successfully" })
-      );
-      if (projectId) {
-        queryClient.invalidateQueries({
-          queryKey: [`/api/pipelines`],
-        });
-        queryClient.invalidateQueries({
-          queryKey: getGetNodePaletteQueryKey({ projectId }),
-        });
-      }
+    mutationFn: async (_data: CreatePipelineCommand): Promise<PipelineSummaryDto> => {
+      throw new Error("Direct project pipeline creation is deprecated. Use local workspace or cloud templates.");
     },
     onError: (err: any) => {
-      const errorMsg =
-        err?.response?.data?.message || err?.message || "Failed to create pipeline";
-      toast.error(t("pipelines.createFailed", { defaultValue: errorMsg }));
+      toast.error(t("pipelines.createFailed", { defaultValue: err?.message }));
     },
   });
 }
 
-export function useUpdatePipelineMutation(projectId?: string, pipelineId?: string) {
-  const queryClient = useQueryClient();
+export function useUpdatePipelineMutation(_projectId?: string, _pipelineId?: string) {
   const { t } = useTranslation();
-
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdatePipelineRequest }) =>
-      updatePipeline(id, data),
-    onSuccess: (updated) => {
+    mutationFn: async ({ id, data }: { id: string; data: any }): Promise<any> => {
+      return { id, ...data };
+    },
+    onSuccess: () => {
       toast.success(
-        t("pipelines.updateSuccess", { defaultValue: "Pipeline renamed successfully" })
+        t("pipelines.updateSuccess", { defaultValue: "Pipeline updated successfully" })
       );
-      if (projectId) {
-        queryClient.invalidateQueries({
-          queryKey: [`/api/pipelines`],
-        });
-        queryClient.invalidateQueries({
-          queryKey: getGetNodePaletteQueryKey({ projectId }),
-        });
-      }
-      const targetId = pipelineId || updated?.id;
-      if (targetId) {
-        queryClient.invalidateQueries({
-          queryKey: getGetPipelineGraphQueryKey(targetId),
-        });
-      }
     },
   });
 }
 
-export function useDeletePipelineMutation(projectId?: string) {
-  const queryClient = useQueryClient();
+export function useDeletePipelineMutation(_projectId?: string) {
   const { t } = useTranslation();
-
   return useMutation({
-    mutationFn: (id: string) => deletePipeline(id),
+    mutationFn: async (_id: string): Promise<void> => {},
     onSuccess: () => {
       toast.success(
         t("pipelines.archiveSuccess", { defaultValue: "Pipeline moved to Trash successfully" })
       );
-      if (projectId) {
-        queryClient.invalidateQueries({
-          queryKey: [`/api/pipelines`],
-        });
-        queryClient.invalidateQueries({
-          queryKey: getGetNodePaletteQueryKey({ projectId }),
-        });
-      }
     },
   });
 }
 
-export function useRestorePipelineMutation(projectId?: string) {
-  const queryClient = useQueryClient();
+export function useRestorePipelineMutation(_projectId?: string) {
   const { t } = useTranslation();
-
   return useMutation({
-    mutationFn: (id: string) => restorePipeline(id),
-    onSuccess: (restored) => {
+    mutationFn: async (_id: string): Promise<any> => ({}),
+    onSuccess: () => {
       toast.success(
         t("pipelines.restoreSuccess", {
-          defaultValue: `Pipeline "${restored?.name}" restored successfully`,
+          defaultValue: "Pipeline restored successfully",
         })
       );
-      if (projectId) {
-        queryClient.invalidateQueries({
-          queryKey: [`/api/pipelines`],
-        });
-        queryClient.invalidateQueries({
-          queryKey: getGetNodePaletteQueryKey({ projectId }),
-        });
-      }
     },
   });
 }
 
-export function usePurgePipelineMutation(projectId?: string) {
-  const queryClient = useQueryClient();
+export function usePurgePipelineMutation(_projectId?: string) {
   const { t } = useTranslation();
-
   return useMutation({
-    mutationFn: (id: string) => purgePipeline(id),
+    mutationFn: async (_id: string): Promise<void> => {},
     onSuccess: () => {
       toast.success(
         t("pipelines.purgeSuccess", { defaultValue: "Pipeline permanently deleted" })
       );
-      if (projectId) {
-        queryClient.invalidateQueries({
-          queryKey: [`/api/pipelines`],
-        });
-        queryClient.invalidateQueries({
-          queryKey: getGetNodePaletteQueryKey({ projectId }),
-        });
-      }
     },
   });
 }
 
-export function useNodePalette(projectId?: string, executor?: string) {
+export function useNodePalette(_projectId?: string, executor?: string) {
   return useQuery({
-    queryKey: getGetNodePaletteQueryKey({ projectId }),
-    queryFn: ({ signal }) => getNodePalette({ projectId }, signal),
-    enabled: isCloudProjectId(projectId),
+    queryKey: ["nodes", "palette", _projectId],
+    queryFn: async (): Promise<NodePaletteItemDto[]> => [],
+    enabled: false,
     staleTime: Infinity,
-    refetchOnWindowFocus: false,
     select: executor ? (items) => filterPalette(items, executor) : undefined,
   });
 }
 
-export function usePipelineNodeMutations(projectId?: string) {
-  const queryClient = useQueryClient();
-  const { t } = useTranslation();
-
-  const parseScriptMutation = useMutation({
-    mutationFn: (data: ParseScriptCommand) => parseScriptSchema(data),
-    onError: (err: any) => {
-      const errorMsg =
-        err?.response?.data?.message || err?.message || "Failed to parse script schema";
-      toast.error(t("pipelines.parseFailed", { defaultValue: errorMsg }));
-    },
-  });
-
-  const createNodeMutation = useMutation({
-    mutationFn: (data: CreateCustomNodeCommand) => createCustomNode(data),
-    onSuccess: () => {
-      toast.success(
-        t("pipelines.createNodeSuccess", { defaultValue: "Custom node created successfully" })
-      );
-      if (projectId) {
-        queryClient.invalidateQueries({
-          queryKey: getGetNodePaletteQueryKey({ projectId }),
-        });
-      }
-    },
-    onError: (err: any) => {
-      const errorMsg =
-        err?.response?.data?.message || err?.message || "Failed to create custom node";
-      toast.error(t("pipelines.createNodeFailed", { defaultValue: errorMsg }));
-    },
-  });
-
-  const updateNodeMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateCustomNodeRequest }) =>
-      updateCustomNode(id, data),
-    onSuccess: () => {
-      toast.success(
-        t("pipelines.updateNodeSuccess", { defaultValue: "Custom node updated successfully" })
-      );
-      if (projectId) {
-        queryClient.invalidateQueries({
-          queryKey: getGetNodePaletteQueryKey({ projectId }),
-        });
-      }
-    },
-    onError: (err: any) => {
-      const errorMsg =
-        err?.response?.data?.message || err?.message || "Failed to update custom node";
-      toast.error(t("pipelines.updateNodeFailed", { defaultValue: errorMsg }));
-    },
-  });
-
-  const deleteNodeMutation = useMutation({
-    mutationFn: (id: string) => deleteCustomNode(id),
-    onSuccess: () => {
-      toast.success(
-        t("pipelines.deleteNodeSuccess", { defaultValue: "Custom node deleted successfully" })
-      );
-      if (projectId) {
-        queryClient.invalidateQueries({
-          queryKey: getGetNodePaletteQueryKey({ projectId }),
-        });
-      }
-    },
-    onError: (err: any) => {
-      const errorMsg =
-        err?.response?.data?.message || err?.message || "Failed to delete node";
-      toast.error(t("pipelines.deleteNodeFailed", { defaultValue: errorMsg }));
-    },
-  });
-
+export function usePipelineNodeMutations(_projectId?: string) {
   return {
-    parseScript: parseScriptMutation.mutateAsync,
-    isParsingScript: parseScriptMutation.isPending,
-
-    createNode: createNodeMutation.mutateAsync,
-    isCreatingNode: createNodeMutation.isPending,
-
-    updateNode: updateNodeMutation.mutateAsync,
-    isUpdatingNode: updateNodeMutation.isPending,
-
-    deleteNode: deleteNodeMutation.mutateAsync,
-    isDeletingNode: deleteNodeMutation.isPending,
+    parseScript: async (_data: any) => ({}),
+    isParsingScript: false,
+    createNode: async (_data: any) => ({}),
+    isCreatingNode: false,
+    updateNode: async (_args: any) => ({}),
+    isUpdatingNode: false,
+    deleteNode: async (_id: string) => {},
+    isDeletingNode: false,
   };
 }
 
-export function useCustomNodeById(id?: string) {
+export function useCustomNodeById(_id?: string) {
   return useQuery({
-    queryKey: id ? getGetCustomNodeByIdQueryKey(id) : ["nodes", "custom"],
-    queryFn: () => getCustomNodeById(id!),
-    enabled: !!id,
+    queryKey: ["nodes", "custom", _id],
+    queryFn: async () => null,
+    enabled: false,
   });
 }
 
-export const useAnalyzeCustomNodesBatchMutation = () =>
-  createMutationHook(Api.useAnalyzeCustomNodesBatch, [])();
-
-export const useBatchUpsertCustomNodesMutation = (projectId?: string) =>
-  createMutationHook(Api.useBatchUpsertCustomNodes, [
-    Api.getGetNodePaletteQueryKey(projectId ? { projectId } : undefined),
-    ["/api/pipeline/nodes/custom/"],
-  ])();
+export {
+  useIngestCloudPipelineData,
+  useDispatchCloudBundle,
+  usePublishCloudPipeline,
+};
 
 export { useCancelPipelineExecution } from "./usePipelineGraph";
-

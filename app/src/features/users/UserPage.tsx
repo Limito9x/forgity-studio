@@ -33,7 +33,7 @@ export function UserPage({ useSearch, useNavigate }: ResourcePageProps) {
     return (
         <ResourcePageShell
             title={t("page.title")}
-            onAdd={() => navigate({ to: "/users/new" })}
+            onAdd={() => navigate({ to: "/admin/users/new" })}
             addLabel="Add User"
             actions={
                 <Button

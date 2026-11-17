@@ -25,7 +25,7 @@ export function useProjectNav(options?: ProjectNavOptions) {
   const { studioSlug: currentStudioSlug } = useCurrentStudio();
   let resolvedStudioSlug = options?.studioSlug || projectCtx?.studioSlug || params.studioSlug;
   if (!resolvedStudioSlug) {
-    const match = pathname.match(/\/s\/([^/]+)/);
+    const match = pathname.match(/\/studio\/([^/]+)/);
     if (match) resolvedStudioSlug = match[1];
   }
   const studioSlug = resolvedStudioSlug || currentStudioSlug || "";
@@ -49,10 +49,10 @@ export function useProjectNav(options?: ProjectNavOptions) {
 
   // Base URL pattern for current project scope
   const projectBase = studioSlug
-    ? `/s/${studioSlug}/projects/${urlProjectKey}`
+    ? `/studio/${studioSlug}/projects/${urlProjectKey}`
     : `/projects/${urlProjectKey}`;
 
-  const studioBase = studioSlug ? `/s/${studioSlug}` : "";
+  const studioBase = studioSlug ? `/studio/${studioSlug}` : "";
 
   // 3. Centralized URL Builders
   const urls = {

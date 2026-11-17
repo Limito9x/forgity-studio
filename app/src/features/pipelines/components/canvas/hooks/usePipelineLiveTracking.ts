@@ -5,8 +5,7 @@ import {
   usePipelineExecution,
   usePipelineExecutions,
 } from "../../../hooks/usePipelineGraph";
-import { mapExecutionStatus, usePipelineSignalR } from "../../../hooks/usePipelineSignalR";
-import { ExecutionStatus } from "@/gen/model/executionStatus";
+import { ExecutionStatus, mapExecutionStatus, usePipelineSignalR } from "../../../hooks/usePipelineSignalR";
 import { toast } from "sonner";
 import type { CustomPipelineNodeData } from "../nodes/types";
 

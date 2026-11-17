@@ -20,7 +20,10 @@ Những quy tắc này áp dụng cho toàn bộ workspace Monorepo `Automation/
   }
   ```
 - **Lệnh shell thay thế (khi không dùng MCP):** `codegraph explore "<query>" --path "d:\\FullStack\\Automation"`.
-- **Tuyệt đối cấm mò mẫm bằng Grep/View:** Nghiêm cấm dùng `grep_search`, `list_dir`, hoặc `view_file` để tìm kiếm mò mẫm, phán đoán mù mờ khi chưa dùng CodeGraph để nắm toàn bộ bức tranh dependencies, blast radius và verbatim source code.
+- **Khi CodeGraph chưa cover hoặc cần xác minh cục bộ — bắt buộc dùng 2 công cụ đã cài sẵn:**
+  - `ast-grep` (0.51+): tìm theo cấu trúc AST. Cú pháp: `ast-grep run -p '<pattern>' -l <lang> <dir>` (lang: `rust`, `ts`, `tsx`, `cs`, `yaml`, `json`...). Thay thế hàng loạt: thêm `-r '<rewrite>'`. Quét cả file bị `.gitignore`: thêm `--no-ignore`. **Không dùng `sg`** (alias deprecated).
+  - `rg` (ripgrep 15.x, PCRE2 + JIT): tìm text/literal. Cú pháp: `rg -n "<text>" <dir> -g "*.rs"`.
+- **Tuyệt đối cấm mò mẫm bằng Grep/View:** Nghiêm cấm dùng `grep`, `findstr`, `Select-String`, `list_dir`, hoặc `view_file` để tìm kiếm mò mẫm, phán đoán mù mờ khi chưa dùng CodeGraph để nắm toàn bộ bức tranh dependencies, blast radius và verbatim source code.
 
 ---
 

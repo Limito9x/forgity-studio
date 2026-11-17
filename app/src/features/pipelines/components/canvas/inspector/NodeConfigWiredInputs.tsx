@@ -3,7 +3,7 @@ import { Link } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { getPinVisual } from "../nodes/types";
-import type { PinDefinition, PipelineDiagnostic } from "@/gen/model";
+import type { PinDefinition, PipelineDiagnostic } from "@/features/pipelines/types/pipelineGraphTypes";
 
 interface NodeConfigWiredInputsProps {
   wiredInputs: PinDefinition[];

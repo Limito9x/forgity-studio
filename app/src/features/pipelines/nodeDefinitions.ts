@@ -1,4 +1,4 @@
-import type { NodePaletteItemDto, PinDefinition } from "@/gen/model";
+import type { NodePaletteItemDto, PinDefinition } from "@/features/pipelines/types/pipelineGraphTypes";
 
 export const definitionKey = (kind: string, refId: string) => `${kind}:${refId.toLowerCase()}`;
 export function indexDefinitions(items: NodePaletteItemDto[]) {
@@ -39,7 +39,7 @@ export function nodeView(kind: string, definition?: NodePaletteItemDto) {
 export function filterPalette(items: NodePaletteItemDto[], executor?: string) {
   return items.filter((item) => {
     if (!item.isVisibleInPalette) return false;
-    const itemExec = item.executor.toLowerCase();
+    const itemExec = (item.executor || "").toLowerCase();
     const isStartOrReturn = item.key === "Start" || item.key === "Return";
     const isConstant = item.source === "Constant" || item.key.startsWith("local:constant:");
     const isPure = itemExec === "pure" || item.key.startsWith("local:pure:");

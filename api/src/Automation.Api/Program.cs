@@ -12,7 +12,6 @@ using Scalar.AspNetCore;
 using Automation.SharedKernel.Extensions.ExceptionHandling;
 
 using Automation.Runner.Extensions;
-using Automation.Pipeline.Extensions;
 
 using Automation.SharedKernel.Extensions.Security;
 using Microsoft.AspNetCore.Server.Kestrel.Core;

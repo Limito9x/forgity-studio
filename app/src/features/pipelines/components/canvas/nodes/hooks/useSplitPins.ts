@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import type { PinDefinition } from "@/gen/model";
-import { PinKind } from "@/gen/model";
+import type { PinDefinition } from "@/features/pipelines/types/pipelineGraphTypes";
+import { PinKind } from "@/features/pipelines/types/pipelineGraphTypes";
 
 export interface SplitPinsResult {
   execInputs: PinDefinition[];
@@ -38,6 +38,8 @@ export function useSplitPins(
       : [
           {
             id: "exec_out",
+            name: "Exec",
+            direction: "Output",
             label: "Exec",
             kind: PinKind.Exec,
             isRequired: false,

@@ -12,7 +12,6 @@ public record StudioQuotaDto(
     string Name,
     string Slug,
     StudioPlanTier PlanTier,
-    int ExecutionCreditsRemaining,
     long StudioManagedStorageQuotaBytes,
     long StudioManagedStorageUsedBytes
 );
@@ -22,7 +21,6 @@ public record StudioAdminSummaryDto(
     string Name,
     string Slug,
     StudioPlanTier PlanTier,
-    int ExecutionCreditsRemaining,
     long StudioManagedStorageQuotaBytes,
     long StudioManagedStorageUsedBytes,
     int ProjectCount,
@@ -31,7 +29,6 @@ public record StudioAdminSummaryDto(
 
 public record AdminUpdateStudioQuotaDto(
     StudioPlanTier? PlanTier = null,
-    int? ExecutionCreditsRemaining = null,
     long? StudioManagedStorageQuotaBytes = null
 );
 

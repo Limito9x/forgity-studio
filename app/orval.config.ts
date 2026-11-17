@@ -7,6 +7,7 @@ export default defineConfig({
       target: "http://localhost:5189/openapi/v1.json",
     },
     output: {
+      clean: true,
       mode: "tags-split",
       target: "src/gen/endpoints",
       schemas: "src/gen/model",
@@ -52,6 +53,7 @@ export default defineConfig({
       target: "http://localhost:5189/openapi/v1.json",
     },
     output: {
+      clean: false,
       mode: "tags-split",
       client: "zod",
       target: "src/gen/endpoints",

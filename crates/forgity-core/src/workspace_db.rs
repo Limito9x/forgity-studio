@@ -16,6 +16,15 @@ pub struct WorkspaceDb {
     conn: Connection,
 }
 
+/// One persisted dependency edge of `local_dependencies`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalDependencyRow {
+    pub parent_kind: String,
+    pub parent_key: String,
+    pub dep_kind: String,
+    pub dep_key: String,
+}
+
 impl WorkspaceDb {
     pub fn open(root_path: &Path) -> Result<Self, String> {
         let forgity_dir = root_path.join(".forgity");
@@ -79,7 +88,8 @@ impl WorkspaceDb {
                 content_hash TEXT NOT NULL,
                 last_modified_ms INTEGER NOT NULL,
                 remote_id TEXT,
-                published_hash TEXT
+                published_hash TEXT,
+                snapshot_json TEXT
             );
 
             CREATE TABLE IF NOT EXISTS local_dependencies (
@@ -92,6 +102,9 @@ impl WorkspaceDb {
             ",
         )
         .map_err(|e| format!("Failed to initialize workspace.db schema: {}", e))?;
+
+        // Auto-migrate schema: ensure local_pipelines has snapshot_json column
+        let _ = conn.execute("ALTER TABLE local_pipelines ADD COLUMN snapshot_json TEXT", []);
 
         Ok(Self { conn })
     }
@@ -156,6 +169,30 @@ impl WorkspaceDb {
                 }
             }
             let _ = std::fs::rename(&legacy_constants, forgity_dir.join("constants.json.bak"));
+        }
+
+        // 4. Migrate legacy .forgity/snapshots/*.snap.json -> local_pipelines.snapshot_json
+        let legacy_snaps_dir = forgity_dir.join("snapshots");
+        if legacy_snaps_dir.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(&legacy_snaps_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file() {
+                        let fname = entry.file_name().to_string_lossy().to_string();
+                        if fname.ends_with(".snap.json") {
+                            let slug = fname.trim_end_matches(".snap.json");
+                            if let Ok(content) = std::fs::read_to_string(&path) {
+                                if !content.trim().is_empty() {
+                                    let _ = self.save_pipeline_snapshot(slug, &content);
+                                }
+                            }
+                            let _ = std::fs::remove_file(&path);
+                        }
+                    }
+                }
+            }
+            // If empty, clean up snapshots folder
+            let _ = std::fs::remove_dir(&legacy_snaps_dir);
         }
 
         if contracts_dirty {
@@ -379,6 +416,57 @@ impl WorkspaceDb {
         serde_json::to_string(&list).map_err(|e| format!("Failed to serialize constants: {}", e))
     }
 
+    pub fn save_pipeline_snapshot(&self, slug: &str, snapshot_json: &str) -> Result<(), String> {
+        // Upsert into local_pipelines: update snapshot_json if row exists, or insert stub row if not scanned yet
+        let affected = self
+            .conn
+            .execute(
+                "UPDATE local_pipelines SET snapshot_json = ?1 WHERE slug = ?2",
+                params![snapshot_json, slug],
+            )
+            .map_err(|e| format!("Failed to update pipeline snapshot for '{}': {}", slug, e))?;
+
+        if affected == 0 {
+            self.conn
+                .execute(
+                    "
+                    INSERT INTO local_pipelines (slug, file_name, relative_path, full_path, pipeline_kind, content_hash, last_modified_ms, snapshot_json)
+                    VALUES (?1, ?1, ?1, ?1, 'master', '', 0, ?2)
+                    ON CONFLICT(slug) DO UPDATE SET snapshot_json = excluded.snapshot_json
+                    ",
+                    params![slug, snapshot_json],
+                )
+                .map_err(|e| format!("Failed to insert pipeline snapshot for '{}': {}", slug, e))?;
+        }
+
+        Ok(())
+    }
+
+    pub fn load_pipeline_snapshot(&self, slug: &str) -> Result<Option<String>, String> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT snapshot_json FROM local_pipelines WHERE slug = ?1")
+            .map_err(|e| format!("Failed to prepare load snapshot query: {}", e))?;
+
+        let mut rows = stmt
+            .query(params![slug])
+            .map_err(|e| format!("Failed to query snapshot for '{}': {}", slug, e))?;
+
+        if let Some(row) = rows.next().map_err(|e| format!("Error reading row: {}", e))? {
+            let snap: Option<String> = row.get(0).unwrap_or(None);
+            Ok(snap)
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn delete_pipeline(&self, slug: &str) -> Result<(), String> {
+        self.conn
+            .execute("DELETE FROM local_pipelines WHERE slug = ?1", params![slug])
+            .map_err(|e| format!("Failed to delete pipeline '{}': {}", slug, e))?;
+        Ok(())
+    }
+
     pub fn load_component_pipelines(&self) -> Result<Vec<(String, String, String)>, String> {
         let mut stmt = self
             .conn
@@ -479,6 +567,85 @@ impl WorkspaceDb {
                 .map_err(|e| format!("Failed to insert constant '{}': {}", key, e))?;
         }
 
+        Ok(())
+    }
+
+    /// Replaces dependency rows for the given parents inside a single transaction.
+    ///
+    /// Rows are written with `INSERT OR IGNORE`, so duplicated edges are collapsed by the
+    /// composite primary key `(parent_kind, parent_key, dep_kind, dep_key)`.
+    pub fn replace_dependencies(
+        &self,
+        parents: &[(String, String)],
+        rows: &[LocalDependencyRow],
+    ) -> Result<(), String> {
+        let tx = self
+            .conn
+            .unchecked_transaction()
+            .map_err(|e| format!("Failed to start dependency transaction: {}", e))?;
+
+        for (parent_kind, parent_key) in parents {
+            tx.execute(
+                "DELETE FROM local_dependencies WHERE parent_kind = ?1 AND parent_key = ?2",
+                params![parent_kind, parent_key],
+            )
+            .map_err(|e| format!("Failed to clear dependencies for '{}': {}", parent_key, e))?;
+        }
+
+        for row in rows {
+            tx.execute(
+                "
+                INSERT OR IGNORE INTO local_dependencies (parent_kind, parent_key, dep_kind, dep_key)
+                VALUES (?1, ?2, ?3, ?4)
+                ",
+                params![
+                    row.parent_kind,
+                    row.parent_key,
+                    row.dep_kind,
+                    row.dep_key
+                ],
+            )
+            .map_err(|e| format!("Failed to insert dependency '{}': {}", row.dep_key, e))?;
+        }
+
+        tx.commit()
+            .map_err(|e| format!("Failed to commit dependency transaction: {}", e))
+    }
+
+    /// Loads `(dep_kind, dep_key)` pairs of a parent, sorted by kind then key.
+    pub fn load_dependencies(
+        &self,
+        parent_kind: &str,
+        parent_key: &str,
+    ) -> Result<Vec<(String, String)>, String> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "
+                SELECT dep_kind, dep_key FROM local_dependencies
+                WHERE parent_kind = ?1 AND parent_key = ?2
+                ORDER BY dep_kind ASC, dep_key ASC
+                ",
+            )
+            .map_err(|e| format!("Failed to prepare dependency query: {}", e))?;
+
+        let rows = stmt
+            .query_map(params![parent_kind, parent_key], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|e| format!("Failed to query dependencies: {}", e))?;
+
+        Ok(rows.flatten().collect())
+    }
+
+    /// Deletes every dependency row of a parent. Used when a pipeline is deleted.
+    pub fn delete_dependencies(&self, parent_kind: &str, parent_key: &str) -> Result<(), String> {
+        self.conn
+            .execute(
+                "DELETE FROM local_dependencies WHERE parent_kind = ?1 AND parent_key = ?2",
+                params![parent_kind, parent_key],
+            )
+            .map_err(|e| format!("Failed to delete dependencies for '{}': {}", parent_key, e))?;
         Ok(())
     }
 }

@@ -49,13 +49,16 @@ pub fn run() {
             analyze_local_scripts_native,
             run_local_pipeline_draft_native,
             run_local_pipeline,
+            run_cloud_bundle,
             export_execution_bundle,
+            build_publish_bundle_json,
             cancel_local_pipeline,
             get_runner_unreal_project,
             set_runner_unreal_project,
             get_local_runner_config,
             save_local_runner_config,
-            scan_local_dcc_executors
+            scan_local_dcc_executors,
+            commands::template_manifest::scan_template_dependencies
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

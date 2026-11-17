@@ -1,6 +1,6 @@
 import { ConfirmDialog } from "@/components/custom-ui/overlays/dialog/ConfirmDialog";
 import type { DialogProps } from "@/lib/dialog-registry";
-import type { PipelineSummaryDto } from "@/gen/model";
+import type { PipelineSummaryDto } from "@/features/pipelines/types/pipelineGraphTypes";
 import { useDeletePipelineMutation } from "../hooks/usePipelines";
 
 export function ArchivePipelineDialog({
