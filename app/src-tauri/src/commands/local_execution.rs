@@ -39,6 +39,32 @@ pub fn resolve_runner_executable() -> Result<PathBuf, String> {
         "forgity-runner"
     };
 
+    // 1. Biến môi trường tùy chỉnh FORGITY_RUNNER_BIN (ưu tiên tuyệt đối nếu được cấu hình)
+    if let Ok(custom_bin) = std::env::var("FORGITY_RUNNER_BIN") {
+        let p = PathBuf::from(custom_bin);
+        if p.is_file() {
+            log::info!("Using runner from FORGITY_RUNNER_BIN: {:?}", p);
+            return Ok(p);
+        }
+    }
+
+    // 2. Dev mode / Monorepo workspace ưu tiên hàng đầu khi phát triển
+    if let Ok(cwd) = std::env::current_dir() {
+        for ancestor in cwd.ancestors() {
+            let debug_bin = ancestor.join("runner").join("target").join("debug").join(exe_name);
+            if debug_bin.is_file() {
+                log::info!("Using dev debug runner from monorepo: {:?}", debug_bin);
+                return Ok(debug_bin);
+            }
+            let release_bin = ancestor.join("runner").join("target").join("release").join(exe_name);
+            if release_bin.is_file() {
+                log::info!("Using dev release runner from monorepo: {:?}", release_bin);
+                return Ok(release_bin);
+            }
+        }
+    }
+
+    // 3. Cạnh file exe Tauri hiện tại (portable / bundled)
     if let Ok(current_exe) = std::env::current_exe() {
         if let Some(dir) = current_exe.parent() {
             let sibling = dir.join(exe_name);
@@ -48,6 +74,7 @@ pub fn resolve_runner_executable() -> Result<PathBuf, String> {
         }
     }
 
+    // 4. Local AppData runner directory (cho bản cài đặt qua installer)
     if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
         let installed = Path::new(&local_app_data)
             .join("Forgity")
@@ -58,21 +85,7 @@ pub fn resolve_runner_executable() -> Result<PathBuf, String> {
         }
     }
 
-    // Dev fallback inside monorepo
-    if let Ok(cwd) = std::env::current_dir() {
-        for ancestor in cwd.ancestors() {
-            let debug_bin = ancestor.join("runner").join("target").join("debug").join(exe_name);
-            if debug_bin.is_file() {
-                return Ok(debug_bin);
-            }
-            let release_bin = ancestor.join("runner").join("target").join("release").join(exe_name);
-            if release_bin.is_file() {
-                return Ok(release_bin);
-            }
-        }
-    }
-
-    // Fallback to PATH
+    // 5. Fallback to PATH
     Ok(PathBuf::from(exe_name))
 }
 
