@@ -343,11 +343,11 @@ fn materialize_constants(items: &[RawConstantItem]) -> Vec<MaterializedConstant>
 
             let mut outputs = HashMap::new();
             if is_unreal {
-                outputs.insert("disk_path".to_string(), resolved_value.clone());
                 let vp = resolved_unreal_path
                     .clone()
-                    .unwrap_or_else(|| Value::String(String::new()));
+                    .unwrap_or_else(|| resolved_value.clone());
                 outputs.insert("virtual_path".to_string(), vp);
+                outputs.insert("disk_path".to_string(), resolved_value.clone());
             } else {
                 outputs.insert("value".to_string(), resolved_value.clone());
             }
