@@ -611,8 +611,26 @@ export function TemplateContainerBuilder({
                     slug: templateSlug,
                   },
                 };
+          const isPureOrConstant =
+            item.viewVariant === "Constant" ||
+            item.capabilities?.viewVariant === "Constant" ||
+            item.capabilities?.isConstantNode === true ||
+            (item.executor || "").toLowerCase() === "pure";
+          const execInputs = Array.isArray(item.execInputs)
+            ? item.execInputs
+            : isPureOrConstant
+            ? []
+            : [{ id: "exec_in", label: "Exec" }];
+          const execOutputs = Array.isArray(item.execOutputs)
+            ? item.execOutputs
+            : isPureOrConstant
+            ? []
+            : [{ id: "exec_out", label: "Exec" }];
+
           return {
             ...item,
+            execInputs,
+            execOutputs,
             sourceRef: nextSourceRef,
           };
         });

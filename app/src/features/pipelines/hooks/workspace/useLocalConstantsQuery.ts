@@ -111,6 +111,7 @@ export async function loadLocalNodeContracts(
       throw new Error(`Local Workspace palette item ${index} is invalid.`);
     }
 
+    const isPure = (value.executor || "").toLowerCase() === "pure";
     return {
       refId: `local:${value.key}`,
       name: value.suggestedLabel || value.suggestedName || value.fileName,
@@ -120,6 +121,8 @@ export async function loadLocalNodeContracts(
       category: "Local Scripts",
       source: "LocalDraft",
       executor: value.executor,
+      execInputs: isPure ? [] : [{ id: "exec_in", label: "Exec" }],
+      execOutputs: isPure ? [] : [{ id: "exec_out", label: "Exec" }],
       inputs: value.inputs,
       outputs: value.outputs,
       description: value.description || value.fullPath,

@@ -78,8 +78,8 @@ export function useSplitPins(
       definition?.capabilities?.isConstantNode === true ||
       definition?.executor?.toLowerCase() === "pure";
 
-    const showExecIn = forceExecIn || execInputs.length > 0 || (!isPureOrConstant && !definition);
-    const showExecOut = execOutputs.length > 0 || (!isPureOrConstant && !definition);
+    const showExecIn = forceExecIn || execInputs.length > 0 || !isPureOrConstant;
+    const showExecOut = execOutputs.length > 0 || !isPureOrConstant;
 
     const finalExecOutputs =
       execOutputs.length > 0
