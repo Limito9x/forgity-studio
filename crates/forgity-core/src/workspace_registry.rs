@@ -16,6 +16,7 @@ pub struct RegisteredWorkspace {
     pub origin_template_slug: Option<String>,
     pub origin_version_id: Option<String>,
     pub origin_template_title: Option<String>,
+    pub unreal_project_path: Option<String>,
     pub last_opened_at: String,
     pub created_at: String,
 }
@@ -73,6 +74,7 @@ impl WorkspaceRegistryDb {
                 origin_template_slug TEXT,
                 origin_version_id TEXT,
                 origin_template_title TEXT,
+                unreal_project_path TEXT,
                 last_opened_at TEXT NOT NULL,
                 created_at TEXT NOT NULL
             );
@@ -91,6 +93,7 @@ impl WorkspaceRegistryDb {
     fn migrate_schema(conn: &Connection) -> Result<(), String> {
         let mut has_slug = false;
         let mut has_origin_template_slug = false;
+        let mut has_unreal_project_path = false;
 
         {
             let mut stmt = conn
@@ -104,6 +107,8 @@ impl WorkspaceRegistryDb {
                     has_slug = true;
                 } else if col == "origin_template_slug" {
                     has_origin_template_slug = true;
+                } else if col == "unreal_project_path" {
+                    has_unreal_project_path = true;
                 }
             }
         }
@@ -114,6 +119,14 @@ impl WorkspaceRegistryDb {
                 [],
             )
             .map_err(|e| format!("Failed to add origin_template_slug column: {}", e))?;
+        }
+
+        if !has_unreal_project_path {
+            conn.execute(
+                "ALTER TABLE workspaces ADD COLUMN unreal_project_path TEXT",
+                [],
+            )
+            .map_err(|e| format!("Failed to add unreal_project_path column: {}", e))?;
         }
 
         if !has_slug {
@@ -192,8 +205,9 @@ impl WorkspaceRegistryDb {
             origin_template_slug: r.get(6)?,
             origin_version_id: r.get(7)?,
             origin_template_title: r.get(8)?,
-            last_opened_at: r.get(9)?,
-            created_at: r.get(10)?,
+            unreal_project_path: r.get(9)?,
+            last_opened_at: r.get(10)?,
+            created_at: r.get(11)?,
         })
     }
 
@@ -201,7 +215,7 @@ impl WorkspaceRegistryDb {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, slug, name, root_path, linked_project_id, origin_template_id, origin_template_slug, origin_version_id, origin_template_title, last_opened_at, created_at
+                "SELECT id, slug, name, root_path, linked_project_id, origin_template_id, origin_template_slug, origin_version_id, origin_template_title, unreal_project_path, last_opened_at, created_at
                  FROM workspaces ORDER BY last_opened_at DESC",
             )
             .map_err(|e| format!("Failed to prepare list_workspaces query: {}", e))?;
@@ -221,7 +235,7 @@ impl WorkspaceRegistryDb {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, slug, name, root_path, linked_project_id, origin_template_id, origin_template_slug, origin_version_id, origin_template_title, last_opened_at, created_at
+                "SELECT id, slug, name, root_path, linked_project_id, origin_template_id, origin_template_slug, origin_version_id, origin_template_title, unreal_project_path, last_opened_at, created_at
                  FROM workspaces WHERE id = ?1",
             )
             .map_err(|e| format!("Failed to prepare get_workspace query: {}", e))?;
@@ -237,7 +251,7 @@ impl WorkspaceRegistryDb {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, slug, name, root_path, linked_project_id, origin_template_id, origin_template_slug, origin_version_id, origin_template_title, last_opened_at, created_at
+                "SELECT id, slug, name, root_path, linked_project_id, origin_template_id, origin_template_slug, origin_version_id, origin_template_title, unreal_project_path, last_opened_at, created_at
                  FROM workspaces WHERE slug = ?1",
             )
             .map_err(|e| format!("Failed to prepare get_workspace_by_slug query: {}", e))?;
@@ -253,7 +267,7 @@ impl WorkspaceRegistryDb {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT id, slug, name, root_path, linked_project_id, origin_template_id, origin_template_slug, origin_version_id, origin_template_title, last_opened_at, created_at
+                "SELECT id, slug, name, root_path, linked_project_id, origin_template_id, origin_template_slug, origin_version_id, origin_template_title, unreal_project_path, last_opened_at, created_at
                  FROM workspaces WHERE root_path = ?1",
             )
             .map_err(|e| format!("Failed to prepare get_workspace_by_root_path query: {}", e))?;
@@ -274,8 +288,8 @@ impl WorkspaceRegistryDb {
 
         self.conn
             .execute(
-                "INSERT INTO workspaces (id, slug, name, root_path, linked_project_id, origin_template_id, origin_template_slug, origin_version_id, origin_template_title, last_opened_at, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+                "INSERT INTO workspaces (id, slug, name, root_path, linked_project_id, origin_template_id, origin_template_slug, origin_version_id, origin_template_title, unreal_project_path, last_opened_at, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
                  ON CONFLICT(root_path) DO UPDATE SET
                     name = excluded.name,
                     linked_project_id = COALESCE(excluded.linked_project_id, workspaces.linked_project_id),
@@ -283,6 +297,7 @@ impl WorkspaceRegistryDb {
                     origin_template_slug = COALESCE(excluded.origin_template_slug, workspaces.origin_template_slug),
                     origin_version_id = COALESCE(excluded.origin_version_id, workspaces.origin_version_id),
                     origin_template_title = COALESCE(excluded.origin_template_title, workspaces.origin_template_title),
+                    unreal_project_path = COALESCE(excluded.unreal_project_path, workspaces.unreal_project_path),
                     last_opened_at = excluded.last_opened_at",
                 params![
                     ws.id,
@@ -294,12 +309,27 @@ impl WorkspaceRegistryDb {
                     ws.origin_template_slug,
                     ws.origin_version_id,
                     ws.origin_template_title,
+                    ws.unreal_project_path,
                     ws.last_opened_at,
                     ws.created_at,
                 ],
             )
             .map_err(|e| format!("Failed to upsert workspace into registry: {}", e))?;
 
+        Ok(())
+    }
+
+    pub fn set_workspace_unreal_project(
+        &self,
+        root_path: &str,
+        uproject_path: Option<&str>,
+    ) -> Result<(), String> {
+        self.conn
+            .execute(
+                "UPDATE workspaces SET unreal_project_path = ?1 WHERE root_path = ?2",
+                params![uproject_path, root_path],
+            )
+            .map_err(|e| format!("Failed to update workspace unreal_project_path: {}", e))?;
         Ok(())
     }
 
@@ -341,6 +371,7 @@ mod tests {
             origin_template_slug: Some("vfx-pack".to_string()),
             origin_version_id: Some("v1".to_string()),
             origin_template_title: Some("VFX Pack".to_string()),
+            unreal_project_path: None,
             last_opened_at: "2026-11-17T12:00:00Z".to_string(),
             created_at: "2026-11-17T10:00:00Z".to_string(),
         };

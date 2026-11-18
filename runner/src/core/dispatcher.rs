@@ -212,27 +212,55 @@ impl StageDispatcher {
                 .unwrap_or(false);
 
             if !has_project {
-                if let Ok((Some(cfg), _)) = crate::config::load_config(None, false) {
-                    if let Some(ref projects) = cfg.unreal_projects {
-                        let resolved = projects
-                            .get("local-default")
-                            .filter(|p| std::path::Path::new(p.trim()).is_file())
-                            .or_else(|| {
-                                projects
-                                    .values()
-                                    .find(|p| std::path::Path::new(p.trim()).is_file())
-                            });
-                        if let Some(uproject_path) = resolved {
-                            info!(
-                                "[Dispatcher] Injected Unreal .uproject from runner.toml: {}",
-                                uproject_path
-                            );
-                            task.environment_config.insert(
-                                "fullPathProject".to_string(),
-                                serde_json::Value::String(uproject_path.clone()),
-                            );
+                let mut resolved_uproject: Option<String> = None;
+
+                // 1. Prefer per-workspace unreal_project_path from AppData WorkspaceRegistryDb
+                if let (Some(data_dir), Ok(cwd)) = (dirs::data_dir(), std::env::current_dir()) {
+                    let registry_dir = data_dir.join("studio.forgity.desktop");
+                    if let Ok(registry) = forgity_core::workspace_registry::WorkspaceRegistryDb::open(&registry_dir) {
+                        let cwd_str = cwd.to_string_lossy().replace('\\', "/");
+                        if let Ok(Some(ws)) = registry.get_workspace_by_root_path(&cwd_str)
+                            .or_else(|_| registry.get_workspace_by_root_path(&cwd.to_string_lossy()))
+                        {
+                            if let Some(up) = ws.unreal_project_path.filter(|p| std::path::Path::new(p.trim()).is_file()) {
+                                info!(
+                                    "[Dispatcher] Injected Unreal .uproject from Workspace Registry: {}",
+                                    up
+                                );
+                                resolved_uproject = Some(up);
+                            }
                         }
                     }
+                }
+
+                // 2. Fallback to runner.toml [unreal_projects]
+                if resolved_uproject.is_none() {
+                    if let Ok((Some(cfg), _)) = crate::config::load_config(None, false) {
+                        if let Some(ref projects) = cfg.unreal_projects {
+                            let resolved = projects
+                                .get("local-default")
+                                .filter(|p| std::path::Path::new(p.trim()).is_file())
+                                .or_else(|| {
+                                    projects
+                                        .values()
+                                        .find(|p| std::path::Path::new(p.trim()).is_file())
+                                });
+                            if let Some(uproject_path) = resolved {
+                                info!(
+                                    "[Dispatcher] Injected Unreal .uproject from runner.toml: {}",
+                                    uproject_path
+                                );
+                                resolved_uproject = Some(uproject_path.clone());
+                            }
+                        }
+                    }
+                }
+
+                if let Some(uproject_path) = resolved_uproject {
+                    task.environment_config.insert(
+                        "fullPathProject".to_string(),
+                        serde_json::Value::String(uproject_path),
+                    );
                 }
             }
         }

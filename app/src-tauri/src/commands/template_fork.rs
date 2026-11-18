@@ -168,6 +168,7 @@ pub fn fork_template_into_local_workspace(
         origin_template_slug: params.template_slug,
         origin_version_id: Some(params.version_id),
         origin_template_title: Some(params.template_title),
+        unreal_project_path: None,
         last_opened_at: now.clone(),
         created_at: now,
     };

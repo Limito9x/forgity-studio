@@ -81,17 +81,33 @@ export function UnrealContentVaultWorkspace({
 
   const activeConstant = unrealConstants.find((c) => c.key === activeConstantKey) || unrealConstants[0] || null;
 
-  // 1. Load project mapping from runner.toml
+  // 1. Load project mapping from Workspace Registry (AppData), fallback to runner.toml
   const loadRunnerProjectMapping = useCallback(async () => {
     setIsLoadingMapping(true);
     try {
+      if (workspaceRoot) {
+        const wsUproject = await invoke<string | null>("get_workspace_unreal_project", {
+          rootPath: workspaceRoot,
+        });
+        if (wsUproject) {
+          const normalized = wsUproject.replace(/\\/g, "/");
+          const parentDir = normalized.slice(0, Math.max(0, normalized.lastIndexOf("/")));
+          setProjectMapping({
+            projectId,
+            uprojectPath: normalized,
+            contentDir: parentDir ? `${parentDir}/Content` : "",
+          });
+          return;
+        }
+      }
+
       const mapping = await invoke<UnrealProjectMapping | null>("get_runner_unreal_project", {
         workspaceRoot: workspaceRoot || null,
         projectId,
       });
       setProjectMapping(mapping);
     } catch (err: any) {
-      console.warn("Failed to read Unreal project from runner.toml", err);
+      console.warn("Failed to read Unreal project mapping", err);
     } finally {
       setIsLoadingMapping(false);
     }
@@ -139,14 +155,28 @@ export function UnrealContentVaultWorkspace({
         extensions: ["uproject"],
       });
       if (selected) {
-        const saved = await invoke<UnrealProjectMapping>("set_runner_unreal_project", {
-          workspaceRoot: workspaceRoot || null,
-          projectId,
-          uprojectPath: selected,
-        });
-        setProjectMapping(saved);
+        if (workspaceRoot) {
+          const savedPath = await invoke<string | null>("set_workspace_unreal_project", {
+            rootPath: workspaceRoot,
+            uprojectPath: selected,
+          });
+          const normalized = (savedPath || selected).replace(/\\/g, "/");
+          const parentDir = normalized.slice(0, Math.max(0, normalized.lastIndexOf("/")));
+          setProjectMapping({
+            projectId,
+            uprojectPath: normalized,
+            contentDir: parentDir ? `${parentDir}/Content` : "",
+          });
+        } else {
+          const saved = await invoke<UnrealProjectMapping>("set_runner_unreal_project", {
+            workspaceRoot: null,
+            projectId,
+            uprojectPath: selected,
+          });
+          setProjectMapping(saved);
+        }
         setCurrentSubPath("");
-        toast.success("Unreal project mapped in runner.toml!", {
+        toast.success("Unreal project linked to workspace!", {
           description: selected,
         });
       }

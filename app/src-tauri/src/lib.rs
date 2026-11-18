@@ -55,6 +55,8 @@ pub fn run() {
             cancel_local_pipeline,
             get_runner_unreal_project,
             set_runner_unreal_project,
+            get_workspace_unreal_project,
+            set_workspace_unreal_project,
             get_local_runner_config,
             save_local_runner_config,
             scan_local_dcc_executors,

@@ -379,6 +379,7 @@ pub fn register_workspace(
         origin_template_slug,
         origin_version_id,
         origin_template_title,
+        unreal_project_path: None,
         last_opened_at: now.clone(),
         created_at: now,
     };
@@ -430,6 +431,43 @@ pub fn reveal_workspace_in_explorer(root_path: String) -> Result<(), String> {
         Ok(())
     }
 }
+
+#[tauri::command]
+pub fn get_workspace_unreal_project(
+    app: tauri::AppHandle,
+    root_path: String,
+) -> Result<Option<String>, String> {
+    use tauri::Manager;
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to resolve app_data_dir: {}", e))?;
+    let registry = WorkspaceRegistryDb::open(&app_data_dir)?;
+    Ok(registry
+        .get_workspace_by_root_path(&root_path)?
+        .and_then(|ws| ws.unreal_project_path)
+        .filter(|p| !p.trim().is_empty()))
+}
+
+#[tauri::command]
+pub fn set_workspace_unreal_project(
+    app: tauri::AppHandle,
+    root_path: String,
+    uproject_path: Option<String>,
+) -> Result<Option<String>, String> {
+    use tauri::Manager;
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to resolve app_data_dir: {}", e))?;
+    let registry = WorkspaceRegistryDb::open(&app_data_dir)?;
+    let normalized = uproject_path
+        .map(|p| p.replace('\\', "/").trim().to_string())
+        .filter(|p| !p.is_empty());
+    registry.set_workspace_unreal_project(&root_path, normalized.as_deref())?;
+    Ok(normalized)
+}
+
 
 
 
