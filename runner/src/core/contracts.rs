@@ -27,6 +27,8 @@ pub struct StepExecution {
     pub name: String,
     #[serde(default)]
     pub script_path: String,
+    #[serde(default)]
+    pub inline_source: Option<String>,
     pub script_url: Option<String>,
     pub script_hash: Option<String>,
     pub entry_point: Option<String>,

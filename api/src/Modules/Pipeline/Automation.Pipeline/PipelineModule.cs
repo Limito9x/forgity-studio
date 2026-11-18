@@ -1,3 +1,4 @@
+using Automation.Pipeline.Extensions;
 using Automation.Pipeline.Infrastructure.Persistence;
 using Automation.SharedKernel.Abstractions.Modules;
 using Automation.SharedKernel.Extensions.Modules;
@@ -16,6 +17,7 @@ public sealed class PipelineModule : IModule, IPermissionModule
     {
         services.AddModuleDbContext<PipelineDbContext>(config, SchemaName);
         services.AddHttpClient();
+        services.AddPipelineAssetSlots();
     }
 
     public void ConfigureWolverine(WolverineOptions options) { }

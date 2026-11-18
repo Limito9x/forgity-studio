@@ -404,7 +404,7 @@ impl ComponentOrchestrator {
         };
 
         // Kiểm tra xem các Exec nodes có dùng chung 1 DCC host (blender hoặc unreal), cho phép python chạy ké
-        let mut resolved_execs: HashMap<String, (String, String, HashMap<String, Value>, Vec<String>)> = HashMap::new();
+        let mut resolved_execs: HashMap<String, (String, Option<String>, String, HashMap<String, Value>, Vec<String>)> = HashMap::new();
         let mut host_dcc_executor: Option<String> = None;
         for node in &doc.nodes {
             if is_start_node(node) || is_end_node(node) || is_pure_node(node) {
@@ -413,6 +413,7 @@ impl ComponentOrchestrator {
             let resolved = match self.resolver.resolve_script(&node.tool) {
                 Ok(r) => (
                     r.full_path.to_string_lossy().to_string(),
+                    r.inline_source,
                     node.executor.clone().unwrap_or(r.executor),
                     r.default_inputs,
                     r.requirements,
@@ -424,13 +425,13 @@ impl ComponentOrchestrator {
                             .clone()
                             .or_else(|| doc.executor.clone())
                             .unwrap_or_else(|| "python".to_string());
-                        (meta_path.to_string(), ex, HashMap::new(), Vec::new())
+                        (meta_path.to_string(), None, ex, HashMap::new(), Vec::new())
                     } else {
                         return Ok(None);
                     }
                 }
             };
-            let exec_lower = resolved.1.to_lowercase();
+            let exec_lower = resolved.2.to_lowercase();
             if exec_lower != "python" {
                 match &host_dcc_executor {
                     Some(existing) if existing != &exec_lower => return Ok(None),
@@ -473,11 +474,13 @@ impl ComponentOrchestrator {
             let is_pure = is_pure_node(&node_def);
             let mut inputs = HashMap::new();
             let mut script_path = String::new();
+            let mut inline_source: Option<String> = None;
             let mut dependencies = Vec::new();
 
             if !is_pure {
-                if let Some((path, _exec, defaults, deps)) = resolved_execs.get(&node_def.id) {
+                if let Some((path, inline_src, _exec, defaults, deps)) = resolved_execs.get(&node_def.id) {
                     script_path = path.clone();
+                    inline_source = inline_src.clone();
                     dependencies = deps.clone();
                     for (k, v) in defaults {
                         inputs.insert(k.clone(), v.clone());
@@ -527,6 +530,7 @@ impl ComponentOrchestrator {
                 step_type: if is_pure { "pure".to_string() } else { "script".to_string() },
                 name: node_def.label.clone().unwrap_or_else(|| node_def.id.clone()),
                 script_path,
+                inline_source,
                 script_url: None,
                 script_hash: None,
                 entry_point: if is_pure { Some(node_def.tool.clone()) } else { None },
@@ -644,10 +648,11 @@ impl ComponentOrchestrator {
             .await;
 
         // Resolve script path & executor từ workspace.db (hoặc fallback từ metadata nếu test)
-        let (script_path, executor, script_defaults, dependencies) =
+        let (script_path, inline_source, executor, script_defaults, dependencies) =
             match resolver.resolve_script(&node_def.tool) {
                 Ok(resolved) => (
                     resolved.full_path.to_string_lossy().to_string(),
+                    resolved.inline_source,
                     node_def
                         .executor
                         .clone()
@@ -659,6 +664,7 @@ impl ComponentOrchestrator {
                     if let Some(meta_path) = node_def.metadata.get("script_path").and_then(|v| v.as_str()) {
                         (
                             meta_path.to_string(),
+                            None,
                             node_def
                                 .executor
                                 .clone()
@@ -707,6 +713,7 @@ impl ComponentOrchestrator {
                 step_type: "script".to_string(),
                 name: node_def.label.clone().unwrap_or_else(|| node_def.id.clone()),
                 script_path,
+                inline_source,
                 script_url: None,
                 script_hash: None,
                 entry_point: None,

@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Automation.Files.Contracts;
+using Automation.Pipeline.Constants;
 using Automation.Pipeline.Domain.Entities;
 using Automation.Pipeline.Infrastructure.Persistence;
 using FastEndpoints;
@@ -52,7 +54,7 @@ public record CreateTemplateContainerResponse(
     int AssetCount
 );
 
-public class CreateTemplateContainerEndpoint(PipelineDbContext db)
+public class CreateTemplateContainerEndpoint(PipelineDbContext db, IAssetApi assetApi)
     : Endpoint<CreateTemplateContainerRequest, CreateTemplateContainerResponse>
 {
     public override void Configure()
@@ -199,6 +201,30 @@ public class CreateTemplateContainerEndpoint(PipelineDbContext db)
         }
 
         await db.SaveChangesAsync(ct);
+
+        // Link uploaded File-pin assets to TemplatePackage via Files Module (IAssetApi)
+        var linkItems = new List<AssetLinkRequestItem>();
+        foreach (var asset in req.Assets)
+        {
+            if (!string.IsNullOrWhiteSpace(asset.AssetId) && Guid.TryParse(asset.AssetId, out var assetGuid))
+            {
+                linkItems.Add(new AssetLinkRequestItem(assetGuid, asset.Name));
+            }
+        }
+        if (linkItems.Count > 0)
+        {
+            var linkRes = await assetApi.VerifyAndLinkAsync(
+                linkItems,
+                ownerEntityType: "TemplatePackage",
+                slotKey: PipelineAssetSlots.TemplatePinAsset,
+                ownerEntityId: pkg.Id.ToString(),
+                ct: ct
+            );
+            if (linkRes.IsFailed)
+            {
+                ThrowError($"Failed to link template assets: {string.Join("; ", linkRes.Errors.Select(e => e.Message))}");
+            }
+        }
 
         await Send.OkAsync(new CreateTemplateContainerResponse(
             pkg.Id,

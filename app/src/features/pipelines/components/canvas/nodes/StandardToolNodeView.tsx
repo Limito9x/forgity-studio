@@ -37,6 +37,14 @@ export function StandardToolNodeView({ id: _id, data, selected, missingDefinitio
     ? "border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-500/10 font-semibold"
     : "capitalize";
 
+  const sourceRef = definition?.sourceRef as
+    | { kind?: string; ownerSlug?: string; originTemplate?: { slug?: string } }
+    | undefined;
+  const displaySubtitle =
+    sourceRef?.kind === "template"
+      ? `template:${sourceRef.originTemplate?.slug || sourceRef.ownerSlug || "cloud"}:${nodeData.refId.replace(/^local:(script:|component:)?/, "")}`
+      : nodeData.refId;
+
   return (
     <NodeCard
       selected={selected}
@@ -48,7 +56,7 @@ export function StandardToolNodeView({ id: _id, data, selected, missingDefinitio
         iconBgClass={isUnresolvedScript ? "bg-amber-500/15 text-amber-500" : "bg-blue-500/15 text-blue-500"}
         headerBgClass="border-border/70 bg-muted/50"
         title={resolved.label}
-        subtitle={nodeData.refId}
+        subtitle={displaySubtitle}
         badgeLabel={badgeLabel}
         badgeVariantClass={badgeVariantClass}
         status={nodeData.executionStatus}

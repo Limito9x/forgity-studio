@@ -475,8 +475,8 @@ def main():
                 overall_success = False
                 error_msg = step_err
                 print(f"[GuestRunner] ERROR in pure step '{step_name}': {step_err}", flush=True)
-        inline_source = step.get("inline_source") or step.get("inlineSource")
-        if inline_source and isinstance(inline_source, str) and inline_source.strip():
+        elif (step.get("inline_source") or step.get("inlineSource")) and isinstance(step.get("inline_source") or step.get("inlineSource"), str) and (step.get("inline_source") or step.get("inlineSource")).strip():
+            inline_source = step.get("inline_source") or step.get("inlineSource")
             try:
                 import types
                 sys.argv = [f"<cloud:{step_name}>"]

@@ -188,13 +188,18 @@ function collectLocalFilePins(
 
       for (const pin of pins) {
         if (!isRecord(pin)) continue;
+        const primitive = typeof pin.primitiveType === "string" ? pin.primitiveType : undefined;
         const pinType =
           typeof pin.dataType === "string"
             ? pin.dataType
-            : typeof pin.primitiveType === "string"
-              ? pin.primitiveType
-              : pin.type;
-        if (pinType !== "File" && pinType !== "FilePath") continue;
+            : primitive ?? pin.type;
+        const isFilePin =
+          primitive === "File" ||
+          primitive === "FilePath" ||
+          pinType === "File" ||
+          pinType === "FilePath" ||
+          pinType === "Asset";
+        if (!isFilePin) continue;
 
         const pinId =
           typeof pin.id === "string" && pin.id
@@ -205,22 +210,30 @@ function collectLocalFilePins(
         if (!pinId || !nodeId) continue;
 
         const value = configValues[pinId];
-        if (
-          typeof value !== "string" ||
-          !value.trim() ||
-          !isLocalPathValue(value) ||
-          (!value.includes("/") && !value.includes("\\") && !value.startsWith("."))
+        if (typeof value !== "string" || !value.trim()) continue;
+
+        let resolvedLocalPath: string | null = null;
+        if (value.startsWith("workspace://assets/")) {
+          const relName = value.slice("workspace://assets/".length);
+          if (relName) {
+            resolvedLocalPath = `assets/${relName}`;
+          }
+        } else if (
+          isLocalPathValue(value) &&
+          (value.includes("/") || value.includes("\\") || value.startsWith("."))
         ) {
-          continue;
+          resolvedLocalPath = value;
         }
+
+        if (!resolvedLocalPath) continue;
 
         candidates.push({
           key: `${graph.slug}:${nodeId}:${pinId}`,
           nodeId,
           node,
           pinId,
-          filePath: value,
-          fileName: getFileName(value),
+          filePath: resolvedLocalPath,
+          fileName: getFileName(resolvedLocalPath),
         });
       }
     }

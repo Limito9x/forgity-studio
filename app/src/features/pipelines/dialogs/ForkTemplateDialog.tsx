@@ -223,9 +223,15 @@ export function ForkTemplateDialog({
         };
       });
 
+      const resolveDownloadUrl = (rawUrl: string): string => {
+        if (/^https?:\/\//i.test(rawUrl)) return rawUrl;
+        const baseUrl = (import.meta.env.VITE_API_URL || "http://localhost:5189").replace(/\/+$/, "");
+        return `${baseUrl}${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`;
+      };
+
       const stagedAssetPayloads = await Promise.all(
         Array.from(assetsToDownload.values()).map(async (asset) => {
-          const resp = await fetch(asset.downloadUrl);
+          const resp = await fetch(resolveDownloadUrl(asset.downloadUrl));
           if (!resp.ok) {
             throw new Error(`Failed to download template asset "${asset.fileName}" (${resp.status}).`);
           }
