@@ -61,9 +61,10 @@ export function useLocalWorkspaceConfig(targetId: string, initialExplicitRootPat
               name: folderName,
               rootPath: initResult.rootPath,
               linkedProjectId: targetId.startsWith("ws_") ? null : targetId,
-              originTemplateId: null,
-              originVersionId: null,
-              originTemplateTitle: null,
+              originTemplateId: initResult.originTemplateId ?? null,
+              originTemplateSlug: initResult.originTemplateSlug ?? null,
+              originVersionId: initResult.originVersionId ?? null,
+              originTemplateTitle: initResult.originTemplateTitle ?? null,
             });
           } catch {
             // non-blocking

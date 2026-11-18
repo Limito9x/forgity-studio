@@ -11,6 +11,10 @@ export interface WorkspaceInitResult {
   localPaletteJson?: string | null;
   localStructsJson?: string | null;
   localConstantsJson?: string | null;
+  originTemplateId?: string | null;
+  originTemplateSlug?: string | null;
+  originVersionId?: string | null;
+  originTemplateTitle?: string | null;
 }
 
 export type ConstantDataType = "String" | "Array" | "Path" | "Number" | "Boolean";

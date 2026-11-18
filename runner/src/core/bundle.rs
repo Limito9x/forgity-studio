@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::dag::DagPipelineDocument;
-use super::traits::{QuotaGate, ResolvedConstantSpec, ResolvedScript, ResourceResolver};
+use super::traits::{ResolvedConstantSpec, ResolvedScript, ResourceResolver};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -108,50 +108,6 @@ impl ResourceResolver for BundleResourceResolver {
             .get(constant_ref)
             .or_else(|| self.constants.get(bare))
             .cloned())
-    }
-}
-
-/// QuotaGate for Cloud Templates: deducts quota per component run via Backend API.
-pub struct CloudTemplateQuotaGate {
-    api_url: String,
-    lease: CloudLeaseConfig,
-    http: reqwest::Client,
-}
-
-impl CloudTemplateQuotaGate {
-    pub fn new(api_url: String, lease: CloudLeaseConfig) -> Self {
-        Self {
-            api_url: api_url.trim_end_matches('/').to_string(),
-            lease,
-            http: reqwest::Client::new(),
-        }
-    }
-}
-
-#[async_trait]
-impl QuotaGate for CloudTemplateQuotaGate {
-    async fn check_and_consume(&self, unit_count: usize) -> Result<()> {
-        if unit_count == 0 {
-            return Ok(());
-        }
-        let url = format!("{}/api/templates/consume-quota", self.api_url);
-        let resp = self
-            .http
-            .post(&url)
-            .json(&serde_json::json!({
-                "templateViewId": self.lease.template_view_id,
-                "machineKey": self.lease.machine_key,
-                "count": unit_count,
-            }))
-            .send()
-            .await?;
-
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let text = resp.text().await.unwrap_or_default();
-            anyhow::bail!("Template quota check failed ({}): {}", status, text);
-        }
-        Ok(())
     }
 }
 

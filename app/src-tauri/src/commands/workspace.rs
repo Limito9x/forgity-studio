@@ -19,6 +19,10 @@ pub struct WorkspaceInitResult {
     pub local_palette_json: Option<String>,
     pub local_structs_json: Option<String>,
     pub local_constants_json: Option<String>,
+    pub origin_template_id: Option<String>,
+    pub origin_template_slug: Option<String>,
+    pub origin_version_id: Option<String>,
+    pub origin_template_title: Option<String>,
 }
 
 #[tauri::command]
@@ -79,12 +83,21 @@ pub fn open_or_init_workspace_root(root_path: String) -> Result<WorkspaceInitRes
     let local_structs_json = db.load_structs_json().ok().filter(|s| s != "[]");
     let local_constants_json = db.load_constants_json().ok().filter(|s| s != "[]");
 
+    let origin_template_id = db.get_workspace_meta("origin_template_id").ok().flatten().filter(|s| !s.trim().is_empty());
+    let origin_template_slug = db.get_workspace_meta("origin_template_slug").ok().flatten().filter(|s| !s.trim().is_empty());
+    let origin_version_id = db.get_workspace_meta("origin_version_id").ok().flatten().filter(|s| !s.trim().is_empty());
+    let origin_template_title = db.get_workspace_meta("origin_template_title").ok().flatten().filter(|s| !s.trim().is_empty());
+
     Ok(WorkspaceInitResult {
         root_path,
         config,
         local_palette_json,
         local_structs_json,
         local_constants_json,
+        origin_template_id,
+        origin_template_slug,
+        origin_version_id,
+        origin_template_title,
     })
 }
 
