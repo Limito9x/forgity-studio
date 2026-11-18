@@ -1,10 +1,21 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::node_contracts;
 use crate::workspace_db::WorkspaceDb;
+
+fn sha256_file(path: &Path) -> Option<String> {
+    if !path.is_file() {
+        return None;
+    }
+    let bytes = std::fs::read(path).ok()?;
+    let mut hasher = Sha256::new();
+    hasher.update(&bytes);
+    Some(hex::encode(hasher.finalize()))
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,98 +79,151 @@ pub fn build_execution_bundle(
     };
 
     if let Some(ref db) = db_opt {
+        let mut raw_palette_items: Vec<Value> = Vec::new();
+
+        // 1. From local_scripts
         if let Ok(palette_json) = db.load_palette_json() {
             if let Ok(parsed_palette) = serde_json::from_str::<Value>(&palette_json) {
-                let entries: Vec<(Option<String>, Value)> = match parsed_palette {
-                    Value::Object(map) => map.into_iter().map(|(k, v)| (Some(k), v)).collect(),
-                    Value::Array(arr) => arr.into_iter().map(|v| (None, v)).collect(),
-                    _ => Vec::new(),
-                };
-
-                for (map_key, item) in entries {
-                    let key = item
-                        .get("key")
-                        .and_then(|v| v.as_str())
-                        .filter(|s| !s.is_empty())
-                        .map(|s| s.to_string())
-                        .or(map_key)
-                        .unwrap_or_default();
-                    if key.is_empty() {
-                        continue;
-                    }
-                    let full_path = item
-                        .get("fullPath")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or_default()
-                        .to_string();
-                    let executor = item
-                        .get("executor")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("python")
-                        .to_string();
-
-                    let mut default_inputs = HashMap::new();
-                    let inputs_arr = item
-                        .get("dataInputs")
-                        .and_then(|v| v.as_array())
-                        .or_else(|| item.get("inputs").and_then(|v| v.as_array()));
-                    if let Some(inputs) = inputs_arr {
-                        for pin in inputs {
-                            if let (Some(pid), Some(def_val)) = (
-                                pin.get("id").and_then(|v| v.as_str()),
-                                pin.get("defaultValue"),
-                            ) {
-                                if !def_val.is_null() {
-                                    default_inputs.insert(pid.to_string(), def_val.clone());
-                                }
-                            }
-                        }
-                    }
-
-                    let mut requirements = Vec::new();
-                    if let Some(deps) = item.get("dependencies").and_then(|v| v.as_array()) {
-                        for dep in deps {
-                            let pkg = dep
-                                .get("packageName")
-                                .and_then(|v| v.as_str())
-                                .filter(|s| !s.is_empty())
-                                .or_else(|| {
-                                    dep.get("module")
-                                        .and_then(|v| v.as_str())
-                                        .filter(|s| !s.is_empty())
-                                });
-                            if let Some(p) = pkg {
-                                requirements.push(p.to_string());
-                            }
-                        }
-                    }
-
-                    let inline_source = item
-                        .get("inlineSource")
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string());
-                    let source_ref = item.get("sourceRef").cloned();
-                    let content_hash = source_ref
-                        .as_ref()
-                        .and_then(|sr| sr.get("contentHash"))
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string());
-
-                    scripts_map.insert(
-                        key.clone(),
-                        ResolvedScriptBundleDto {
-                            key,
-                            executor,
-                            full_path,
-                            inline_source,
-                            content_hash,
-                            source_ref,
-                            requirements,
-                            default_inputs,
-                        },
-                    );
+                match parsed_palette {
+                    Value::Object(map) => raw_palette_items.extend(map.into_values()),
+                    Value::Array(arr) => raw_palette_items.extend(arr),
+                    _ => {}
                 }
             }
+        }
+
+        // 2. From workspace_palette (forked template contracts, etc.)
+        if let Ok(persisted_contracts) = db.load_workspace_palette_contracts_raw() {
+            for raw_json in persisted_contracts {
+                if let Ok(item) = serde_json::from_str::<Value>(&raw_json) {
+                    raw_palette_items.push(item);
+                }
+            }
+        }
+
+        for item in raw_palette_items {
+            let key = item
+                .get("key")
+                .or_else(|| item.get("refId"))
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .unwrap_or_default();
+            if key.is_empty() {
+                continue;
+            }
+
+            let executor = item
+                .get("executor")
+                .and_then(|v| v.as_str())
+                .unwrap_or("python")
+                .to_string();
+
+            let mut default_inputs = HashMap::new();
+            let inputs_arr = item
+                .get("dataInputs")
+                .and_then(|v| v.as_array())
+                .or_else(|| item.get("inputs").and_then(|v| v.as_array()));
+            if let Some(inputs) = inputs_arr {
+                for pin in inputs {
+                    if let (Some(pid), Some(def_val)) = (
+                        pin.get("id").and_then(|v| v.as_str()),
+                        pin.get("defaultValue"),
+                    ) {
+                        if !def_val.is_null() {
+                            default_inputs.insert(pid.to_string(), def_val.clone());
+                        }
+                    }
+                }
+            }
+
+            let mut requirements = Vec::new();
+            if let Some(deps) = item.get("dependencies").and_then(|v| v.as_array()) {
+                for dep in deps {
+                    let pkg = dep
+                        .get("packageName")
+                        .and_then(|v| v.as_str())
+                        .filter(|s| !s.is_empty())
+                        .or_else(|| {
+                            dep.get("module")
+                                .and_then(|v| v.as_str())
+                                .filter(|s| !s.is_empty())
+                        });
+                    if let Some(p) = pkg {
+                        requirements.push(p.to_string());
+                    }
+                }
+            }
+
+            let inline_source = item
+                .get("inlineSource")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let source_ref = item.get("sourceRef").cloned();
+            let content_hash = source_ref
+                .as_ref()
+                .and_then(|sr| sr.get("contentHash"))
+                .and_then(|v| v.as_str())
+                .or_else(|| item.get("contentHash").and_then(|v| v.as_str()))
+                .map(|s| s.to_string());
+
+            // Physical path verification against workspace disk
+            let candidate_full_path = item
+                .get("fullPath")
+                .and_then(|v| v.as_str())
+                .map(PathBuf::from)
+                .or_else(|| {
+                    let bare_key = key
+                        .strip_prefix("local:script:")
+                        .or_else(|| key.strip_prefix("local:"))
+                        .unwrap_or(&key);
+                    let p = root_path.join("pipeline-scripts").join(bare_key);
+                    if p.is_file() {
+                        Some(p)
+                    } else {
+                        None
+                    }
+                });
+
+            let verified_full_path = if let Some(ref p) = candidate_full_path {
+                if p.is_file() {
+                    if let Some(ref expected_hash) = content_hash {
+                        if !expected_hash.is_empty() {
+                            if let Some(actual_hash) = sha256_file(p) {
+                                if actual_hash.eq_ignore_ascii_case(expected_hash) {
+                                    p.to_string_lossy().to_string()
+                                } else {
+                                    String::new()
+                                }
+                            } else {
+                                String::new()
+                            }
+                        } else {
+                            p.to_string_lossy().to_string()
+                        }
+                    } else {
+                        p.to_string_lossy().to_string()
+                    }
+                } else {
+                    String::new()
+                }
+            } else {
+                String::new()
+            };
+
+            scripts_map.insert(
+                key.clone(),
+                ResolvedScriptBundleDto {
+                    key,
+                    executor,
+                    full_path: verified_full_path,
+                    inline_source,
+                    content_hash,
+                    source_ref,
+                    requirements,
+                    default_inputs,
+                },
+            );
         }
 
         if let Ok(const_items) = node_contracts::load_constant_items_from_db(db) {
@@ -214,6 +278,31 @@ pub fn build_execution_bundle(
         }
     }
 
+    let mut cloud_lease: Option<Value> = None;
+    if let Some(ref db) = db_opt {
+        if let Ok(Some(origin_template_id)) = db.get_workspace_meta("origin_template_id") {
+            if !origin_template_id.trim().is_empty() {
+                let origin_version_id = db
+                    .get_workspace_meta("origin_version_id")
+                    .ok()
+                    .flatten()
+                    .unwrap_or_default();
+                let origin_template_slug = db
+                    .get_workspace_meta("origin_template_slug")
+                    .ok()
+                    .flatten()
+                    .unwrap_or_default();
+                cloud_lease = Some(serde_json::json!({
+                    "templateViewId": origin_template_id,
+                    "templatePackageId": origin_template_id,
+                    "pipelineVersionId": origin_version_id,
+                    "templateSlug": origin_template_slug,
+                    "machineKey": "",
+                }));
+            }
+        }
+    }
+
     Ok(serde_json::json!({
         "bundleVersion": 2,
         "runId": run_id,
@@ -223,5 +312,82 @@ pub fn build_execution_bundle(
         "scripts": scripts_map,
         "components": components_map,
         "constants": constants_map,
+        "cloudLease": cloud_lease,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_execution_bundle_distinguishes_local_and_template_scripts() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        let db = WorkspaceDb::open(root).unwrap();
+
+        // 1. Create a physical local script in pipeline-scripts/
+        let scripts_dir = root.join("pipeline-scripts").join("local");
+        std::fs::create_dir_all(&scripts_dir).unwrap();
+        let local_file = scripts_dir.join("test.py");
+        std::fs::write(&local_file, "print('hello')").unwrap();
+        let local_hash = sha256_file(&local_file).unwrap();
+
+        let local_script = serde_json::json!({
+            "key": "local:script:local/test.py",
+            "executor": "python",
+            "fullPath": local_file.to_string_lossy().to_string(),
+            "contentHash": local_hash,
+            "inputs": []
+        });
+        db.save_palette_json(&serde_json::to_string(&vec![local_script]).unwrap())
+            .unwrap();
+
+        // 2. Add a template-only script to workspace_palette (no file on disk)
+        let template_script = serde_json::json!({
+            "refId": "script:remote/bake.py",
+            "key": "script:remote/bake.py",
+            "name": "Bake Mesh",
+            "executor": "blender",
+            "contentHash": "8f3a9b1c00000000000000000000000000000000000000000000000000000000",
+            "sourceRef": {
+                "kind": "template",
+                "ref": "script:remote/bake.py",
+                "ownerSlug": "vfx-pack",
+                "contentHash": "8f3a9b1c00000000000000000000000000000000000000000000000000000000"
+            }
+        });
+        db.upsert_workspace_palette_contract(
+            "script:remote/bake.py",
+            &serde_json::to_string(&template_script).unwrap(),
+            "template",
+            "vfx-pack",
+            Some("8f3a9b1c00000000000000000000000000000000000000000000000000000000"),
+        )
+        .unwrap();
+
+        // 3. Set workspace origin template metadata
+        db.set_workspace_meta("origin_template_id", "tpl-123").unwrap();
+        db.set_workspace_meta("origin_version_id", "ver-456").unwrap();
+        db.set_workspace_meta("origin_template_slug", "vfx-pack").unwrap();
+
+        let yaml_content = "name: test_pipe\nkind: component\nexecutor: python\nnodes: []\nedges: []\n";
+        let bundle_val = build_execution_bundle(root, "run-1", yaml_content, "component", HashMap::new()).unwrap();
+
+        let scripts = bundle_val.get("scripts").unwrap().as_object().unwrap();
+        let local_dto = scripts.get("local:script:local/test.py").unwrap();
+        assert_eq!(local_dto.get("fullPath").unwrap().as_str().unwrap(), local_file.to_string_lossy().to_string());
+
+        let template_dto = scripts.get("script:remote/bake.py").unwrap();
+        assert_eq!(template_dto.get("fullPath").unwrap().as_str().unwrap(), "");
+        assert_eq!(
+            template_dto.get("contentHash").unwrap().as_str().unwrap(),
+            "8f3a9b1c00000000000000000000000000000000000000000000000000000000"
+        );
+
+        let cloud_lease = bundle_val.get("cloudLease").unwrap();
+        assert_eq!(cloud_lease.get("templatePackageId").unwrap().as_str().unwrap(), "tpl-123");
+        assert_eq!(cloud_lease.get("pipelineVersionId").unwrap().as_str().unwrap(), "ver-456");
+        assert_eq!(cloud_lease.get("templateSlug").unwrap().as_str().unwrap(), "vfx-pack");
+    }
 }

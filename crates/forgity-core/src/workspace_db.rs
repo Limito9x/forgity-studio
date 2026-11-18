@@ -108,6 +108,11 @@ impl WorkspaceDb {
                 content_hash TEXT,
                 updated_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS workspace_meta (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
             ",
         )
         .map_err(|e| format!("Failed to initialize workspace.db schema: {}", e))?;
@@ -296,6 +301,32 @@ impl WorkspaceDb {
             .execute("DELETE FROM workspace_palette", [])
             .map_err(|e| format!("Failed to clear workspace_palette: {}", e))?;
         Ok(())
+    }
+
+    pub fn set_workspace_meta(&self, key: &str, value: &str) -> Result<(), String> {
+        self.conn
+            .execute(
+                "INSERT INTO workspace_meta (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                params![key, value],
+            )
+            .map_err(|e| format!("Failed to set workspace_meta '{}': {}", key, e))?;
+        Ok(())
+    }
+
+    pub fn get_workspace_meta(&self, key: &str) -> Result<Option<String>, String> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT value FROM workspace_meta WHERE key = ?1")
+            .map_err(|e| format!("Failed to prepare workspace_meta query: {}", e))?;
+        let mut rows = stmt
+            .query(params![key])
+            .map_err(|e| format!("Failed to query workspace_meta: {}", e))?;
+        if let Some(row) = rows.next().map_err(|e| e.to_string())? {
+            Ok(Some(row.get(0).map_err(|e| e.to_string())?))
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn save_palette_json(&self, palette_json: &str) -> Result<(), String> {

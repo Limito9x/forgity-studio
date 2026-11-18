@@ -88,6 +88,14 @@ pub fn fork_template_into_local_workspace(
         let _ = db.save_constants_json(consts);
     }
 
+    // Persist origin template metadata inside workspace.db
+    let _ = db.set_workspace_meta("origin_template_id", &params.template_id);
+    let _ = db.set_workspace_meta("origin_version_id", &params.version_id);
+    if let Some(ref slug) = params.template_slug {
+        let _ = db.set_workspace_meta("origin_template_slug", slug);
+    }
+    let _ = db.set_workspace_meta("origin_template_title", &params.template_title);
+
     // 3. Stage pipelines into pipelines/ and index into local_pipelines
     let mut staged_pipelines_count = 0;
     for pipe in &params.pipelines {
