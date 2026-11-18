@@ -588,9 +588,20 @@ export function TemplateContainerBuilder({
       ) satisfies TemplateGraphSnapshot[];
 
       const templateSlug = slugifyTemplateName(templateName);
-      const scriptHashByKey = new Map(
-        lastManifest.scripts.map((s) => [s.key, s.contentHash])
-      );
+
+      const normalizeScriptKey = (raw: string) =>
+        raw.replace(/^local:(script:)?/, "").trim();
+
+      const scriptHashByKey = new Map<string, string>();
+      for (const s of lastManifest.scripts) {
+        if (s.contentHash) {
+          scriptHashByKey.set(s.key, s.contentHash);
+          const bare = normalizeScriptKey(s.key);
+          scriptHashByKey.set(bare, s.contentHash);
+          scriptHashByKey.set(`local:${bare}`, s.contentHash);
+          scriptHashByKey.set(`local:script:${bare}`, s.contentHash);
+        }
+      }
 
       const localNodeContracts = await loadLocalNodeContracts(lastManifest.rootPath);
       const usedNodeRefs = new Set(
@@ -608,18 +619,24 @@ export function TemplateContainerBuilder({
         })
         .map((item) => {
           const currentSourceRef = item.sourceRef;
+          const bareRefId = normalizeScriptKey(item.refId);
           const scriptKey =
             item.scriptKey ??
-            ("scriptKey" in (currentSourceRef ?? {}) ? (currentSourceRef as any).scriptKey : undefined);
+            ("scriptKey" in (currentSourceRef ?? {}) ? (currentSourceRef as any).scriptKey : undefined) ??
+            bareRefId;
           const currentHash =
             "contentHash" in (currentSourceRef ?? {}) ? (currentSourceRef as any).contentHash : undefined;
           const contentHash =
-            (scriptKey ? scriptHashByKey.get(scriptKey) : undefined) ?? currentHash;
+            scriptHashByKey.get(item.refId) ??
+            scriptHashByKey.get(bareRefId) ??
+            (scriptKey ? scriptHashByKey.get(scriptKey) : undefined) ??
+            currentHash ??
+            "";
           const nextSourceRef: PaletteNodeSourceRef =
             currentSourceRef?.kind === "template"
               ? {
                   ...currentSourceRef,
-                  contentHash: contentHash ?? currentSourceRef.contentHash,
+                  contentHash: contentHash || currentSourceRef.contentHash,
                   ref: currentSourceRef.ref ?? item.refId,
                   ownerSlug: currentSourceRef.ownerSlug ?? templateSlug,
                 }
@@ -630,7 +647,7 @@ export function TemplateContainerBuilder({
                   slug: templateSlug,
                   refId: item.refId,
                   scriptKey: scriptKey ?? undefined,
-                  contentHash: contentHash ?? "",
+                  contentHash: contentHash,
                   originTemplate: {
                     slug: templateSlug,
                   },
