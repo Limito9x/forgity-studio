@@ -70,6 +70,7 @@ impl BundleResourceResolver {
     }
 }
 
+#[async_trait]
 impl ResourceResolver for BundleResourceResolver {
     fn resolve_script(&self, tool_ref: &str) -> Result<ResolvedScript> {
         let bare = tool_ref
@@ -160,7 +161,7 @@ pub struct CloudTemplateResourceResolver {
     inner: BundleResourceResolver,
     api_url: String,
     lease: CloudLeaseConfig,
-    ram_cache: Arc<DashMap<String, String>>,
+    ram_cache_by_hash: Arc<DashMap<String, String>>,
     http: reqwest::Client,
 }
 
@@ -170,12 +171,13 @@ impl CloudTemplateResourceResolver {
             inner: BundleResourceResolver::from_bundle(bundle),
             api_url: api_url.trim_end_matches('/').to_string(),
             lease,
-            ram_cache: Arc::new(DashMap::new()),
+            ram_cache_by_hash: Arc::new(DashMap::new()),
             http: reqwest::Client::new(),
         }
     }
 }
 
+#[async_trait]
 impl ResourceResolver for CloudTemplateResourceResolver {
     fn resolve_script(&self, tool_ref: &str) -> Result<ResolvedScript> {
         let mut script = self.inner.resolve_script(tool_ref)?;
@@ -183,88 +185,18 @@ impl ResourceResolver for CloudTemplateResourceResolver {
             return Ok(script);
         }
 
-        if let Some(cached) = self.ram_cache.get(&script.key) {
-            script.inline_source = Some(cached.value().clone());
-            return Ok(script);
-        }
-
-        let is_template_ref = script
-            .source_ref
-            .as_ref()
-            .and_then(|sr| sr.get("kind"))
-            .and_then(|v| v.as_str())
-            == Some("template");
-
-        let source_code = if is_template_ref && script.content_hash.as_deref().is_some_and(|h| !h.is_empty()) && self.lease.pipeline_version_id.is_empty() {
-            let hash = script.content_hash.as_deref().unwrap();
-            let url = format!("{}/api/cloud-data/scripts/by-hash/{}?key={}", self.api_url, hash, script.key);
-            let payload: Value = tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async {
-                    let resp = self.http.get(&url).send().await?;
-                    if !resp.status().is_success() {
-                        let status = resp.status();
-                        let text = resp.text().await.unwrap_or_default();
-                        anyhow::bail!("Failed to fetch template script '{}' by hash ({}): {}", script.key, status, text);
-                    }
-                    Ok::<Value, anyhow::Error>(resp.json().await?)
-                })
-            })?;
-            payload
-                .get("sourceCode")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string()
-        } else {
-            let url = format!("{}/api/templates/acquire-script", self.api_url);
-            let payload: Value = tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async {
-                    let resp = self
-                        .http
-                        .post(&url)
-                        .json(&serde_json::json!({
-                            "pipelineVersionId": self.lease.pipeline_version_id,
-                            "scriptKey": script.key,
-                            "machineKey": self.lease.machine_key,
-                        }))
-                        .send()
-                        .await?;
-
-                    if !resp.status().is_success() {
-                        let status = resp.status();
-                        let text = resp.text().await.unwrap_or_default();
-                        anyhow::bail!("Failed to acquire cloud script '{}' ({}): {}", script.key, status, text);
-                    }
-
-                    Ok::<Value, anyhow::Error>(resp.json().await?)
-                })
-            })?;
-            payload
-                .get("sourceCode")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string()
-        };
-
-        if let Some(ref expected_hash) = script.content_hash {
-            if !expected_hash.is_empty() {
-                use sha2::{Digest, Sha256};
-                let mut hasher = Sha256::new();
-                hasher.update(source_code.as_bytes());
-                let actual_hash = hex::encode(hasher.finalize());
-                if !actual_hash.eq_ignore_ascii_case(expected_hash) {
-                    anyhow::bail!(
-                        "Template script '{}' SHA-256 mismatch! Expected {}, got {}",
-                        script.key,
-                        expected_hash,
-                        actual_hash
-                    );
-                }
+        if let Some(ref hash) = script.content_hash {
+            if let Some(cached) = self.ram_cache_by_hash.get(&hash.to_lowercase()) {
+                script.inline_source = Some(cached.value().clone());
+                return Ok(script);
             }
         }
 
-        self.ram_cache.insert(script.key.clone(), source_code.clone());
-        script.inline_source = Some(source_code);
-        Ok(script)
+        anyhow::bail!(
+            "Script '{}' (hash: {:?}) was not pre-flight loaded into RAM cache before execution",
+            script.key,
+            script.content_hash
+        );
     }
 
     fn resolve_component(&self, component_ref: &str) -> Result<DagPipelineDocument> {
@@ -273,6 +205,108 @@ impl ResourceResolver for CloudTemplateResourceResolver {
 
     fn resolve_constant_spec(&self, constant_ref: &str) -> Result<Option<ResolvedConstantSpec>> {
         self.inner.resolve_constant_spec(constant_ref)
+    }
+
+    async fn preflight_component(&self, doc: &DagPipelineDocument, unit_count: usize) -> Result<()> {
+        let mut template_hashes = std::collections::HashSet::new();
+
+        for node in &doc.nodes {
+            let tool_lower = node.tool.to_ascii_lowercase();
+            if tool_lower == "start"
+                || tool_lower == "return"
+                || tool_lower.starts_with("local:constant:")
+                || tool_lower.starts_with("local:pure:")
+                || node.executor.as_deref() == Some("pure")
+            {
+                continue;
+            }
+
+            if let Ok(script) = self.inner.resolve_script(&node.tool) {
+                // If script has a valid local file on disk, it's user's local script -> free!
+                if !script.full_path.as_os_str().is_empty() && script.full_path.is_file() {
+                    continue;
+                }
+                // If it has a content_hash but no local file, it's a template script -> requires cloud acquire
+                if let Some(ref h) = script.content_hash {
+                    if !h.trim().is_empty() {
+                        template_hashes.insert(h.trim().to_lowercase());
+                    }
+                }
+            }
+        }
+
+        if template_hashes.is_empty() {
+            return Ok(());
+        }
+
+        // Identify which hashes are already in RAM
+        let mut already_cached = Vec::new();
+        let mut needed_hashes = Vec::new();
+        for h in &template_hashes {
+            if self.ram_cache_by_hash.contains_key(h) {
+                already_cached.push(h.clone());
+            } else {
+                needed_hashes.push(h.clone());
+            }
+        }
+
+        let url = format!("{}/api/templates/acquire-component-scripts", self.api_url);
+        let resp = self
+            .http
+            .post(&url)
+            .json(&serde_json::json!({
+                "templatePackageId": self.lease.template_view_id,
+                "pipelineVersionId": if self.lease.pipeline_version_id.is_empty() { None } else { Some(&self.lease.pipeline_version_id) },
+                "machineKey": self.lease.machine_key,
+                "scriptHashes": template_hashes.into_iter().collect::<Vec<_>>(),
+                "unitCount": unit_count,
+                "alreadyCachedHashes": already_cached,
+            }))
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let text = resp.text().await.unwrap_or_default();
+            anyhow::bail!(
+                "Pre-flight template script acquisition failed ({}): {}",
+                status,
+                text
+            );
+        }
+
+        let body: Value = resp.json().await?;
+        if let Some(scripts_arr) = body.get("scripts").and_then(|v| v.as_array()) {
+            use sha2::{Digest, Sha256};
+            for item in scripts_arr {
+                let returned_hash = item
+                    .get("scriptHash")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_lowercase();
+                let source_code = item
+                    .get("sourceCode")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+
+                // Strict SHA-256 verification
+                let mut hasher = Sha256::new();
+                hasher.update(source_code.as_bytes());
+                let actual_hash = hex::encode(hasher.finalize()).to_lowercase();
+
+                if !actual_hash.eq_ignore_ascii_case(&returned_hash) {
+                    anyhow::bail!(
+                        "Template script SHA-256 mismatch! Server returned {}, computed {}",
+                        returned_hash,
+                        actual_hash
+                    );
+                }
+
+                self.ram_cache_by_hash.insert(returned_hash, source_code.to_string());
+            }
+        }
+
+        Ok(())
     }
 }
 

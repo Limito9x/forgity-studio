@@ -204,8 +204,16 @@ pub struct ResolvedConstantSpec {
 }
 
 /// Cổng tra cứu tài nguyên cho Engine (tách Orchestrator khỏi nguồn dữ liệu: Bundle DTO vs SQLite vs Cloud).
+#[async_trait]
 pub trait ResourceResolver: Send + Sync {
     fn resolve_script(&self, tool_ref: &str) -> Result<ResolvedScript>;
     fn resolve_component(&self, component_ref: &str) -> Result<DagPipelineDocument>;
     fn resolve_constant_spec(&self, constant_ref: &str) -> Result<Option<ResolvedConstantSpec>>;
+
+    /// Pre-flight kiểm tra toàn bộ script trong Component trước khi chạy:
+    /// Nếu phát hiện script không thuộc workspace (thiếu file local, chỉ có content_hash),
+    /// tự động gửi yêu cầu lên Cloud kèm context Template để trừ quota và nạp code vào RAM.
+    async fn preflight_component(&self, _doc: &DagPipelineDocument, _unit_count: usize) -> Result<()> {
+        Ok(())
+    }
 }

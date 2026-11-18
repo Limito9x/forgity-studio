@@ -8,7 +8,7 @@ use std::time::Instant;
 use tokio_util::sync::CancellationToken;
 
 use crate::config::load_config;
-use crate::core::bundle::{BundleResourceResolver, ExecutionBundle};
+use crate::core::bundle::{BundleResourceResolver, CloudTemplateResourceResolver, ExecutionBundle};
 use crate::core::component_orchestrator::ComponentOrchestrator;
 use crate::core::dag::DagPipelineDocument;
 use crate::core::dispatcher::StageDispatcher;
@@ -67,7 +67,39 @@ pub async fn run_parsed_bundle(
         .or_else(|| bundle.run_id.clone())
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
-    let resolver: Arc<dyn ResourceResolver> = Arc::new(BundleResourceResolver::from_bundle(&bundle));
+    let has_remote_scripts = bundle
+        .scripts
+        .values()
+        .any(|s| s.full_path.as_os_str().is_empty() && s.content_hash.is_some());
+
+    let runner_cfg = load_config(config_override, false).ok().and_then(|(c, _)| c);
+    let default_api_url = runner_cfg
+        .as_ref()
+        .map(|c| c.api_url.clone())
+        .filter(|u| !u.trim().is_empty())
+        .unwrap_or_else(|| "http://localhost:5189".to_string());
+    let default_machine_key = runner_cfg
+        .as_ref()
+        .map(|c| c.machine_key.clone())
+        .filter(|k| !k.trim().is_empty())
+        .unwrap_or_else(|| "local-workstation".to_string());
+
+    let resolver: Arc<dyn ResourceResolver> = if bundle.cloud_lease.is_some() || has_remote_scripts {
+        let mut lease = bundle.cloud_lease.clone().unwrap_or_else(|| crate::core::bundle::CloudLeaseConfig {
+            api_url: None,
+            template_view_id: String::new(),
+            pipeline_version_id: String::new(),
+            machine_key: default_machine_key.clone(),
+            lease_token: None,
+        });
+        if lease.machine_key.trim().is_empty() {
+            lease.machine_key = default_machine_key;
+        }
+        let api_url = lease.api_url.clone().unwrap_or(default_api_url);
+        Arc::new(CloudTemplateResourceResolver::from_bundle(&bundle, api_url, lease))
+    } else {
+        Arc::new(BundleResourceResolver::from_bundle(&bundle))
+    };
 
     execute_with_resolver(
         bundle.root_pipeline,

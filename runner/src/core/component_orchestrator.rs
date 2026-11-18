@@ -98,6 +98,7 @@ impl ComponentOrchestrator {
                     .map(|c| c.to_vec())
                     .collect();
                 let total_waves = chunks.len();
+                self.resolver.preflight_component(&doc, total_waves).await?;
                 self.quota_gate.check_and_consume(total_waves).await?;
 
                 let mut pin_buckets: HashMap<String, Vec<Value>> = HashMap::new();
@@ -143,6 +144,7 @@ impl ComponentOrchestrator {
             }
 
             let total_items = items_vec.len();
+            self.resolver.preflight_component(&doc, total_items).await?;
             self.quota_gate.check_and_consume(total_items).await?;
 
             let iterable_pin = cfg.iterable_pin_name.clone();
@@ -175,6 +177,7 @@ impl ComponentOrchestrator {
 
             Ok(batch_res.gathered_outputs)
         } else {
+            self.resolver.preflight_component(&doc, 1).await?;
             self.quota_gate.check_and_consume(1).await?;
             let single_res = self
                 .execute_single(&doc, &run_id, inputs, None, None, &cancel)
