@@ -78,14 +78,28 @@ export function ForkTemplateDialog({
     try {
       setIsForking(true);
 
+      // If opened from Workbench shim without full containerManifestJson, fetch detail from API
+      let effectiveManifestJson = (template as any).containerManifestJson;
+      if (!effectiveManifestJson && template.templatePackageId) {
+        try {
+          const { getTemplateContainerById } = await import("@/gen/endpoints/templates/templates");
+          const detailRes = await getTemplateContainerById(template.templatePackageId);
+          if (detailRes?.containerManifestJson) {
+            effectiveManifestJson = detailRes.containerManifestJson;
+          }
+        } catch (detailErr) {
+          console.warn("[ForkTemplateDialog] Could not fetch template detail for containerManifestJson:", detailErr);
+        }
+      }
+
       // Collect template assets from manifest & node configValues, download bytes, and remap pins -> workspace://assets/<fileName>
       const assetsToDownload = new Map<
         string,
         { fileName: string; downloadUrl: string; sha256?: string }
       >();
 
-      const manifestAssets = Array.isArray((template.containerManifestJson as any)?.assets)
-        ? ((template.containerManifestJson as any).assets as any[])
+      const manifestAssets = Array.isArray(effectiveManifestJson?.assets)
+        ? (effectiveManifestJson.assets as any[])
         : [];
       for (const a of manifestAssets) {
         const fileName = a?.name || a?.fileName;
