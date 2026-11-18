@@ -593,6 +593,7 @@ export function TemplateContainerBuilder({
         raw.replace(/^local:(script:)?/, "").trim();
 
       const scriptHashByKey = new Map<string, string>();
+      const requirementsByKey = new Map<string, string[]>();
       for (const s of lastManifest.scripts) {
         if (s.contentHash) {
           scriptHashByKey.set(s.key, s.contentHash);
@@ -600,6 +601,13 @@ export function TemplateContainerBuilder({
           scriptHashByKey.set(bare, s.contentHash);
           scriptHashByKey.set(`local:${bare}`, s.contentHash);
           scriptHashByKey.set(`local:script:${bare}`, s.contentHash);
+        }
+        if (s.requirements && s.requirements.length > 0) {
+          requirementsByKey.set(s.key, s.requirements);
+          const bare = normalizeScriptKey(s.key);
+          requirementsByKey.set(bare, s.requirements);
+          requirementsByKey.set(`local:${bare}`, s.requirements);
+          requirementsByKey.set(`local:script:${bare}`, s.requirements);
         }
       }
 
@@ -668,8 +676,20 @@ export function TemplateContainerBuilder({
             ? []
             : [{ id: "exec_out", label: "Exec" }];
 
+          const scriptReqs =
+            requirementsByKey.get(item.refId) ??
+            requirementsByKey.get(bareRefId) ??
+            (scriptKey ? requirementsByKey.get(scriptKey) : undefined) ??
+            [];
+
+          const dependencies =
+            Array.isArray(item.dependencies) && item.dependencies.length > 0
+              ? item.dependencies
+              : scriptReqs.map((pkg) => ({ module: pkg, packageName: pkg }));
+
           return {
             ...item,
+            dependencies,
             execInputs,
             execOutputs,
             sourceRef: nextSourceRef,
