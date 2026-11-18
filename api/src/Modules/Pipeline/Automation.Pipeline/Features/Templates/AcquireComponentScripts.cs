@@ -35,6 +35,7 @@ public class AcquireComponentScriptsEndpoint(PipelineDbContext db)
     public override void Configure()
     {
         Post("acquire-component-scripts");
+        AllowAnonymous();
         Group<TemplatesGroup>();
         Description(b => b.WithSummary("Pre-flight quota verification and secure script download for a template component"));
     }
@@ -141,10 +142,14 @@ public class AcquireComponentScriptsEndpoint(PipelineDbContext db)
             }
         }
 
-        // 3. Verify user ownership & quota in TemplateLibraryItems
+        // 3. Verify user ownership & quota in TemplateLibraryItems (auto-provision with DefaultQuotaLimit if forked directly)
+        var effectiveMachineKey = string.IsNullOrWhiteSpace(req.MachineKey)
+            ? "local-workstation"
+            : req.MachineKey.Trim();
+
         var libraryItem = await db.TemplateLibraryItems.FirstOrDefaultAsync(
             q => q.TemplatePackageId == req.TemplatePackageId
-                 && q.MachineKey == req.MachineKey
+                 && q.MachineKey == effectiveMachineKey
                  && q.PeriodKey == "lifetime"
                  && (ownerUserId == Guid.Empty || q.OwnerUserId == ownerUserId),
             ct
@@ -152,7 +157,7 @@ public class AcquireComponentScriptsEndpoint(PipelineDbContext db)
 
         if (libraryItem is null)
         {
-            // Fallback: match by templatePackageId and ownerUserId if machineKey is default/empty
+            // Fallback: match by templatePackageId and ownerUserId across machines
             libraryItem = await db.TemplateLibraryItems.FirstOrDefaultAsync(
                 q => q.TemplatePackageId == req.TemplatePackageId
                      && q.PeriodKey == "lifetime"
@@ -163,17 +168,23 @@ public class AcquireComponentScriptsEndpoint(PipelineDbContext db)
 
         if (libraryItem is null)
         {
-            HttpContext.Response.StatusCode = 403;
-            await HttpResponseJsonExtensions.WriteAsJsonAsync(
-                HttpContext.Response,
-                new
-                {
-                    error = "TEMPLATE_NOT_IN_LIBRARY",
-                    message = "Template is not in My Library."
-                },
-                ct
-            );
-            return;
+            libraryItem = new Domain.Entities.TemplateLibraryItem
+            {
+                TemplatePackageId = req.TemplatePackageId,
+                OwnerUserId = ownerUserId,
+                MachineKey = effectiveMachineKey,
+                UsedRuns = 0,
+                MaxRuns = template.DefaultQuotaLimit,
+                PeriodKey = "lifetime",
+                AddedAt = DateTimeOffset.UtcNow,
+            };
+            db.TemplateLibraryItems.Add(libraryItem);
+            await db.SaveChangesAsync(ct);
+        }
+        else if (!libraryItem.MaxRuns.HasValue && template.DefaultQuotaLimit.HasValue)
+        {
+            libraryItem.MaxRuns = template.DefaultQuotaLimit;
+            await db.SaveChangesAsync(ct);
         }
 
         // 4. Atomically consume quota if unitCount > 0

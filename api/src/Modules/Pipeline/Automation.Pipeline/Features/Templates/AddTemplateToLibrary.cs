@@ -99,6 +99,11 @@ public class AddTemplateToLibraryEndpoint(PipelineDbContext db)
             db.TemplateLibraryItems.Add(existing);
             await db.SaveChangesAsync(ct);
         }
+        else if (!existing.MaxRuns.HasValue && pkg.DefaultQuotaLimit.HasValue)
+        {
+            existing.MaxRuns = pkg.DefaultQuotaLimit;
+            await db.SaveChangesAsync(ct);
+        }
 
         var remaining = existing.MaxRuns.HasValue
             ? Math.Max(0, existing.MaxRuns.Value - existing.UsedRuns)

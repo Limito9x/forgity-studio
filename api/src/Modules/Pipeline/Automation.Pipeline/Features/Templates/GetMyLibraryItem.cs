@@ -65,7 +65,8 @@ public class GetMyLibraryItemEndpoint(PipelineDbContext db)
             ));
         }
 
-        var remaining = x.MaxRuns.HasValue ? Math.Max(0, x.MaxRuns.Value - x.UsedRuns) : (int?)null;
+        var effectiveMaxRuns = x.MaxRuns ?? x.TemplatePackage.DefaultQuotaLimit;
+        var remaining = effectiveMaxRuns.HasValue ? Math.Max(0, effectiveMaxRuns.Value - x.UsedRuns) : (int?)null;
 
         await Send.OkAsync(
             new TemplateLibraryItemDto(
@@ -79,7 +80,7 @@ public class GetMyLibraryItemEndpoint(PipelineDbContext db)
                 x.ConstantProfileId,
                 x.ConstantProfile?.Name,
                 x.UsedRuns,
-                x.MaxRuns,
+                effectiveMaxRuns,
                 remaining,
                 x.AddedAt,
                 members,
