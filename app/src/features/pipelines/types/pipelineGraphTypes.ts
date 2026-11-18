@@ -59,16 +59,95 @@ export const PipelineTriggerType = {
 } as const;
 
 export type PinDirection = "Input" | "Output" | string;
-export type PinCardinality = "Single" | "Array" | string;
-export type PinPrimitiveType =
-  | "String"
-  | "Number"
-  | "Boolean"
-  | "File"
-  | "Directory"
-  | "Asset"
-  | "Any"
-  | string;
+export type PinCardinality = "Single" | "Array" | "Map" | string;
+export type DataPinType = "String" | "Number" | "Boolean" | "File";
+export type PinPrimitiveType = DataPinType | "Any" | string;
+
+export interface DataPinUiMeta {
+  inputMode?: "default" | "path" | "directory" | "multiline" | "select";
+  acceptExtensions?: string[];
+}
+
+export interface ExecPinContract {
+  id: string;
+  label: string;
+}
+
+export interface DataPinContract {
+  id: string;
+  label: string;
+  dataType: DataPinType;
+  cardinality: "Single" | "Array" | "Map";
+  keyDataType?: "String" | "Number";
+  valueDataType?: DataPinType;
+  structSlug?: string | null;
+  isRequired: boolean;
+  defaultValue?: unknown;
+  uiMeta?: DataPinUiMeta;
+}
+
+export type PaletteNodeSourceRef =
+  | {
+      kind: "builtin";
+      ref: string;
+    }
+  | {
+      kind: "workspace";
+      ref: string;
+      ownerSlug: string;
+      contentHash?: string;
+    }
+  | {
+      kind: "script";
+      ref: string;
+      ownerSlug?: string;
+      contentHash?: string;
+      originTemplate?: {
+        templateId?: string;
+        slug: string;
+        versionId?: string;
+      };
+    }
+  | {
+      kind: "pipeline";
+      ref: string;
+      ownerSlug?: string;
+      contentHash?: string;
+      originTemplate?: {
+        templateId?: string;
+        slug: string;
+        versionId?: string;
+      };
+    }
+  | {
+      kind: "template";
+      ref: string;
+      ownerSlug: string;
+      contentHash: string;
+      slug?: string;
+      refId?: string;
+      scriptKey?: string;
+      originTemplate?: {
+        templateId?: string;
+        slug: string;
+        versionId?: string;
+      };
+    };
+
+export interface PaletteNodeContract {
+  refId: string;
+  name: string;
+  category: string;
+  description?: string;
+  viewVariant: "Standard" | "Constant" | "FlowControl" | "Component" | "Struct" | "Collection";
+  executor: "pure" | "python" | "blender" | "unreal" | "daz" | "dotnet";
+  isVisibleInPalette: boolean;
+  execInputs: ExecPinContract[];
+  execOutputs: ExecPinContract[];
+  dataInputs: DataPinContract[];
+  dataOutputs: DataPinContract[];
+  sourceRef: PaletteNodeSourceRef;
+}
 
 export const PinKind = {
   Exec: "Exec",
@@ -102,6 +181,7 @@ export interface PinDefinition {
   description?: string;
   allowedAssetSlots?: string[];
   isRequired?: boolean;
+  uiMeta?: DataPinUiMeta;
   [key: string]: any;
 }
 
@@ -140,6 +220,12 @@ export interface NodePaletteItemDto {
   category?: string;
   executor?: string;
   description?: string;
+  viewVariant?: string;
+  execInputs?: ExecPinContract[];
+  execOutputs?: ExecPinContract[];
+  dataInputs?: DataPinContract[];
+  dataOutputs?: DataPinContract[];
+  sourceRef?: PaletteNodeSourceRef;
   inputs?: PinDefinition[];
   outputs?: PinDefinition[];
   defaultConfig?: Record<string, any>;

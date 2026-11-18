@@ -323,6 +323,7 @@ pub fn register_workspace(
     root_path: String,
     linked_project_id: Option<String>,
     origin_template_id: Option<String>,
+    origin_template_slug: Option<String>,
     origin_version_id: Option<String>,
     origin_template_title: Option<String>,
 ) -> Result<RegisteredWorkspace, String> {
@@ -354,12 +355,15 @@ pub fn register_workspace(
     }
 
     let id = format!("ws_{}", &now);
+    let slug = registry.ensure_unique_slug(&name)?;
     let ws = RegisteredWorkspace {
         id,
+        slug,
         name,
         root_path,
         linked_project_id,
         origin_template_id,
+        origin_template_slug,
         origin_version_id,
         origin_template_title,
         last_opened_at: now.clone(),

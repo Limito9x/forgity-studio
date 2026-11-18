@@ -359,6 +359,10 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<Guid?>("SupersedesId")
                         .HasColumnType("uuid");
 

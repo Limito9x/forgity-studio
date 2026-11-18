@@ -34,7 +34,7 @@ import {
   useLocalPipelinesQuery,
 } from "@/features/pipelines/hooks/workspace";
 import type { ScannedPipelineYamlItemRust } from "@/features/pipelines/types/workspaceConfig";
-import type { NodePaletteItemDto } from "@/features/pipelines/types/pipelineGraphTypes";
+import type { NodePaletteItemDto, PaletteNodeSourceRef } from "@/features/pipelines/types/pipelineGraphTypes";
 import { uploadMultipleAssetsFlow } from "@/lib/upload-utils";
 import {
   useTemplateDependencyScan,
@@ -91,10 +91,41 @@ interface TemplateGraphSnapshot {
 
 interface LocalFilePinCandidate {
   key: string;
+  nodeId: string;
   node: JsonRecord;
   pinId: string;
   filePath: string;
   fileName: string;
+}
+
+interface UploadedTemplatePinAsset {
+  name: string;
+  relativePath: string;
+  belongsToNodeId: string;
+  belongsToPinId: string;
+  sizeBytes: number;
+  assetId: string;
+  downloadUrl: string;
+  sha256: string;
+}
+
+function slugifyTemplateName(raw: string): string {
+  const s = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return s || "template";
+}
+
+async function sha256Hex(data: ArrayBuffer | Uint8Array): Promise<string> {
+  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", copy);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -139,12 +170,15 @@ function collectLocalFilePins(
   for (const graph of graphs) {
     for (const node of getGraphNodes(graph.dagBundleJson)) {
       const configValues = isRecord(node.configValues) ? node.configValues : {};
-      const nodeInputs = Array.isArray(node.inputs)
-        ? node.inputs.filter(isRecord)
-        : [];
+      const nodeInputs = Array.isArray(node.dataInputs)
+        ? node.dataInputs.filter(isRecord)
+        : Array.isArray(node.inputs)
+          ? node.inputs.filter(isRecord)
+          : [];
       const nodeDefinition =
         typeof node.refId === "string" ? paletteByRefId.get(node.refId) : undefined;
-      const pins = nodeInputs.length > 0 ? nodeInputs : nodeDefinition?.inputs ?? [];
+      const defInputs = nodeDefinition?.dataInputs ?? nodeDefinition?.inputs ?? [];
+      const pins = nodeInputs.length > 0 ? nodeInputs : defInputs;
       const nodeId =
         typeof node.id === "string"
           ? node.id
@@ -155,7 +189,11 @@ function collectLocalFilePins(
       for (const pin of pins) {
         if (!isRecord(pin)) continue;
         const pinType =
-          typeof pin.primitiveType === "string" ? pin.primitiveType : pin.type;
+          typeof pin.dataType === "string"
+            ? pin.dataType
+            : typeof pin.primitiveType === "string"
+              ? pin.primitiveType
+              : pin.type;
         if (pinType !== "File" && pinType !== "FilePath") continue;
 
         const pinId =
@@ -178,6 +216,7 @@ function collectLocalFilePins(
 
         candidates.push({
           key: `${graph.slug}:${nodeId}:${pinId}`,
+          nodeId,
           node,
           pinId,
           filePath: value,
@@ -194,12 +233,14 @@ async function uploadLocalFilePins(
   graphs: TemplateGraphSnapshot[],
   rootPath: string,
   paletteItems: NodePaletteItemDto[]
-): Promise<void> {
+): Promise<UploadedTemplatePinAsset[]> {
   const candidates = collectLocalFilePins(graphs, paletteItems);
-  if (candidates.length === 0) return;
+  if (candidates.length === 0) return [];
 
   const { readFile } = await import("@tauri-apps/plugin-fs");
   const { join } = await import("@tauri-apps/api/path");
+  const shaByKey = new Map<string, string>();
+  const sizeByKey = new Map<string, number>();
   const uploadItems = await Promise.all(
     candidates.map(async (candidate) => {
       const filePath = isAbsoluteLocalPath(candidate.filePath)
@@ -209,6 +250,8 @@ async function uploadLocalFilePins(
       if (contents.byteLength === 0) {
         throw new Error(`File pin "${candidate.fileName}" is empty and cannot be uploaded.`);
       }
+      shaByKey.set(candidate.key, await sha256Hex(contents));
+      sizeByKey.set(candidate.key, contents.byteLength);
       return {
         key: candidate.key,
         file: new File([contents], candidate.fileName),
@@ -218,12 +261,14 @@ async function uploadLocalFilePins(
 
   const uploadedAssets = await uploadMultipleAssetsFlow(uploadItems);
   const assetsByKey = new Map(uploadedAssets.map((asset) => [asset.key, asset]));
+  const uploadedPinAssets: UploadedTemplatePinAsset[] = [];
 
   for (const candidate of candidates) {
     const asset = assetsByKey.get(candidate.key);
     if (!asset?.publicUrl) {
       throw new Error(`Cloud upload did not return a public URL for "${candidate.fileName}".`);
     }
+    const sha256 = shaByKey.get(candidate.key) ?? "";
 
     const configValues = isRecord(candidate.node.configValues)
       ? candidate.node.configValues
@@ -231,9 +276,11 @@ async function uploadLocalFilePins(
     candidate.node.configValues = {
       ...configValues,
       [candidate.pinId]: {
+        kind: "template_asset",
         assetId: asset.assetId,
         fileName: candidate.fileName,
         originalName: candidate.fileName,
+        sha256,
         publicUrl: asset.publicUrl,
         url: asset.publicUrl,
         filename: candidate.fileName,
@@ -249,13 +296,27 @@ async function uploadLocalFilePins(
         id: asset.assetId,
         name: candidate.fileName,
         originalName: candidate.fileName,
+        sha256,
         sizeBytes: asset.asset.size,
         contentType: asset.asset.contentType,
         downloadUrl: asset.publicUrl,
         publicUrl: asset.publicUrl,
       },
     };
+
+    uploadedPinAssets.push({
+      name: candidate.fileName,
+      relativePath: `assets/${candidate.fileName}`,
+      belongsToNodeId: candidate.nodeId,
+      belongsToPinId: candidate.pinId,
+      sizeBytes: sizeByKey.get(candidate.key) ?? asset.asset.size,
+      assetId: asset.assetId,
+      downloadUrl: asset.publicUrl,
+      sha256,
+    });
   }
+
+  return uploadedPinAssets;
 }
 
 export function TemplateContainerBuilder({
@@ -502,6 +563,11 @@ export function TemplateContainerBuilder({
         })
       ) satisfies TemplateGraphSnapshot[];
 
+      const templateSlug = slugifyTemplateName(templateName);
+      const scriptHashByKey = new Map(
+        lastManifest.scripts.map((s) => [s.key, s.contentHash])
+      );
+
       const localNodeContracts = await loadLocalNodeContracts(lastManifest.rootPath);
       const usedNodeRefs = new Set(
         graphs.flatMap((graph) =>
@@ -510,15 +576,60 @@ export function TemplateContainerBuilder({
             .filter((refId): refId is string => typeof refId === "string")
         )
       );
-      const paletteNodesJson = localNodeContracts.filter((item) =>
-        usedNodeRefs.has(item.refId)
-      );
+      const paletteNodesJson = localNodeContracts
+        .filter((item) => {
+          if (!usedNodeRefs.has(item.refId)) return false;
+          const kind = item.sourceRef?.kind ?? (item.source === "System" ? "builtin" : undefined);
+          return kind !== "builtin";
+        })
+        .map((item) => {
+          const currentSourceRef = item.sourceRef;
+          const scriptKey =
+            item.scriptKey ??
+            ("scriptKey" in (currentSourceRef ?? {}) ? (currentSourceRef as any).scriptKey : undefined);
+          const currentHash =
+            "contentHash" in (currentSourceRef ?? {}) ? (currentSourceRef as any).contentHash : undefined;
+          const contentHash =
+            (scriptKey ? scriptHashByKey.get(scriptKey) : undefined) ?? currentHash;
+          const nextSourceRef: PaletteNodeSourceRef =
+            currentSourceRef?.kind === "template"
+              ? {
+                  ...currentSourceRef,
+                  contentHash: contentHash ?? currentSourceRef.contentHash,
+                  ref: currentSourceRef.ref ?? item.refId,
+                  ownerSlug: currentSourceRef.ownerSlug ?? templateSlug,
+                }
+              : {
+                  kind: "template",
+                  ref: item.refId,
+                  ownerSlug: templateSlug,
+                  slug: templateSlug,
+                  refId: item.refId,
+                  scriptKey: scriptKey ?? undefined,
+                  contentHash: contentHash ?? "",
+                  originTemplate: {
+                    slug: templateSlug,
+                  },
+                };
+          return {
+            ...item,
+            sourceRef: nextSourceRef,
+          };
+        });
 
-      await uploadLocalFilePins(
+      const uploadedPinAssets = await uploadLocalFilePins(
         graphs,
         lastManifest.rootPath,
         paletteNodesJson
       );
+
+      if (uploadedPinAssets.length > 0) {
+        for (const graph of graphs) {
+          const encoded = new TextEncoder().encode(JSON.stringify(graph.dagBundleJson));
+          graph.graphHash = await sha256Hex(encoded);
+        }
+      }
+      const graphHashBySlug = new Map(graphs.map((g) => [g.slug, g.graphHash]));
 
       // 1. Ingest canonical pipelines & scripts into Unified Cloud Data Pool
       const ingestRes = await ingestManifestMutation.mutateAsync({
@@ -530,7 +641,7 @@ export function TemplateContainerBuilder({
               kind: p.kind,
               relativePath: p.relativePath,
               graphSource: p.graphSource,
-              graphHash: p.graphHash,
+              graphHash: graphHashBySlug.get(p.slug) ?? p.graphHash,
               dependsOn: p.dependsOn,
               scriptKeys: p.scriptKeys,
             })),
@@ -567,6 +678,7 @@ export function TemplateContainerBuilder({
         data: {
           templateId: null,
           title: templateName.trim(),
+          slug: templateSlug,
           description: description.trim() || null,
           category: category.trim() || null,
           defaultQuotaLimit: dailyQuotaLimit ? Number(dailyQuotaLimit) : 20,
@@ -582,15 +694,27 @@ export function TemplateContainerBuilder({
             description: c.description || null,
             defaultValue: c.defaultValue || null,
           })),
-          assets: assets.map((a) => ({
-            name: a.name,
-            relativePath: a.relativePath || null,
-            belongsToNodeId: null,
-            belongsToPinId: null,
-            sizeBytes: a.sizeBytes ?? null,
-          })),
+          assets: [
+            ...assets.map((a) => ({
+              name: a.name,
+              relativePath: a.relativePath || null,
+              belongsToNodeId: null,
+              belongsToPinId: null,
+              sizeBytes: a.sizeBytes ?? null,
+            })),
+            ...uploadedPinAssets.map((a) => ({
+              name: a.name,
+              relativePath: a.relativePath,
+              belongsToNodeId: a.belongsToNodeId,
+              belongsToPinId: a.belongsToPinId,
+              sizeBytes: a.sizeBytes,
+              assetId: a.assetId,
+              downloadUrl: a.downloadUrl,
+              sha256: a.sha256,
+            })),
+          ],
           paletteNodesJson,
-        },
+        } as any,
       });
 
       toast.success(`Template Container "${templateName}" packaged & published!`);

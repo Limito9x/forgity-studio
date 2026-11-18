@@ -188,34 +188,79 @@ impl ResourceResolver for CloudTemplateResourceResolver {
             return Ok(script);
         }
 
-        let url = format!("{}/api/templates/acquire-script", self.api_url);
-        let payload: Value = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                let resp = self
-                    .http
-                    .post(&url)
-                    .json(&serde_json::json!({
-                        "pipelineVersionId": self.lease.pipeline_version_id,
-                        "scriptKey": script.key,
-                        "machineKey": self.lease.machine_key,
-                    }))
-                    .send()
-                    .await?;
-
-                if !resp.status().is_success() {
-                    let status = resp.status();
-                    let text = resp.text().await.unwrap_or_default();
-                    anyhow::bail!("Failed to acquire cloud script '{}' ({}): {}", script.key, status, text);
-                }
-
-                Ok::<Value, anyhow::Error>(resp.json().await?)
-            })
-        })?;
-        let source_code = payload
-            .get("sourceCode")
+        let is_template_ref = script
+            .source_ref
+            .as_ref()
+            .and_then(|sr| sr.get("kind"))
             .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
+            == Some("template");
+
+        let source_code = if is_template_ref && script.content_hash.as_deref().is_some_and(|h| !h.is_empty()) && self.lease.pipeline_version_id.is_empty() {
+            let hash = script.content_hash.as_deref().unwrap();
+            let url = format!("{}/api/cloud-data/scripts/by-hash/{}?key={}", self.api_url, hash, script.key);
+            let payload: Value = tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    let resp = self.http.get(&url).send().await?;
+                    if !resp.status().is_success() {
+                        let status = resp.status();
+                        let text = resp.text().await.unwrap_or_default();
+                        anyhow::bail!("Failed to fetch template script '{}' by hash ({}): {}", script.key, status, text);
+                    }
+                    Ok::<Value, anyhow::Error>(resp.json().await?)
+                })
+            })?;
+            payload
+                .get("sourceCode")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string()
+        } else {
+            let url = format!("{}/api/templates/acquire-script", self.api_url);
+            let payload: Value = tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    let resp = self
+                        .http
+                        .post(&url)
+                        .json(&serde_json::json!({
+                            "pipelineVersionId": self.lease.pipeline_version_id,
+                            "scriptKey": script.key,
+                            "machineKey": self.lease.machine_key,
+                        }))
+                        .send()
+                        .await?;
+
+                    if !resp.status().is_success() {
+                        let status = resp.status();
+                        let text = resp.text().await.unwrap_or_default();
+                        anyhow::bail!("Failed to acquire cloud script '{}' ({}): {}", script.key, status, text);
+                    }
+
+                    Ok::<Value, anyhow::Error>(resp.json().await?)
+                })
+            })?;
+            payload
+                .get("sourceCode")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string()
+        };
+
+        if let Some(ref expected_hash) = script.content_hash {
+            if !expected_hash.is_empty() {
+                use sha2::{Digest, Sha256};
+                let mut hasher = Sha256::new();
+                hasher.update(source_code.as_bytes());
+                let actual_hash = hex::encode(hasher.finalize());
+                if !actual_hash.eq_ignore_ascii_case(expected_hash) {
+                    anyhow::bail!(
+                        "Template script '{}' SHA-256 mismatch! Expected {}, got {}",
+                        script.key,
+                        expected_hash,
+                        actual_hash
+                    );
+                }
+            }
+        }
 
         self.ram_cache.insert(script.key.clone(), source_code.clone());
         script.inline_source = Some(source_code);

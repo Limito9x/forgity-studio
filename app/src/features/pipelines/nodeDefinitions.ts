@@ -180,14 +180,23 @@ export function resolveNodePinsFromDefinition<
     configValues?: Record<string, unknown>;
   }
 >(nodeData: T, definition?: NodePaletteItemDto) {
+  const defInputs =
+    (definition?.inputs as PinDefinition[] | undefined) ??
+    ((definition?.dataInputs as unknown) as PinDefinition[] | undefined) ??
+    [];
+  const defOutputs =
+    (definition?.outputs as PinDefinition[] | undefined) ??
+    ((definition?.dataOutputs as unknown) as PinDefinition[] | undefined) ??
+    [];
+
   const baseInputs =
     !isPaletteDrivenShape(nodeData.kind, definition) || !definition
       ? nodeData.inputs || []
-      : (definition.inputs as PinDefinition[]) || [];
+      : defInputs;
   const baseOutputs =
     !isPaletteDrivenShape(nodeData.kind, definition) || !definition
       ? nodeData.outputs || []
-      : (definition.outputs as PinDefinition[]) || [];
+      : defOutputs;
 
   const isBatch = Boolean(nodeData.configValues?._isBatch);
   const iterablePin = String(nodeData.configValues?._iterablePin || "").trim();

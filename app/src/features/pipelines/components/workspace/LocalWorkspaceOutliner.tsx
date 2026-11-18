@@ -255,7 +255,7 @@ export function LocalWorkspaceOutliner({
         <button
           type="button"
           onClick={onOpenPalette}
-          title={`Node Palette (${paletteCount})`}
+          title={`Scripts (${paletteCount})`}
           className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
             activeTabId === "singleton:palette"
               ? "bg-emerald-500/15 text-emerald-400"
@@ -397,7 +397,7 @@ export function LocalWorkspaceOutliner({
           >
             <div className="flex items-center gap-2 min-w-0">
               <Cpu className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-              <span className="truncate">Node Palette</span>
+              <span className="truncate">Scripts</span>
               <span className="text-[10px] font-mono text-muted-foreground">({paletteCount})</span>
             </div>
             <button

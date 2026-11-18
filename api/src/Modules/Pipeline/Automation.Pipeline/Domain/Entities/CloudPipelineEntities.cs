@@ -94,6 +94,7 @@ public class ProjectPipelineView : AuditableEntity
 public class TemplatePackage : AuditableEntity
 {
     public string Title { get; set; } = string.Empty;
+    public string Slug { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string Category { get; set; } = "General";
     public bool IsPublic { get; set; } = true;

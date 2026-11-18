@@ -14,7 +14,12 @@ export function StandardToolNodeView({ id: _id, data, selected, missingDefinitio
   const definition = useNodeDefinition(nodeData.kind, nodeData.refId);
   const resolved = resolveNodePinsFromDefinition(nodeData, definition);
   const executor = resolved.executor;
-  const { execInputs, execOutputs, dataInputs, dataOutputs, showExecIn } = useSplitPins(resolved.inputs, resolved.outputs);
+  const { execInputs, execOutputs, dataInputs, dataOutputs, showExecIn, showExecOut } = useSplitPins(
+    resolved.inputs,
+    resolved.outputs,
+    false,
+    definition
+  );
   const isUnresolvedScript = Boolean((nodeData.metadata as Record<string, unknown> | undefined)?.["unresolvedScript"]);
 
   // Determine badge label
@@ -49,12 +54,14 @@ export function StandardToolNodeView({ id: _id, data, selected, missingDefinitio
         status={nodeData.executionStatus}
       />
 
-      <ExecPinBar
-        showExecIn={showExecIn}
-        execInLabel={execInputs[0]?.label || "Exec"}
-        execOutputs={execOutputs}
-        execColor="#3b82f6"
-      />
+      {(showExecIn || showExecOut) && (
+        <ExecPinBar
+          showExecIn={showExecIn}
+          execInLabel={execInputs[0]?.label || "Exec"}
+          execOutputs={execOutputs}
+          execColor="#3b82f6"
+        />
+      )}
 
       <DataPinColumns dataInputs={dataInputs} dataOutputs={dataOutputs} configValues={nodeData.configValues} fileAssets={nodeData.fileAssets} />
     </NodeCard>

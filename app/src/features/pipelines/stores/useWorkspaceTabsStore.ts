@@ -63,7 +63,7 @@ const SINGLETON_META: Record<
   "palette" | "constants",
   { id: string; title: string }
 > = {
-  palette: { id: "singleton:palette", title: "Node Palette" },
+  palette: { id: "singleton:palette", title: "Scripts" },
   constants: { id: "singleton:constants", title: "Constants" },
 };
 

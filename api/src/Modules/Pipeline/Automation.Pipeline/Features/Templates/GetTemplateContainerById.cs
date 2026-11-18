@@ -20,6 +20,7 @@ public record TemplateContainerMemberDto(
 public record TemplateContainerDetailDto(
     Guid TemplatePackageId,
     string Title,
+    string Slug,
     string? Description,
     string Category,
     int VersionNumber,
@@ -94,9 +95,18 @@ public class GetTemplateContainerByIdEndpoint(PipelineDbContext db)
 
         var constants = CloudTemplateClaimHelper.ExtractConstants(pkg.ContainerManifestJson);
 
+        var resolvedSlug = !string.IsNullOrWhiteSpace(pkg.Slug)
+            ? pkg.Slug
+            : System.Text.RegularExpressions.Regex.Replace(
+                pkg.Title.Trim().ToLowerInvariant(),
+                @"[^a-z0-9]+",
+                "-"
+            ).Trim('-');
+
         await Send.OkAsync(new TemplateContainerDetailDto(
             pkg.Id,
             pkg.Title,
+            string.IsNullOrEmpty(resolvedSlug) ? "template" : resolvedSlug,
             pkg.Description,
             pkg.Category,
             pkg.VersionNumber,

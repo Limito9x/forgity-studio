@@ -21,7 +21,10 @@ public record TemplateAssetDto(
     string? RelativePath,
     string? BelongsToNodeId,
     string? BelongsToPinId,
-    long? SizeBytes
+    long? SizeBytes,
+    string? AssetId = null,
+    string? DownloadUrl = null,
+    string? Sha256 = null
 );
 
 public record CreateTemplateContainerRequest(
@@ -35,12 +38,14 @@ public record CreateTemplateContainerRequest(
     List<Guid> ScriptArtifactIds,
     List<TemplateConstantDeclarationDto> Constants,
     List<TemplateAssetDto> Assets,
-    JsonDocument? PaletteNodesJson
+    JsonDocument? PaletteNodesJson,
+    string? Slug = null
 );
 
 public record CreateTemplateContainerResponse(
     Guid TemplatePackageId,
     string Title,
+    string Slug,
     int MasterCount,
     int ComponentCount,
     int ConstantCount,
@@ -110,12 +115,31 @@ public class CreateTemplateContainerEndpoint(PipelineDbContext db)
             ? req.Title.Trim()
             : (primaryMaster?.Pipeline?.Name ?? "Untitled Template Package");
 
+        static string Slugify(string raw)
+        {
+            var s = System.Text.RegularExpressions.Regex.Replace(
+                raw.Trim().ToLowerInvariant(),
+                @"[^a-z0-9]+",
+                "-"
+            ).Trim('-');
+            return string.IsNullOrEmpty(s) ? "template" : s;
+        }
+
         if (pkg is null)
         {
+            var baseSlug = Slugify(!string.IsNullOrWhiteSpace(req.Slug) ? req.Slug : resolvedTitle);
+            var candidateSlug = baseSlug;
+            int suffix = 2;
+            while (await db.TemplatePackages.AnyAsync(t => t.Slug == candidateSlug, ct))
+            {
+                candidateSlug = $"{baseSlug}-{suffix++}";
+            }
+
             pkg = new TemplatePackage
             {
                 PrimaryMasterVersionId = primaryMaster?.Id,
                 Title = resolvedTitle,
+                Slug = candidateSlug,
                 Description = req.Description,
                 Category = string.IsNullOrWhiteSpace(req.Category) ? "General" : req.Category.Trim(),
                 IsPublic = true,
@@ -131,6 +155,10 @@ public class CreateTemplateContainerEndpoint(PipelineDbContext db)
         {
             pkg.PrimaryMasterVersionId = primaryMaster?.Id;
             pkg.Title = resolvedTitle;
+            if (string.IsNullOrWhiteSpace(pkg.Slug))
+            {
+                pkg.Slug = Slugify(!string.IsNullOrWhiteSpace(req.Slug) ? req.Slug : resolvedTitle);
+            }
             pkg.Description = req.Description;
             pkg.Category = string.IsNullOrWhiteSpace(req.Category) ? "General" : req.Category.Trim();
             pkg.DefaultQuotaLimit = req.DefaultQuotaLimit;
@@ -175,6 +203,7 @@ public class CreateTemplateContainerEndpoint(PipelineDbContext db)
         await Send.OkAsync(new CreateTemplateContainerResponse(
             pkg.Id,
             pkg.Title,
+            pkg.Slug,
             req.MasterVersionIds.Count,
             req.ComponentVersionIds.Count,
             req.Constants.Count,

@@ -99,6 +99,15 @@ impl WorkspaceDb {
                 dep_key TEXT NOT NULL,
                 PRIMARY KEY (parent_kind, parent_key, dep_kind, dep_key)
             );
+
+            CREATE TABLE IF NOT EXISTS workspace_palette (
+                ref_id TEXT PRIMARY KEY,
+                contract_json TEXT NOT NULL,
+                source_kind TEXT NOT NULL,
+                owner_slug TEXT NOT NULL,
+                content_hash TEXT,
+                updated_at TEXT NOT NULL
+            );
             ",
         )
         .map_err(|e| format!("Failed to initialize workspace.db schema: {}", e))?;
@@ -227,9 +236,116 @@ impl WorkspaceDb {
             .map_err(|e| format!("Failed to serialize palette JSON: {}", e))
     }
 
+    pub fn upsert_workspace_palette_contract(
+        &self,
+        ref_id: &str,
+        contract_json: &str,
+        source_kind: &str,
+        owner_slug: &str,
+        content_hash: Option<&str>,
+    ) -> Result<(), String> {
+        if source_kind.eq_ignore_ascii_case("builtin") {
+            return Ok(());
+        }
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs().to_string())
+            .unwrap_or_else(|_| "0".to_string());
+
+        self.conn
+            .execute(
+                "
+                INSERT INTO workspace_palette (ref_id, contract_json, source_kind, owner_slug, content_hash, updated_at)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                ON CONFLICT(ref_id) DO UPDATE SET
+                    contract_json = excluded.contract_json,
+                    source_kind = excluded.source_kind,
+                    owner_slug = excluded.owner_slug,
+                    content_hash = excluded.content_hash,
+                    updated_at = excluded.updated_at
+                ",
+                params![ref_id, contract_json, source_kind, owner_slug, content_hash, now],
+            )
+            .map_err(|e| format!("Failed to upsert workspace_palette '{}': {}", ref_id, e))?;
+
+        Ok(())
+    }
+
+    pub fn load_workspace_palette_contracts_raw(&self) -> Result<Vec<String>, String> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT contract_json FROM workspace_palette WHERE source_kind != 'builtin' ORDER BY ref_id ASC")
+            .map_err(|e| format!("Failed to prepare workspace_palette query: {}", e))?;
+
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|e| format!("Failed to query workspace_palette: {}", e))?;
+
+        Ok(rows.flatten().collect())
+    }
+
+    pub fn delete_workspace_palette_contract(&self, ref_id: &str) -> Result<(), String> {
+        self.conn
+            .execute("DELETE FROM workspace_palette WHERE ref_id = ?1", params![ref_id])
+            .map_err(|e| format!("Failed to delete workspace_palette '{}': {}", ref_id, e))?;
+        Ok(())
+    }
+
+    pub fn clear_workspace_palette(&self) -> Result<(), String> {
+        self.conn
+            .execute("DELETE FROM workspace_palette", [])
+            .map_err(|e| format!("Failed to clear workspace_palette: {}", e))?;
+        Ok(())
+    }
+
     pub fn save_palette_json(&self, palette_json: &str) -> Result<(), String> {
-        let parsed: serde_json::Map<String, serde_json::Value> =
+        let parsed_val: serde_json::Value =
             serde_json::from_str(palette_json).map_err(|e| format!("Invalid palette JSON: {}", e))?;
+
+        // Support PaletteNodeContract[] array (Template fork / canonical format)
+        if let Some(arr) = parsed_val.as_array() {
+            for item in arr {
+                let ref_id = item
+                    .get("refId")
+                    .or_else(|| item.get("key"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .trim();
+                if ref_id.is_empty() {
+                    continue;
+                }
+                let source_ref = item.get("sourceRef");
+                let source_kind = source_ref
+                    .and_then(|s| s.get("kind"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("workspace");
+                if source_kind.eq_ignore_ascii_case("builtin") {
+                    continue;
+                }
+                let owner_slug = source_ref
+                    .and_then(|s| s.get("ownerSlug"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("workspace");
+                let content_hash = source_ref
+                    .and_then(|s| s.get("contentHash"))
+                    .and_then(|v| v.as_str());
+                let contract_json = serde_json::to_string(item)
+                    .map_err(|e| format!("Failed to serialize contract '{}': {}", ref_id, e))?;
+                self.upsert_workspace_palette_contract(
+                    ref_id,
+                    &contract_json,
+                    source_kind,
+                    owner_slug,
+                    content_hash,
+                )?;
+            }
+            return Ok(());
+        }
+
+        let parsed: serde_json::Map<String, serde_json::Value> = parsed_val
+            .as_object()
+            .cloned()
+            .ok_or_else(|| "Invalid palette JSON: expected object or array".to_string())?;
 
         // Load existing (key -> content_hash) to skip unchanged rows
         let mut existing_hashes = std::collections::HashMap::<String, String>::new();

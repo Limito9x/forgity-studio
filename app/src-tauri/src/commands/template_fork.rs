@@ -27,6 +27,8 @@ pub struct ForkTemplateParams {
     pub target_root_path: String,
     pub workspace_name: String,
     pub template_id: String,
+    #[serde(default)]
+    pub template_slug: Option<String>,
     pub version_id: String,
     pub template_title: String,
     pub pipelines: Vec<TemplatePipelineFileToStage>,
@@ -40,6 +42,7 @@ pub struct ForkTemplateParams {
 #[serde(rename_all = "camelCase")]
 pub struct ForkTemplateResult {
     pub workspace_id: String,
+    pub workspace_slug: String,
     pub root_path: String,
     pub staged_pipelines: usize,
     pub staged_assets: usize,
@@ -146,12 +149,15 @@ pub fn fork_template_into_local_workspace(
         .unwrap_or_else(|_| "0".to_string());
 
     let workspace_id = format!("ws_fork_{}", &now);
+    let workspace_slug = registry.ensure_unique_slug(&params.workspace_name)?;
     let ws = forgity_core::workspace_registry::RegisteredWorkspace {
         id: workspace_id.clone(),
+        slug: workspace_slug.clone(),
         name: params.workspace_name,
         root_path: params.target_root_path.clone(),
         linked_project_id: None,
         origin_template_id: Some(params.template_id),
+        origin_template_slug: params.template_slug,
         origin_version_id: Some(params.version_id),
         origin_template_title: Some(params.template_title),
         last_opened_at: now.clone(),
@@ -162,6 +168,7 @@ pub fn fork_template_into_local_workspace(
 
     Ok(ForkTemplateResult {
         workspace_id,
+        workspace_slug,
         root_path: params.target_root_path,
         staged_pipelines: staged_pipelines_count,
         staged_assets: staged_assets_count,

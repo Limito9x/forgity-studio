@@ -75,6 +75,52 @@ export function ForkTemplateDialog({
     try {
       setIsForking(true);
 
+      // Collect template assets from manifest & node configValues, download bytes, and remap pins -> workspace://assets/<fileName>
+      const assetsToDownload = new Map<
+        string,
+        { fileName: string; downloadUrl: string; sha256?: string }
+      >();
+
+      const manifestAssets = Array.isArray((template.containerManifestJson as any)?.assets)
+        ? ((template.containerManifestJson as any).assets as any[])
+        : [];
+      for (const a of manifestAssets) {
+        const fileName = a?.name || a?.fileName;
+        const downloadUrl = a?.downloadUrl || a?.publicUrl;
+        if (typeof fileName === "string" && fileName && typeof downloadUrl === "string" && downloadUrl) {
+          assetsToDownload.set(fileName, {
+            fileName,
+            downloadUrl,
+            sha256: typeof a?.sha256 === "string" ? a.sha256 : undefined,
+          });
+        }
+      }
+
+      const remapNodeAssets = (nodes: any[]) => {
+        for (const node of nodes) {
+          if (!node || typeof node !== "object") continue;
+          const configValues = node.configValues;
+          if (!configValues || typeof configValues !== "object") continue;
+          for (const [pinId, val] of Object.entries(configValues)) {
+            if (val && typeof val === "object" && !Array.isArray(val)) {
+              const obj = val as Record<string, any>;
+              const fileName = obj.fileName || obj.originalName || obj.filename;
+              const downloadUrl = obj.publicUrl || obj.url || obj.downloadUrl;
+              if ((obj.kind === "template_asset" || obj.assetId) && typeof fileName === "string" && fileName) {
+                if (typeof downloadUrl === "string" && downloadUrl && !assetsToDownload.has(fileName)) {
+                  assetsToDownload.set(fileName, {
+                    fileName,
+                    downloadUrl,
+                    sha256: typeof obj.sha256 === "string" ? obj.sha256 : undefined,
+                  });
+                }
+                configValues[pinId] = `workspace://assets/${fileName}`;
+              }
+            }
+          }
+        }
+      };
+
       // Option 2: Build declarative YAML directly from Snapshot (dagBundleJson)
       const pipelines = await Promise.all(
         template.members.map(async (m) => {
@@ -82,11 +128,15 @@ export function ForkTemplateDialog({
           const kind = isMaster ? "master" : "component";
           const fileName = `${m.slug}.${isMaster ? "pipeline" : "component"}.yaml`;
 
-          let dagBundle: any = (m as any).dagBundleJson;
+          let dagBundle: any = (m as any).dagBundleJson
+            ? JSON.parse(JSON.stringify((m as any).dagBundleJson))
+            : null;
           if (!dagBundle && m.pipelineVersionId) {
             try {
               const res = await getCloudDataPipelineVersion(m.pipelineVersionId);
-              dagBundle = res.dagBundleJson;
+              dagBundle = res.dagBundleJson
+                ? JSON.parse(JSON.stringify(res.dagBundleJson))
+                : null;
             } catch (fetchErr) {
               console.warn(`Could not fetch dagBundleJson for member ${m.slug}:`, fetchErr);
             }
@@ -95,6 +145,12 @@ export function ForkTemplateDialog({
           const rootPipeline = dagBundle?.rootPipeline ?? dagBundle;
           const nodes = Array.isArray(rootPipeline?.nodes) ? rootPipeline.nodes : [];
           const edges = Array.isArray(rootPipeline?.edges) ? rootPipeline.edges : [];
+          remapNodeAssets(nodes);
+          if (dagBundle?.components && typeof dagBundle.components === "object") {
+            for (const comp of Object.values(dagBundle.components) as any[]) {
+              if (Array.isArray(comp?.nodes)) remapNodeAssets(comp.nodes);
+            }
+          }
 
           // Generate valid declarative YAML from AST nodes and edges
           let yamlContent = "";
@@ -147,6 +203,27 @@ export function ForkTemplateDialog({
         };
       });
 
+      const stagedAssetPayloads = await Promise.all(
+        Array.from(assetsToDownload.values()).map(async (asset) => {
+          const resp = await fetch(asset.downloadUrl);
+          if (!resp.ok) {
+            throw new Error(`Failed to download template asset "${asset.fileName}" (${resp.status}).`);
+          }
+          const buf = new Uint8Array(await resp.arrayBuffer());
+          let binary = "";
+          const chunkSize = 0x8000;
+          for (let i = 0; i < buf.length; i += chunkSize) {
+            binary += String.fromCharCode(...buf.subarray(i, i + chunkSize));
+          }
+          return {
+            fileName: asset.fileName,
+            relativePath: `assets/${asset.fileName}`,
+            sha256: asset.sha256 ?? null,
+            dataBase64: btoa(binary),
+          };
+        })
+      );
+
       const { invoke } = await import("@tauri-apps/api/core");
       const result = await invoke<{
         workspaceId: string;
@@ -158,13 +235,14 @@ export function ForkTemplateDialog({
           targetRootPath,
           workspaceName: workspaceName.trim() || template.title,
           templateId: template.templatePackageId,
+          templateSlug: (template as any).slug ?? null,
           versionId: template.primaryMasterVersionId || (template.members[0]?.pipelineVersionId ?? ""),
           templateTitle: template.title,
           pipelines,
           paletteJson: template.paletteNodesJson ? JSON.stringify(template.paletteNodesJson) : null,
           structsJson: null,
           constantsJson: JSON.stringify(constantsList),
-          assets: [],
+          assets: stagedAssetPayloads,
         },
       });
 

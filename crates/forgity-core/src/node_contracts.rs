@@ -4,6 +4,127 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use super::workspace_db::WorkspaceDb;
+use super::workspace_registry::slugify_workspace_name;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum DataPinType {
+    String,
+    Number,
+    Boolean,
+    File,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum PinCardinality {
+    Single,
+    Array,
+    Map,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum DataPinInputMode {
+    #[serde(rename = "default")]
+    Default,
+    #[serde(rename = "path")]
+    Path,
+    #[serde(rename = "directory")]
+    Directory,
+    #[serde(rename = "multiline")]
+    Multiline,
+    #[serde(rename = "select")]
+    Select,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DataPinUiMeta {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_mode: Option<DataPinInputMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub accept_extensions: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecPinContract {
+    pub id: String,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DataPinContract {
+    pub id: String,
+    pub label: String,
+    pub data_type: DataPinType,
+    pub cardinality: PinCardinality,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key_data_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_data_type: Option<DataPinType>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub struct_slug: Option<String>,
+    pub is_required: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_value: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui_meta: Option<DataPinUiMeta>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum PaletteNodeSourceRef {
+    #[serde(rename = "builtin")]
+    Builtin {
+        #[serde(rename = "ref")]
+        ref_str: String,
+    },
+    #[serde(rename = "workspace")]
+    Workspace {
+        #[serde(rename = "ref")]
+        ref_str: String,
+        #[serde(rename = "ownerSlug")]
+        owner_slug: String,
+        #[serde(rename = "contentHash", skip_serializing_if = "Option::is_none")]
+        content_hash: Option<String>,
+    },
+    #[serde(rename = "template")]
+    Template {
+        #[serde(rename = "ref")]
+        ref_str: String,
+        #[serde(rename = "ownerSlug")]
+        owner_slug: String,
+        #[serde(rename = "contentHash")]
+        content_hash: String,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PaletteNodeContract {
+    pub ref_id: String,
+    pub name: String,
+    pub category: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub view_variant: String,
+    pub executor: String,
+    pub is_visible_in_palette: bool,
+    pub exec_inputs: Vec<ExecPinContract>,
+    pub exec_outputs: Vec<ExecPinContract>,
+    pub data_inputs: Vec<DataPinContract>,
+    pub data_outputs: Vec<DataPinContract>,
+    pub source_ref: PaletteNodeSourceRef,
+}
+
+pub fn normalize_data_pin_type(raw: &str) -> DataPinType {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "number" | "int" | "integer" | "float" | "double" => DataPinType::Number,
+        "boolean" | "bool" => DataPinType::Boolean,
+        "file" | "asset" => DataPinType::File,
+        _ => DataPinType::String,
+    }
+}
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -203,15 +324,6 @@ fn collect_template_vars_in_value(
     }
 }
 
-fn has_non_empty_unreal_path(val: &Value) -> bool {
-    match val {
-        Value::Null => false,
-        Value::String(s) => !s.trim().is_empty(),
-        Value::Array(_) => true,
-        _ => true,
-    }
-}
-
 fn materialize_constants(items: &[RawConstantItem]) -> Vec<MaterializedConstant> {
     let raw_map: HashMap<&str, &RawConstantItem> =
         items.iter().map(|c| (c.key.as_str(), c)).collect();
@@ -228,18 +340,14 @@ fn materialize_constants(items: &[RawConstantItem]) -> Vec<MaterializedConstant>
                 .map(|v| resolve_var_value(v, &item.key, &raw_map));
 
             let is_unreal = item.scope.eq_ignore_ascii_case("Unreal");
-            let use_dual_pins = is_unreal
-                && resolved_unreal_path
-                    .as_ref()
-                    .map(has_non_empty_unreal_path)
-                    .unwrap_or(false);
 
             let mut outputs = HashMap::new();
-            if use_dual_pins {
+            if is_unreal {
                 outputs.insert("disk_path".to_string(), resolved_value.clone());
-                if let Some(ref up) = resolved_unreal_path {
-                    outputs.insert("virtual_path".to_string(), up.clone());
-                }
+                let vp = resolved_unreal_path
+                    .clone()
+                    .unwrap_or_else(|| Value::String(String::new()));
+                outputs.insert("virtual_path".to_string(), vp);
             } else {
                 outputs.insert("value".to_string(), resolved_value.clone());
             }
@@ -279,100 +387,111 @@ fn format_var_label(var_name: &str) -> String {
 
 /// Builds `NodePaletteItemDto[]`-compatible JSON contracts for the Frontend Canvas & Palette.
 pub fn build_constant_palette_items(items: &[RawConstantItem]) -> Vec<Value> {
+    build_constant_palette_items_with_slug(items, "workspace")
+}
+
+pub fn build_constant_palette_items_with_slug(
+    items: &[RawConstantItem],
+    workspace_slug: &str,
+) -> Vec<Value> {
     materialize_constants(items)
         .into_iter()
         .map(|mat| {
             let item = &mat.item;
             let is_array = item.data_type.eq_ignore_ascii_case("Array");
+            let is_unreal = item.scope.eq_ignore_ascii_case("Unreal");
             let cardinality = if is_array { "Array" } else { "Single" };
 
-            let primitive_type = if item.data_type.eq_ignore_ascii_case("Number") {
+            let data_type = if is_unreal {
+                "String"
+            } else if item.data_type.eq_ignore_ascii_case("Number") {
                 "Number"
             } else if item.data_type.eq_ignore_ascii_case("Boolean") {
                 "Boolean"
+            } else if item.data_type.eq_ignore_ascii_case("File") {
+                "File"
             } else {
                 "String"
             };
 
             let mut output_pins = Vec::new();
-            if mat.outputs.contains_key("disk_path") {
-                output_pins.push(json!({
-                    "id": "disk_path",
-                    "label": "Disk Path",
-                    "kind": "Data",
-                    "primitiveType": "String",
-                    "cardinality": cardinality,
-                    "isRequired": false,
-                    "defaultValue": mat.outputs.get("disk_path").cloned().unwrap_or(Value::Null),
-                    "description": "Physical Windows path for DCC / OS tools (Blender, Python)"
-                }));
-                output_pins.push(json!({
-                    "id": "virtual_path",
-                    "label": "Virtual Path",
-                    "kind": "Data",
-                    "primitiveType": "String",
-                    "cardinality": cardinality,
-                    "isRequired": false,
-                    "defaultValue": mat.outputs.get("virtual_path").cloned().unwrap_or(Value::Null),
-                    "description": "In-Engine virtual path (/Game/...) for Unreal Engine tools"
-                }));
+            let mut data_outputs = Vec::new();
+            if is_unreal || mat.outputs.contains_key("disk_path") {
+                let disk_val = mat.outputs.get("disk_path").cloned().unwrap_or(Value::Null);
+                let virt_val = mat.outputs.get("virtual_path").cloned().unwrap_or(Value::Null);
+                for (id, label, val, desc) in [
+                    ("disk_path", "Disk Path", disk_val, "Physical Windows path for DCC / OS tools (Blender, Python)"),
+                    ("virtual_path", "Virtual Path", virt_val, "In-Engine virtual path (/Game/...) for Unreal Engine tools"),
+                ] {
+                    output_pins.push(json!({
+                        "id": id, "label": label, "kind": "Data", "primitiveType": "String", "dataType": "String",
+                        "cardinality": cardinality, "isRequired": false, "defaultValue": val,
+                        "uiMeta": { "inputMode": "path" }, "description": desc
+                    }));
+                    data_outputs.push(json!({
+                        "id": id, "label": label, "dataType": "String", "cardinality": cardinality,
+                        "isRequired": false, "defaultValue": val, "uiMeta": { "inputMode": "path" }
+                    }));
+                }
             } else {
-                output_pins.push(json!({
-                    "id": "value",
-                    "label": "Value",
-                    "kind": "Data",
-                    "primitiveType": primitive_type,
-                    "cardinality": cardinality,
-                    "isRequired": false,
-                    "defaultValue": mat.outputs.get("value").cloned().unwrap_or(Value::Null),
+                let val = mat.outputs.get("value").cloned().unwrap_or(Value::Null);
+                let ui_meta = if item.data_type.eq_ignore_ascii_case("Path") {
+                    Some(json!({ "inputMode": "path" }))
+                } else if item.data_type.eq_ignore_ascii_case("Directory") {
+                    Some(json!({ "inputMode": "directory" }))
+                } else {
+                    None
+                };
+                let mut pin_legacy = json!({
+                    "id": "value", "label": "Value", "kind": "Data",
+                    "primitiveType": data_type, "dataType": data_type,
+                    "cardinality": cardinality, "isRequired": false, "defaultValue": val,
                     "description": item.description.clone().unwrap_or_else(|| format!("Constant value of {}", item.key))
-                }));
+                });
+                let mut pin_canon = json!({
+                    "id": "value", "label": "Value", "dataType": data_type,
+                    "cardinality": cardinality, "isRequired": false, "defaultValue": val
+                });
+                if let Some(ref meta) = ui_meta {
+                    pin_legacy["uiMeta"] = meta.clone();
+                    pin_canon["uiMeta"] = meta.clone();
+                }
+                output_pins.push(pin_legacy);
+                data_outputs.push(pin_canon);
             }
 
-            let input_pins: Vec<Value> = mat
-                .template_vars
-                .iter()
-                .map(|var_name| {
-                    json!({
-                        "id": var_name,
-                        "label": format_var_label(var_name),
-                        "kind": "Data",
-                        "primitiveType": "String",
-                        "cardinality": "Single",
-                        "isRequired": true,
-                        "description": format!("Template variable '{{{}}}' for {}", var_name, item.key)
-                    })
-                })
-                .collect();
+            let input_pins: Vec<Value> = mat.template_vars.iter().map(|var_name| json!({
+                "id": var_name, "label": format_var_label(var_name), "kind": "Data",
+                "primitiveType": "String", "dataType": "String", "cardinality": "Single", "isRequired": true,
+                "description": format!("Template variable '{{{}}}' for {}", var_name, item.key)
+            })).collect();
+            let data_inputs: Vec<Value> = mat.template_vars.iter().map(|var_name| json!({
+                "id": var_name, "label": format_var_label(var_name), "dataType": "String",
+                "cardinality": "Single", "isRequired": true
+            })).collect();
 
             let description = item.description.clone().unwrap_or_else(|| {
-                format!(
-                    "Local Machine Constant: {} ({} - {})",
-                    item.key, item.scope, item.data_type
-                )
+                format!("Local Machine Constant: {} ({} - {})", item.key, item.scope, item.data_type)
             });
-
+            let ref_id = format!("local:constant:{}", item.key);
             json!({
-                "key": format!("local:constant:{}", item.key),
-                "name": item.key,
-                "label": format!("Constant: {}", item.key),
-                "category": "Constants",
-                "source": "Custom",
-                "description": description,
-                "executor": "pure",
-                "inputs": input_pins,
-                "outputs": output_pins,
-                "isStateless": true,
-                "hasDynamicPins": false,
+                "refId": ref_id, "key": ref_id, "name": item.key,
+                "label": format!("Constant: {}", item.key), "category": "Constants",
+                "source": "Custom", "viewVariant": "Constant", "isVisibleInPalette": true,
+                "description": description, "executor": "pure",
+                "execInputs": [], "execOutputs": [],
+                "dataInputs": data_inputs, "dataOutputs": data_outputs,
+                "inputs": input_pins, "outputs": output_pins,
+                "isStateless": true, "hasDynamicPins": false,
+                "sourceRef": {
+                    "kind": "workspace",
+                    "ref": format!("{}:constant/{}", workspace_slug, item.key),
+                    "ownerSlug": workspace_slug
+                },
                 "capabilities": {
-                    "isLocalDraft": true,
-                    "isConstantNode": true,
-                    "viewVariant": "Constant",
-                    "constantKey": item.key,
-                    "scope": item.scope,
-                    "dataType": item.data_type,
-                    "resolvedValue": mat.resolved_value,
-                    "resolvedUnrealPath": mat.resolved_unreal_path,
+                    "isLocalDraft": true, "isConstantNode": true, "viewVariant": "Constant",
+                    "constantKey": item.key, "scope": item.scope, "dataType": item.data_type,
+                    "resolvedValue": mat.resolved_value, "resolvedUnrealPath": mat.resolved_unreal_path,
                 }
             })
         })
@@ -458,15 +577,44 @@ pub fn expand_vars_in_dag_json(doc: &mut Value, raw_items: &[RawConstantItem]) {
 pub fn build_builtin_system_palette_items() -> Vec<Value> {
     vec![
         json!({
+            "refId": "Sequence",
             "id": "Sequence",
             "key": "Sequence",
+            "name": "Sequence",
             "label": "Sequence",
             "category": "Flow Control",
             "source": "BuiltIn",
+            "sourceRef": {
+                "kind": "builtin",
+                "refId": "Sequence"
+            },
+            "viewVariant": "Standard",
             "executor": "pure",
             "description": "Fan-out execution to multiple parallel branches on a Master Pipeline.",
             "hasDynamicPins": false,
             "isVisibleInPalette": true,
+            "execInputs": [
+                {
+                    "id": "exec_in",
+                    "label": "Exec"
+                }
+            ],
+            "execOutputs": [
+                {
+                    "id": "then_0",
+                    "label": "Then 0"
+                },
+                {
+                    "id": "then_1",
+                    "label": "Then 1"
+                },
+                {
+                    "id": "then_2",
+                    "label": "Then 2"
+                }
+            ],
+            "dataInputs": [],
+            "dataOutputs": [],
             "inputs": [
                 {
                     "id": "exec_in",
@@ -497,15 +645,61 @@ pub fn build_builtin_system_palette_items() -> Vec<Value> {
             ]
         }),
         json!({
+            "refId": "Joint",
             "id": "Joint",
             "key": "Joint",
+            "name": "Joint",
             "label": "Joint",
             "category": "Flow Control",
             "source": "BuiltIn",
+            "sourceRef": {
+                "kind": "builtin",
+                "refId": "Joint"
+            },
+            "viewVariant": "Standard",
             "executor": "pure",
             "description": "Buffers incoming items from multiple upstream branches into a single stream and flushes chunks of 'take' items whenever the downstream component is FREE.",
             "hasDynamicPins": false,
             "isVisibleInPalette": true,
+            "execInputs": [
+                {
+                    "id": "exec_in",
+                    "label": "Exec"
+                }
+            ],
+            "execOutputs": [
+                {
+                    "id": "exec_out",
+                    "label": "Exec"
+                }
+            ],
+            "dataInputs": [
+                {
+                    "id": "in",
+                    "label": "Items In",
+                    "dataType": "String",
+                    "cardinality": "Array",
+                    "isRequired": false
+                },
+                {
+                    "id": "take",
+                    "label": "Take Count",
+                    "dataType": "Number",
+                    "cardinality": "Single",
+                    "defaultValue": 10,
+                    "isRequired": false,
+                    "description": "Number of items to flush per wave when the downstream component is FREE (0 = take all once upstreams complete)."
+                }
+            ],
+            "dataOutputs": [
+                {
+                    "id": "out",
+                    "label": "Items Out",
+                    "dataType": "String",
+                    "cardinality": "Array",
+                    "isRequired": false
+                }
+            ],
             "inputs": [
                 {
                     "id": "exec_in",
@@ -947,15 +1141,68 @@ pub fn discover_component_pipelines(
     components
 }
 
+fn resolve_workspace_slug(root: &Path) -> String {
+    if let Ok(raw) = std::fs::read_to_string(root.join(".forgity").join("workspace.json")) {
+        if let Ok(v) = serde_json::from_str::<Value>(&raw) {
+            if let Some(slug) = v.get("slug").and_then(|s| s.as_str()).filter(|s| !s.trim().is_empty()) {
+                return slug.trim().to_string();
+            }
+        }
+    }
+    let folder = root
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("workspace");
+    slugify_workspace_name(folder)
+}
+
 pub fn load_workspace_node_contracts(root_path: String) -> Result<Vec<Value>, String> {
     let root = Path::new(&root_path);
     let db = WorkspaceDb::open(root)?;
+    let workspace_slug = resolve_workspace_slug(root);
 
+    // 1. Always inject Built-in nodes from code (NEVER stored in workspace_palette)
     let mut palette = build_builtin_system_palette_items();
 
-    let const_items = load_constant_items_from_db(&db)?;
-    palette.extend(build_constant_palette_items(&const_items));
+    // 2. Load any persisted contracts from workspace_palette (e.g. template-sourced nodes from Fork)
+    let mut persisted_by_ref: HashMap<String, Value> = HashMap::new();
+    for raw_json in db.load_workspace_palette_contracts_raw()? {
+        if let Ok(val) = serde_json::from_str::<Value>(&raw_json) {
+            let ref_id = val
+                .get("refId")
+                .or_else(|| val.get("key"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if !ref_id.is_empty() {
+                persisted_by_ref.insert(ref_id, val);
+            }
+        }
+    }
 
+    // 3. Build & upsert Constants into workspace_palette
+    let const_items = load_constant_items_from_db(&db)?;
+    let const_contracts = build_constant_palette_items_with_slug(&const_items, &workspace_slug);
+    for item in &const_contracts {
+        if let Some(ref_id) = item.get("refId").and_then(|v| v.as_str()) {
+            let source_kind = item
+                .get("sourceRef")
+                .and_then(|s| s.get("kind"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("workspace");
+            let owner_slug = item
+                .get("sourceRef")
+                .and_then(|s| s.get("ownerSlug"))
+                .and_then(|v| v.as_str())
+                .unwrap_or(&workspace_slug);
+            if let Ok(raw) = serde_json::to_string(item) {
+                let _ = db.upsert_workspace_palette_contract(ref_id, &raw, source_kind, owner_slug, None);
+            }
+            persisted_by_ref.insert(ref_id.to_string(), item.clone());
+        }
+    }
+
+    // 4. Build & upsert Components into workspace_palette
     let components = discover_component_pipelines(root, Some(&db));
     let mut snapshots_by_slug = HashMap::new();
     for (slug, _, _) in &components {
@@ -966,11 +1213,33 @@ pub fn load_workspace_node_contracts(root_path: String) -> Result<Vec<Value>, St
             snapshots_by_slug.insert(slug.clone(), snapshot);
         }
     }
-    palette.extend(build_component_palette_items_with_snapshots(
+    let comp_contracts = build_component_palette_items_with_snapshots(
         root,
         &components,
         &snapshots_by_slug,
-    ));
+    );
+    for item in &comp_contracts {
+        if let Some(ref_id) = item.get("key").or_else(|| item.get("refId")).and_then(|v| v.as_str()) {
+            // Preserve template sourceRef if already forked from a template
+            let existing_is_template = persisted_by_ref
+                .get(ref_id)
+                .and_then(|v| v.get("sourceRef"))
+                .and_then(|s| s.get("kind"))
+                .and_then(|v| v.as_str())
+                == Some("template");
+            if !existing_is_template {
+                persisted_by_ref.insert(ref_id.to_string(), item.clone());
+            }
+        }
+    }
+
+    let mut extra_items: Vec<Value> = persisted_by_ref.into_values().collect();
+    extra_items.sort_by(|a, b| {
+        let ka = a.get("refId").or_else(|| a.get("key")).and_then(|v| v.as_str()).unwrap_or("");
+        let kb = b.get("refId").or_else(|| b.get("key")).and_then(|v| v.as_str()).unwrap_or("");
+        ka.cmp(kb)
+    });
+    palette.extend(extra_items);
 
     Ok(palette)
 }

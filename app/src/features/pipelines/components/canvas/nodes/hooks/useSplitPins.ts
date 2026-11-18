@@ -1,5 +1,8 @@
 import { useMemo } from "react";
-import type { PinDefinition } from "@/features/pipelines/types/pipelineGraphTypes";
+import type {
+  NodePaletteItemDto,
+  PinDefinition,
+} from "@/features/pipelines/types/pipelineGraphTypes";
 import { PinKind } from "@/features/pipelines/types/pipelineGraphTypes";
 
 export interface SplitPinsResult {
@@ -14,9 +17,53 @@ export interface SplitPinsResult {
 export function useSplitPins(
   inputs?: PinDefinition[],
   outputs?: PinDefinition[],
-  forceExecIn = false
+  forceExecIn = false,
+  definition?: NodePaletteItemDto
 ): SplitPinsResult {
   return useMemo(() => {
+    // 1. When PaletteNodeContract execInputs/execOutputs/dataInputs/dataOutputs are explicitly provided, use them as SSOT
+    if (definition && Array.isArray(definition.execInputs) && Array.isArray(definition.execOutputs)) {
+      const execInputs: PinDefinition[] = definition.execInputs.map((p) => ({
+        id: p.id,
+        name: p.label || p.id,
+        label: p.label,
+        direction: "Input",
+        kind: PinKind.Exec,
+        isRequired: false,
+      }));
+      const execOutputs: PinDefinition[] = definition.execOutputs.map((p) => ({
+        id: p.id,
+        name: p.label || p.id,
+        label: p.label,
+        direction: "Output",
+        kind: PinKind.Exec,
+        isRequired: false,
+      }));
+      const dataInputs: PinDefinition[] = (definition.dataInputs ?? inputs ?? []).map((p: any) => ({
+        ...p,
+        name: p.name || p.label || p.id,
+        direction: "Input",
+        kind: PinKind.Data,
+        primitiveType: p.dataType || p.primitiveType || "String",
+      }));
+      const dataOutputs: PinDefinition[] = (definition.dataOutputs ?? outputs ?? []).map((p: any) => ({
+        ...p,
+        name: p.name || p.label || p.id,
+        direction: "Output",
+        kind: PinKind.Data,
+        primitiveType: p.dataType || p.primitiveType || "String",
+      }));
+
+      return {
+        execInputs,
+        execOutputs,
+        dataInputs,
+        dataOutputs,
+        showExecIn: forceExecIn || execInputs.length > 0,
+        showExecOut: execOutputs.length > 0,
+      };
+    }
+
     const rawInputs = inputs ?? [];
     const rawOutputs = outputs ?? [];
 
@@ -25,26 +72,30 @@ export function useSplitPins(
     const dataInputs = rawInputs.filter((p) => p.kind !== PinKind.Exec && (p.kind as any) !== 1 && p.id !== "exec_in" && p.id !== "exec");
     const dataOutputs = rawOutputs.filter((p) => p.kind !== PinKind.Exec && (p.kind as any) !== 1 && p.id !== "exec_out" && p.id !== "exec");
 
-    // Standard Tools default to having an Exec In and Exec Out handle unless explicitly a pure data node
-    const hasCustomExecIn = execInputs.length > 0;
-    const hasCustomExecOut = execOutputs.length > 0;
+    const isPureOrConstant =
+      definition?.viewVariant === "Constant" ||
+      definition?.capabilities?.viewVariant === "Constant" ||
+      definition?.capabilities?.isConstantNode === true ||
+      definition?.executor?.toLowerCase() === "pure";
 
-    const showExecIn = forceExecIn || hasCustomExecIn || true;
-    const showExecOut = hasCustomExecOut || true;
+    const showExecIn = forceExecIn || execInputs.length > 0 || (!isPureOrConstant && !definition);
+    const showExecOut = execOutputs.length > 0 || (!isPureOrConstant && !definition);
 
-    // If no custom exec output pins defined, provide default "exec_out" pin
-    const finalExecOutputs = hasCustomExecOut
-      ? execOutputs
-      : [
-          {
-            id: "exec_out",
-            name: "Exec",
-            direction: "Output",
-            label: "Exec",
-            kind: PinKind.Exec,
-            isRequired: false,
-          } as PinDefinition,
-        ];
+    const finalExecOutputs =
+      execOutputs.length > 0
+        ? execOutputs
+        : showExecOut
+        ? [
+            {
+              id: "exec_out",
+              name: "Exec",
+              direction: "Output",
+              label: "Exec",
+              kind: PinKind.Exec,
+              isRequired: false,
+            } as PinDefinition,
+          ]
+        : [];
 
     return {
       execInputs,
@@ -54,5 +105,5 @@ export function useSplitPins(
       showExecIn,
       showExecOut,
     };
-  }, [inputs, outputs, forceExecIn]);
+  }, [inputs, outputs, forceExecIn, definition]);
 }

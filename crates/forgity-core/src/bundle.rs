@@ -14,8 +14,34 @@ pub struct ResolvedScriptBundleDto {
     pub full_path: String,
     #[serde(default)]
     pub inline_source: Option<String>,
+    #[serde(default)]
+    pub content_hash: Option<String>,
+    #[serde(default)]
+    pub source_ref: Option<Value>,
     pub requirements: Vec<String>,
     pub default_inputs: HashMap<String, Value>,
+}
+
+fn remap_workspace_assets_recursive(val: &mut Value, assets_dir: &Path) {
+    match val {
+        Value::String(s) => {
+            if let Some(rel) = s.strip_prefix("workspace://assets/") {
+                let physical = assets_dir.join(rel);
+                *s = physical.to_string_lossy().to_string();
+            }
+        }
+        Value::Array(arr) => {
+            for item in arr.iter_mut() {
+                remap_workspace_assets_recursive(item, assets_dir);
+            }
+        }
+        Value::Object(map) => {
+            for v in map.values_mut() {
+                remap_workspace_assets_recursive(v, assets_dir);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Đọc `.forgity/workspace.db` (nếu có) và đóng gói thành `ExecutionBundle` v2 JSON DTO.
@@ -73,7 +99,11 @@ pub fn build_execution_bundle(
                         .to_string();
 
                     let mut default_inputs = HashMap::new();
-                    if let Some(inputs) = item.get("inputs").and_then(|v| v.as_array()) {
+                    let inputs_arr = item
+                        .get("dataInputs")
+                        .and_then(|v| v.as_array())
+                        .or_else(|| item.get("inputs").and_then(|v| v.as_array()));
+                    if let Some(inputs) = inputs_arr {
                         for pin in inputs {
                             if let (Some(pid), Some(def_val)) = (
                                 pin.get("id").and_then(|v| v.as_str()),
@@ -108,6 +138,12 @@ pub fn build_execution_bundle(
                         .get("inlineSource")
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string());
+                    let source_ref = item.get("sourceRef").cloned();
+                    let content_hash = source_ref
+                        .as_ref()
+                        .and_then(|sr| sr.get("contentHash"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
 
                     scripts_map.insert(
                         key.clone(),
@@ -116,6 +152,8 @@ pub fn build_execution_bundle(
                             executor,
                             full_path,
                             inline_source,
+                            content_hash,
+                            source_ref,
                             requirements,
                             default_inputs,
                         },
@@ -161,23 +199,18 @@ pub fn build_execution_bundle(
         }
     }
 
-    // Remap workspace://assets/ references in runtime_inputs and default_inputs to physical paths
+    // Remap workspace://assets/ references recursively across root_pipeline, components, runtime_inputs, and default_inputs
     let assets_dir = root_path.join("assets");
-    let remap_asset_ref = |val: &mut Value| {
-        if let Some(s) = val.as_str() {
-            if let Some(rel) = s.strip_prefix("workspace://assets/") {
-                let physical = assets_dir.join(rel);
-                *val = Value::String(physical.to_string_lossy().to_string());
-            }
-        }
-    };
-
+    remap_workspace_assets_recursive(&mut root_pipeline, &assets_dir);
+    for comp_doc in components_map.values_mut() {
+        remap_workspace_assets_recursive(comp_doc, &assets_dir);
+    }
     for val in runtime_inputs.values_mut() {
-        remap_asset_ref(val);
+        remap_workspace_assets_recursive(val, &assets_dir);
     }
     for script_dto in scripts_map.values_mut() {
         for val in script_dto.default_inputs.values_mut() {
-            remap_asset_ref(val);
+            remap_workspace_assets_recursive(val, &assets_dir);
         }
     }
 

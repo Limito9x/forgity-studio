@@ -185,6 +185,10 @@ pub struct ResolvedScript {
     #[serde(default)]
     pub inline_source: Option<String>,
     #[serde(default)]
+    pub content_hash: Option<String>,
+    #[serde(default)]
+    pub source_ref: Option<Value>,
+    #[serde(default)]
     pub requirements: Vec<String>,
     #[serde(default)]
     pub default_inputs: HashMap<String, Value>,

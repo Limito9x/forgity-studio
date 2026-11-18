@@ -22,6 +22,7 @@ import { LocalWorkspaceWelcomeState } from "../components/workspace/LocalWorkspa
 import { LocalWorkspaceOutliner } from "../components/workspace/LocalWorkspaceOutliner";
 import { WorkspaceTabBar } from "../components/workspace/WorkspaceTabBar";
 import { LocalConstantsManagerPage } from "../components/workspace/LocalConstantsManagerPage";
+import { LocalScriptsManagerPage } from "../components/workspace/LocalScriptsManagerPage";
 import { useWorkspaceTabsStore } from "../stores/useWorkspaceTabsStore";
 import {
   useWorkspaceUiPrefsStore,
@@ -87,9 +88,19 @@ export function LocalWorkspacePage({ projectId, explicitRootPath }: LocalWorkspa
   const {
     draftNodes,
     localStructs,
+    isScanning,
+    scanAndSyncScripts,
     reanalyzeSingleScript,
     removeNodeFromPalette,
   } = useLocalPaletteQuery(rootPath, config?.scriptsDir, config?.ignorePatterns);
+
+  const handleSyncScripts = useCallback(async () => {
+    await scanAndSyncScripts();
+    if (rootPath) {
+      await queryClient.invalidateQueries({ queryKey: ["local-node-contracts", rootPath] });
+      await queryClient.invalidateQueries({ queryKey: ["local-workspace", "pipelines", rootPath] });
+    }
+  }, [scanAndSyncScripts, rootPath, queryClient]);
 
   const {
     pipelines: scannedDraftPipelines,
@@ -107,7 +118,6 @@ export function LocalWorkspacePage({ projectId, explicitRootPath }: LocalWorkspa
     openSingletonTab,
     closeTab,
     setActiveTab,
-    requestPaletteScan,
   } = useWorkspaceTabsStore();
 
   const uiPrefs = useProjectUiPrefs(projectId);
@@ -727,13 +737,7 @@ export function LocalWorkspacePage({ projectId, explicitRootPath }: LocalWorkspa
             openPipelineTab(projectId, draft);
           }}
           onOpenPalette={() => openSingletonTab(projectId, "palette")}
-          onSyncPalette={() => {
-            requestPaletteScan(projectId);
-            if (rootPath) {
-              queryClient.invalidateQueries({ queryKey: ["local-node-contracts", rootPath] });
-              queryClient.invalidateQueries({ queryKey: ["local-workspace", "pipelines", rootPath] });
-            }
-          }}
+          onSyncPalette={handleSyncScripts}
           onOpenConfig={() => useDialogStore.getState().openDialog("workspace-config", { projectId })}
           onOpenConstants={() => openSingletonTab(projectId, "constants")}
           isCreatingPipelineExternal={isCreatingPipeline}
@@ -756,6 +760,15 @@ export function LocalWorkspacePage({ projectId, explicitRootPath }: LocalWorkspa
               <LocalConstantsManagerPage
                 projectId={projectId}
                 rootPath={rootPath}
+              />
+            ) : activeTab?.kind === "palette" ? (
+              <LocalScriptsManagerPage
+                projectId={projectId}
+                rootPath={rootPath}
+                scriptsDir={config?.scriptsDir}
+                ignorePatterns={config?.ignorePatterns}
+                isScanning={isScanning}
+                onSyncScripts={handleSyncScripts}
               />
             ) : activeDraftPipeline ? (
               viewMode === "yaml" ? (

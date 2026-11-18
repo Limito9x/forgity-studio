@@ -4,10 +4,12 @@ import { toast } from "sonner";
 
 export interface RegisteredWorkspace {
   id: string;
+  slug: string;
   name: string;
   rootPath: string;
   linkedProjectId?: string | null;
   originTemplateId?: string | null;
+  originTemplateSlug?: string | null;
   originVersionId?: string | null;
   originTemplateTitle?: string | null;
   lastOpenedAt: string;
