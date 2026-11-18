@@ -185,11 +185,14 @@ export function ForkTemplateDialog({
       const constantsList = (template.constants || []).map((c: any) => {
         let value = null;
         if (c.defaultValue !== undefined && c.defaultValue !== null && c.defaultValue !== "") {
-          try {
-            value = typeof c.defaultValue === "string" && (c.defaultValue.startsWith("{") || c.defaultValue.startsWith("["))
-              ? JSON.parse(c.defaultValue)
-              : c.defaultValue;
-          } catch {
+          if (typeof c.defaultValue === "string") {
+            try {
+              // Parse nếu là JSON string kép ("\"path\"" -> "path", hoặc "{...}", "[...]")
+              value = JSON.parse(c.defaultValue);
+            } catch {
+              value = c.defaultValue;
+            }
+          } else {
             value = c.defaultValue;
           }
         }
@@ -247,7 +250,7 @@ export function ForkTemplateDialog({
       });
 
       toast.success(
-        `Forked template into "${result.rootPath}" (${result.stagedPipelines} pipelines staged)`
+        `Forked template into "${result.rootPath}" (${result.stagedPipelines} pipelines, ${result.stagedAssets} assets staged)`
       );
 
       onClose();

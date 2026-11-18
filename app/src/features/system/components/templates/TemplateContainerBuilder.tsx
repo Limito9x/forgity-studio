@@ -412,14 +412,25 @@ export function TemplateContainerBuilder({
       );
 
       setConstants(
-        manifest.constants.map((c) => ({
-          key: c.key,
-          label: c.key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
-          dataType: c.dataType || "String",
-          scope: c.scope || "General",
-          isRequired: true,
-          defaultValue: c.valueJson,
-        }))
+        manifest.constants.map((c) => {
+          let cleanValue = c.valueJson;
+          if (typeof cleanValue === "string") {
+            try {
+              const parsed = JSON.parse(cleanValue);
+              cleanValue = parsed;
+            } catch {
+              // Raw string
+            }
+          }
+          return {
+            key: c.key,
+            label: c.key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
+            dataType: c.dataType || "String",
+            scope: c.scope || "General",
+            isRequired: true,
+            defaultValue: typeof cleanValue === "string" ? cleanValue : JSON.stringify(cleanValue),
+          };
+        })
       );
 
       setScripts(
@@ -642,6 +653,9 @@ export function TemplateContainerBuilder({
       );
 
       if (uploadedPinAssets.length > 0) {
+        toast.info(
+          `Uploaded and remapped ${uploadedPinAssets.length} file asset pin(s) to Cloud storage.`
+        );
         for (const graph of graphs) {
           const encoded = new TextEncoder().encode(JSON.stringify(graph.dagBundleJson));
           graph.graphHash = await sha256Hex(encoded);
