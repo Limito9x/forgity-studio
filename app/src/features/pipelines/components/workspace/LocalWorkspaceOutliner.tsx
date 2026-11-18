@@ -27,9 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { openNativeFileOrFolderDialog, isTauriRuntime } from "@/lib/platform/filePickerStrategy";
-import { useDialogStore } from "@/stores/dialogStore";
-import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
-import { useStudioQuota } from "@/features/studios/hooks/useStudioQuota";
+import { useGetMyLibrary } from "@/gen/endpoints/templates/templates";
 import { featureFlags } from "@/config/featureFlags";
 import { SUPPORTED_EXECUTOR_KEYS, getSoftwareMetadata } from "@/features/runners/constants/dccEngines";
 import { ExecutorIcon } from "@/features/runners/components/ExecutorIcon";
@@ -85,6 +83,7 @@ export function LocalWorkspaceOutliner({
   const {
     rootPath,
     config,
+    originTemplateId,
     switchRootFolder,
   } = useLocalWorkspaceConfig(projectId);
 
@@ -127,10 +126,12 @@ export function LocalWorkspaceOutliner({
   const [createExecutor, setCreateExecutor] = useState<string>("blender");
   const [newPipelineName, setNewPipelineName] = useState("");
 
-  const isStandaloneLocal = projectId === "local-default";
-  const { studioSlug } = useCurrentStudio({ enabled: !isStandaloneLocal });
-  const { data: studioQuota } = useStudioQuota(isStandaloneLocal ? undefined : studioSlug);
-  const creditsRemaining = studioQuota?.executionCreditsRemaining ?? 50;
+  const { data: libraryItems = [] } = useGetMyLibrary();
+  const matchedLibraryItem = originTemplateId
+    ? libraryItems.find((item) => item.templatePackageId === originTemplateId)
+    : undefined;
+  const remainingRuns = matchedLibraryItem?.remainingRuns ?? null;
+  const maxRuns = matchedLibraryItem?.maxRuns ?? null;
 
   const rootFolderName = rootPath ? rootPath.split(/[/\\]/).filter(Boolean).pop() || "Workspace" : "No Workspace";
 
@@ -349,25 +350,26 @@ export function LocalWorkspaceOutliner({
         </div>
       </div>
 
-      {/* Solo Dev Preview Quota Badge (hidden in standalone Local Mode until Quota phase) */}
-      {!isStandaloneLocal && (
+      {/* Template Quota Badge (only shown if workspace originated from a Template) */}
+      {originTemplateId && (
         <div className="px-3 py-1.5 bg-muted/20 border-b border-border/40 flex items-center justify-between text-[11px]">
-          <button
-            onClick={() => useDialogStore.getState().openDialog("upgrade-plan", { quota: studioQuota })}
-            className="flex items-center gap-1.5 hover:opacity-80 transition-opacity text-muted-foreground hover:text-foreground cursor-pointer"
-          >
-            <Zap className={`h-3 w-3 ${creditsRemaining <= 5 ? "text-amber-500 fill-amber-500" : "text-primary"}`} />
-            <span>Solo Preview:</span>
-            <span className={`font-mono font-semibold ${creditsRemaining <= 0 ? "text-destructive" : "text-foreground"}`}>
-              {creditsRemaining}/50 Runs
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Zap className={`h-3 w-3 ${remainingRuns !== null && remainingRuns <= 5 ? "text-amber-500 fill-amber-500" : "text-primary"}`} />
+            <span>Template Quota:</span>
+            <span className={`font-mono font-semibold ${remainingRuns !== null && remainingRuns <= 0 ? "text-destructive" : "text-foreground"}`}>
+              {maxRuns !== null ? `${remainingRuns ?? 0}/${maxRuns} Runs` : "Unlimited"}
             </span>
-          </button>
-          <button
-            onClick={() => useDialogStore.getState().openDialog("upgrade-plan", { quota: studioQuota })}
-            className="text-[10px] font-medium text-primary hover:underline cursor-pointer"
-          >
-            {creditsRemaining <= 0 ? "Upgrade" : "Plan"}
-          </button>
+          </div>
+          {matchedLibraryItem && (
+            <button
+              onClick={() => {
+                window.location.hash = `#/templates/library/${matchedLibraryItem.id}`;
+              }}
+              className="text-[10px] font-medium text-primary hover:underline cursor-pointer"
+            >
+              Library
+            </button>
+          )}
         </div>
       )}
 

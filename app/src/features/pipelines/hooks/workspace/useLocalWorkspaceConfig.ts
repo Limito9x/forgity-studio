@@ -103,9 +103,10 @@ export function useLocalWorkspaceConfig(targetId: string, initialExplicitRootPat
             name: folderName,
             rootPath: initResult.rootPath,
             linkedProjectId: targetId.startsWith("ws_") ? null : targetId,
-            originTemplateId: null,
-            originVersionId: null,
-            originTemplateTitle: null,
+            originTemplateId: initResult.originTemplateId ?? null,
+            originTemplateSlug: initResult.originTemplateSlug ?? null,
+            originVersionId: initResult.originVersionId ?? null,
+            originTemplateTitle: initResult.originTemplateTitle ?? null,
           });
         } catch {
           // non-blocking
@@ -167,6 +168,10 @@ export function useLocalWorkspaceConfig(targetId: string, initialExplicitRootPat
   return {
     rootPath: query.data?.rootPath || null,
     config: query.data?.config || null,
+    originTemplateId: query.data?.originTemplateId || null,
+    originTemplateSlug: query.data?.originTemplateSlug || null,
+    originVersionId: query.data?.originVersionId || null,
+    originTemplateTitle: query.data?.originTemplateTitle || null,
     initialPaletteJson: query.data?.localPaletteJson || null,
     initialStructsJson: query.data?.localStructsJson || null,
     isLoading: query.isLoading,

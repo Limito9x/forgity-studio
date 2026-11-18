@@ -36,12 +36,6 @@ import { PipelineCanvas } from "../components/canvas/PipelineCanvas";
 import { useDialogStore } from "@/stores/dialogStore";
 import { pipelineYamlToGraph, graphToPipelineYaml } from "../utils/pipelineDslConverter";
 import { validateLocalPipelineGraph } from "../utils/localGraphValidator";
-import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
-import {
-  useStudioQuota,
-  useVerifyPipelineExecution,
-  useCompletePipelineExecution,
-} from "@/features/studios/hooks/useStudioQuota";
 import { PipelineTriggerType } from "@/features/pipelines/types/pipelineGraphTypes";
 import type {
   LocalDraftNode,
@@ -290,12 +284,6 @@ export function LocalWorkspacePage({ projectId, explicitRootPath }: LocalWorkspa
   const [isLoadingGraph, setIsLoadingGraph] = useState(false);
   const [graphRevision, setGraphRevision] = useState<number>(0);
 
-  const isStandaloneLocal = projectId === "local-default";
-  const { studioSlug } = useCurrentStudio({ enabled: !isStandaloneLocal });
-  const { data: studioQuota } = useStudioQuota(isStandaloneLocal ? undefined : studioSlug);
-  const verifyExecutionMutation = useVerifyPipelineExecution(studioSlug);
-  const completeExecutionMutation = useCompletePipelineExecution(studioSlug);
-
   const pipelineSlug = useMemo(() => {
     if (!activeDraftPipeline) return "";
     return activeDraftPipeline.fileName.replace(/\.(pipeline|component)\.(yaml|yml)$/i, "");
@@ -534,29 +522,6 @@ export function LocalWorkspacePage({ projectId, explicitRootPath }: LocalWorkspa
   const handleRunDraft = async (runtimeInputs?: Record<string, any>) => {
     if (!activeDraftPipeline || !rootPath) return;
 
-    // Standalone Local Mode executes offline without Cloud quota gates.
-    if (!isStandaloneLocal) {
-      if (studioQuota && studioQuota.executionCreditsRemaining <= 0) {
-        useDialogStore.getState().openDialog("upgrade-plan", { quota: studioQuota });
-        toast.error("Execution limit reached", {
-          description: "Your 50 free preview runs have been exhausted. Please upgrade to Indie Pro.",
-        });
-        return;
-      }
-
-      if (studioSlug) {
-        try {
-          await verifyExecutionMutation.mutateAsync();
-        } catch (verifyErr: any) {
-          useDialogStore.getState().openDialog("upgrade-plan", { quota: studioQuota });
-          toast.error("Execution limit reached", {
-            description: verifyErr?.message || "Credits exhausted. Please upgrade to Indie Pro.",
-          });
-          return;
-        }
-      }
-    }
-
     try {
       const { invoke } = await import("@tauri-apps/api/core");
       const lowerName = activeDraftPipeline.fileName.toLowerCase();
@@ -596,10 +561,8 @@ export function LocalWorkspacePage({ projectId, explicitRootPath }: LocalWorkspa
         },
       );
 
-      // Deduct 1 credit upon successful dispatch (Studio project mode only)
-      if (!isStandaloneLocal && studioSlug) {
-        completeExecutionMutation.mutate(1);
-      }
+      // Invalidate library queries to refresh any quota deducted by runner preflight
+      queryClient.invalidateQueries({ queryKey: ["my-library"] });
 
       toast.success("Local Pipeline Started!", {
         description: `Run ID: ${res.runId} (${pipelineKind})`,

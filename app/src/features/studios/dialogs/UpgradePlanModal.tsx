@@ -9,10 +9,7 @@ interface UpgradePlanModalProps {
   quota?: StudioQuotaDto;
 }
 
-export function UpgradePlanModal({ open, onOpenChange, quota }: UpgradePlanModalProps) {
-  const creditsRemaining = quota?.executionCreditsRemaining ?? 0;
-  const isOutOfCredits = creditsRemaining <= 0;
-
+export function UpgradePlanModal({ open, onOpenChange }: UpgradePlanModalProps) {
   const handleCheckout = () => {
     const checkoutUrl = import.meta.env.VITE_CREEM_CHECKOUT_URL || "https://forgity.com/pricing";
     window.open(checkoutUrl, "_blank");
@@ -22,28 +19,21 @@ export function UpgradePlanModal({ open, onOpenChange, quota }: UpgradePlanModal
     <BaseDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={isOutOfCredits ? "Execution Limit Reached" : "Upgrade to Indie Pro"}
+      title="Upgrade to Indie Pro"
       description="Supercharge your indie studio workflow with unlimited runs and advanced pipeline maestro."
       className="max-w-xl"
     >
       <div className="space-y-5 py-2">
         {/* Current status banner */}
-        <div className={`p-3.5 rounded-xl border flex items-center justify-between text-sm ${
-          isOutOfCredits 
-            ? "border-red-500/30 bg-red-500/10 text-red-400"
-            : "border-primary/20 bg-primary/5 text-muted-foreground"
-        }`}>
+        <div className="p-3.5 rounded-xl border flex items-center justify-between text-sm border-primary/20 bg-primary/5 text-muted-foreground">
           <div>
             <p className="font-medium text-foreground">
               Current Plan: <span className="font-semibold text-primary">Community Tier</span>
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {creditsRemaining} of 50 free preview runs remaining
+              Access to core tools and community features
             </p>
           </div>
-          <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-background border border-border">
-            {creditsRemaining} Runs Left
-          </span>
         </div>
 
         {/* Plan Feature Comparison Card */}

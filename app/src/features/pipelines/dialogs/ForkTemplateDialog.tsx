@@ -13,9 +13,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { openNativeFileOrFolderDialog, isTauriRuntime } from "@/lib/platform/filePickerStrategy";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import type { TemplateContainerDetailDto } from "@/gen/model/templateContainerDetailDto";
 import { graphToPipelineYaml } from "../utils/pipelineDslConverter";
 import { getCloudDataPipelineVersion } from "@/gen/endpoints/cloud-data/cloud-data";
+import { addTemplateToLibrary, getGetMyLibraryQueryKey } from "@/gen/endpoints/templates/templates";
 
 interface ForkTemplateDialogProps {
   isOpen: boolean;
@@ -29,6 +31,7 @@ export function ForkTemplateDialog({
   template,
 }: ForkTemplateDialogProps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [workspaceName, setWorkspaceName] = useState(
     `${template.title} Workspace`
   );
@@ -248,6 +251,16 @@ export function ForkTemplateDialog({
           assets: stagedAssetPayloads,
         },
       });
+
+      // Auto add template to user library if not already added
+      try {
+        await addTemplateToLibrary(template.templatePackageId, {
+          machineKey: "local-workstation",
+        });
+        queryClient.invalidateQueries({ queryKey: getGetMyLibraryQueryKey() });
+      } catch {
+        // non-blocking if already added or offline
+      }
 
       toast.success(
         `Forked template into "${result.rootPath}" (${result.stagedPipelines} pipelines, ${result.stagedAssets} assets staged)`
