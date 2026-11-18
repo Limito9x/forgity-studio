@@ -171,6 +171,10 @@ pub fn run_cloud_bundle(
 
     let runner_bin = resolve_runner_executable()?;
     let runner_path_str = runner_bin.to_string_lossy().to_string();
+    log::info!("Spawning local forgity-runner binary: {}", runner_path_str);
+
+    let default_api = std::env::var("FORGITY_API_URL")
+        .unwrap_or_else(|_| "http://localhost:5189".to_string());
 
     let mut cmd = Command::new(&runner_bin);
     cmd.arg("run-bundle")
@@ -178,6 +182,7 @@ pub fn run_cloud_bundle(
         .arg("--json-events")
         .arg("--run-id")
         .arg(&eff_run_id)
+        .env("FORGITY_API_URL", default_api)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -290,6 +295,10 @@ pub fn run_local_pipeline(
 
     let runner_bin = resolve_runner_executable()?;
     let runner_path_str = runner_bin.to_string_lossy().to_string();
+    log::info!("Spawning local forgity-runner binary: {}", runner_path_str);
+
+    let default_api = std::env::var("FORGITY_API_URL")
+        .unwrap_or_else(|_| "http://localhost:5189".to_string());
 
     let mut cmd = Command::new(&runner_bin);
     cmd.arg("run-bundle")
@@ -298,6 +307,7 @@ pub fn run_local_pipeline(
         .arg("--run-id")
         .arg(&run_id)
         .current_dir(&root_path)
+        .env("FORGITY_API_URL", default_api)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());

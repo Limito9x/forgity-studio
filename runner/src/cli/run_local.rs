@@ -73,10 +73,15 @@ pub async fn run_parsed_bundle(
         .any(|s| s.full_path.as_os_str().is_empty() && s.content_hash.is_some());
 
     let runner_cfg = load_config(config_override, false).ok().and_then(|(c, _)| c);
-    let default_api_url = runner_cfg
-        .as_ref()
-        .map(|c| c.api_url.clone())
+    let default_api_url = std::env::var("FORGITY_API_URL")
+        .ok()
         .filter(|u| !u.trim().is_empty())
+        .or_else(|| {
+            runner_cfg
+                .as_ref()
+                .map(|c| c.api_url.clone())
+                .filter(|u| !u.trim().is_empty())
+        })
         .unwrap_or_else(|| "http://localhost:5189".to_string());
     let default_machine_key = runner_cfg
         .as_ref()
@@ -95,7 +100,10 @@ pub async fn run_parsed_bundle(
         if lease.machine_key.trim().is_empty() {
             lease.machine_key = default_machine_key;
         }
-        let api_url = lease.api_url.clone().unwrap_or(default_api_url);
+        let env_api_url = std::env::var("FORGITY_API_URL").ok().filter(|u| !u.trim().is_empty());
+        let api_url = env_api_url
+            .or_else(|| lease.api_url.clone())
+            .unwrap_or(default_api_url);
         Arc::new(CloudTemplateResourceResolver::from_bundle(&bundle, api_url, lease))
     } else {
         Arc::new(BundleResourceResolver::from_bundle(&bundle))
