@@ -14,7 +14,7 @@ use std::os::windows::process::CommandExt;
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-/// Quáº£n lÃ½ cÃ¡c tiáº¿n trÃ¬nh `forgity-runner` Ä‘ang cháº¡y á»Ÿ cháº¿ Ä‘á»™ Local.
+/// Manages local `forgity-runner` execution processes.
 #[derive(Default)]
 pub struct LocalExecutionState {
     pub active_runs: Arc<Mutex<HashMap<String, Child>>>,
@@ -27,11 +27,12 @@ pub struct LocalRunStartedResponse {
     pub runner_path: String,
 }
 
-/// TÃ¬m binary `forgity-runner.exe` theo thá»© tá»± Æ°u tiÃªn:
-/// 1. Cáº¡nh file exe Tauri hiá»‡n táº¡i
-/// 2. `%LOCALAPPDATA%\Forgity\bin\forgity-runner.exe`
-/// 3. Build dev trong monorepo (`runner/target/debug` hoáº·c `release`)
-/// 4. Biáº¿n mÃ´i trÆ°á»ng PATH (`forgity-runner`)
+/// Resolves `forgity-runner` executable with priority:
+/// 1. Custom environment variable FORGITY_RUNNER_BIN
+/// 2. Monorepo dev workspace (`runner/target/debug` or `release`)
+/// 3. Sibling binary next to the current Tauri executable (portable / bundled)
+/// 4. Local AppData runner directory (`%LOCALAPPDATA%\Forgity\bin\forgity-runner.exe`)
+/// 5. System PATH (`forgity-runner`)
 pub fn resolve_runner_executable() -> Result<PathBuf, String> {
     let exe_name = if cfg!(windows) {
         "forgity-runner.exe"
@@ -39,7 +40,7 @@ pub fn resolve_runner_executable() -> Result<PathBuf, String> {
         "forgity-runner"
     };
 
-    // 1. Biến môi trường tùy chỉnh FORGITY_RUNNER_BIN (ưu tiên tuyệt đối nếu được cấu hình)
+    // 1. Check custom environment variable FORGITY_RUNNER_BIN
     if let Ok(custom_bin) = std::env::var("FORGITY_RUNNER_BIN") {
         let p = PathBuf::from(custom_bin);
         if p.is_file() {
@@ -48,7 +49,7 @@ pub fn resolve_runner_executable() -> Result<PathBuf, String> {
         }
     }
 
-    // 2. Dev mode / Monorepo workspace ưu tiên hàng đầu khi phát triển
+    // 2. Dev mode / Monorepo workspace priority
     if let Ok(cwd) = std::env::current_dir() {
         for ancestor in cwd.ancestors() {
             let debug_bin = ancestor.join("runner").join("target").join("debug").join(exe_name);
@@ -64,7 +65,7 @@ pub fn resolve_runner_executable() -> Result<PathBuf, String> {
         }
     }
 
-    // 3. Cạnh file exe Tauri hiện tại (portable / bundled)
+    // 3. Sibling binary next to current executable
     if let Ok(current_exe) = std::env::current_exe() {
         if let Some(dir) = current_exe.parent() {
             let sibling = dir.join(exe_name);
@@ -74,7 +75,7 @@ pub fn resolve_runner_executable() -> Result<PathBuf, String> {
         }
     }
 
-    // 4. Local AppData runner directory (cho bản cài đặt qua installer)
+    // 4. Local AppData runner directory
     if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
         let installed = Path::new(&local_app_data)
             .join("Forgity")
@@ -89,7 +90,7 @@ pub fn resolve_runner_executable() -> Result<PathBuf, String> {
     Ok(PathBuf::from(exe_name))
 }
 
-/// Xuáº¥t ExecutionBundle v2 ra file JSON Ä‘á»ƒ cháº¡y CLI debug `forgity-runner run-bundle --bundle <file>`.
+/// Export ExecutionBundle v2 to JSON for debugging CLI with `forgity-runner run-bundle --bundle <file>`.
 #[tauri::command]
 pub fn export_execution_bundle(
     root_path: String,
