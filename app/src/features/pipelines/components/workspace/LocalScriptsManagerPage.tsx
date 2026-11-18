@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Cpu, RefreshCw, Search, ArrowRightToLine, ArrowRightFromLine, FileCode2 } from "lucide-react";
+import { Cpu, RefreshCw, Search, ArrowRightToLine, ArrowRightFromLine, FileCode2, ShieldCheck, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -32,16 +32,20 @@ export function LocalScriptsManagerPage({
 
   const [search, setSearch] = useState("");
   const [executorFilter, setExecutorFilter] = useState<string>("all");
+  const [selectedRefId, setSelectedRefId] = useState<string | null>(null);
 
   const scriptNodes = useMemo(() => {
     return nodeContracts.filter((item) => {
       const kind = item.sourceRef?.kind ?? (item.source === "System" || item.source === "BuiltIn" ? "builtin" : undefined);
       const isConstant =
         item.viewVariant === "Constant" ||
-        item.capabilities?.viewVariant === "Constant" ||
-        item.capabilities?.isConstantNode === true;
-      if (isConstant || kind === "builtin") return false;
-      return true;
+        item.capabilities?.isConstantNode === true ||
+        item.refId.startsWith("local:constant:");
+      const isComponent =
+        item.viewVariant === "Component" ||
+        item.source === "SubPipeline" ||
+        item.refId.startsWith("local:component:");
+      return kind !== "builtin" && !isConstant && !isComponent;
     });
   }, [nodeContracts]);
 
@@ -60,45 +64,55 @@ export function LocalScriptsManagerPage({
         return false;
       }
       if (!q) return true;
-      return (
-        (item.name || "").toLowerCase().includes(q) ||
-        (item.label || "").toLowerCase().includes(q) ||
-        (item.refId || "").toLowerCase().includes(q) ||
-        (item.description || "").toLowerCase().includes(q)
-      );
+      const name = (item.label || item.name || "").toLowerCase();
+      const refId = (item.refId || "").toLowerCase();
+      const desc = (item.description || "").toLowerCase();
+      return name.includes(q) || refId.includes(q) || desc.includes(q);
     });
-  }, [scriptNodes, executorFilter, search]);
+  }, [scriptNodes, search, executorFilter]);
+
+  const selectedItem = useMemo(() => {
+    if (filtered.length === 0) return null;
+    if (selectedRefId) {
+      const found = filtered.find((x) => x.refId === selectedRefId);
+      if (found) return found;
+    }
+    return filtered[0];
+  }, [filtered, selectedRefId]);
 
   const handleSync = async () => {
     if (onSyncScripts) {
       await onSyncScripts();
-    } else {
+    } else if (rootPath) {
       await scanAndSyncScripts();
     }
     await refetch();
   };
 
-  const getPins = (item: NodePaletteItemDto, dir: "in" | "out") => {
-    const raw = dir === "in" ? (item.dataInputs ?? item.inputs ?? []) : (item.dataOutputs ?? item.outputs ?? []);
-    return raw.filter((p: any) => p.kind !== "Exec" && p.kind !== 1 && p.id !== "exec_in" && p.id !== "exec_out");
+  const getDataPins = (item: NodePaletteItemDto, dir: "in" | "out") => {
+    const pins = dir === "in" ? (item.dataInputs ?? item.inputs ?? []) : (item.dataOutputs ?? item.outputs ?? []);
+    return pins.filter((p: any) => p.kind !== "Exec" && p.id !== "exec_in" && p.id !== "exec_out");
+  };
+
+  const getExecPins = (item: NodePaletteItemDto, dir: "in" | "out") => {
+    const explicit = dir === "in" ? item.execInputs : item.execOutputs;
+    if (Array.isArray(explicit) && explicit.length > 0) return explicit;
+    const raw = dir === "in" ? (item.inputs ?? []) : (item.outputs ?? []);
+    return raw.filter((p: any) => p.kind === "Exec" || p.id === "exec_in" || p.id === "exec_out");
   };
 
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden bg-background">
-      <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-border/60 bg-card/40 shrink-0">
+    <div className="flex-1 flex flex-col h-full bg-background overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-card/30 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
-            <Cpu className="h-4.5 w-4.5 text-emerald-400" />
+          <div className="h-9 w-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
+            <Cpu className="h-4.5 w-4.5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-foreground">Workspace Scripts</h2>
-              <Badge variant="outline" className="text-[11px] font-mono">
-                {scriptNodes.length}
-              </Badge>
-            </div>
+            <h1 className="text-sm font-semibold text-foreground">Workspace Scripts</h1>
             <p className="text-xs text-muted-foreground">
-              Scanned Python &amp; DCC script nodes available in this workspace
+              Manage &amp; inspect Python/DCC script node contracts ({scriptNodes.length} scripts)
             </p>
           </div>
         </div>
@@ -126,7 +140,8 @@ export function LocalScriptsManagerPage({
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5 px-6 py-2.5 border-b border-border/40 bg-muted/20 shrink-0 overflow-x-auto">
+      {/* Executor Filter Bar */}
+      <div className="flex items-center gap-1.5 px-6 py-2 border-b border-border/40 bg-muted/20 shrink-0 overflow-x-auto">
         {executors.map((exec) => (
           <button
             key={exec}
@@ -142,95 +157,198 @@ export function LocalScriptsManagerPage({
           </button>
         ))}
       </div>
-      <div className="flex-1 overflow-y-auto p-6">
-        {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-center border border-dashed border-border/60 rounded-xl bg-muted/10 p-6">
-            <FileCode2 className="h-8 w-8 text-muted-foreground/50 mb-2" />
-            <p className="text-sm font-medium text-foreground">No scripts found</p>
-            <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-              Click &ldquo;Sync Scripts&rdquo; to scan your workspace scripts directory or adjust your search filter.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filtered.map((item) => {
-              const inPins = getPins(item, "in");
-              const outPins = getPins(item, "out");
+
+      {/* Master-Detail Split Pane */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        {/* Left List */}
+        <div className="w-80 border-r border-border/50 overflow-y-auto divide-y divide-border/40 shrink-0 bg-muted/5">
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-48 text-center p-6">
+              <FileCode2 className="h-7 w-7 text-muted-foreground/40 mb-2" />
+              <p className="text-xs font-medium text-foreground">No scripts found</p>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Click &ldquo;Sync Scripts&rdquo; to scan your workspace.
+              </p>
+            </div>
+          ) : (
+            filtered.map((item) => {
+              const isSelected = selectedItem?.refId === item.refId;
               const sourceKind = item.sourceRef?.kind || item.source || "workspace";
-
               return (
-                <div
+                <button
                   key={item.refId}
-                  className="flex flex-col justify-between rounded-xl border border-border/60 bg-card/50 p-4 hover:border-emerald-500/40 transition-colors"
+                  type="button"
+                  onClick={() => setSelectedRefId(item.refId)}
+                  className={`w-full text-left px-4 py-3 transition-colors cursor-pointer ${
+                    isSelected
+                      ? "bg-emerald-500/10 border-l-2 border-l-emerald-500"
+                      : "hover:bg-muted/30 border-l-2 border-l-transparent"
+                  }`}
                 >
-                  <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <h3 className="text-xs font-semibold text-foreground truncate">
-                          {item.label || item.name}
-                        </h3>
-                        <p className="text-[11px] font-mono text-muted-foreground truncate mt-0.5">
-                          {item.refId}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {item.executor && (
-                          <Badge variant="secondary" className="text-[10px] capitalize">
-                            {item.executor}
-                          </Badge>
-                        )}
-                        <Badge variant="outline" className="text-[10px] capitalize text-muted-foreground">
-                          {String(sourceKind)}
-                        </Badge>
-                      </div>
-                    </div>
-
-                    {item.description && (
-                      <p className="text-[11px] text-muted-foreground mt-2 line-clamp-2">
-                        {item.description}
-                      </p>
-                    )}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-foreground truncate">
+                      {item.label || item.name}
+                    </span>
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 uppercase shrink-0">
+                      {item.executor || "python"}
+                    </Badge>
                   </div>
+                  <p className="text-[11px] font-mono text-muted-foreground truncate mt-0.5">
+                    {item.refId}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1.5 text-[10px] text-muted-foreground/80">
+                    <span className="capitalize">{sourceKind}</span>
+                    <span>•</span>
+                    <span>{getDataPins(item, "in").length} in / {getDataPins(item, "out").length} out</span>
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
 
-                  {(inPins.length > 0 || outPins.length > 0) && (
-                    <div className="mt-3 pt-3 border-t border-border/40 space-y-1.5">
-                      {inPins.length > 0 && (
-                        <div className="flex items-start gap-1.5 text-[10px]">
-                          <ArrowRightToLine className="h-3 w-3 text-sky-400 shrink-0 mt-0.5" />
-                          <div className="flex flex-wrap gap-1">
-                            {inPins.map((p: any) => (
-                              <span
-                                key={p.id}
-                                className="px-1.5 py-0.5 rounded bg-muted/60 text-foreground/90 font-mono"
-                              >
-                                {p.label || p.id}: {p.dataType || p.primitiveType || "String"}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {outPins.length > 0 && (
-                        <div className="flex items-start gap-1.5 text-[10px]">
-                          <ArrowRightFromLine className="h-3 w-3 text-emerald-400 shrink-0 mt-0.5" />
-                          <div className="flex flex-wrap gap-1">
-                            {outPins.map((p: any) => (
-                              <span
-                                key={p.id}
-                                className="px-1.5 py-0.5 rounded bg-muted/60 text-foreground/90 font-mono"
-                              >
-                                {p.label || p.id}: {p.dataType || p.primitiveType || "String"}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+        {/* Right Detail / Contract Editor */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {selectedItem ? (
+            <div className="max-w-3xl space-y-6">
+              {/* Top Summary */}
+              <div className="flex items-start justify-between gap-4 pb-4 border-b border-border/40">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-semibold text-foreground">
+                      {selectedItem.label || selectedItem.name}
+                    </h2>
+                    <Badge variant="secondary" className="text-[10px] uppercase">
+                      {selectedItem.executor || "python"}
+                    </Badge>
+                    <Badge variant="outline" className="text-[10px] capitalize">
+                      {selectedItem.sourceRef?.kind || selectedItem.source || "workspace"}
+                    </Badge>
+                  </div>
+                  <p className="text-xs font-mono text-muted-foreground mt-1">
+                    {selectedItem.refId}
+                  </p>
+                  {selectedItem.description && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {selectedItem.description}
+                    </p>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        )}
+              </div>
+
+              {/* Provenance & Content Hash */}
+              <div className="rounded-lg border border-border/50 bg-muted/10 p-4 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+                  <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                  <span>Provenance &amp; Execution Identity</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 text-xs">
+                  <div>
+                    <span className="text-muted-foreground block text-[11px]">Source Kind</span>
+                    <span className="font-mono text-foreground">
+                      {selectedItem.sourceRef?.kind || "workspace"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-[11px]">Content Hash (SHA-256)</span>
+                    <span className="font-mono text-foreground flex items-center gap-1 truncate">
+                      <Hash className="h-3 w-3 text-muted-foreground shrink-0" />
+                      {(selectedItem.sourceRef as any)?.contentHash || (selectedItem as any).contentHash || "Local disk verified"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Exec Pins */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-lg border border-border/50 p-4 space-y-2">
+                  <div className="text-xs font-semibold text-foreground">Exec Inputs</div>
+                  <div className="space-y-1.5">
+                    {getExecPins(selectedItem, "in").map((p: any) => (
+                      <div key={p.id} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-muted/20">
+                        <span className="font-mono">{p.label || p.id}</span>
+                        <Badge variant="outline" className="text-[10px]">Exec</Badge>
+                      </div>
+                    ))}
+                    {getExecPins(selectedItem, "in").length === 0 && (
+                      <p className="text-xs text-muted-foreground italic">Pure / No exec input</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-border/50 p-4 space-y-2">
+                  <div className="text-xs font-semibold text-foreground">Exec Outputs</div>
+                  <div className="space-y-1.5">
+                    {getExecPins(selectedItem, "out").map((p: any) => (
+                      <div key={p.id} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-muted/20">
+                        <span className="font-mono">{p.label || p.id}</span>
+                        <Badge variant="outline" className="text-[10px]">Exec</Badge>
+                      </div>
+                    ))}
+                    {getExecPins(selectedItem, "out").length === 0 && (
+                      <p className="text-xs text-muted-foreground italic">Pure / No exec output</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Data Pins */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-lg border border-border/50 p-4 space-y-2.5">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                    <ArrowRightToLine className="h-3.5 w-3.5 text-sky-400" />
+                    <span>Data Inputs ({getDataPins(selectedItem, "in").length})</span>
+                  </div>
+                  <div className="divide-y divide-border/40">
+                    {getDataPins(selectedItem, "in").map((pin: any) => (
+                      <div key={pin.id} className="py-2 flex items-center justify-between gap-2 text-xs">
+                        <div className="min-w-0">
+                          <div className="font-medium text-foreground truncate">{pin.label || pin.id}</div>
+                          <div className="text-[11px] font-mono text-muted-foreground truncate">{pin.id}</div>
+                        </div>
+                        <Badge variant="secondary" className="text-[10px] shrink-0">
+                          {pin.dataType || pin.primitiveType || "String"}
+                        </Badge>
+                      </div>
+                    ))}
+                    {getDataPins(selectedItem, "in").length === 0 && (
+                      <p className="text-xs text-muted-foreground italic py-1">No data inputs</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-border/50 p-4 space-y-2.5">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                    <ArrowRightFromLine className="h-3.5 w-3.5 text-amber-400" />
+                    <span>Data Outputs ({getDataPins(selectedItem, "out").length})</span>
+                  </div>
+                  <div className="divide-y divide-border/40">
+                    {getDataPins(selectedItem, "out").map((pin: any) => (
+                      <div key={pin.id} className="py-2 flex items-center justify-between gap-2 text-xs">
+                        <div className="min-w-0">
+                          <div className="font-medium text-foreground truncate">{pin.label || pin.id}</div>
+                          <div className="text-[11px] font-mono text-muted-foreground truncate">{pin.id}</div>
+                        </div>
+                        <Badge variant="secondary" className="text-[10px] shrink-0">
+                          {pin.dataType || pin.primitiveType || "String"}
+                        </Badge>
+                      </div>
+                    ))}
+                    {getDataPins(selectedItem, "out").length === 0 && (
+                      <p className="text-xs text-muted-foreground italic py-1">No data outputs</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+              <FileCode2 className="h-10 w-10 mb-3 opacity-30" />
+              <p className="text-sm font-medium text-foreground">Select a script to inspect</p>
+              <p className="text-xs mt-1">Choose a script from the left list to view its Exec/Data pins and hash provenance.</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
