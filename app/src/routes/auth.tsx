@@ -3,7 +3,8 @@ import { getAuthState } from '@/stores/authStore'
 
 export const Route = createFileRoute('/auth')({
   beforeLoad: () => {
-    if (getAuthState().accessToken) {
+    const { accessToken, profile } = getAuthState()
+    if (accessToken && profile) {
       throw redirect({
         to: '/',
       })

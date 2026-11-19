@@ -7,7 +7,11 @@ interface AppModeState {
   mode: AppMode;
   lastLocalPath: string;
   lastCloudPath: string;
+  isServerUnreachable: boolean;
+  isAuthBootstrapped: boolean;
   setMode: (mode: AppMode) => void;
+  setServerUnreachable: (val: boolean) => void;
+  setAuthBootstrapped: (val: boolean) => void;
   recordPath: (pathname: string) => void;
 }
 
@@ -16,8 +20,12 @@ export const useAppModeStore = create<AppModeState>()(
     (set) => ({
       mode: "local",
       lastLocalPath: "/local",
-      lastCloudPath: "/",
+      lastCloudPath: "/templates",
+      isServerUnreachable: false,
+      isAuthBootstrapped: false,
       setMode: (mode) => set({ mode }),
+      setServerUnreachable: (val) => set({ isServerUnreachable: val }),
+      setAuthBootstrapped: (val) => set({ isAuthBootstrapped: val }),
       recordPath: (pathname) => {
         if (!pathname || pathname.startsWith("/auth")) return;
         if (pathname.startsWith("/local")) {
@@ -29,6 +37,11 @@ export const useAppModeStore = create<AppModeState>()(
     }),
     {
       name: "forgity_app_mode_v1",
+      partialize: (state) => ({
+        mode: state.mode,
+        lastLocalPath: state.lastLocalPath,
+        lastCloudPath: state.lastCloudPath,
+      }),
     },
   ),
 );

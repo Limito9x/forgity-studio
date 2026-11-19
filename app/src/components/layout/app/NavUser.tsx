@@ -1,4 +1,4 @@
-import { ChevronsUpDown, LogIn, LogOut, Settings, User } from "lucide-react";
+import { ChevronsUpDown, LogIn, LogOut, RefreshCw, Settings, User, WifiOff } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   SidebarMenu,
@@ -12,9 +12,12 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { useAuthStore } from "@/stores/authStore";
+import { useAppModeStore } from "@/stores/appModeStore";
+import { useAuthBootstrap } from "@/features/auth/hooks/useAuthBootstrap";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLogout } from "@/gen/endpoints/auth/auth";
+import { toast } from "sonner";
 
 export function NavUser() {
   const navigate = useNavigate();
@@ -22,9 +25,20 @@ export function NavUser() {
   const logoutMutation = useLogout();
   const accessToken = useAuthStore((s) => s.accessToken);
   const profile = useAuthStore((s) => s.profile);
+  const isServerUnreachable = useAppModeStore((s) => s.isServerUnreachable);
+  const { retry } = useAuthBootstrap({ enabled: false });
 
   const handleSignIn = () => {
     navigate({ to: "/auth/login" as any });
+  };
+
+  const handleRetryConnection = async () => {
+    const result = await retry();
+    if (result === "authenticated") {
+      toast.success("Connected to Forgity Cloud.");
+    } else if (result === "offline") {
+      toast.error("Cloud server is still unreachable.");
+    }
   };
 
   const handleLogout = async () => {
@@ -34,12 +48,59 @@ export function NavUser() {
       // Bỏ qua lỗi mạng backend nếu có, ưu tiên dọn sạch client
     } finally {
       useAuthStore.getState().logout();
+      useAppModeStore.getState().setServerUnreachable(false);
       localStorage.removeItem("automation_current_studio_slug");
       localStorage.removeItem("automation_current_studio_id");
       queryClient.clear();
-      window.location.href = "/auth/login";
+      navigate({ to: "/auth/login" as any });
     }
   };
+
+  if (accessToken && !profile && isServerUnreachable) {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <DropdownMenuTrigger>
+            <SidebarMenuButton
+              size="lg"
+              className="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground cursor-pointer"
+            >
+              <Avatar className="h-8 w-8 rounded-lg">
+                <AvatarFallback className="rounded-lg bg-amber-500/15 text-amber-500">
+                  <WifiOff className="size-4" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-medium">Offline Mode</span>
+                <span className="truncate text-xs text-muted-foreground">
+                  Local Workspace
+                </span>
+              </div>
+              <ChevronsUpDown className="ml-auto size-4 text-muted-foreground" />
+            </SidebarMenuButton>
+
+            <DropdownMenu placement="top start" offset={8} className="w-56">
+              <DropdownMenuItem
+                onAction={handleRetryConnection}
+                className="gap-2 cursor-pointer"
+              >
+                <RefreshCw className="size-4" />
+                <span>Retry Cloud Connection</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onAction={handleLogout}
+                className="gap-2 cursor-pointer"
+              >
+                <LogOut className="size-4" />
+                <span>Sign Out (Switch to Guest)</span>
+              </DropdownMenuItem>
+            </DropdownMenu>
+          </DropdownMenuTrigger>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    );
+  }
 
   if (!accessToken || !profile) {
     return (
