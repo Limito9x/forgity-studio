@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
-import { Cpu, RefreshCw, Search, ArrowRightToLine, ArrowRightFromLine, FileCode2, ShieldCheck, Hash } from "lucide-react";
+import { Cpu, RefreshCw, Search, ArrowRightToLine, ArrowRightFromLine, FileCode2, ShieldCheck, Hash, Pencil, RotateCcw, Check, X } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -33,6 +35,18 @@ export function LocalScriptsManagerPage({
   const [search, setSearch] = useState("");
   const [executorFilter, setExecutorFilter] = useState<string>("all");
   const [selectedRefId, setSelectedRefId] = useState<string | null>(null);
+  const [editingPinId, setEditingPinId] = useState<string | null>(null);
+  const [pinLabel, setPinLabel] = useState("");
+  const [pinDataType, setPinDataType] = useState("Text");
+  const [pinDefault, setPinDefault] = useState("");
+  const [isSavingPin, setIsSavingPin] = useState(false);
+
+  const [isCheckingDiff, setIsCheckingDiff] = useState(false);
+  const [scanDiff, setScanDiff] = useState<{
+    added: string[];
+    modified: string[];
+    removed: string[];
+  } | null>(null);
 
   const scriptNodes = useMemo(() => {
     return nodeContracts.filter((item) => {
@@ -86,7 +100,103 @@ export function LocalScriptsManagerPage({
     } else if (rootPath) {
       await scanAndSyncScripts();
     }
+    setScanDiff(null);
     await refetch();
+  };
+
+  const handleScanDiff = async () => {
+    if (!rootPath) return;
+    setIsCheckingDiff(true);
+    try {
+      const scanRes = await invoke<{ files?: Array<{ relativePath: string }> }>("scan_local_script_folders", {
+        rootPath,
+        scriptsDir: scriptsDir || "pipeline-scripts",
+        ignorePatterns: ignorePatterns || [],
+      });
+      const files = scanRes?.files || [];
+      const analyzed = await invoke<Array<{ refId: string; contentHash?: string }>>("analyze_local_scripts_native", {
+        rootPath,
+        files,
+      });
+
+      const currentByRef = new Map<string, string>();
+      for (const node of scriptNodes) {
+        const hash = (node.sourceRef as any)?.contentHash || (node as any).contentHash || "";
+        currentByRef.set(node.refId, hash);
+      }
+
+      const added: string[] = [];
+      const modified: string[] = [];
+      const seen = new Set<string>();
+      for (const item of analyzed) {
+        seen.add(item.refId);
+        if (!currentByRef.has(item.refId)) {
+          added.push(item.refId);
+        } else if (item.contentHash && currentByRef.get(item.refId) !== item.contentHash) {
+          modified.push(item.refId);
+        }
+      }
+      const removed = Array.from(currentByRef.keys()).filter((id) => !seen.has(id));
+      setScanDiff({ added, modified, removed });
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to scan script changes.");
+    } finally {
+      setIsCheckingDiff(false);
+    }
+  };
+
+  const startEditPin = (pin: any) => {
+    setEditingPinId(pin.id);
+    setPinLabel(pin.label || pin.id || "");
+    setPinDataType(pin.dataType || pin.primitiveType || "Text");
+    setPinDefault(pin.defaultValue != null ? String(pin.defaultValue) : "");
+  };
+
+  const handleSavePinOverride = async (pinId: string) => {
+    if (!rootPath || !selectedItem) return;
+    setIsSavingPin(true);
+    try {
+      const overridePayload = {
+        pins: {
+          [pinId]: {
+            label: pinLabel.trim() || undefined,
+            dataType: pinDataType,
+            defaultValue: pinDefault !== "" ? pinDefault : undefined,
+          },
+        },
+      };
+      await invoke("save_script_override", {
+        rootPath,
+        scriptKey: selectedItem.refId,
+        overrideJson: JSON.stringify(overridePayload),
+      });
+      setEditingPinId(null);
+      await handleSync();
+      toast.success(`Saved pin override for '${pinId}'.`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to save pin override.");
+    } finally {
+      setIsSavingPin(false);
+    }
+  };
+
+  const handleClearPinOverride = async (pinId: string) => {
+    if (!rootPath || !selectedItem) return;
+    setIsSavingPin(true);
+    try {
+      await invoke("clear_script_override", {
+        rootPath,
+        scriptKey: selectedItem.refId,
+        pinId,
+      });
+      setEditingPinId(null);
+      await handleSync();
+      toast.success(`Reset pin override for '${pinId}'.`);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to reset pin override.");
+    } finally {
+      setIsSavingPin(false);
+    }
   };
 
   const getDataPins = (item: NodePaletteItemDto, dir: "in" | "out") => {
@@ -130,6 +240,16 @@ export function LocalScriptsManagerPage({
           <Button
             variant="outline"
             size="sm"
+            onPress={handleScanDiff}
+            isDisabled={isCheckingDiff || isScanning || isFetching}
+            className="h-8 gap-1.5 text-xs"
+          >
+            <Search className={`h-3.5 w-3.5 ${isCheckingDiff ? "animate-pulse" : ""}`} />
+            {isCheckingDiff ? "Scanning..." : "Scan Changes"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onPress={handleSync}
             isDisabled={isScanning || isFetching}
             className="h-8 gap-1.5 text-xs"
@@ -139,6 +259,36 @@ export function LocalScriptsManagerPage({
           </Button>
         </div>
       </div>
+
+      {scanDiff && (
+        <div className="px-6 py-2.5 border-b border-border/50 bg-primary/5 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-semibold text-foreground">Scan Diff:</span>
+            <Badge variant="secondary" className="text-[10px]">
+              +{scanDiff.added.length} New
+            </Badge>
+            <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-500">
+              ~{scanDiff.modified.length} Modified
+            </Badge>
+            <Badge variant="outline" className="text-[10px] border-rose-500/40 text-rose-500">
+              -{scanDiff.removed.length} Removed
+            </Badge>
+            {scanDiff.added.length === 0 && scanDiff.modified.length === 0 && scanDiff.removed.length === 0 && (
+              <span className="text-muted-foreground">Workspace scripts are up to date.</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {(scanDiff.added.length > 0 || scanDiff.modified.length > 0 || scanDiff.removed.length > 0) && (
+              <Button size="sm" className="h-7 text-xs" onPress={handleSync} isDisabled={isScanning}>
+                Apply Changes
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onPress={() => setScanDiff(null)}>
+              Dismiss
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Executor Filter Bar */}
       <div className="flex items-center gap-1.5 px-6 py-2 border-b border-border/40 bg-muted/20 shrink-0 overflow-x-auto">
@@ -301,14 +451,64 @@ export function LocalScriptsManagerPage({
                   </div>
                   <div className="divide-y divide-border/40">
                     {getDataPins(selectedItem, "in").map((pin: any) => (
-                      <div key={pin.id} className="py-2 flex items-center justify-between gap-2 text-xs">
-                        <div className="min-w-0">
-                          <div className="font-medium text-foreground truncate">{pin.label || pin.id}</div>
-                          <div className="text-[11px] font-mono text-muted-foreground truncate">{pin.id}</div>
+                      <div key={pin.id} className="py-2 space-y-2 text-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-medium text-foreground truncate">{pin.label || pin.id}</div>
+                            <div className="text-[11px] font-mono text-muted-foreground truncate">{pin.id}</div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Badge variant="secondary" className="text-[10px]">
+                              {pin.dataType || pin.primitiveType || "String"}
+                            </Badge>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 w-6 p-0"
+                              onPress={() => (editingPinId === pin.id ? setEditingPinId(null) : startEditPin(pin))}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </div>
-                        <Badge variant="secondary" className="text-[10px] shrink-0">
-                          {pin.dataType || pin.primitiveType || "String"}
-                        </Badge>
+                        {editingPinId === pin.id && (
+                          <div className="rounded-md border border-border/60 bg-muted/20 p-2.5 space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <Input
+                                value={pinLabel}
+                                onChange={(e) => setPinLabel(e.target.value)}
+                                placeholder="Label"
+                                className="h-7 text-xs"
+                              />
+                              <select
+                                value={pinDataType}
+                                onChange={(e) => setPinDataType(e.target.value)}
+                                className="h-7 rounded-md border border-input bg-background px-2 text-xs"
+                              >
+                                {["Text", "Number", "Boolean", "File", "Directory", "Json", "Array"].map((t) => (
+                                  <option key={t} value={t}>{t}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <Input
+                              value={pinDefault}
+                              onChange={(e) => setPinDefault(e.target.value)}
+                              placeholder="Default value (optional)"
+                              className="h-7 text-xs font-mono"
+                            />
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onPress={() => handleClearPinOverride(pin.id)} isDisabled={isSavingPin}>
+                                <RotateCcw className="h-3 w-3 mr-1" /> Reset
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onPress={() => setEditingPinId(null)} isDisabled={isSavingPin}>
+                                <X className="h-3 w-3 mr-1" /> Cancel
+                              </Button>
+                              <Button size="sm" className="h-6 px-2 text-[11px]" onPress={() => handleSavePinOverride(pin.id)} isDisabled={isSavingPin}>
+                                <Check className="h-3 w-3 mr-1" /> Save
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                     {getDataPins(selectedItem, "in").length === 0 && (
