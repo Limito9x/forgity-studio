@@ -17,7 +17,7 @@ use crate::process::job_object::JobObject;
 use crate::process::subprocess::SubprocessRunner;
 use crate::storage::cache::StorageManager;
 use crate::storage::downloader::StreamDownloader;
-use crate::system::dcc::resolve_executor_executable;
+use crate::system::dcc::resolve_executor_executable_for_project;
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -269,9 +269,18 @@ impl StageDispatcher {
         let executor = self.executor_registry.get(&task.executor)?;
         executor.validate(&task)?;
 
-        // 4. Resolve executable for this executor (e.g. blender.exe)
-        let exe_path = resolve_executor_executable(&task.executor)
-            .with_context(|| format!("Could not resolve executable for executor '{}'", task.executor))?;
+        // 4. Resolve executable for this executor (e.g. blender.exe, or version-matched UnrealEditor-Cmd.exe)
+        let uproject_for_resolve = task
+            .environment_config
+            .get("unreal_project_path")
+            .or_else(|| task.environment_config.get("uproject_path"))
+            .and_then(|v| v.as_str())
+            .map(str::to_string);
+        let exe_path = resolve_executor_executable_for_project(
+            &task.executor,
+            uproject_for_resolve.as_deref(),
+        )
+        .with_context(|| format!("Could not resolve executable for executor '{}'", task.executor))?;
         info!("[Dispatcher] Resolved executor binary: {:?}", exe_path);
 
         task.site_packages_path = super::python_packages::prepare(

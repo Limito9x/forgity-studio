@@ -281,6 +281,64 @@ pub fn probe_python_version(path: &Path) -> String {
     "Unknown".to_string()
 }
 
+/// Reads `EngineAssociation` from a `.uproject` JSON file (e.g. `"5.4"`, `"5.5"`).
+pub fn read_uproject_engine_version(uproject_path: &Path) -> Option<String> {
+    let raw = std::fs::read_to_string(uproject_path).ok()?;
+    let json: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let assoc = json.get("EngineAssociation")?.as_str()?.trim();
+    if assoc.is_empty() {
+        return None;
+    }
+    Some(assoc.to_string())
+}
+
+/// Resolves the executable path for an executor, taking `.uproject` Unreal version into account when applicable.
+pub fn resolve_executor_executable_for_project(
+    executor: &str,
+    project_path: Option<&str>,
+) -> anyhow::Result<PathBuf> {
+    let key = executor.to_lowercase();
+    if key == "unreal" {
+        if let Some(proj) = project_path.map(str::trim).filter(|p| !p.is_empty()) {
+            if let Some(version) = read_uproject_engine_version(Path::new(proj)) {
+                let version_key = format!("unreal:{}", version.to_lowercase());
+                if let Ok((Some(cfg), _)) = crate::config::load_config(None, false) {
+                    if let Some(executors) = cfg.executors {
+                        if let Some(configured) = executors.get(&version_key) {
+                            let trimmed = configured.trim().trim_matches('"');
+                            let p = PathBuf::from(trimmed);
+                            if p.is_file() {
+                                return Ok(p);
+                            }
+                        }
+                        if let Some(default_ue) = executors.get("unreal") {
+                            let trimmed = default_ue.trim().trim_matches('"');
+                            let p = PathBuf::from(trimmed);
+                            if p.is_file() && trimmed.contains(&version) {
+                                return Ok(p);
+                            }
+                        }
+                    }
+                }
+
+                let unreals = scan_unreal();
+                if let Some(matched) = unreals.into_iter().find(|u| u.version == version) {
+                    return Ok(matched.path);
+                }
+
+                return Err(anyhow::anyhow!(
+                    "Unreal Engine {} is required by '{}', but no matching UnrealEditor-Cmd.exe was found. Configure 'unreal:{}' in My Machine.",
+                    version,
+                    proj,
+                    version
+                ));
+            }
+        }
+    }
+
+    resolve_executor_executable(executor)
+}
+
 /// Resolves the executable path based on the executor name ("blender", "unreal", "python").
 /// Checks user-configured `[executors]` in `runner.toml` first before falling back to auto-scan.
 pub fn resolve_executor_executable(executor: &str) -> anyhow::Result<PathBuf> {

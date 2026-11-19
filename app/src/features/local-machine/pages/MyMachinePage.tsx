@@ -383,6 +383,29 @@ export function MyMachinePage() {
           <CardDescription>
             Leave an executor empty to auto-detect it at runtime, or pin a specific version path.
           </CardDescription>
+          {scanResult && scanResult.unreal.length > 0 && (
+            <div className="pt-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onPress={() => {
+                  setExecutors((prev) => {
+                    const next = { ...prev };
+                    for (const ue of scanResult.unreal) {
+                      if (ue.version) {
+                        next[`unreal:${ue.version.toLowerCase()}`] = ue.path;
+                      }
+                    }
+                    return next;
+                  });
+                  toast.success(`Mapped ${scanResult.unreal.length} Unreal Engine version(s).`);
+                }}
+              >
+                <Plus />
+                <span>Map all detected UE versions ({scanResult.unreal.length})</span>
+              </Button>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           {executorKeys.map((key, idx) => {
@@ -395,8 +418,10 @@ export function MyMachinePage() {
                 {idx > 0 && <Separator className="my-2" />}
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <ExecutorIcon executor={key} className="size-4" />
-                    <span className="text-sm font-medium">{meta.name}</span>
+                    <ExecutorIcon executor={key.startsWith("unreal:") ? "unreal" : key} className="size-4" />
+                    <span className="text-sm font-medium">
+              {key.startsWith("unreal:") ? `Unreal Engine ${key.slice("unreal:".length)}` : meta.name}
+            </span>
                     <Badge variant="outline" className="font-mono text-[10px]">
                       {key}
                     </Badge>
