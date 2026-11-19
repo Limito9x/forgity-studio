@@ -18,7 +18,7 @@ public class GetCloudTemplatesEndpoint(PipelineDbContext db)
 
     public override async Task HandleAsync(CancellationToken ct)
     {
-        var machineKey = Query<string>("machineKey", isRequired: false) ?? "local-workstation";
+        var requestedMachineKey = Query<string>("machineKey", isRequired: false);
         var ownerUserId = CloudTemplateClaimHelper.GetOwnerUserId(User);
 
         var templates = await db
@@ -28,14 +28,19 @@ public class GetCloudTemplatesEndpoint(PipelineDbContext db)
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync(ct);
 
-        var libraryItems = await db
+        var rawLibraryItems = await db
             .TemplateLibraryItems.AsNoTracking()
             .Where(q =>
                 q.OwnerUserId == ownerUserId
-                && q.MachineKey == machineKey
                 && q.PeriodKey == "lifetime"
+                && (string.IsNullOrWhiteSpace(requestedMachineKey) || q.MachineKey == requestedMachineKey)
             )
-            .ToDictionaryAsync(q => q.TemplatePackageId, ct);
+            .OrderByDescending(q => q.AddedAt)
+            .ToListAsync(ct);
+
+        var libraryItems = rawLibraryItems
+            .GroupBy(q => q.TemplatePackageId)
+            .ToDictionary(g => g.Key, g => g.First());
 
         var result = templates
             .Select(t =>
