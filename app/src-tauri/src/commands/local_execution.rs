@@ -65,12 +65,14 @@ pub fn resolve_runner_executable() -> Result<PathBuf, String> {
         }
     }
 
-    // 3. Sibling binary next to current executable
+    // 3. Sibling binary next to current executable (portable or Tauri sidecar)
     if let Ok(current_exe) = std::env::current_exe() {
         if let Some(dir) = current_exe.parent() {
-            let sibling = dir.join(exe_name);
-            if sibling.is_file() {
-                return Ok(sibling);
+            for name in [exe_name, "forgity-runner-x86_64-pc-windows-msvc.exe"] {
+                let sibling = dir.join(name);
+                if sibling.is_file() {
+                    return Ok(sibling);
+                }
             }
         }
     }

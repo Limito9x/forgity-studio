@@ -52,14 +52,8 @@ async fn main() -> anyhow::Result<()> {
         Commands::Doctor => {
             cli::doctor::run_doctor();
         }
-        Commands::Register { token, api_url, local } => {
-            cli::register::run_register(api_url, token, config_override, local).await?;
-        }
-        Commands::Start { log_level: _, local } => {
-            cli::start::run_start(config_override, local).await?;
-        }
-        Commands::Daemon { action } => {
-            cli::daemon::run_daemon(action, config_override).await?;
+        Commands::Register { .. } | Commands::Start { .. } | Commands::Daemon { .. } => {
+            anyhow::bail!("Remote RabbitMQ/gRPC daemon mode has been closed (ADR-011). Use `run-bundle` for local-first execution.");
         }
         Commands::Dcc { action } => {
             cli::dcc::run_dcc(action)?;

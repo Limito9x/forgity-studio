@@ -49,3 +49,6 @@ temp/
 /pipeline-scripts/
 /pipelines/
 /contracts.yaml
+
+# Tauri staged sidecar binaries
+app/src-tauri/binaries/
