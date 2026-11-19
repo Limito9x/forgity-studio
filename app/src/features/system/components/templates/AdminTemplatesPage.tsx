@@ -37,8 +37,7 @@ export function AdminTemplatesPage() {
     return templates.filter(
       (t) =>
         t.title.toLowerCase().includes(q) ||
-        (t.description || "").toLowerCase().includes(q) ||
-        (t.category || "").toLowerCase().includes(q)
+        (t.description || "").toLowerCase().includes(q)
     );
   }, [templates, search]);
 
@@ -119,8 +118,8 @@ export function AdminTemplatesPage() {
             <Card key={t.templatePackageId} className="flex flex-col">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between gap-2">
-                  <Badge variant="outline" className="text-[10px] uppercase font-mono">
-                    {t.category || "General"}
+                  <Badge variant="outline" className="text-[10px] font-mono">
+                    v{t.versionNumber}
                   </Badge>
                   <span className="text-[11px] font-mono text-muted-foreground">
                     Limit: {t.defaultQuotaLimit ?? "∞"}

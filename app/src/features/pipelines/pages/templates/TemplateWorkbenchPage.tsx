@@ -120,7 +120,6 @@ export function TemplateWorkbenchPage({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="truncate text-base font-semibold">{item.title}</h1>
-              <Badge variant="secondary">{item.category}</Badge>
             </div>
           </div>
         </div>

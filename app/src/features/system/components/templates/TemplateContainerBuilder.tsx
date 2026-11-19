@@ -348,7 +348,6 @@ export function TemplateContainerBuilder({
   // Form State
   const [templateName, setTemplateName] = useState("");
   const [description] = useState("");
-  const [category, setCategory] = useState("VFX / 3D Pipeline");
   const [dailyQuotaLimit, setDailyQuotaLimit] = useState("20");
   const [isPackaging, setIsPackaging] = useState(false);
 
@@ -762,7 +761,7 @@ export function TemplateContainerBuilder({
           title: templateName.trim(),
           slug: templateSlug,
           description: description.trim() || null,
-          category: category.trim() || null,
+          category: null,
           defaultQuotaLimit: dailyQuotaLimit ? Number(dailyQuotaLimit) : 20,
           masterVersionIds,
           componentVersionIds,
@@ -898,15 +897,6 @@ export function TemplateContainerBuilder({
 
         {/* Optional Metadata Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Category</Label>
-            <Input
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder="e.g. VFX / 3D Pipeline"
-              className="h-8 text-xs bg-background"
-            />
-          </div>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Quota Limit</Label>
             <Input

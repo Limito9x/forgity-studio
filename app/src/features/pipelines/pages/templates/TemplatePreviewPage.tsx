@@ -140,9 +140,6 @@ export function TemplatePreviewPage({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-semibold truncate">{detail.title}</h1>
-              <Badge variant="outline" className="text-[10px]">
-                {detail.category || "General"}
-              </Badge>
               <Badge variant="secondary" className="text-[10px] font-mono">
                 v{detail.versionNumber}
               </Badge>

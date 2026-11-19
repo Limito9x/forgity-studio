@@ -27,29 +27,18 @@ export function TemplatesCatalogPage({ machineKey = "local-workstation" }: { mac
   const addToLibrary = useAddTemplateToLibrary();
 
   const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [addingId, setAddingId] = useState<string | null>(null);
-
-  const categories = useMemo(() => {
-    const set = new Set<string>(["All"]);
-    for (const t of templates) {
-      if (t.category) set.add(t.category);
-    }
-    return Array.from(set);
-  }, [templates]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return templates.filter((t) => {
-      if (selectedCategory !== "All" && t.category !== selectedCategory) return false;
       if (!q) return true;
       return (
         t.title.toLowerCase().includes(q) ||
-        (t.description || "").toLowerCase().includes(q) ||
-        t.category.toLowerCase().includes(q)
+        (t.description || "").toLowerCase().includes(q)
       );
     });
-  }, [templates, search, selectedCategory]);
+  }, [templates, search]);
 
   const handleAddToLibrary = async (templatePackageId: string) => {
     setAddingId(templatePackageId);
@@ -89,7 +78,7 @@ export function TemplatesCatalogPage({ machineKey = "local-workstation" }: { mac
         </Button>
       </div>
 
-      {/* Search & Category Filter */}
+      {/* Search */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -99,19 +88,6 @@ export function TemplatesCatalogPage({ machineKey = "local-workstation" }: { mac
             placeholder="Search templates..."
             className="pl-8"
           />
-        </div>
-
-        <div className="flex flex-wrap gap-1.5">
-          {categories.map((cat) => (
-            <Button
-              key={cat}
-              size="sm"
-              variant={selectedCategory === cat ? "default" : "outline"}
-              onPress={() => setSelectedCategory(cat)}
-            >
-              {cat}
-            </Button>
-          ))}
         </div>
       </div>
 
@@ -133,7 +109,6 @@ export function TemplatesCatalogPage({ machineKey = "local-workstation" }: { mac
                 <CardHeader className="space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle className="text-base line-clamp-1">{tpl.title}</CardTitle>
-                    <Badge variant="secondary">{tpl.category}</Badge>
                   </div>
                   <CardDescription className="line-clamp-2 min-h-[2.5rem]">
                     {tpl.description || "No description provided."}
