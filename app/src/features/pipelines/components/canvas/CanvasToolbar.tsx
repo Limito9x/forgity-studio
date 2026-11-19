@@ -361,66 +361,66 @@ export function CanvasToolbar({
 
         {/* Validate Button with Diagnostic Badge */}
         {!readOnly && (
-        <div className="flex items-center">
-          <Button
-            variant="outline"
-            size="sm"
-            onPress={onValidate}
-            isDisabled={isValidating || isExecuting || isRunningDraft}
-            className={cn(
-              "h-8 text-xs gap-1.5",
-              errorCount > 0
-                ? "border-destructive/50 text-destructive hover:bg-destructive/10"
-                : warningCount > 0
-                  ? "border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
-                  : ""
-            )}
-          >
-            {isValidating ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : errorCount > 0 ? (
-              <ShieldAlert className="h-3.5 w-3.5 text-destructive" />
-            ) : warningCount > 0 ? (
-              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-            ) : (
-              <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-            )}
-            <span className="hidden sm:inline">Validate</span>
+          <div className="flex items-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onPress={onValidate}
+              isDisabled={isValidating || isExecuting || isRunningDraft}
+              className={cn(
+                "h-8 text-xs gap-1.5",
+                errorCount > 0
+                  ? "border-destructive/50 text-destructive hover:bg-destructive/10"
+                  : warningCount > 0
+                    ? "border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+                    : ""
+              )}
+            >
+              {isValidating ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : errorCount > 0 ? (
+                <ShieldAlert className="h-3.5 w-3.5 text-destructive" />
+              ) : warningCount > 0 ? (
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+              ) : (
+                <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+              )}
+              <span className="hidden sm:inline">Validate</span>
 
-            {/* Badges */}
-            {errorCount > 0 && (
-              <Badge variant="destructive" className="h-4 px-1 py-0 text-[9px] font-mono">
-                {errorCount}
-              </Badge>
-            )}
-            {errorCount === 0 && warningCount > 0 && (
-              <Badge
-                variant="outline"
-                className="h-4 px-1 py-0 text-[9px] font-mono border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
-              >
-                {warningCount}
-              </Badge>
-            )}
-            {isStale && (
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" title="Draft changed" />
-            )}
-          </Button>
+              {/* Badges */}
+              {errorCount > 0 && (
+                <Badge variant="destructive" className="h-4 px-1 py-0 text-[9px] font-mono">
+                  {errorCount}
+                </Badge>
+              )}
+              {errorCount === 0 && warningCount > 0 && (
+                <Badge
+                  variant="outline"
+                  className="h-4 px-1 py-0 text-[9px] font-mono border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
+                >
+                  {warningCount}
+                </Badge>
+              )}
+              {isStale && (
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" title="Draft changed" />
+              )}
+            </Button>
 
-          {/* Toggle Diagnostics Panel Button */}
-          {onToggleDiagnosticsPanel && (
-            <span title="Open Diagnostics List">
-              <Button
-                variant={isDiagnosticsPanelOpen ? "secondary" : "ghost"}
-                size="icon"
-                className="h-8 w-6 ml-0.5 px-0 text-muted-foreground hover:text-foreground"
-                onPress={onToggleDiagnosticsPanel}
-                aria-label="Toggle diagnostics list"
-              >
-                <span className="text-[10px] font-mono">▼</span>
-              </Button>
-            </span>
-          )}
-        </div>
+            {/* Toggle Diagnostics Panel Button */}
+            {onToggleDiagnosticsPanel && (
+              <span title="Open Diagnostics List">
+                <Button
+                  variant={isDiagnosticsPanelOpen ? "secondary" : "ghost"}
+                  size="icon"
+                  className="h-8 w-6 ml-0.5 px-0 text-muted-foreground hover:text-foreground"
+                  onPress={onToggleDiagnosticsPanel}
+                  aria-label="Toggle diagnostics list"
+                >
+                  <span className="text-[10px] font-mono">▼</span>
+                </Button>
+              </span>
+            )}
+          </div>
         )}
 
         {/* Run Pipeline Button */}
@@ -442,17 +442,16 @@ export function CanvasToolbar({
             ) : (
               <>
                 <Play className="h-3.5 w-3.5 fill-current" />
-                <span>{isLocalMode ? "Run Draft" : "Run Pipeline"}</span>
+                <span>Run</span>
               </>
             )}
           </Button>
         ) : (
           <div
-            title={`This pipeline is configured for automated trigger (${
-              triggerType === 1 || triggerType === "OnResourceCreated"
+            title={`This pipeline is configured for automated trigger (${triggerType === 1 || triggerType === "OnResourceCreated"
                 ? "On Resource Created"
                 : "On Version Updated"
-            }) and cannot be triggered manually.`}
+              }) and cannot be triggered manually.`}
             className="inline-block"
           >
             <Button size="sm" isDisabled className="h-8 text-xs gap-1.5 opacity-60">
