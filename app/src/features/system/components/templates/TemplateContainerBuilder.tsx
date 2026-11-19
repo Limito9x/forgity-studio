@@ -164,7 +164,15 @@ function collectLocalFilePins(
   graphs: TemplateGraphSnapshot[],
   paletteItems: NodePaletteItemDto[]
 ): LocalFilePinCandidate[] {
-  const paletteByRefId = new Map(paletteItems.map((item) => [item.refId, item]));
+  const paletteByRefId = new Map<string, NodePaletteItemDto>();
+  for (const item of paletteItems) {
+    if (!item.refId) continue;
+    paletteByRefId.set(item.refId, item);
+    const bare = item.refId.replace(/^local:(script:)?/, "").trim();
+    paletteByRefId.set(bare, item);
+    paletteByRefId.set(`local:${bare}`, item);
+    paletteByRefId.set(`local:script:${bare}`, item);
+  }
   const candidates: LocalFilePinCandidate[] = [];
 
   for (const graph of graphs) {
@@ -175,8 +183,13 @@ function collectLocalFilePins(
         : Array.isArray(node.inputs)
           ? node.inputs.filter(isRecord)
           : [];
+      const refIdStr = typeof node.refId === "string" ? node.refId : "";
+      const bareRef = refIdStr.replace(/^local:(script:)?/, "").trim();
       const nodeDefinition =
-        typeof node.refId === "string" ? paletteByRefId.get(node.refId) : undefined;
+        paletteByRefId.get(refIdStr) ??
+        paletteByRefId.get(bareRef) ??
+        paletteByRefId.get(`local:${bareRef}`) ??
+        paletteByRefId.get(`local:script:${bareRef}`);
       const defInputs = nodeDefinition?.dataInputs ?? nodeDefinition?.inputs ?? [];
       const pins = nodeInputs.length > 0 ? nodeInputs : defInputs;
       const nodeId =
@@ -185,9 +198,22 @@ function collectLocalFilePins(
           : typeof node.refId === "string"
             ? node.refId
             : null;
+      if (!nodeId) continue;
 
+      const seenPinIds = new Set<string>();
       for (const pin of pins) {
         if (!isRecord(pin)) continue;
+        const pinId =
+          typeof pin.id === "string" && pin.id
+            ? pin.id
+            : typeof pin.name === "string"
+              ? pin.name
+              : null;
+        if (!pinId) continue;
+
+        const value = configValues[pinId];
+        if (typeof value !== "string" || !value.trim()) continue;
+
         const primitive = typeof pin.primitiveType === "string" ? pin.primitiveType : undefined;
         const pinType =
           typeof pin.dataType === "string"
@@ -198,19 +224,9 @@ function collectLocalFilePins(
           primitive === "FilePath" ||
           pinType === "File" ||
           pinType === "FilePath" ||
-          pinType === "Asset";
+          pinType === "Asset" ||
+          value.startsWith("workspace://assets/");
         if (!isFilePin) continue;
-
-        const pinId =
-          typeof pin.id === "string" && pin.id
-            ? pin.id
-            : typeof pin.name === "string"
-              ? pin.name
-              : null;
-        if (!pinId || !nodeId) continue;
-
-        const value = configValues[pinId];
-        if (typeof value !== "string" || !value.trim()) continue;
 
         let resolvedLocalPath: string | null = null;
         if (value.startsWith("workspace://assets/")) {
@@ -227,6 +243,25 @@ function collectLocalFilePins(
 
         if (!resolvedLocalPath) continue;
 
+        seenPinIds.add(pinId);
+        candidates.push({
+          key: `${graph.slug}:${nodeId}:${pinId}`,
+          nodeId,
+          node,
+          pinId,
+          filePath: resolvedLocalPath,
+          fileName: getFileName(resolvedLocalPath),
+        });
+      }
+
+      // Fallback: catch any configValues entry pointing to workspace://assets/ even if pin schema is missing
+      for (const [pinId, rawVal] of Object.entries(configValues)) {
+        if (seenPinIds.has(pinId) || typeof rawVal !== "string") continue;
+        const trimmedVal = rawVal.trim();
+        if (!trimmedVal.startsWith("workspace://assets/")) continue;
+        const relName = trimmedVal.slice("workspace://assets/".length);
+        if (!relName) continue;
+        const resolvedLocalPath = `assets/${relName}`;
         candidates.push({
           key: `${graph.slug}:${nodeId}:${pinId}`,
           nodeId,
@@ -367,6 +402,7 @@ export function TemplateContainerBuilder({
   // Selected Master Pipelines & Components
   const [masterPipelines, setMasterPipelines] = useState<TemplateItemSelect[]>([]);
   const [components, setComponents] = useState<TemplateItemSelect[]>([]);
+  const [manualComponentPaths, setManualComponentPaths] = useState<string[]>([]);
 
   // Scanned Manifest & 3-Column Bottom State (100% từ Rust Scanner)
   const [lastManifest, setLastManifest] = useState<TemplateDependencyManifest | null>(null);
@@ -390,10 +426,15 @@ export function TemplateContainerBuilder({
     return list.filter((c: ScannedPipelineYamlItemRust) => !selectedPaths.has(c.relativePath));
   }, [localComponents, components]);
 
-  const runDependencyScan = async (rootPipelinePaths: string[]) => {
+  const runDependencyScan = async (
+    masterPaths: string[],
+    extraComponentPaths: string[] = manualComponentPaths
+  ) => {
+    const rootPipelinePaths = Array.from(new Set([...masterPaths, ...extraComponentPaths]));
     if (!rootPath || rootPipelinePaths.length === 0) {
       setLastManifest(null);
       setDiagnostics([]);
+      setMasterPipelines([]);
       setComponents([]);
       setConstants([]);
       setScripts([]);
@@ -493,26 +534,35 @@ export function TemplateContainerBuilder({
     const nextPaths = Array.from(
       new Set([...masterPipelines.map((m) => m.relativePath), item.relativePath])
     );
-    await runDependencyScan(nextPaths);
+    await runDependencyScan(nextPaths, manualComponentPaths);
   };
 
   const handleRemoveMaster = async (relativePath: string) => {
     const nextPaths = masterPipelines
       .filter((m) => m.relativePath !== relativePath)
       .map((m) => m.relativePath);
-    await runDependencyScan(nextPaths);
+    await runDependencyScan(nextPaths, manualComponentPaths);
   };
 
-  const handleAddComponent = (item: ScannedPipelineYamlItemRust) => {
-    const displayName = item.fileName.replace(/\.(pipeline|component)\.ya?ml$/i, "");
-    setComponents((prev) => [
-      ...prev,
-      { id: item.relativePath, slug: displayName, name: displayName, relativePath: item.relativePath },
-    ]);
+  const handleAddComponent = async (item: ScannedPipelineYamlItemRust) => {
+    const nextManual = Array.from(new Set([...manualComponentPaths, item.relativePath]));
+    setManualComponentPaths(nextManual);
+    await runDependencyScan(
+      masterPipelines.map((m) => m.relativePath),
+      nextManual
+    );
   };
 
-  const handleRemoveComponent = (slug: string) => {
-    setComponents((prev) => prev.filter((c) => c.slug !== slug));
+  const handleRemoveComponent = async (slug: string) => {
+    const target = components.find((c) => c.slug === slug);
+    const nextManual = target
+      ? manualComponentPaths.filter((p) => p !== target.relativePath)
+      : manualComponentPaths;
+    setManualComponentPaths(nextManual);
+    await runDependencyScan(
+      masterPipelines.map((m) => m.relativePath),
+      nextManual
+    );
   };
 
   const handleToggleRequired = (index: number) => {
@@ -560,8 +610,8 @@ export function TemplateContainerBuilder({
       return;
     }
 
-    if (!lastManifest || masterPipelines.length === 0) {
-      toast.error("Please select at least one Master Pipeline and scan dependencies first.");
+    if (!lastManifest || (masterPipelines.length === 0 && components.length === 0)) {
+      toast.error("Please select at least one Master Pipeline or Component and scan dependencies first.");
       return;
     }
 
@@ -844,11 +894,16 @@ export function TemplateContainerBuilder({
         </div>
 
         <div className="flex items-center gap-2">
-          {masterPipelines.length > 0 && (
+          {(masterPipelines.length > 0 || components.length > 0) && (
             <Button
               variant="outline"
               size="sm"
-              onPress={() => runDependencyScan(masterPipelines.map((m) => m.relativePath))}
+              onPress={() =>
+                runDependencyScan(
+                  masterPipelines.map((m) => m.relativePath),
+                  manualComponentPaths
+                )
+              }
               isDisabled={isBusy}
               className="h-8 gap-1.5 text-xs cursor-pointer"
             >
@@ -859,7 +914,7 @@ export function TemplateContainerBuilder({
           <Button
             size="sm"
             onPress={handlePackageTemplate}
-            isDisabled={isBusy || masterPipelines.length === 0}
+            isDisabled={isBusy || (masterPipelines.length === 0 && components.length === 0)}
             className="h-8 gap-2 text-xs font-medium cursor-pointer"
           >
             <Save className="size-3.5" />

@@ -178,6 +178,7 @@ struct CanonicalEdge {
 #[derive(Debug, Clone, Default)]
 struct CanonicalGraph {
     nodes: Vec<CanonicalNode>,
+    parameters: Option<Value>,
     hash: String,
 }
 
@@ -372,6 +373,7 @@ fn finalize_graph(
 
     CanonicalGraph {
         nodes,
+        parameters: parameters.cloned(),
         hash: sha256_hex_bytes(serialized.as_bytes()),
     }
 }
@@ -837,6 +839,9 @@ impl ManifestScanner {
             for node in &graph.nodes {
                 self.scan_node(&mut state, node, &yaml_source_paths, &mut queue);
             }
+            if let Some(ref params) = graph.parameters {
+                self.scan_pipeline_parameters(&mut state, params);
+            }
 
             states.push(state);
         }
@@ -1059,6 +1064,14 @@ impl ManifestScanner {
         }
     }
 
+    fn scan_pipeline_parameters(&mut self, state: &mut PipelineScanState, parameters: &Value) {
+        let mut leaves: Vec<(String, String)> = Vec::new();
+        collect_string_leaves(parameters, "parameters", &mut leaves);
+        for (key, raw) in leaves {
+            self.process_asset_candidate(state, &raw, None, &key);
+        }
+    }
+
     fn process_asset_candidate(
         &mut self,
         state: &mut PipelineScanState,
@@ -1066,7 +1079,9 @@ impl ManifestScanner {
         node_id: Option<&str>,
         input_key: &str,
     ) {
-        let trimmed = raw.trim();
+        let trimmed_raw = raw.trim();
+        let normalized_workspace = normalize_workspace_asset_uri(trimmed_raw);
+        let trimmed = normalized_workspace.as_ref();
         if !looks_like_path(trimmed) {
             return;
         }
@@ -1574,10 +1589,31 @@ fn pipeline_kind_from_path(path: &Path) -> String {
         .map(|n| n.to_string_lossy().to_ascii_lowercase())
         .unwrap_or_default();
     if file_name.ends_with(".component.yaml") || file_name.ends_with(".component.yml") {
+        return KIND_COMPONENT.to_string();
+    }
+    let in_components_dir = path.ancestors().any(|ancestor| {
+        ancestor
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n.eq_ignore_ascii_case("components"))
+            .unwrap_or(false)
+    });
+    if in_components_dir {
         KIND_COMPONENT.to_string()
     } else {
         KIND_MASTER.to_string()
     }
+}
+
+fn normalize_workspace_asset_uri(raw: &str) -> std::borrow::Cow<'_, str> {
+    if let Some(rest) = raw.strip_prefix("workspace://assets/") {
+        let cleaned = rest.trim_start_matches(['/', '\\']);
+        return std::borrow::Cow::Owned(format!("assets/{}", cleaned));
+    }
+    if let Some(rest) = raw.strip_prefix("workspace://") {
+        return std::borrow::Cow::Owned(rest.trim_start_matches(['/', '\\']).to_string());
+    }
+    std::borrow::Cow::Borrowed(raw)
 }
 
 fn collect_string_leaves(value: &Value, prefix: &str, out: &mut Vec<(String, String)>) {
@@ -1968,5 +2004,47 @@ nodes:
         let stamp = now_iso8601();
         assert!(stamp.ends_with('Z'));
         assert_eq!(stamp.len(), 20);
+    }
+
+    #[test]
+    fn scans_workspace_zip_asset_in_manual_component_and_parameters() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+
+        std::fs::create_dir_all(root.join("assets")).expect("assets dir");
+        std::fs::create_dir_all(root.join("pipelines").join("components")).expect("components dir");
+        std::fs::write(root.join("assets").join("setup_pack.zip"), b"PK\x03\x04dummyzip").expect("write zip");
+        std::fs::write(root.join("assets").join("param_pack.zip"), b"PK\x03\x04paramzip").expect("write param zip");
+
+        let comp_yaml = r#"
+nodes:
+  - id: start
+    tool: start
+  - id: setup_node
+    tool: local:setup_template
+    inputs:
+      archive_file: "workspace://assets/setup_pack.zip"
+edges:
+  - from: start
+    to: setup_node
+parameters:
+  - key: extra_archive
+    type: File
+    defaultValue: "workspace://assets/param_pack.zip"
+"#;
+        let comp_path = root.join("pipelines").join("components").join("setup_template.yaml");
+        std::fs::write(&comp_path, comp_yaml).expect("write component yaml");
+
+        let manifest = build_template_dependency_manifest(
+            root,
+            &["pipelines/components/setup_template.yaml".to_string()],
+            false,
+        );
+
+        assert_eq!(manifest.totals.component_count, 1);
+        assert_eq!(manifest.totals.master_count, 0);
+        assert_eq!(manifest.assets.len(), 2);
+        assert!(manifest.assets.iter().any(|a| a.relative_path == "assets/setup_pack.zip"));
+        assert!(manifest.assets.iter().any(|a| a.relative_path == "assets/param_pack.zip"));
     }
 }
