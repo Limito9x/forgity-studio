@@ -76,6 +76,59 @@ pub fn scan_blender() -> Vec<DccApp> {
 
 pub fn scan_unreal() -> Vec<DccApp> {
     let mut found = Vec::new();
+    let mut seen_paths = std::collections::HashSet::new();
+
+    let mut push_unreal = |root_dir: PathBuf, version_hint: Option<String>| {
+        let candidate = root_dir
+            .join("Engine")
+            .join("Binaries")
+            .join("Win64")
+            .join("UnrealEditor-Cmd.exe");
+        if candidate.is_file() {
+            let norm = candidate.to_string_lossy().to_lowercase();
+            if seen_paths.insert(norm) {
+                let folder_name = root_dir
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "Unreal".to_string());
+                let version = version_hint.unwrap_or_else(|| folder_name.replace("UE_", ""));
+                found.push(DccApp {
+                    name: format!("Unreal Engine ({version})"),
+                    version,
+                    path: candidate,
+                });
+            }
+        }
+    };
+
+    #[cfg(target_os = "windows")]
+    {
+        use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
+        use winreg::RegKey;
+
+        // 1. Epic Games Launcher installs: HKLM\SOFTWARE\EpicGames\Unreal Engine\<ver> -> InstalledDirectory
+        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+        if let Ok(ue_key) = hklm.open_subkey(r"SOFTWARE\EpicGames\Unreal Engine") {
+            for ver_name in ue_key.enum_keys().filter_map(Result::ok) {
+                if let Ok(sub) = ue_key.open_subkey(&ver_name) {
+                    if let Ok(dir) = sub.get_value::<String, _>("InstalledDirectory") {
+                        push_unreal(PathBuf::from(dir.trim()), Some(ver_name));
+                    }
+                }
+            }
+        }
+
+        // 2. Source/Custom builds: HKCU\SOFTWARE\Epic Games\Unreal Engine\Builds
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        if let Ok(builds_key) = hkcu.open_subkey(r"SOFTWARE\Epic Games\Unreal Engine\Builds") {
+            for (build_id, val) in builds_key.enum_values().filter_map(Result::ok) {
+                let dir = val.to_string();
+                if !dir.trim().is_empty() {
+                    push_unreal(PathBuf::from(dir.trim()), Some(build_id));
+                }
+            }
+        }
+    }
 
     let search_roots = [
         PathBuf::from(r"C:\Program Files\Epic Games"),
@@ -90,20 +143,7 @@ pub fn scan_unreal() -> Vec<DccApp> {
         }
         if let Ok(entries) = std::fs::read_dir(root) {
             for entry in entries.filter_map(Result::ok) {
-                let candidate = entry
-                    .path()
-                    .join("Engine")
-                    .join("Binaries")
-                    .join("Win64")
-                    .join("UnrealEditor-Cmd.exe");
-                if candidate.is_file() {
-                    let folder_name = entry.file_name().to_string_lossy().to_string();
-                    found.push(DccApp {
-                        name: format!("Unreal Engine ({folder_name})"),
-                        version: folder_name.replace("UE_", ""),
-                        path: candidate,
-                    });
-                }
+                push_unreal(entry.path(), None);
             }
         }
     }
