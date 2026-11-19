@@ -1279,8 +1279,39 @@ impl ManifestScanner {
             };
 
             let executor = string_field(&item, "executor").unwrap_or_else(|| "python".to_string());
-            let content_hash = string_field(&item, "contentHash").unwrap_or_default();
-            let source_code = string_field(&item, "sourceCode").unwrap_or_default();
+            let disk_candidate = string_field(&item, "fullPath")
+                .map(PathBuf::from)
+                .filter(|p| p.is_file())
+                .or_else(|| {
+                    let scripts_root = match &self.scripts_dir {
+                        Some(dir) if !dir.trim().is_empty() => self.root.join(dir),
+                        _ => self.root.clone(),
+                    };
+                    let by_key = scripts_root.join(format!("{}.py", key));
+                    if by_key.is_file() {
+                        Some(by_key)
+                    } else {
+                        None
+                    }
+                });
+
+            let (source_code, content_hash) = if let Some(disk_path) = disk_candidate {
+                match std::fs::read_to_string(&disk_path) {
+                    Ok(fresh_code) => {
+                        let fresh_hash = sha256_hex_bytes(fresh_code.as_bytes());
+                        (fresh_code, fresh_hash)
+                    }
+                    Err(_) => (
+                        string_field(&item, "sourceCode").unwrap_or_default(),
+                        string_field(&item, "contentHash").unwrap_or_default(),
+                    ),
+                }
+            } else {
+                (
+                    string_field(&item, "sourceCode").unwrap_or_default(),
+                    string_field(&item, "contentHash").unwrap_or_default(),
+                )
+            };
             if source_code.trim().is_empty() {
                 self.diag(
                     LEVEL_WARNING,
