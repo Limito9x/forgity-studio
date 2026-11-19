@@ -8,7 +8,6 @@ import { z } from "zod";
 import { useLogin } from "../hooks/useLogin";
 import { useNavigate, useSearch, Link } from "@tanstack/react-router";
 import { getAuthState } from "@/stores/authStore";
-import { ArrowUpRight } from "lucide-react";
 import forgityLogo from "@/assets/forgity.svg";
 import { appConfig } from "@/config/appConfig";
 import { Form } from "@/components/form/Form";
@@ -33,8 +32,6 @@ export function LoginForm({
   const { mutate: loginMutate, isPending } = useLogin();
   const navigate = useNavigate();
   const search = useSearch({ from: "/auth/login" });
-  const trialFormUrl =
-    import.meta.env.VITE_TRIAL_REQUEST_FORM_URL || "https://forms.google.com";
 
   const form = useForm<LoginFields>({
     resolver: zodResolver(loginSchema),
@@ -82,10 +79,10 @@ export function LoginForm({
                   <span>{appConfig.name}</span>
                 </div>
                 <h1 className="text-xl font-bold mt-1 text-foreground">
-                  Sign in to Studio
+                  Sign in to Forgity
                 </h1>
                 <p className="text-balance text-muted-foreground text-xs">
-                  Enter your credentials to access your pipelines and runners
+                  Sign in to access your cloud templates and library
                 </p>
               </div>
 
@@ -99,26 +96,14 @@ export function LoginForm({
                 disabled={isPending}
               />
 
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    Password
-                  </label>
-                  <Link
-                    to="/auth/forgot-password"
-                    className="text-xs font-medium text-primary hover:underline"
-                  >
-                    Forgot Password?
-                  </Link>
-                </div>
-                <FormInput
-                  control={form.control}
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  disabled={isPending}
-                />
-              </div>
+              <FormInput
+                control={form.control}
+                name="password"
+                label="Password"
+                type="password"
+                autoComplete="current-password"
+                disabled={isPending}
+              />
 
               <Field>
                 <Button type="submit" isDisabled={isPending} className="w-full">
@@ -126,24 +111,15 @@ export function LoginForm({
                 </Button>
               </Field>
 
-              <div className="rounded-xl border border-primary/20 bg-primary/5 p-3.5 text-center space-y-1">
-                <p className="text-xs font-medium text-foreground">
-                  Looking for Early Access?
-                </p>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  We are onboarding select creators and technical artists for
-                  the closed beta.
-                </p>
-                <a
-                  href={trialFormUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline pt-1"
+              <p className="text-center text-xs text-muted-foreground pt-1">
+                Don&apos;t have an account?{" "}
+                <Link
+                  to="/auth/register"
+                  className="font-semibold text-primary hover:underline"
                 >
-                  <span>Request Trial Access</span>
-                  <ArrowUpRight className="size-3.5" />
-                </a>
-              </div>
+                  Create an account
+                </Link>
+              </p>
             </Form>
           </div>
 
