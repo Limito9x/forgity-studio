@@ -59,7 +59,7 @@ export function LocalScriptsManagerPage({
         item.viewVariant === "Component" ||
         item.source === "SubPipeline" ||
         item.refId.startsWith("local:component:");
-      return kind !== "builtin" && !isConstant && !isComponent;
+      return kind !== "builtin" && kind !== "template" && !isConstant && !isComponent;
     });
   }, [nodeContracts]);
 

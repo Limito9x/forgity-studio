@@ -33,6 +33,7 @@ import {
   useLocalWorkspaceConfig,
   useLocalPipelinesQuery,
 } from "@/features/pipelines/hooks/workspace";
+import { useWorkspaceRegistry } from "@/features/pipelines/hooks/workspace/useWorkspaceRegistry";
 import type { ScannedPipelineYamlItemRust } from "@/features/pipelines/types/workspaceConfig";
 import type { NodePaletteItemDto, PaletteNodeSourceRef } from "@/features/pipelines/types/pipelineGraphTypes";
 import { uploadMultipleAssetsFlow } from "@/lib/upload-utils";
@@ -386,8 +387,13 @@ export function TemplateContainerBuilder({
   const ingestManifestMutation = useIngestCloudDataManifest();
   const scanMutation = useTemplateDependencyScan();
 
-  // Root workspace & local scanned pipelines (dùng chung key "local-default" với Local Workspace)
-  const { rootPath, config } = useLocalWorkspaceConfig("local-default");
+  // Source Workspace selection (allows switching between registered local workspaces)
+  const { workspaces: registeredWorkspaces } = useWorkspaceRegistry();
+  const [selectedWorkspacePath, setSelectedWorkspacePath] = useState<string | null>(null);
+  const effectiveWorkspacePath =
+    selectedWorkspacePath ?? registeredWorkspaces[0]?.rootPath ?? undefined;
+
+  const { rootPath, config } = useLocalWorkspaceConfig("local-default", effectiveWorkspacePath);
   const { masterPipelines: localMasters, componentPipes: localComponents } =
     useLocalPipelinesQuery(rootPath, config?.pipelinesDir);
 
@@ -1016,6 +1022,36 @@ export function TemplateContainerBuilder({
 
         {/* Optional Metadata Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Source Local Workspace</Label>
+            <select
+              aria-label="Source Local Workspace"
+              value={rootPath ?? ""}
+              onChange={(e) => {
+                const nextPath = e.target.value || null;
+                setSelectedWorkspacePath(nextPath);
+                setMasterPipelines([]);
+                setComponents([]);
+                setManualComponentPaths([]);
+                setLastManifest(null);
+                setDiagnostics([]);
+                setConstants([]);
+                setScripts([]);
+                setAssets([]);
+              }}
+              className="h-8 w-full rounded-md border border-border/80 bg-background px-2.5 text-xs text-foreground focus:outline-none"
+            >
+              {registeredWorkspaces.length === 0 ? (
+                <option value={rootPath ?? ""}>{rootPath || "Default Local Workspace"}</option>
+              ) : (
+                registeredWorkspaces.map((ws) => (
+                  <option key={ws.id} value={ws.rootPath}>
+                    {ws.name} ({ws.rootPath})
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Quota Limit</Label>
             <Input
