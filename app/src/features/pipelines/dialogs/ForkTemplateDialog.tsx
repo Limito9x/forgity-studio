@@ -200,11 +200,30 @@ export function ForkTemplateDialog({
             }
           }
 
+          const isIgnoredNodeForExecutor = (n: any) => {
+            const ref = String(n?.refId || n?.tool || n?.id || "").trim().toLowerCase();
+            return (
+              ref === "start" ||
+              ref === "return" ||
+              ref === "beginexecute" ||
+              ref === "endexecute" ||
+              ref.startsWith("local:constant:") ||
+              ref.startsWith("local:pure:")
+            );
+          };
+          const rootExecRaw =
+            typeof rootPipeline?.executor === "string" ? rootPipeline.executor.trim().toLowerCase() : "";
           const inferredExecutor =
-            (typeof rootPipeline?.executor === "string" && rootPipeline.executor.trim()) ||
+            (rootExecRaw && !["server", "pure", "system", "control", "flow control"].includes(rootExecRaw)
+              ? rootExecRaw
+              : undefined) ||
             nodes
+              .filter((n: any) => !isIgnoredNodeForExecutor(n))
               .map((n: any) => String(n?.executor || n?.data?.executor || "").trim().toLowerCase())
-              .find((ex: string) => ex && ex !== "pure" && ex !== "system" && ex !== "flow control") ||
+              .find(
+                (ex: string) =>
+                  ex && !["server", "pure", "system", "control", "flow control"].includes(ex)
+              ) ||
             undefined;
 
           // Generate valid declarative YAML from AST nodes and edges
