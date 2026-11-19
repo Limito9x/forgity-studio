@@ -89,7 +89,12 @@ pub async fn run_parsed_bundle(
         .filter(|k| !k.trim().is_empty())
         .unwrap_or_else(crate::system::hardware::get_permanent_machine_key);
 
-    let resolver: Arc<dyn ResourceResolver> = if bundle.cloud_lease.is_some() || has_remote_scripts {
+    let has_valid_cloud_lease = bundle
+        .cloud_lease
+        .as_ref()
+        .is_some_and(|l| !l.template_view_id.trim().is_empty());
+
+    let resolver: Arc<dyn ResourceResolver> = if has_valid_cloud_lease {
         let mut lease = bundle.cloud_lease.clone().unwrap_or_else(|| crate::core::bundle::CloudLeaseConfig {
             api_url: None,
             template_view_id: String::new(),
