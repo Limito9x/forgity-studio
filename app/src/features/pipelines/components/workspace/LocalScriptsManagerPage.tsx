@@ -108,15 +108,12 @@ export function LocalScriptsManagerPage({
     if (!rootPath) return;
     setIsCheckingDiff(true);
     try {
-      const scanRes = await invoke<{ files?: Array<{ relativePath: string }> }>("scan_local_script_folders", {
-        rootPath,
-        scriptsDir: scriptsDir || "pipeline-scripts",
-        ignorePatterns: ignorePatterns || [],
-      });
-      const files = scanRes?.files || [];
+      const normalizedRoot = rootPath.replace(/[\\/]+$/, "");
+      const subDir = (scriptsDir || "pipeline-scripts").replace(/^[\\/]+/, "");
+      const scriptsFolder = `${normalizedRoot}/${subDir}`;
       const analyzed = await invoke<Array<{ refId: string; contentHash?: string }>>("analyze_local_scripts_native", {
-        rootPath,
-        files,
+        folders: [{ path: scriptsFolder }],
+        customIgnores: ignorePatterns || [],
       });
 
       const currentByRef = new Map<string, string>();
