@@ -13,6 +13,7 @@ import { appConfig } from "@/config/appConfig";
 import { Form } from "@/components/form/Form";
 import { FormInput } from "@/components/form-controls/FormInput";
 import { AuthBrandingPanel } from "./AuthBrandingPanel";
+import { BetaPolicyDialog } from "./BetaPolicyDialog";
 
 const registerSchema = z
   .object({
@@ -171,6 +172,8 @@ export function RegisterForm({
           <AuthBrandingPanel />
         </CardContent>
       </Card>
+
+      <BetaPolicyDialog />
     </div>
   );
 }

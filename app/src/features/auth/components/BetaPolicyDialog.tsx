@@ -22,7 +22,7 @@ export function BetaPolicyDialog() {
   return (
     <>
       <div className="px-6 text-center text-xs text-muted-foreground">
-        By signing in, you agree to the{" "}
+        By continuing, you agree to the{" "}
         <a
           href="#terms"
           onClick={openTerms}
@@ -44,8 +44,8 @@ export function BetaPolicyDialog() {
       <BaseDialog
         open={open}
         onOpenChange={setOpen}
-        title={activeTab === "terms" ? "Terms of Service (Closed Beta)" : "Privacy Policy & Asset Safety"}
-        description="Clear, developer-first principles for creators testing Forgity Studio."
+        title={activeTab === "terms" ? "Terms of Service" : "Privacy Policy & Asset Safety"}
+        description="Clear, creator-first principles for using Forgity Studio."
         size="lg"
         footer={
           <Button variant="default" size="sm" onPress={() => setOpen(false)}>
@@ -71,7 +71,7 @@ export function BetaPolicyDialog() {
                 <div className="space-y-1">
                   <h4 className="font-semibold text-foreground text-sm">2. Pre-Release Software Notice</h4>
                   <p>
-                    Forgity Studio is currently in Active Beta. While our headless runner executors incorporate atomic locks and zero-destructive pipelines, we advise maintaining local backups for critical production files.
+                    Forgity Studio is under active development. We recommend maintaining local backups for critical production files before running automated pipelines.
                   </p>
                 </div>
               </div>
@@ -79,9 +79,9 @@ export function BetaPolicyDialog() {
               <div className="flex gap-3 p-3.5 rounded-xl border border-border/60 bg-card/60">
                 <ShieldCheck className="size-5 text-emerald-500 shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <h4 className="font-semibold text-foreground text-sm">3. Fair Resource Usage</h4>
+                  <h4 className="font-semibold text-foreground text-sm">3. Local Execution &amp; Template Quotas</h4>
                   <p>
-                    Local runners run on your workstation hardware. Cloud sync relies on presigned S3 URLs directly connecting your client to your designated S3 bucket without unencrypted intermediaries.
+                    All pipelines execute directly on your local workstation hardware. Cloud Templates include run quotas tied to your account and workstation; attempting to bypass or abuse quota limits is prohibited.
                   </p>
                 </div>
               </div>
@@ -91,9 +91,9 @@ export function BetaPolicyDialog() {
               <div className="flex gap-3 p-3.5 rounded-xl border border-border/60 bg-card/60">
                 <ShieldCheck className="size-5 text-emerald-500 shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <h4 className="font-semibold text-foreground text-sm">No Model Training / No Asset Scraping</h4>
+                  <h4 className="font-semibold text-foreground text-sm">Zero Asset Upload / No AI Training</h4>
                   <p>
-                    Forgity Studio does not inspect, collect, or train machine learning models on your 3D geometry, textures, or project pipelines.
+                    Forgity Studio does not upload, inspect, or train machine learning models on your 3D geometry, textures, or local project files.
                   </p>
                 </div>
               </div>
@@ -101,9 +101,9 @@ export function BetaPolicyDialog() {
               <div className="flex gap-3 p-3.5 rounded-xl border border-border/60 bg-card/60">
                 <HardDrive className="size-5 text-primary shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <h4 className="font-semibold text-foreground text-sm">Telemetry & Crash Logs</h4>
+                  <h4 className="font-semibold text-foreground text-sm">Machine Identity &amp; Account Data</h4>
                   <p>
-                    To optimize runner daemon reliability across Blender and Unreal Engine versions, we only collect anonymized execution durations, error exit codes, and hardware profiles (GPU/RAM specs).
+                    When using the Desktop app, we only store your account email and an anonymized hardware fingerprint hash to manage your personal template library and enforce run quotas.
                   </p>
                 </div>
               </div>

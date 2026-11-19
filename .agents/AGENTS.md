@@ -4,6 +4,9 @@
 
 ## 1. Bản Đồ Phân Vùng Monorepo (Subproject Scoping)
 
+> [!IMPORTANT]
+> **Kiến trúc Hiện Hành (ADR-011 — Solo-First Desktop):** Kiến trúc **Studio Cloud Multi-Tenant**, **RabbitMQ**, và **gRPC Runner Daemon** đã được **ĐÓNG (Sunset)**. Toàn bộ thực thi chạy local qua Tauri + Sidecar `forgity-runner run-bundle`, và máy trạm tự định danh qua `POST /api/runners/check-in` (Device-First Quota). Không đề xuất hoặc code lại luồng Studio/RabbitMQ/gRPC trừ khi User yêu cầu mở lại.
+
 Dự án gồm 3 phần độc lập nhưng liên kết chặt chẽ và chia sẻ hợp đồng gRPC:
 
 - **`packages/proto/`**: Nguồn chân lý duy nhất (Single Source of Truth) cho các hợp đồng gRPC Protobuf (`agent.proto`, `execution_state.proto`).
