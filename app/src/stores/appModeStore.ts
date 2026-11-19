@@ -14,11 +14,7 @@ interface AppModeState {
 export const useAppModeStore = create<AppModeState>()(
   persist(
     (set) => ({
-      mode:
-        typeof window !== "undefined" &&
-        window.location.pathname.startsWith("/local")
-          ? "local"
-          : "cloud",
+      mode: "local",
       lastLocalPath: "/local",
       lastCloudPath: "/",
       setMode: (mode) => set({ mode }),

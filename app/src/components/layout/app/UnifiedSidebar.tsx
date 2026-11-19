@@ -281,7 +281,7 @@ export function UnifiedSidebar() {
 
   const zoneLabel =
     activeZone === "local"
-      ? "Local Workspace"
+      ? "Workspace"
       : activeZone === "templates"
         ? "Templates & Library"
         : activeZone === "admin"
@@ -299,7 +299,7 @@ export function UnifiedSidebar() {
               onClick={() => setIsZoneOpen((v) => !v)}
               className="flex w-full items-center justify-between rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors group-data-[collapsible=icon]:hidden"
             >
-              <span>Zone: {activeZone}</span>
+              <span>Zone: {activeZone === "local" ? "workspace" : activeZone}</span>
               <ChevronDown
                 className={cn(
                   "size-3.5 transition-transform duration-150",
@@ -312,7 +312,7 @@ export function UnifiedSidebar() {
               <SidebarMenu className="mt-1 space-y-0.5">
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    tooltip="Local"
+                    tooltip="Workspace"
                     isActive={activeZone === "local"}
                     onPress={() => goToZone("local")}
                     className={cn(
@@ -322,7 +322,7 @@ export function UnifiedSidebar() {
                     )}
                   >
                     <Laptop className="size-4" />
-                    <span>Local</span>
+                    <span>Workspace</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
