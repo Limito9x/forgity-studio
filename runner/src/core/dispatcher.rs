@@ -214,20 +214,37 @@ impl StageDispatcher {
             if !has_project {
                 let mut resolved_uproject: Option<String> = None;
 
+                // 0. Prefer explicit FORGITY_UPROJECT_PATH env var injected by Tauri desktop
+                if let Ok(env_up) = std::env::var("FORGITY_UPROJECT_PATH") {
+                    let trimmed = env_up.trim();
+                    if !trimmed.is_empty() && std::path::Path::new(trimmed).is_file() {
+                        info!(
+                            "[Dispatcher] Injected Unreal .uproject from FORGITY_UPROJECT_PATH: {}",
+                            trimmed
+                        );
+                        resolved_uproject = Some(trimmed.to_string());
+                    }
+                }
+
                 // 1. Prefer per-workspace unreal_project_path from AppData WorkspaceRegistryDb
-                if let (Some(data_dir), Ok(cwd)) = (dirs::data_dir(), std::env::current_dir()) {
-                    let registry_dir = data_dir.join("studio.forgity.desktop");
-                    if let Ok(registry) = forgity_core::workspace_registry::WorkspaceRegistryDb::open(&registry_dir) {
-                        let cwd_str = cwd.to_string_lossy().replace('\\', "/");
-                        if let Ok(Some(ws)) = registry.get_workspace_by_root_path(&cwd_str)
-                            .or_else(|_| registry.get_workspace_by_root_path(&cwd.to_string_lossy()))
-                        {
-                            if let Some(up) = ws.unreal_project_path.filter(|p| std::path::Path::new(p.trim()).is_file()) {
-                                info!(
-                                    "[Dispatcher] Injected Unreal .uproject from Workspace Registry: {}",
-                                    up
-                                );
-                                resolved_uproject = Some(up);
+                if resolved_uproject.is_none() {
+                    if let (Some(data_dir), Ok(cwd)) = (dirs::data_dir(), std::env::current_dir()) {
+                        let registry_dir = data_dir.join("studio.forgity.desktop");
+                        if let Ok(registry) = forgity_core::workspace_registry::WorkspaceRegistryDb::open(&registry_dir) {
+                            let cwd_raw = cwd.to_string_lossy().to_string();
+                            let cwd_slash = cwd_raw.replace('\\', "/");
+                            let cwd_backslash = cwd_raw.replace('/', "\\");
+                            let ws_opt = registry.get_workspace_by_root_path(&cwd_raw).ok().flatten()
+                                .or_else(|| registry.get_workspace_by_root_path(&cwd_slash).ok().flatten())
+                                .or_else(|| registry.get_workspace_by_root_path(&cwd_backslash).ok().flatten());
+                            if let Some(ws) = ws_opt {
+                                if let Some(up) = ws.unreal_project_path.filter(|p| std::path::Path::new(p.trim()).is_file()) {
+                                    info!(
+                                        "[Dispatcher] Injected Unreal .uproject from Workspace Registry: {}",
+                                        up
+                                    );
+                                    resolved_uproject = Some(up);
+                                }
                             }
                         }
                     }

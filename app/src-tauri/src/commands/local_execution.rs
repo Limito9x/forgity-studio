@@ -314,6 +314,26 @@ pub fn run_local_pipeline(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
+    // Inject per-workspace Unreal .uproject path so both Unreal and Python scripts use the workspace's linked project
+    {
+        use tauri::Manager;
+        if let Ok(app_data_dir) = app.path().app_data_dir() {
+            if let Ok(registry) = forgity_core::workspace_registry::WorkspaceRegistryDb::open(&app_data_dir) {
+                let root_slash = root_path.replace('\\', "/");
+                let root_backslash = root_path.replace('/', "\\");
+                let ws_opt = registry.get_workspace_by_root_path(&root_path).ok().flatten()
+                    .or_else(|| registry.get_workspace_by_root_path(&root_slash).ok().flatten())
+                    .or_else(|| registry.get_workspace_by_root_path(&root_backslash).ok().flatten());
+                if let Some(up) = ws_opt.and_then(|ws| ws.unreal_project_path) {
+                    let trimmed = up.trim();
+                    if !trimmed.is_empty() {
+                        cmd.env("FORGITY_UPROJECT_PATH", trimmed);
+                    }
+                }
+            }
+        }
+    }
+
     #[cfg(target_os = "windows")]
     cmd.creation_flags(CREATE_NO_WINDOW);
 
