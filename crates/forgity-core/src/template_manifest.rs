@@ -1138,17 +1138,6 @@ impl ManifestScanner {
             }
         };
 
-        if !path_within_root(&self.root, &resolved) {
-            self.diag(
-                LEVEL_ERROR,
-                "PATH_ESCAPE",
-                format!("Asset path '{}' escapes the workspace root.", trimmed),
-                Some(state.slug.clone()),
-                node_id.map(str::to_string),
-            );
-            return;
-        }
-
         if !resolved.is_file() {
             return;
         }
@@ -1158,18 +1147,29 @@ impl ManifestScanner {
             return;
         }
 
-        let Some(relative_path) = relative_to_root(&self.root, &resolved) else {
-            self.diag(
-                LEVEL_ERROR,
-                "PATH_ESCAPE",
-                format!(
-                    "Asset path '{}' cannot be relativized against the workspace root.",
-                    trimmed
-                ),
-                Some(state.slug.clone()),
-                node_id.map(str::to_string),
-            );
-            return;
+        let relative_path = if path_within_root(&self.root, &resolved) {
+            match relative_to_root(&self.root, &resolved) {
+                Some(rel) => rel,
+                None => {
+                    self.diag(
+                        LEVEL_ERROR,
+                        "PATH_ESCAPE",
+                        format!(
+                            "Asset path '{}' cannot be relativized against the workspace root.",
+                            trimmed
+                        ),
+                        Some(state.slug.clone()),
+                        node_id.map(str::to_string),
+                    );
+                    return;
+                }
+            }
+        } else {
+            let file_name = resolved
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "asset.bin".to_string());
+            format!("assets/{}", file_name)
         };
 
         let dedupe_key = relative_path.to_ascii_lowercase();

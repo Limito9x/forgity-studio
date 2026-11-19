@@ -527,7 +527,12 @@ export function TemplateContainerBuilder({
       );
 
       if (manifest.totals.errorCount > 0) {
-        toast.warning(`Scan completed with ${manifest.totals.errorCount} error(s).`);
+        const firstError = (manifest.diagnostics || []).find((d) => d.level === "error");
+        toast.error(
+          firstError
+            ? `[${firstError.code}] ${firstError.message}`
+            : `Scan completed with ${manifest.totals.errorCount} error(s).`
+        );
       } else {
         toast.success(
           `Scanned ${manifest.totals.masterCount} master, ${manifest.totals.componentCount} components, ${manifest.totals.scriptCount} scripts.`
