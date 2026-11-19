@@ -9,6 +9,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
+import { getEffectiveMachineKey } from "@/lib/platform/filePickerStrategy";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -87,9 +88,13 @@ export function TemplatePreviewPage({
     if (!detail) return;
     setIsAdding(true);
     try {
+      const effectiveKey =
+        machineKey && machineKey !== "local-workstation"
+          ? machineKey
+          : await getEffectiveMachineKey();
       const item = await addToLibrary.mutateAsync({
         templatePackageId: detail.templatePackageId,
-        data: { machineKey },
+        data: { machineKey: effectiveKey },
       });
       await refetchList();
       toast.success(`Added "${detail.title}" to My Library.`);

@@ -87,7 +87,7 @@ pub async fn run_parsed_bundle(
         .as_ref()
         .map(|c| c.machine_key.clone())
         .filter(|k| !k.trim().is_empty())
-        .unwrap_or_else(|| "local-workstation".to_string());
+        .unwrap_or_else(crate::system::hardware::get_permanent_machine_key);
 
     let resolver: Arc<dyn ResourceResolver> = if bundle.cloud_lease.is_some() || has_remote_scripts {
         let mut lease = bundle.cloud_lease.clone().unwrap_or_else(|| crate::core::bundle::CloudLeaseConfig {

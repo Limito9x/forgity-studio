@@ -12,9 +12,9 @@ import {
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { getEffectiveMachineKey } from "@/lib/platform/filePickerStrategy";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   useGetCloudTemplates,
@@ -43,9 +43,13 @@ export function TemplatesCatalogPage({ machineKey = "local-workstation" }: { mac
   const handleAddToLibrary = async (templatePackageId: string) => {
     setAddingId(templatePackageId);
     try {
+      const effectiveKey =
+        machineKey && machineKey !== "local-workstation"
+          ? machineKey
+          : await getEffectiveMachineKey();
       const item = await addToLibrary.mutateAsync({
         templatePackageId,
-        data: { machineKey },
+        data: { machineKey: effectiveKey },
       });
       await refetch();
       toast.success(`Added "${item.title}" to My Library.`);

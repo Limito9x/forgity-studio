@@ -11,7 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { openNativeFileOrFolderDialog, isTauriRuntime } from "@/lib/platform/filePickerStrategy";
+import {
+  openNativeFileOrFolderDialog,
+  isTauriRuntime,
+  getEffectiveMachineKey,
+} from "@/lib/platform/filePickerStrategy";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import type { TemplateContainerDetailDto } from "@/gen/model/templateContainerDetailDto";
@@ -274,8 +278,9 @@ export function ForkTemplateDialog({
 
       // Auto add template to user library if not already added
       try {
+        const effectiveKey = await getEffectiveMachineKey();
         await addTemplateToLibrary(template.templatePackageId, {
-          machineKey: "local-workstation",
+          machineKey: effectiveKey,
         });
         queryClient.invalidateQueries({ queryKey: getGetMyLibraryQueryKey() });
       } catch {

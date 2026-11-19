@@ -61,6 +61,15 @@ export async function getLocalMachineInfo(): Promise<LocalMachineInfo> {
 }
 
 /**
+ * Returns the permanent hardware machine key on Tauri Desktop,
+ * falling back to "local-workstation" on Web.
+ */
+export async function getEffectiveMachineKey(): Promise<string> {
+  const info = await getLocalMachineInfo();
+  return info.machineKey?.trim() || "local-workstation";
+}
+
+/**
  * Pure evaluation function: determines whether a runner represents the local workstation.
  *
  * Evaluation rules:
