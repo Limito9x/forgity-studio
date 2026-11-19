@@ -200,6 +200,13 @@ export function ForkTemplateDialog({
             }
           }
 
+          const inferredExecutor =
+            (typeof rootPipeline?.executor === "string" && rootPipeline.executor.trim()) ||
+            nodes
+              .map((n: any) => String(n?.executor || n?.data?.executor || "").trim().toLowerCase())
+              .find((ex: string) => ex && ex !== "pure" && ex !== "system" && ex !== "flow control") ||
+            undefined;
+
           // Generate valid declarative YAML from AST nodes and edges
           let yamlContent = "";
           if (nodes.length > 0) {
@@ -208,7 +215,8 @@ export function ForkTemplateDialog({
               nodes,
               edges,
               undefined,
-              kind as "master" | "component"
+              kind as "master" | "component",
+              inferredExecutor
             );
           } else if ((m as any).dagYaml) {
             yamlContent = (m as any).dagYaml;
