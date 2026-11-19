@@ -28,7 +28,6 @@ public class RunnerModule : IModule, IPermissionModule
         >();
         services.AddScoped<IRunnerApi, RunnerApiService>();
         services.AddScoped<IAgentApi, RunnerApiService>();
-        services.AddRunnerGrpcServices();
     }
 
     public void ConfigureWolverine(WolverineOptions options)

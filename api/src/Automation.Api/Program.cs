@@ -116,7 +116,6 @@ app.UseFastEndpoints(c =>
 });
 
 app.MapHub<Automation.Notifications.Features.Notifications.NotificationHub>("/hubs/notifications");
-app.MapRunnerGrpcServices();
 
 if (app.Environment.IsDevelopment())
 {
