@@ -26,7 +26,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BaseDialog } from "@/components/custom-ui/overlays/dialog/BaseDialog";
-import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { openNativeFileOrFolderDialog, isTauriRuntime } from "@/lib/platform/filePickerStrategy";
 import { useGetMyLibrary } from "@/gen/endpoints/templates/templates";
