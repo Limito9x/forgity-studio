@@ -29,6 +29,12 @@ public record TemplateAssetDto(
     string? Sha256 = null
 );
 
+public record TemplateMemberQuotaConfigDto(
+    Guid PipelineVersionId,
+    string QuotaMode = "PerItem",
+    int QuotaCost = 1
+);
+
 public record CreateTemplateContainerRequest(
     Guid? TemplateId,
     string Title,
@@ -41,7 +47,8 @@ public record CreateTemplateContainerRequest(
     List<TemplateConstantDeclarationDto> Constants,
     List<TemplateAssetDto> Assets,
     JsonDocument? PaletteNodesJson,
-    string? Slug = null
+    string? Slug = null,
+    List<TemplateMemberQuotaConfigDto>? MemberQuotas = null
 );
 
 public record CreateTemplateContainerResponse(
@@ -101,7 +108,8 @@ public class CreateTemplateContainerEndpoint(PipelineDbContext db, IAssetApi ass
             scriptArtifactIds = req.ScriptArtifactIds,
             constants = req.Constants,
             assets = req.Assets,
-            paletteNodes = req.PaletteNodesJson?.RootElement
+            paletteNodes = req.PaletteNodesJson?.RootElement,
+            memberQuotas = req.MemberQuotas
         };
         var manifestDoc = JsonDocument.Parse(JsonSerializer.Serialize(manifestObj));
 
@@ -171,18 +179,46 @@ public class CreateTemplateContainerEndpoint(PipelineDbContext db, IAssetApi ass
             pkg.Members.Clear();
         }
 
+        static (string Mode, int Cost) ResolveQuotaPolicy(
+            Guid versionId,
+            string defaultMode,
+            Dictionary<Guid, TemplateMemberQuotaConfigDto> quotaMap
+        )
+        {
+            if (!quotaMap.TryGetValue(versionId, out var cfg))
+            {
+                return (defaultMode, defaultMode == "None" ? 0 : 1);
+            }
+
+            var mode = cfg.QuotaMode?.Trim() switch
+            {
+                "None" => "None",
+                "PerRun" => "PerRun",
+                _ => "PerItem",
+            };
+            var cost = mode == "None" ? 0 : Math.Max(0, cfg.QuotaCost);
+            return (mode, cost);
+        }
+
+        var quotaByVersionId = (req.MemberQuotas ?? [])
+            .GroupBy(q => q.PipelineVersionId)
+            .ToDictionary(g => g.Key, g => g.Last());
+
         int sortOrder = 0;
         var addedVersionIds = new HashSet<Guid>();
         foreach (var masterId in req.MasterVersionIds)
         {
             if (addedVersionIds.Add(masterId))
             {
+                var (mode, cost) = ResolveQuotaPolicy(masterId, "None", quotaByVersionId);
                 pkg.Members.Add(new TemplatePackageMember
                 {
                     TemplatePackage = pkg,
                     PipelineVersionId = masterId,
                     Role = "master",
-                    SortOrder = sortOrder++
+                    SortOrder = sortOrder++,
+                    QuotaMode = mode,
+                    QuotaCost = cost,
                 });
             }
         }
@@ -191,12 +227,15 @@ public class CreateTemplateContainerEndpoint(PipelineDbContext db, IAssetApi ass
         {
             if (addedVersionIds.Add(compId))
             {
+                var (mode, cost) = ResolveQuotaPolicy(compId, "PerItem", quotaByVersionId);
                 pkg.Members.Add(new TemplatePackageMember
                 {
                     TemplatePackage = pkg,
                     PipelineVersionId = compId,
                     Role = "component",
-                    SortOrder = sortOrder++
+                    SortOrder = sortOrder++,
+                    QuotaMode = mode,
+                    QuotaCost = cost,
                 });
             }
         }

@@ -130,6 +130,8 @@ public class TemplatePackageMember
     public PipelineVersion PipelineVersion { get; set; } = null!;
     public string Role { get; set; } = "master"; // "master" | "component"
     public int SortOrder { get; set; }
+    public string QuotaMode { get; set; } = "PerItem"; // "None" | "PerRun" | "PerItem"
+    public int QuotaCost { get; set; } = 1;
 }
 
 /// <summary>

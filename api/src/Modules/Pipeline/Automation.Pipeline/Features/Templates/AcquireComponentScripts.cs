@@ -12,7 +12,8 @@ public record AcquireComponentScriptsRequest(
     string MachineKey,
     List<string> ScriptHashes,
     int UnitCount = 1,
-    List<string>? AlreadyCachedHashes = null
+    List<string>? AlreadyCachedHashes = null,
+    string? ComponentSlug = null
 );
 
 public record AcquiredScriptItemDto(
@@ -187,17 +188,38 @@ public class AcquireComponentScriptsEndpoint(PipelineDbContext db)
             await db.SaveChangesAsync(ct);
         }
 
-        // 4. Atomically consume quota if unitCount > 0
+        // 4. Resolve per-member quota policy and atomically consume quota if effectiveUnits > 0
+        var targetMember = template.Members.FirstOrDefault(m =>
+            (req.PipelineVersionId.HasValue && m.PipelineVersionId == req.PipelineVersionId.Value)
+            || (!string.IsNullOrWhiteSpace(req.ComponentSlug)
+                && string.Equals(m.PipelineVersion.Slug, req.ComponentSlug.Trim(), StringComparison.OrdinalIgnoreCase))
+        ) ?? template.Members.FirstOrDefault(m =>
+            m.PipelineVersion.VersionScripts.Any(vs =>
+                !string.IsNullOrWhiteSpace(vs.PipelineScript.ScriptHash)
+                && requestedHashes.Contains(vs.PipelineScript.ScriptHash, StringComparer.OrdinalIgnoreCase))
+        );
+
+        int effectiveUnits = req.UnitCount;
+        if (targetMember is not null)
+        {
+            effectiveUnits = targetMember.QuotaMode switch
+            {
+                "None" => 0,
+                "PerRun" => req.UnitCount > 0 ? Math.Max(0, targetMember.QuotaCost) : 0,
+                _ => Math.Max(0, req.UnitCount) * Math.Max(0, targetMember.QuotaCost),
+            };
+        }
+
         int? remainingQuota = null;
-        if (req.UnitCount > 0)
+        if (effectiveUnits > 0)
         {
             if (libraryItem.MaxRuns.HasValue)
             {
                 var rows = await db.Database.ExecuteSqlInterpolatedAsync(
                     $@"
                     UPDATE pipeline.""TemplateLibraryItems""
-                    SET ""UsedRuns"" = ""UsedRuns"" + {req.UnitCount}
-                    WHERE ""Id"" = {libraryItem.Id} AND ""UsedRuns"" + {req.UnitCount} <= ""MaxRuns""
+                    SET ""UsedRuns"" = ""UsedRuns"" + {effectiveUnits}
+                    WHERE ""Id"" = {libraryItem.Id} AND ""UsedRuns"" + {effectiveUnits} <= ""MaxRuns""
                     ",
                     ct
                 );
@@ -225,7 +247,7 @@ public class AcquireComponentScriptsEndpoint(PipelineDbContext db)
                 await db.Database.ExecuteSqlInterpolatedAsync(
                     $@"
                     UPDATE pipeline.""TemplateLibraryItems""
-                    SET ""UsedRuns"" = ""UsedRuns"" + {req.UnitCount}
+                    SET ""UsedRuns"" = ""UsedRuns"" + {effectiveUnits}
                     WHERE ""Id"" = {libraryItem.Id}
                     ",
                     ct

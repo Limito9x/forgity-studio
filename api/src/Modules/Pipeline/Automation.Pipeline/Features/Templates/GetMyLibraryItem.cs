@@ -46,7 +46,9 @@ public class GetMyLibraryItemEndpoint(PipelineDbContext db)
                 m.Role,
                 m.SortOrder,
                 null,
-                m.PipelineVersion.DagBundleJson
+                m.PipelineVersion.DagBundleJson,
+                m.QuotaMode,
+                m.QuotaCost
             ))
             .ToList();
 

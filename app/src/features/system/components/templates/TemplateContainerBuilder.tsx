@@ -48,6 +48,8 @@ interface TemplateItemSelect {
   name: string;
   relativePath: string;
   graphHash?: string;
+  quotaMode?: "None" | "PerRun" | "PerItem";
+  quotaCost?: number;
 }
 
 interface ConstantConfigItem {
@@ -465,17 +467,23 @@ export function TemplateContainerBuilder({
           }))
       );
 
-      setComponents(
-        manifest.pipelines
+      setComponents((prev) => {
+        const prevBySlug = new Map(prev.map((item) => [item.slug, item]));
+        return manifest.pipelines
           .filter((p) => p.kind === "component")
-          .map((p) => ({
-            id: p.slug,
-            slug: p.slug,
-            name: p.slug,
-            relativePath: p.relativePath,
-            graphHash: p.graphHash,
-          }))
-      );
+          .map((p) => {
+            const existing = prevBySlug.get(p.slug);
+            return {
+              id: p.slug,
+              slug: p.slug,
+              name: p.slug,
+              relativePath: p.relativePath,
+              graphHash: p.graphHash,
+              quotaMode: existing?.quotaMode ?? "PerItem",
+              quotaCost: existing?.quotaCost ?? 1,
+            };
+          });
+      });
 
       setConstants(
         manifest.constants.map((c) => {
@@ -813,6 +821,32 @@ export function TemplateContainerBuilder({
         .map((c) => versionIdsBySlug[c.slug])
         .filter((id): id is string => Boolean(id));
 
+      const memberQuotas = [
+        ...masterPipelines
+          .map((m) => {
+            const versionId = versionIdsBySlug[m.slug];
+            if (!versionId) return null;
+            return {
+              pipelineVersionId: versionId,
+              quotaMode: m.quotaMode ?? "None",
+              quotaCost: m.quotaMode === "None" ? 0 : (m.quotaCost ?? 0),
+            };
+          })
+          .filter((q): q is NonNullable<typeof q> => Boolean(q)),
+        ...components
+          .map((c) => {
+            const versionId = versionIdsBySlug[c.slug];
+            if (!versionId) return null;
+            const mode = c.quotaMode ?? "PerItem";
+            return {
+              pipelineVersionId: versionId,
+              quotaMode: mode,
+              quotaCost: mode === "None" ? 0 : (c.quotaCost ?? 1),
+            };
+          })
+          .filter((q): q is NonNullable<typeof q> => Boolean(q)),
+      ];
+
       const scriptArtifactIds = scripts
         .map((s) => scriptIdsByKey[s.path])
         .filter((id): id is string => Boolean(id));
@@ -858,6 +892,7 @@ export function TemplateContainerBuilder({
             })),
           ],
           paletteNodesJson,
+          memberQuotas,
         } as any,
       });
 
@@ -1081,6 +1116,48 @@ export function TemplateContainerBuilder({
                     <div className="text-[10px] text-muted-foreground font-mono">
                       {c.graphHash ? `#${c.graphHash.slice(0, 8)}` : c.relativePath}
                     </div>
+                  </div>
+                  <div className="flex items-center gap-1 ml-1 pl-2 border-l border-border/60">
+                    <select
+                      aria-label={`Quota mode for ${c.name}`}
+                      value={c.quotaMode ?? "PerItem"}
+                      onChange={(e) => {
+                        const mode = e.target.value as "None" | "PerRun" | "PerItem";
+                        setComponents((prev) =>
+                          prev.map((item) =>
+                            item.slug === c.slug
+                              ? {
+                                  ...item,
+                                  quotaMode: mode,
+                                  quotaCost: mode === "None" ? 0 : item.quotaCost || 1,
+                                }
+                              : item
+                          )
+                        );
+                      }}
+                      className="h-6 rounded border border-border/70 bg-background px-1.5 text-[10px] text-foreground focus:outline-none"
+                    >
+                      <option value="PerItem">Per Item</option>
+                      <option value="PerRun">Per Run</option>
+                      <option value="None">Free (0)</option>
+                    </select>
+                    {(c.quotaMode ?? "PerItem") !== "None" && (
+                      <input
+                        aria-label={`Quota cost for ${c.name}`}
+                        type="number"
+                        min={0}
+                        value={c.quotaCost ?? 1}
+                        onChange={(e) => {
+                          const cost = Math.max(0, Number(e.target.value) || 0);
+                          setComponents((prev) =>
+                            prev.map((item) =>
+                              item.slug === c.slug ? { ...item, quotaCost: cost } : item
+                            )
+                          );
+                        }}
+                        className="h-6 w-11 rounded border border-border/70 bg-background px-1 text-center text-[10px] font-mono text-foreground focus:outline-none"
+                      />
+                    )}
                   </div>
                   <button
                     onClick={() => handleRemoveComponent(c.slug)}

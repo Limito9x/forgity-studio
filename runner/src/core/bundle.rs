@@ -213,6 +213,7 @@ impl ResourceResolver for CloudTemplateResourceResolver {
             .json(&serde_json::json!({
                 "templatePackageId": self.lease.template_view_id,
                 "pipelineVersionId": if self.lease.pipeline_version_id.is_empty() { None } else { Some(&self.lease.pipeline_version_id) },
+                "componentSlug": &doc.name,
                 "machineKey": self.lease.machine_key,
                 "scriptHashes": template_hashes.into_iter().collect::<Vec<_>>(),
                 "unitCount": unit_count,

@@ -14,7 +14,9 @@ public record TemplateContainerMemberDto(
     string Role,
     int SortOrder,
     string? DagYaml = null,
-    JsonDocument? DagBundleJson = null
+    JsonDocument? DagBundleJson = null,
+    string QuotaMode = "PerItem",
+    int QuotaCost = 1
 );
 
 public record TemplateContainerDetailDto(
@@ -74,7 +76,9 @@ public class GetTemplateContainerByIdEndpoint(PipelineDbContext db)
                 m.Role,
                 m.SortOrder,
                 null,
-                m.PipelineVersion.DagBundleJson
+                m.PipelineVersion.DagBundleJson,
+                m.QuotaMode,
+                m.QuotaCost
             ))
             .ToList();
 

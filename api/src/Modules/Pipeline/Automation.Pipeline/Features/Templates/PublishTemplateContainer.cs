@@ -65,6 +65,8 @@ public class PublishTemplateContainerEndpoint(PipelineDbContext db)
                 PipelineVersionId = member.PipelineVersionId,
                 Role = member.Role,
                 SortOrder = member.SortOrder,
+                QuotaMode = member.QuotaMode,
+                QuotaCost = member.QuotaCost,
             });
         }
 

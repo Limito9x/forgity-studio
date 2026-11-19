@@ -397,6 +397,13 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("PipelineVersionId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("QuotaCost")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("QuotaMode")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasColumnType("text");
