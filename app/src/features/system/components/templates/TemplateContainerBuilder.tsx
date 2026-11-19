@@ -332,10 +332,19 @@ async function uploadLocalFilePins(
   return uploadedPinAssets;
 }
 
+export interface EditableTemplateInfo {
+  templatePackageId: string;
+  title: string;
+  description?: string | null;
+  defaultQuotaLimit?: number | null;
+  versionNumber: number;
+}
+
 export function TemplateContainerBuilder({
   onBack,
   onSuccess,
-}: TemplateContainerBuilderProps) {
+  initialTemplate = null,
+}: TemplateContainerBuilderProps & { initialTemplate?: EditableTemplateInfo | null }) {
   const createContainerMutation = useCreateTemplateContainer();
   const ingestManifestMutation = useIngestCloudDataManifest();
   const scanMutation = useTemplateDependencyScan();
@@ -346,9 +355,13 @@ export function TemplateContainerBuilder({
     useLocalPipelinesQuery(rootPath, config?.pipelinesDir);
 
   // Form State
-  const [templateName, setTemplateName] = useState("");
-  const [description] = useState("");
-  const [dailyQuotaLimit, setDailyQuotaLimit] = useState("20");
+  const [templateName, setTemplateName] = useState(initialTemplate?.title ?? "");
+  const [description] = useState(initialTemplate?.description ?? "");
+  const [dailyQuotaLimit, setDailyQuotaLimit] = useState(
+    initialTemplate?.defaultQuotaLimit != null
+      ? String(initialTemplate.defaultQuotaLimit)
+      : "20"
+  );
   const [isPackaging, setIsPackaging] = useState(false);
 
   // Selected Master Pipelines & Components
@@ -754,10 +767,10 @@ export function TemplateContainerBuilder({
         .map((s) => scriptIdsByKey[s.path])
         .filter((id): id is string => Boolean(id));
 
-      // 2. Create Template Container referencing ingested PipelineVersions
+      // 2. Create or Update Template Container referencing ingested PipelineVersions
       await createContainerMutation.mutateAsync({
         data: {
-          templateId: null,
+          templateId: initialTemplate?.templatePackageId ?? null,
           title: templateName.trim(),
           slug: templateSlug,
           description: description.trim() || null,
@@ -882,6 +895,17 @@ export function TemplateContainerBuilder({
 
       {/* Main Scaffold Container */}
       <div className="rounded-xl border border-border/80 bg-card/60 p-6 shadow-sm space-y-6">
+        {initialTemplate && (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 px-3.5 py-2.5 text-xs flex items-center justify-between">
+            <span className="font-medium text-foreground">
+              Updating existing template:{" "}
+              <strong className="font-semibold">{initialTemplate.title}</strong>
+            </span>
+            <Badge variant="secondary" className="font-mono text-[10px]">
+              v{initialTemplate.versionNumber} → v{initialTemplate.versionNumber + 1}
+            </Badge>
+          </div>
+        )}
         {/* 1. Template Name Section */}
         <div className="space-y-2">
           <Label className="text-xs font-mono font-semibold tracking-wide text-foreground uppercase">

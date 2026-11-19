@@ -24,12 +24,16 @@ import { Input } from "@/components/ui/input";
 import {
   useGetCloudTemplates,
 } from "@/gen/endpoints/templates/templates";
-import { TemplateContainerBuilder } from "./TemplateContainerBuilder";
+import {
+  TemplateContainerBuilder,
+  type EditableTemplateInfo,
+} from "./TemplateContainerBuilder";
 
 export function AdminTemplatesPage() {
   const { data: templates = [], isLoading, refetch } = useGetCloudTemplates();
   const [search, setSearch] = useState("");
   const [isBuilderMode, setIsBuilderMode] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<EditableTemplateInfo | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -45,9 +49,14 @@ export function AdminTemplatesPage() {
     return (
       <div className="page-container">
         <TemplateContainerBuilder
-          onBack={() => setIsBuilderMode(false)}
+          initialTemplate={editingTemplate}
+          onBack={() => {
+            setIsBuilderMode(false);
+            setEditingTemplate(null);
+          }}
           onSuccess={() => {
             setIsBuilderMode(false);
+            setEditingTemplate(null);
             refetch();
           }}
         />
@@ -158,9 +167,23 @@ export function AdminTemplatesPage() {
                 <span className="text-muted-foreground font-mono text-[10px]">
                   ID: {t.templatePackageId.slice(0, 8)}...
                 </span>
-                <Badge variant="secondary" className="text-[10px]">
-                  Catalog Ready
-                </Badge>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2.5 text-xs"
+                  onPress={() => {
+                    setEditingTemplate({
+                      templatePackageId: t.templatePackageId,
+                      title: t.title,
+                      description: t.description,
+                      defaultQuotaLimit: t.defaultQuotaLimit,
+                      versionNumber: t.versionNumber,
+                    });
+                    setIsBuilderMode(true);
+                  }}
+                >
+                  Update
+                </Button>
               </CardFooter>
             </Card>
           ))}

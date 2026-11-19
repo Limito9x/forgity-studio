@@ -164,6 +164,7 @@ public class CreateTemplateContainerEndpoint(PipelineDbContext db, IAssetApi ass
             pkg.Description = req.Description;
             pkg.Category = string.IsNullOrWhiteSpace(req.Category) ? "General" : req.Category.Trim();
             pkg.DefaultQuotaLimit = req.DefaultQuotaLimit;
+            pkg.VersionNumber += 1;
             pkg.TotalAssetBytes = totalAssetBytes;
             pkg.ContainerManifestJson = manifestDoc;
             db.TemplatePackageMembers.RemoveRange(pkg.Members);
