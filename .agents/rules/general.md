@@ -89,6 +89,13 @@ Khi thực hiện tác vụ, hãy xác định khu vực mã nguồn đang thao 
    - Sau khi thực thi xong Phase X và nghiệm thu đạt yêu cầu, Agent tóm tắt kết quả và dừng lại.
    - **Nghiêm cấm tự động nhảy sang code Phase tiếp theo** khi chưa lập Implementation Plan chi tiết cho Phase mới và chưa được User duyệt.
 
+5. **Git Checkpoint Bắt Buộc (Pre-Plan & Per-Phase Commit):**
+   - **Trước khi bắt đầu thực thi Phase đầu tiên của Plan:** Kiểm tra `git status`; nếu có thay đổi chưa lưu từ tác vụ trước, bắt buộc phải **commit** (hoặc xác nhận với User để commit) nhằm đảm bảo baseline sạch sẽ trước khi code theo plan.
+   - **Điều kiện hoàn thành mỗi Phase:** Một Phase chỉ được coi là hoàn thành khi:
+     1. Toàn bộ scope của Phase đó **build/typecheck thành công** (ví dụ: `dotnet build`, `pnpm tsc`, `cargo check` tùy theo scope).
+     2. Toàn bộ thay đổi của Phase đã được **commit** gọn gàng vào Git.
+   - **Nghiêm cấm sang Phase mới** khi Phase hiện tại chưa build pass và chưa được commit.
+
 ---
 
 ## 7. Kỷ Luật Thực Dụng & Nghiêm Cấm Vẽ Vời (Strict Pragmatism & Zero Hallucinated Features)
