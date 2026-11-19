@@ -387,11 +387,17 @@ export function TemplateContainerBuilder({
   const ingestManifestMutation = useIngestCloudDataManifest();
   const scanMutation = useTemplateDependencyScan();
 
-  // Source Workspace selection (allows switching between registered local workspaces)
+  // Source Workspace selection (prioritize non-forked local authoring workspaces)
   const { workspaces: registeredWorkspaces } = useWorkspaceRegistry();
+  const authoringWorkspaces = useMemo(
+    () => registeredWorkspaces.filter((ws) => !ws.originTemplateId),
+    [registeredWorkspaces]
+  );
+  const selectableWorkspaces =
+    authoringWorkspaces.length > 0 ? authoringWorkspaces : registeredWorkspaces;
   const [selectedWorkspacePath, setSelectedWorkspacePath] = useState<string | null>(null);
   const effectiveWorkspacePath =
-    selectedWorkspacePath ?? registeredWorkspaces[0]?.rootPath ?? undefined;
+    selectedWorkspacePath ?? selectableWorkspaces[0]?.rootPath ?? undefined;
 
   const { rootPath, config } = useLocalWorkspaceConfig("local-default", effectiveWorkspacePath);
   const { masterPipelines: localMasters, componentPipes: localComponents } =
@@ -1041,10 +1047,10 @@ export function TemplateContainerBuilder({
               }}
               className="h-8 w-full rounded-md border border-border/80 bg-background px-2.5 text-xs text-foreground focus:outline-none"
             >
-              {registeredWorkspaces.length === 0 ? (
+              {selectableWorkspaces.length === 0 ? (
                 <option value={rootPath ?? ""}>{rootPath || "Default Local Workspace"}</option>
               ) : (
-                registeredWorkspaces.map((ws) => (
+                selectableWorkspaces.map((ws) => (
                   <option key={ws.id} value={ws.rootPath}>
                     {ws.name} ({ws.rootPath})
                   </option>
