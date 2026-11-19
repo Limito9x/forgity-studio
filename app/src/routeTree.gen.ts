@@ -20,6 +20,7 @@ import { Route as AuthAcceptInviteRouteImport } from './routes/auth/accept-invit
 import { Route as AuthForgotPasswordRouteImport } from './routes/auth/forgot-password'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as AuthLogoutRouteImport } from './routes/auth/logout'
+import { Route as AuthRegisterRouteImport } from './routes/auth/register'
 import { Route as AuthResetPasswordRouteImport } from './routes/auth/reset-password'
 import { Route as LocalIndexRouteImport } from './routes/local/index'
 import { Route as LocalMachineRouteImport } from './routes/local/machine'
@@ -126,6 +127,11 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
 const AuthLogoutRoute = AuthLogoutRouteImport.update({
   id: '/logout',
   path: '/logout',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthRegisterRoute = AuthRegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
@@ -511,6 +517,7 @@ export interface FileRoutesByFullPath {
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
+  '/auth/register': typeof AuthRegisterRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/local/machine': typeof LocalMachineRoute
   '/local/': typeof LocalIndexRoute
@@ -575,6 +582,7 @@ export interface FileRoutesByTo {
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
+  '/auth/register': typeof AuthRegisterRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/local/machine': typeof LocalMachineRoute
   '/local': typeof LocalIndexRoute
@@ -636,6 +644,7 @@ export interface FileRoutesById {
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
+  '/auth/register': typeof AuthRegisterRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/local/machine': typeof LocalMachineRoute
   '/local/': typeof LocalIndexRoute
@@ -703,6 +712,7 @@ export interface FileRouteTypes {
     | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/logout'
+    | '/auth/register'
     | '/auth/reset-password'
     | '/local/machine'
     | '/local/'
@@ -767,6 +777,7 @@ export interface FileRouteTypes {
     | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/logout'
+    | '/auth/register'
     | '/auth/reset-password'
     | '/local/machine'
     | '/local'
@@ -827,6 +838,7 @@ export interface FileRouteTypes {
     | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/logout'
+    | '/auth/register'
     | '/auth/reset-password'
     | '/local/machine'
     | '/local/'
@@ -968,6 +980,13 @@ declare module '@tanstack/react-router' {
       path: '/logout'
       fullPath: '/auth/logout'
       preLoaderRoute: typeof AuthLogoutRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/auth/register': {
+      id: '/auth/register'
+      path: '/register'
+      fullPath: '/auth/register'
+      preLoaderRoute: typeof AuthRegisterRouteImport
       parentRoute: typeof AuthRoute
     }
     '/auth/reset-password': {
@@ -1648,6 +1667,7 @@ interface AuthRouteChildren {
   AuthForgotPasswordRoute: typeof AuthForgotPasswordRoute
   AuthLoginRoute: typeof AuthLoginRoute
   AuthLogoutRoute: typeof AuthLogoutRoute
+  AuthRegisterRoute: typeof AuthRegisterRoute
   AuthResetPasswordRoute: typeof AuthResetPasswordRoute
 }
 
@@ -1656,6 +1676,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthForgotPasswordRoute: AuthForgotPasswordRoute,
   AuthLoginRoute: AuthLoginRoute,
   AuthLogoutRoute: AuthLogoutRoute,
+  AuthRegisterRoute: AuthRegisterRoute,
   AuthResetPasswordRoute: AuthResetPasswordRoute,
 }
 

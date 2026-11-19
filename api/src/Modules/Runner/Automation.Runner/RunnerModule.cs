@@ -30,9 +30,7 @@ public class RunnerModule : IModule, IPermissionModule
         services.AddScoped<IAgentApi, RunnerApiService>();
     }
 
-    public void ConfigureWolverine(WolverineOptions options)
-    {
-    }
+    public void ConfigureWolverine(WolverineOptions options) { }
 
     public Dictionary<string, IReadOnlyList<string>> GetPermissions() =>
         new Constants.RunnerPermissions().GetPermissions();
@@ -41,6 +39,4 @@ public class RunnerModule : IModule, IPermissionModule
 }
 
 // Backward-compatibility alias
-public sealed class AgentModule : RunnerModule
-{
-}
+public sealed class AgentModule : RunnerModule { }

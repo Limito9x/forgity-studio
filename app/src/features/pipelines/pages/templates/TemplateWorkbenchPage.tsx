@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useGetMyLibraryItem } from "@/gen/endpoints/templates/templates";
 import { PipelineCanvas } from "../../components/canvas/PipelineCanvas";
 import { PipelineWorkspaceProvider } from "../../context/PipelineWorkspaceContext";
@@ -59,19 +58,19 @@ export function TemplateWorkbenchPage({
 
   const templateDetailShim = item
     ? {
-        templatePackageId: item.templatePackageId,
-        title: item.title,
-        description: item.description,
-        versionNumber: 1,
-        category: item.category,
-        primaryMasterVersionId: item.primaryMasterVersionId,
-        paletteNodesJson: item.paletteNodesJson,
-        constants: item.constants,
-        members: item.members.map((m) => ({
-          ...m,
-          dagYaml: (m as any).dagYaml || "",
-        })),
-      }
+      templatePackageId: item.templatePackageId,
+      title: item.title,
+      description: item.description,
+      versionNumber: 1,
+      category: item.category,
+      primaryMasterVersionId: item.primaryMasterVersionId,
+      paletteNodesJson: item.paletteNodesJson,
+      constants: item.constants,
+      members: item.members.map((m) => ({
+        ...m,
+        dagYaml: (m as any).dagYaml || "",
+      })),
+    }
     : null;
 
   if (isLoading) {
