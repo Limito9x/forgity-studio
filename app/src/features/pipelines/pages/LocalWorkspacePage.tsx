@@ -582,6 +582,8 @@ export function LocalWorkspacePage({ projectId, explicitRootPath }: LocalWorkspa
       rootPath: rootPath || "",
       pipelineSlug,
       filePath: activeDraftPipeline?.fullPath || "",
+      pipelineKind: activeDraftPipeline?.pipelineKind === "component" ? "component" : "master",
+      executor: activeDraftPipeline?.executor || undefined,
       onRunDraft: (runtimeInputs) => handleRunDraftRef.current(runtimeInputs),
       onDraftSaved: (savedGraph) => {
         setLoadedGraph(savedGraph);
@@ -590,7 +592,14 @@ export function LocalWorkspacePage({ projectId, explicitRootPath }: LocalWorkspa
         }
       },
     });
-  }, [rootPath, pipelineSlug, activeDraftPipeline?.fullPath, queryClient]);
+  }, [
+    rootPath,
+    pipelineSlug,
+    activeDraftPipeline?.fullPath,
+    activeDraftPipeline?.pipelineKind,
+    activeDraftPipeline?.executor,
+    queryClient,
+  ]);
 
   const localStructCatalogue = useMemo(
     () => localStructsToCatalogue(localStructs || []),
