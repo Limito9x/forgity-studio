@@ -29,6 +29,25 @@ interface ForkTemplateDialogProps {
   template: TemplateContainerDetailDto;
 }
 
+const LAST_FORK_PARENT_DIR_KEY = "forgity_last_fork_parent_dir_v1";
+
+function sanitizeFolderSegment(raw: string): string {
+  return (
+    raw
+      .replace(/[^a-zA-Z0-9_\- ]/g, "")
+      .trim()
+      .replace(/\s+/g, "_") || "workspace"
+  );
+}
+
+function joinTargetPath(parentDir: string, folderName: string, createSubfolder: boolean): string {
+  const trimmed = parentDir.trim().replace(/[/\\]+$/, "");
+  if (!trimmed) return "";
+  if (!createSubfolder) return trimmed;
+  const sep = trimmed.includes("\\") || /^[A-Za-z]:/.test(trimmed) ? "\\" : "/";
+  return `${trimmed}${sep}${folderName}`;
+}
+
 export function ForkTemplateDialog({
   isOpen,
   onClose,
@@ -39,8 +58,18 @@ export function ForkTemplateDialog({
   const [workspaceName, setWorkspaceName] = useState(
     `${template.title} Workspace`
   );
-  const [targetRootPath, setTargetRootPath] = useState("");
+  const [parentFolder, setParentFolder] = useState(() => {
+    try {
+      return localStorage.getItem(LAST_FORK_PARENT_DIR_KEY) || "";
+    } catch {
+      return "";
+    }
+  });
+  const [createSubfolder, setCreateSubfolder] = useState(true);
   const [isForking, setIsForking] = useState(false);
+
+  const sanitizedFolderName = sanitizeFolderSegment(workspaceName);
+  const targetRootPath = joinTargetPath(parentFolder, sanitizedFolderName, createSubfolder);
 
   const handleBrowseTargetFolder = async () => {
     if (!isTauriRuntime()) {
@@ -51,18 +80,16 @@ export function ForkTemplateDialog({
     try {
       const selected = await openNativeFileOrFolderDialog({
         mode: "folder",
-        title: "Select Parent Folder for Workspace",
+        title: createSubfolder ? "Select Parent Folder for Workspace" : "Select Target Workspace Folder",
       });
 
       if (!selected) return;
-
-      // Suggest creating a subfolder named after the workspace
-      const sanitizedName = workspaceName
-        .replace(/[^a-zA-Z0-9_\- ]/g, "")
-        .trim()
-        .replace(/\s+/g, "_");
-      const fullPath = `${selected.replace(/[/\\]$/, "")}/${sanitizedName || "workspace"}`;
-      setTargetRootPath(fullPath);
+      setParentFolder(selected);
+      try {
+        localStorage.setItem(LAST_FORK_PARENT_DIR_KEY, selected);
+      } catch {
+        // ignore storage errors
+      }
     } catch (err: any) {
       toast.error(err?.message || "Failed to select folder.");
     }
@@ -344,14 +371,14 @@ export function ForkTemplateDialog({
         {/* Target Location */}
         <div className="space-y-1.5">
           <Label htmlFor="ws-path" className="text-xs font-medium">
-            Target Folder on Computer
+            {createSubfolder ? "Parent Folder" : "Target Folder"}
           </Label>
           <div className="flex items-center gap-2">
             <Input
               id="ws-path"
-              value={targetRootPath}
-              onChange={(e) => setTargetRootPath(e.target.value)}
-              placeholder="Choose or paste target folder path..."
+              value={parentFolder}
+              onChange={(e) => setParentFolder(e.target.value)}
+              placeholder="Choose or paste parent folder path..."
               className="text-xs h-9 font-mono"
               disabled={isForking}
             />
@@ -366,9 +393,22 @@ export function ForkTemplateDialog({
               Browse
             </Button>
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            A new folder with pipelines, assets, and SQLite workspace index will be created here.
-          </p>
+          <label className="flex items-center gap-2 text-[11px] text-muted-foreground cursor-pointer select-none pt-0.5">
+            <input
+              type="checkbox"
+              checked={createSubfolder}
+              onChange={(e) => setCreateSubfolder(e.target.checked)}
+              disabled={isForking}
+              className="rounded border-border"
+            />
+            <span>Create subfolder named &quot;{sanitizedFolderName}&quot;</span>
+          </label>
+          {targetRootPath && (
+            <div className="rounded-md bg-muted/50 border border-border/60 px-2.5 py-1.5 text-[11px] font-mono text-foreground break-all">
+              <span className="text-muted-foreground font-sans mr-1">Target path:</span>
+              {targetRootPath}
+            </div>
+          )}
         </div>
 
         {/* Summary Box */}

@@ -42,7 +42,6 @@ import {
   MoreHorizontal,
   FolderOpen,
   Trash2,
-  ExternalLink,
   Copy,
 } from "lucide-react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
@@ -207,12 +206,6 @@ export function UnifiedSidebar() {
 
   const templateItems = [
     {
-      title: "Workspaces",
-      url: "/workspaces",
-      icon: FolderGit2,
-      isActive: pathname.startsWith("/workspaces"),
-    },
-    {
       title: "Templates",
       url: "/templates",
       icon: LayoutGrid,
@@ -318,7 +311,7 @@ export function UnifiedSidebar() {
                     className={cn(
                       "h-8 text-xs font-medium",
                       activeZone === "local" &&
-                        "bg-background text-foreground shadow-xs"
+                      "bg-background text-foreground shadow-xs"
                     )}
                   >
                     <Laptop className="size-4" />
@@ -336,7 +329,7 @@ export function UnifiedSidebar() {
                       className={cn(
                         "h-8 text-xs font-medium pr-8",
                         activeZone === "studio" &&
-                          "bg-background text-foreground shadow-xs"
+                        "bg-background text-foreground shadow-xs"
                       )}
                     >
                       <Building2 className="size-4" />
@@ -367,7 +360,7 @@ export function UnifiedSidebar() {
                       className={cn(
                         "h-8 text-xs font-medium",
                         activeZone === "admin" &&
-                          "bg-background text-foreground shadow-xs"
+                        "bg-background text-foreground shadow-xs"
                       )}
                     >
                       <Shield className="size-4" />
@@ -384,7 +377,7 @@ export function UnifiedSidebar() {
                     className={cn(
                       "h-8 text-xs font-medium",
                       activeZone === "templates" &&
-                        "bg-background text-foreground shadow-xs"
+                      "bg-background text-foreground shadow-xs"
                     )}
                   >
                     <Sparkles className="size-4" />
@@ -465,17 +458,6 @@ export function UnifiedSidebar() {
                                 <MoreHorizontal className="size-3.5" />
                               </SidebarMenuAction>
                               <DropdownMenu placement="bottom end" className="w-44 text-xs">
-                                <DropdownMenuItem
-                                  onAction={() =>
-                                    navigate({
-                                      to: "/workspaces/$workspaceId" as any,
-                                      params: { workspaceId: ws.id } as any,
-                                    })
-                                  }
-                                >
-                                  <ExternalLink className="size-3.5 mr-2" />
-                                  <span>Open Workspace</span>
-                                </DropdownMenuItem>
                                 <DropdownMenuItem onAction={() => revealInExplorer(ws.rootPath)}>
                                   <FolderOpen className="size-3.5 mr-2" />
                                   <span>Reveal in Explorer</span>

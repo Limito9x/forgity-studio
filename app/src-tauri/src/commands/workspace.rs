@@ -408,10 +408,14 @@ pub fn remove_workspace_from_registry(app: tauri::AppHandle, workspace_id: Strin
 pub fn reveal_workspace_in_explorer(root_path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
+        let normalized = root_path
+            .trim()
+            .trim_start_matches(r"\\?\")
+            .replace('/', "\\");
         std::process::Command::new("explorer")
-            .arg(&root_path)
+            .arg(&normalized)
             .spawn()
-            .map_err(|e| format!("Failed to open explorer for path '{}': {}", root_path, e))?;
+            .map_err(|e| format!("Failed to open explorer for path '{}': {}", normalized, e))?;
         Ok(())
     }
     #[cfg(target_os = "macos")]
