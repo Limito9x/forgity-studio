@@ -25,6 +25,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { BaseDialog } from "@/components/custom-ui/overlays/dialog/BaseDialog";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { openNativeFileOrFolderDialog, isTauriRuntime } from "@/lib/platform/filePickerStrategy";
 import { useGetMyLibrary } from "@/gen/endpoints/templates/templates";
@@ -206,12 +208,19 @@ export function LocalWorkspaceOutliner({
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent, draft: ScannedPipelineYamlItemRust) => {
-    e.stopPropagation();
-    if (!confirm(`Are you sure you want to delete "${draft.fileName}"?`)) return;
+  const [pendingDeleteDraft, setPendingDeleteDraft] = useState<ScannedPipelineYamlItemRust | null>(null);
 
+  const handleDelete = (e: React.MouseEvent, draft: ScannedPipelineYamlItemRust) => {
+    e.stopPropagation();
+    setPendingDeleteDraft(draft);
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDeleteDraft) return;
+    const target = pendingDeleteDraft;
+    setPendingDeleteDraft(null);
     try {
-      await deletePipeline(draft.fullPath);
+      await deletePipeline(target.fullPath);
       toast.success("Pipeline deleted from disk!");
     } catch (err: any) {
       toast.error("Failed to delete pipeline", { description: err?.message });
@@ -752,6 +761,30 @@ export function LocalWorkspaceOutliner({
         </div>
 
       </div>
+
+      <BaseDialog
+        open={Boolean(pendingDeleteDraft)}
+        onOpenChange={(open) => {
+          if (!open) setPendingDeleteDraft(null);
+        }}
+        title="Delete Pipeline"
+        description={`Are you sure you want to delete "${pendingDeleteDraft?.fileName ?? ""}" from disk? This action cannot be undone.`}
+        size="sm"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" onPress={() => setPendingDeleteDraft(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" size="sm" onPress={confirmDelete}>
+              Delete
+            </Button>
+          </div>
+        }
+      >
+        <div className="text-xs text-muted-foreground">
+          File: <span className="font-mono text-foreground">{pendingDeleteDraft?.fileName}</span>
+        </div>
+      </BaseDialog>
     </div>
   );
 }
