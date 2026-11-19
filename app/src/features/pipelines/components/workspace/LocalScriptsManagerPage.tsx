@@ -112,7 +112,7 @@ export function LocalScriptsManagerPage({
       const subDir = (scriptsDir || "pipeline-scripts").replace(/^[\\/]+/, "");
       const scriptsFolder = `${normalizedRoot}/${subDir}`;
       const analyzed = await invoke<Array<{ refId: string; contentHash?: string }>>("analyze_local_scripts_native", {
-        folders: [{ path: scriptsFolder }],
+        folders: [{ namespace: "local", path: scriptsFolder }],
         customIgnores: ignorePatterns || [],
       });
 

@@ -181,22 +181,33 @@ pub fn build_execution_bundle(
                     if p.is_file() {
                         Some(p)
                     } else {
-                        None
+                        let p_py = root_path.join("pipeline-scripts").join(format!("{}.py", bare_key));
+                        if p_py.is_file() { Some(p_py) } else { None }
                     }
                 });
 
+            let is_template_script = source_ref
+                .as_ref()
+                .and_then(|sr| sr.get("kind"))
+                .and_then(|v| v.as_str())
+                .is_some_and(|k| k.eq_ignore_ascii_case("template"));
+
             let verified_full_path = if let Some(ref p) = candidate_full_path {
                 if p.is_file() {
-                    if let Some(ref expected_hash) = content_hash {
-                        if !expected_hash.is_empty() {
-                            if let Some(actual_hash) = sha256_file(p) {
-                                if actual_hash.eq_ignore_ascii_case(expected_hash) {
-                                    p.to_string_lossy().to_string()
+                    if is_template_script {
+                        if let Some(ref expected_hash) = content_hash {
+                            if !expected_hash.is_empty() {
+                                if let Some(actual_hash) = sha256_file(p) {
+                                    if actual_hash.eq_ignore_ascii_case(expected_hash) {
+                                        p.to_string_lossy().to_string()
+                                    } else {
+                                        String::new()
+                                    }
                                 } else {
                                     String::new()
                                 }
                             } else {
-                                String::new()
+                                p.to_string_lossy().to_string()
                             }
                         } else {
                             p.to_string_lossy().to_string()
