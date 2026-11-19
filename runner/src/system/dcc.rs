@@ -128,6 +128,23 @@ pub fn scan_unreal() -> Vec<DccApp> {
                 }
             }
         }
+
+        // 3. Epic Games Launcher manifest: C:\ProgramData\Epic\UnrealEngineLauncher\LauncherInstalled.dat
+        let launcher_dat = PathBuf::from(r"C:\ProgramData\Epic\UnrealEngineLauncher\LauncherInstalled.dat");
+        if let Ok(raw) = std::fs::read_to_string(&launcher_dat) {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&raw) {
+                if let Some(list) = json.get("InstallationList").and_then(|v| v.as_array()) {
+                    for item in list {
+                        let app_name = item.get("AppName").and_then(|v| v.as_str()).unwrap_or("");
+                        if let Some(ver) = app_name.strip_prefix("UE_") {
+                            if let Some(loc) = item.get("InstallLocation").and_then(|v| v.as_str()) {
+                                push_unreal(PathBuf::from(loc.trim()), Some(ver.to_string()));
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     let search_roots = [
