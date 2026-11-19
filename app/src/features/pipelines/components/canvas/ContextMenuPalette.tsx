@@ -92,11 +92,7 @@ export function ContextMenuPalette({
         if (executorParam && item.executor) {
           const itemExec = item.executor.toLowerCase();
           const targetExec = executorParam.toLowerCase();
-          if (
-            itemExec !== targetExec &&
-            itemExec !== "pure" &&
-            !(itemExec === "python" && ["blender", "unreal"].includes(targetExec))
-          ) {
+          if (itemExec !== targetExec && itemExec !== "pure") {
             return false;
           }
         }
