@@ -24,7 +24,7 @@ public class GetCloudTemplatesEndpoint(PipelineDbContext db)
         var templates = await db
             .TemplatePackages.AsNoTracking()
             .Include(t => t.PrimaryMasterVersion)
-            .Where(t => t.IsPublic)
+            .Where(t => t.IsPublic && t.ArchivedAt == null)
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync(ct);
 

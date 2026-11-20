@@ -9,7 +9,10 @@ import {
   KeyRound,
   Shield,
   Loader2,
+  Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
+import { apiClient } from "@/lib/api-client";
 import {
   Card,
   CardContent,
@@ -34,6 +37,27 @@ export function AdminTemplatesPage() {
   const [search, setSearch] = useState("");
   const [isBuilderMode, setIsBuilderMode] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<EditableTemplateInfo | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  const handleRemoveTemplate = async (templateId: string, title: string) => {
+    const confirmed = window.confirm(
+      `Remove template "${title}"?\n\nIf no users have forked it, it will be permanently deleted. Otherwise, it will be unpublished and archived from the catalog.`
+    );
+    if (!confirmed) return;
+
+    setRemovingId(templateId);
+    try {
+      const res = await apiClient.delete<{ deleted: boolean; archived: boolean; message: string }>(
+        `/api/templates/containers/${templateId}`
+      );
+      toast.success(res.data?.message || "Template removed.");
+      await refetch();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.title || err?.message || "Failed to remove template.");
+    } finally {
+      setRemovingId(null);
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -167,23 +191,39 @@ export function AdminTemplatesPage() {
                 <span className="text-muted-foreground font-mono text-[10px]">
                   ID: {t.templatePackageId.slice(0, 8)}...
                 </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 px-2.5 text-xs"
-                  onPress={() => {
-                    setEditingTemplate({
-                      templatePackageId: t.templatePackageId,
-                      title: t.title,
-                      description: t.description,
-                      defaultQuotaLimit: t.defaultQuotaLimit,
-                      versionNumber: t.versionNumber,
-                    });
-                    setIsBuilderMode(true);
-                  }}
-                >
-                  Update
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2.5 text-xs"
+                    onPress={() => {
+                      setEditingTemplate({
+                        templatePackageId: t.templatePackageId,
+                        title: t.title,
+                        description: t.description,
+                        defaultQuotaLimit: t.defaultQuotaLimit,
+                        versionNumber: t.versionNumber,
+                      });
+                      setIsBuilderMode(true);
+                    }}
+                  >
+                    Update
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                    isDisabled={removingId === t.templatePackageId}
+                    onPress={() => handleRemoveTemplate(t.templatePackageId, t.title)}
+                    aria-label={`Remove ${t.title}`}
+                  >
+                    {removingId === t.templatePackageId ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
               </CardFooter>
             </Card>
           ))}
