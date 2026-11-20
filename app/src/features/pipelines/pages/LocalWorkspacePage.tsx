@@ -22,7 +22,7 @@ import { LocalWorkspaceWelcomeState } from "../components/workspace/LocalWorkspa
 import { LocalWorkspaceOutliner } from "../components/workspace/LocalWorkspaceOutliner";
 import { WorkspaceTabBar } from "../components/workspace/WorkspaceTabBar";
 import { LocalConstantsManagerPage } from "../components/workspace/LocalConstantsManagerPage";
-import { LocalScriptsManagerPage } from "../components/workspace/LocalScriptsManagerPage";
+import { LocalNodePaletteWorkbench } from "../components/workspace/LocalNodePaletteWorkbench";
 import { useWorkspaceTabsStore } from "../stores/useWorkspaceTabsStore";
 import {
   useWorkspaceUiPrefsStore,
@@ -112,6 +112,9 @@ export function LocalWorkspacePage({ projectId, explicitRootPath }: LocalWorkspa
     openSingletonTab,
     closeTab,
     setActiveTab,
+    paletteScanRequest,
+    paletteInitialScriptKey,
+    requestPaletteScan,
   } = useWorkspaceTabsStore();
 
   const uiPrefs = useProjectUiPrefs(projectId);
@@ -734,13 +737,13 @@ export function LocalWorkspacePage({ projectId, explicitRootPath }: LocalWorkspa
                 rootPath={rootPath}
               />
             ) : activeTab?.kind === "palette" ? (
-              <LocalScriptsManagerPage
+              <LocalNodePaletteWorkbench
                 projectId={projectId}
                 rootPath={rootPath}
                 scriptsDir={config?.scriptsDir}
-                ignorePatterns={config?.ignorePatterns}
-                isScanning={isScanning}
-                onSyncScripts={handleSyncScripts}
+                customIgnores={config?.ignorePatterns}
+                scanRequest={paletteScanRequest}
+                initialScriptKey={paletteInitialScriptKey}
               />
             ) : activeDraftPipeline ? (
               viewMode === "yaml" ? (

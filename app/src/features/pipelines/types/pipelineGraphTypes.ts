@@ -365,3 +365,57 @@ export interface CreatePipelineSnapshotRequest {
 }
 
 export type ListOfPipelineSnapshotSummaryDto = PipelineSnapshotSummaryDto[];
+
+export const PinPrimitiveType = {
+  String: "String",
+  Number: "Number",
+  Boolean: "Boolean",
+  File: "File",
+  Any: "Any",
+} as const;
+export type PinPrimitiveTypeValue =
+  (typeof PinPrimitiveType)[keyof typeof PinPrimitiveType];
+
+export const PinCardinality = {
+  Single: "Single",
+  Array: "Array",
+  Map: "Map",
+} as const;
+export type PinCardinalityValue =
+  (typeof PinCardinality)[keyof typeof PinCardinality];
+
+export type PinDiffKind = "Added" | "Removed" | "TypeChanged";
+
+export interface PinDiffDto {
+  pinId: string;
+  label?: string | null;
+  primitiveType?: string | null;
+  diffKind: PinDiffKind;
+}
+
+export interface ScriptImpactReportDto {
+  affectedPipelineCount: number;
+  affectedNodeCount: number;
+  affectedEdgeCount: number;
+  affectedPipelineNames: string[];
+}
+
+export interface AnalyzedCustomNodeDto {
+  key: string;
+  fileName: string;
+  suggestedName: string;
+  suggestedLabel: string;
+  executor: string;
+  description?: string | null;
+  contentHash?: string;
+  isOverride: boolean;
+  localStatus?: "new" | "modified" | "unchanged";
+  existingNodeId?: string | null;
+  hasBreakingChanges?: boolean;
+  inputs: PinDefinition[];
+  outputs: PinDefinition[];
+  inputPinDiffs: PinDiffDto[];
+  outputPinDiffs: PinDiffDto[];
+  impactReport: ScriptImpactReportDto;
+  dependencies?: { module: string; packageName: string }[];
+}
