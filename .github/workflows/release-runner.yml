@@ -1,4 +1,4 @@
-name: Release Native Runner Package
+name: Release Forgity Studio Desktop & Runner
 
 on:
   push:
@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   release-windows:
-    name: Build & Publish Native Rust Runner (Windows x64)
+    name: Build & Publish Forgity Studio Desktop + Runner (Windows x64)
     runs-on: windows-latest
 
     steps:
@@ -31,10 +31,22 @@ jobs:
             $ver = '${{ github.event.inputs.version_tag }}'
           } else {
             $ver = '${{ github.ref_name }}'.TrimStart('v')
-            if (-not $ver) { $ver = '1.0.0' }
+            if (-not $ver) { $ver = '0.1.0' }
           }
           Write-Host "Releasing version: $ver"
           "VERSION=$ver" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Setup Node.js & pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+          cache-dependency-path: app/pnpm-lock.yaml
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -47,59 +59,34 @@ jobs:
       - name: Cache Cargo Dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: runner -> runner/target
+          workspaces: |
+            runner -> runner/target
+            app/src-tauri -> app/src-tauri/target
 
-      - name: Build Forgity Runner (Release)
+      - name: Build Forgity Runner Sidecar & Stage Binary
         shell: pwsh
         env:
           FORGITY_RUNNER_VERSION: ${{ steps.get_version.outputs.VERSION }}
         run: |
-          cd runner
-          cargo build --release
+          ./app/scripts/stage-sidecar.ps1
 
-      - name: Package Runner Archive
+      - name: Install Frontend Dependencies
         shell: pwsh
         run: |
-          $version = "${{ steps.get_version.outputs.VERSION }}"
-          $distDir = "runner/dist"
-          New-Item -ItemType Directory -Path $distDir -Force | Out-Null
-          
-          $exe = "runner/target/release/forgity-runner.exe"
-          $zipVersioned = "$distDir/forgity-runner-$version-windows-x64.zip"
-          $zipLatest = "$distDir/forgity-runner.zip"
-          
-          Compress-Archive -Path $exe, "runner/scripts" -DestinationPath $zipVersioned -Force
-          Copy-Item $zipVersioned $zipLatest -Force
-          
-          (Get-FileHash -Algorithm SHA256 $zipVersioned).Hash.ToLower() | Out-File "$zipVersioned.sha256" -NoNewline
-          (Get-FileHash -Algorithm SHA256 $zipLatest).Hash.ToLower() | Out-File "$zipLatest.sha256" -NoNewline
+          pnpm --dir app install --frozen-lockfile
 
-      - name: Create GitHub Release and Upload Artifacts
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: "v${{ steps.get_version.outputs.VERSION }}"
-          name: "Forgity Runner v${{ steps.get_version.outputs.VERSION }}"
-          draft: false
-          prerelease: false
-          files: |
-            runner/dist/forgity-runner-*.zip
-            runner/dist/forgity-runner-*.zip.sha256
-            runner/dist/forgity-runner.zip
-            runner/dist/forgity-runner.zip.sha256
-          body: |
-            ## Forgity Studio Native Runner Release (v${{ steps.get_version.outputs.VERSION }})
-            
-            High-performance, single-binary automation daemon built with Rust for 3D workstation pipelines.
-            
-            ### Highlights:
-            - **Single Native Binary**: Standalone executable (`forgity-runner.exe`), zero Python dependency required.
-            - **Windows Kernel Job Object**: Hard-kill subprocess isolation for headless Blender & Unreal Engine.
-            - **Ultralight Resource Footprint**: < 15MB RAM baseline, instant gRPC streaming.
-            - **1-Click 3-Second Bootstrap**: Pair workstations in 3 seconds directly from the Forgity Studio Web Dashboard.
-            
-            ### Verification (Windows PowerShell):
-            ```powershell
-            (Get-FileHash forgity-runner-${{ steps.get_version.outputs.VERSION }}-windows-x64.zip -Algorithm SHA256).Hash.ToLower()
-            ```
+      - name: Build & Publish Tauri Desktop App (with Updater)
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          FORGITY_API_URL: ${{ secrets.VITE_API_URL }}
+        with:
+          projectPath: app
+          tagName: v${{ steps.get_version.outputs.VERSION }}
+          releaseName: 'Forgity Studio v${{ steps.get_version.outputs.VERSION }}'
+          releaseBody: 'Forgity Studio Desktop & Native Runner v${{ steps.get_version.outputs.VERSION }}'
+          releaseDraft: false
+          prerelease: false

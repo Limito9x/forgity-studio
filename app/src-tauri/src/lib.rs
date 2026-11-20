@@ -9,6 +9,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -53,6 +55,8 @@ pub fn run() {
             export_execution_bundle,
             build_publish_bundle_json,
             cancel_local_pipeline,
+            list_local_dcc_sessions,
+            stop_local_dcc_session,
             get_runner_unreal_project,
             set_runner_unreal_project,
             get_workspace_unreal_project,
