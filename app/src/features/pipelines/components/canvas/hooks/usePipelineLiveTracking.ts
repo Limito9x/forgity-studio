@@ -31,7 +31,10 @@ export function usePipelineLiveTracking({
   const [activeRunningNodeId, setActiveRunningNodeId] = useState<string | null>(null);
 
   const [liveNodeStatuses, setLiveNodeStatuses] = useState<
-    Record<string, "idle" | "running" | "succeeded" | "failed">
+    Record<string, "idle" | "waiting" | "running" | "succeeded" | "failed">
+  >({});
+  const [liveNodeProgress, setLiveNodeProgress] = useState<
+    Record<string, { completed: number; total: number }>
   >({});
   const [liveNodeOutputs, setLiveNodeOutputs] = useState<
     Record<string, Record<string, any>>
@@ -96,10 +99,16 @@ export function usePipelineLiveTracking({
 
         switch (payload.type) {
           case "run_started": {
+            // Only track top-level run_started (ignore sub-runs with _wave suffix if an active run is already tracked)
+            if (activeExecutionIdRef.current && String(payload.run_id || "").includes("_wave")) {
+              break;
+            }
             isCancelledRef.current = false;
+            activeExecutionIdRef.current = payload.run_id || null;
             setActiveExecutionId(payload.run_id || null);
             setActiveRunningNodeId(null);
             setLiveNodeStatuses({});
+            setLiveNodeProgress({});
             setLiveNodeOutputs({});
             setLiveNodeErrors({});
             setLocalLogs([]);
@@ -109,19 +118,43 @@ export function usePipelineLiveTracking({
             break;
           }
           case "node_started": {
+            if (activeExecutionIdRef.current && payload.run_id && payload.run_id !== activeExecutionIdRef.current) {
+              break;
+            }
             const nid = payload.node_id;
             if (!nid) break;
             setLiveNodeStatuses((prev) => ({ ...prev, [nid]: "running" }));
+            if (typeof payload.batch_total === "number" && payload.batch_total > 1) {
+              setLiveNodeProgress((prev) => ({
+                ...prev,
+                [nid]: { completed: payload.batch_index ?? 0, total: payload.batch_total },
+              }));
+            }
             setActiveRunningNodeId(nid);
             break;
           }
           case "node_progress": {
+            if (activeExecutionIdRef.current && payload.run_id && payload.run_id !== activeExecutionIdRef.current) {
+              break;
+            }
             const nid = payload.node_id;
             if (!nid) break;
             const s = String(payload.status || "").toLowerCase();
-            const mapped: "running" | "succeeded" | "failed" =
-              s === "failed" ? "failed" : s === "succeeded" ? "succeeded" : "running";
+            const mapped: "waiting" | "running" | "succeeded" | "failed" =
+              s === "failed"
+                ? "failed"
+                : s === "succeeded"
+                  ? "succeeded"
+                  : s === "waiting" || s === "free"
+                    ? "waiting"
+                    : "running";
             setLiveNodeStatuses((prev) => ({ ...prev, [nid]: mapped }));
+            if (typeof payload.completed === "number" && typeof payload.total === "number") {
+              setLiveNodeProgress((prev) => ({
+                ...prev,
+                [nid]: { completed: payload.completed, total: payload.total },
+              }));
+            }
             if (payload.outputs) {
               setLiveNodeOutputs((prev) => ({ ...prev, [nid]: payload.outputs }));
             }
@@ -131,6 +164,9 @@ export function usePipelineLiveTracking({
             break;
           }
           case "node_completed": {
+            if (activeExecutionIdRef.current && payload.run_id && payload.run_id !== activeExecutionIdRef.current) {
+              break;
+            }
             const nid = payload.node_id;
             if (!nid) break;
             const ok = Boolean(payload.succeeded);
@@ -157,6 +193,9 @@ export function usePipelineLiveTracking({
             break;
           }
           case "run_completed": {
+            if (activeExecutionIdRef.current && payload.run_id && payload.run_id !== activeExecutionIdRef.current) {
+              break;
+            }
             setIsExecutionRunning(false);
             setActiveRunningNodeId(null);
             const ok = Boolean(payload.succeeded);
@@ -170,8 +209,8 @@ export function usePipelineLiveTracking({
               setLiveNodeStatuses((prev) => {
                 const next = { ...prev };
                 for (const k of Object.keys(next)) {
-                  if (next[k] === "running") {
-                    next[k] = "failed";
+                  if (next[k] === "running" || next[k] === "waiting") {
+                    next[k] = "idle";
                   }
                 }
                 return next;
@@ -362,8 +401,9 @@ export function usePipelineLiveTracking({
     setNodes((currentNodes) => {
       let hasChanges = false;
       const updated = currentNodes.map((node) => {
-        let newStatus: "idle" | "running" | "succeeded" | "failed" = "idle";
+        let newStatus: "idle" | "waiting" | "running" | "succeeded" | "failed" = "idle";
         let newError: string | null = null;
+        const newProgress = liveNodeProgress[node.id] || null;
         const newOutputs =
           liveNodeOutputs[node.id] || nodeOutputs[node.id] || null;
 
@@ -388,6 +428,7 @@ export function usePipelineLiveTracking({
         if (
           prevData?.executionStatus === newStatus &&
           prevData?.executionError === newError &&
+          JSON.stringify(prevData?.executionProgress) === JSON.stringify(newProgress) &&
           JSON.stringify(prevData?.executionOutputs) ===
             JSON.stringify(newOutputs)
         ) {
@@ -400,6 +441,7 @@ export function usePipelineLiveTracking({
           data: {
             ...prevData,
             executionStatus: newStatus,
+            executionProgress: newProgress,
             executionError: newError,
             executionOutputs: newOutputs,
           },

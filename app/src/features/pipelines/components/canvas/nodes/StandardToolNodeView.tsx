@@ -60,6 +60,7 @@ export function StandardToolNodeView({ id: _id, data, selected, missingDefinitio
         badgeLabel={badgeLabel}
         badgeVariantClass={badgeVariantClass}
         status={nodeData.executionStatus}
+        progress={nodeData.executionProgress}
       />
 
       {(showExecIn || showExecOut) && (

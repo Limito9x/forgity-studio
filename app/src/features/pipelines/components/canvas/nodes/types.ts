@@ -16,7 +16,8 @@ export interface CustomPipelineNodeData extends Record<string, unknown> {
   outputs: PinDefinition[];
   configValues?: Record<string, any>;
   fileAssets?: Record<string, PipelineFileAssetDto> | null;
-  executionStatus?: "idle" | "running" | "succeeded" | "failed";
+  executionStatus?: "idle" | "waiting" | "running" | "succeeded" | "failed";
+  executionProgress?: { completed: number; total: number } | null;
   executionError?: string | null;
   executionOutputs?: Record<string, any> | null;
   pipelineId?: string;
