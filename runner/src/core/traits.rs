@@ -35,6 +35,10 @@ pub enum RunnerExecutionEvent {
         outputs: Option<HashMap<String, Value>>,
         error_message: Option<String>,
         batch_index: Option<usize>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        completed: Option<usize>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        total: Option<usize>,
     },
     NodeCompleted {
         run_id: String,
@@ -126,6 +130,8 @@ impl EventSink for StdoutJsonEventSink {
             outputs: msg.outputs.clone(),
             error_message: msg.error_message.clone(),
             batch_index: None,
+            completed: None,
+            total: None,
         });
         Ok(())
     }

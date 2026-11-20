@@ -150,4 +150,7 @@ pub enum Commands {
         #[command(subcommand)]
         action: workspace::WorkspaceAction,
     },
+
+    /// Persistent local sidecar worker communicating via NDJSON over stdin/stdout (keeps DccPool warm)
+    Worker,
 }

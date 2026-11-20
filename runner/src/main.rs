@@ -20,6 +20,7 @@ async fn main() -> anyhow::Result<()> {
     let suppress_stdout_logs = matches!(
         cli.command,
         Commands::Mcp { .. }
+            | Commands::Worker
             | Commands::RunBundle { json_events: true, .. }
             | Commands::Workspace {
                 action: cli::workspace::WorkspaceAction::Run { json_events: true, .. }
@@ -87,6 +88,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Workspace { action } => {
             cli::workspace::run_workspace(action, config_override).await?;
+        }
+        Commands::Worker => {
+            cli::run_local::run_worker(config_override).await?;
         }
     }
 

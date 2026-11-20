@@ -309,8 +309,12 @@ impl StageDispatcher {
         create_dir_all(&temp_dir).await.ok();
         let task_json_path = temp_dir.join("task.json");
         let task_bytes = serde_json::to_vec_pretty(&task)?;
-        let mut file = File::create(&task_json_path).await?;
-        file.write_all(&task_bytes).await?;
+        let mut file = File::create(&task_json_path)
+            .await
+            .with_context(|| format!("Failed to create task.json at {:?}", task_json_path))?;
+        file.write_all(&task_bytes)
+            .await
+            .with_context(|| format!("Failed to write task.json at {:?}", task_json_path))?;
         file.flush().await?;
 
         // 6. Check keep-alive configuration for persistent DCC pool

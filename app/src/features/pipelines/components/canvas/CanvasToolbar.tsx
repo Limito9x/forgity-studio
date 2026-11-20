@@ -19,12 +19,14 @@ import {
   LocateFixed,
   GitCommit,
   Laptop,
+  Power,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useReactFlow } from "@xyflow/react";
 import { cn } from "@/lib/utils";
 import { useUpdatePipelineMutation } from "../../hooks/usePipelines";
 import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
+import { useLocalDccSessions } from "../../hooks/workspace/useLocalDccSessions";
 import type { ValidationStatus } from "../../form-scope/PipelineFormScope";
 
 interface CanvasToolbarProps {
@@ -88,6 +90,8 @@ export function CanvasToolbar({
   const { studioSlug } = useCurrentStudio();
   const { fitView, zoomIn, zoomOut } = useReactFlow();
   const updateMutation = useUpdatePipelineMutation(projectId, pipelineId);
+  const { sessions: localDccSessions, stopSession: stopLocalDccSession, isStopping: isStoppingDcc } =
+    useLocalDccSessions(isLocalMode);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(pipelineName);
@@ -420,6 +424,38 @@ export function CanvasToolbar({
                 </Button>
               </span>
             )}
+          </div>
+        )}
+
+        {/* Warm Local DCC Session Indicator (e.g. Resident Unreal) */}
+        {isLocalMode && localDccSessions.length > 0 && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full shrink-0",
+                localDccSessions[0].state === "busy"
+                  ? "bg-amber-500 animate-pulse"
+                  : "bg-emerald-500"
+              )}
+            />
+            <span
+              className="truncate max-w-[160px]"
+              title={`PID: ${localDccSessions[0].pid}${localDccSessions[0].project_path ? ` | ${localDccSessions[0].project_path}` : ""}`}
+            >
+              {localDccSessions[0].executor.toUpperCase()} Warm ·{" "}
+              {localDccSessions[0].state === "busy"
+                ? "Busy"
+                : `${Math.floor(localDccSessions[0].remaining_seconds / 60)}m ${localDccSessions[0].remaining_seconds % 60}s`}
+            </span>
+            <button
+              type="button"
+              onClick={() => stopLocalDccSession({ key: localDccSessions[0].key })}
+              disabled={isStoppingDcc}
+              title="Stop resident DCC process"
+              className="ml-0.5 p-0.5 rounded hover:bg-destructive/20 hover:text-destructive transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <Power className="h-3 w-3" />
+            </button>
           </div>
         )}
 
