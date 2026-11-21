@@ -3,13 +3,13 @@ name: Release Forgity Studio Desktop & Runner
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
   workflow_dispatch:
     inputs:
       version_tag:
-        description: 'Release version (e.g. 1.0.0)'
+        description: "Release version (e.g. 1.0.0)"
         required: false
-        default: ''
+        default: ""
 
 permissions:
   contents: write
@@ -45,7 +45,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'pnpm'
+          cache: "pnpm"
           cache-dependency-path: app/pnpm-lock.yaml
 
       - name: Install Protoc
@@ -81,12 +81,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
-          FORGITY_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          FORGITY_API_URL: ${{ vars.VITE_API_URL }}
         with:
           projectPath: app
           tagName: v${{ steps.get_version.outputs.VERSION }}
-          releaseName: 'Forgity Studio v${{ steps.get_version.outputs.VERSION }}'
-          releaseBody: 'Forgity Studio Desktop & Native Runner v${{ steps.get_version.outputs.VERSION }}'
+          releaseName: "Forgity Studio v${{ steps.get_version.outputs.VERSION }}"
+          releaseBody: "Forgity Studio Desktop & Native Runner v${{ steps.get_version.outputs.VERSION }}"
           releaseDraft: false
           prerelease: false
