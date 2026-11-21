@@ -20,6 +20,7 @@ public class PublishTemplateContainerEndpoint(PipelineDbContext db)
     {
         Post("containers/{id:guid}/publish");
         Group<TemplatesGroup>();
+        Permissions(Constants.PipelinePermissions.Pipeline.Update);
         Description(b => b.WithSummary("Publish a new immutable version of a Template Package Container and archive the previous version"));
     }
 

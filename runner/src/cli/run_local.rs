@@ -74,11 +74,7 @@ fn build_resolver_for_bundle(
                 .filter(|u| !u.trim().is_empty())
         })
         .unwrap_or_else(|| "http://localhost:5189".to_string());
-    let default_machine_key = runner_cfg
-        .as_ref()
-        .map(|c| c.machine_key.clone())
-        .filter(|k| !k.trim().is_empty())
-        .unwrap_or_else(crate::system::hardware::get_permanent_machine_key);
+    let default_machine_key = crate::system::hardware::get_hardware_fingerprint();
 
     let has_valid_cloud_lease = bundle
         .cloud_lease

@@ -92,7 +92,7 @@ public partial class AssetApiService
         foreach (var req in requestList)
         {
             var existing = existingAssets.FirstOrDefault(x =>
-                x.HashSha256 == req.HashSha256 && x.SizeBytes == req.SizeBytes
+                x.HashSha256 == req.HashSha256
             );
             if (existing != null && existing.IsConfirmed)
             {

@@ -14,6 +14,7 @@ export interface WorkspaceInitResult {
   originTemplateId?: string | null;
   originTemplateSlug?: string | null;
   originVersionId?: string | null;
+  originTemplateVersion?: number | null;
   originTemplateTitle?: string | null;
 }
 

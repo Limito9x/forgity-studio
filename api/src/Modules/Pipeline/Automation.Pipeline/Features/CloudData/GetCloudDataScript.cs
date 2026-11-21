@@ -22,6 +22,7 @@ public class GetCloudDataScriptEndpoint(PipelineDbContext db)
     {
         Get("scripts/{scriptId:guid}");
         Group<CloudDataGroup>();
+        Permissions(Constants.PipelinePermissions.Pipeline.GetById);
         Description(b => b.WithSummary("Get content-addressed script source from Cloud Data Pool"));
     }
 
@@ -58,6 +59,7 @@ public class GetCloudDataScriptByHashEndpoint(PipelineDbContext db)
     {
         Get("scripts/by-hash/{scriptHash}");
         Group<CloudDataGroup>();
+        Permissions(Constants.PipelinePermissions.Pipeline.GetById);
         Description(b => b.WithSummary("Get content-addressed script source from Cloud Data Pool by ScriptHash"));
     }
 

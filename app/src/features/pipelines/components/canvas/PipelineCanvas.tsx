@@ -397,7 +397,7 @@ function PipelineCanvasContent({
               maxZoom={2}
               nodesDraggable={!isLocked && !readOnly}
               nodesConnectable={!isLocked && !readOnly}
-              elementsSelectable={!isLocked}
+              elementsSelectable={true}
               deleteKeyCode={isLocked || readOnly ? null : ["Backspace", "Delete"]}
               className="bg-dot-pattern"
             >

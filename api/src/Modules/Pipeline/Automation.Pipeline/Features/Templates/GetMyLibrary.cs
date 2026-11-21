@@ -16,18 +16,18 @@ public class GetMyLibraryEndpoint(PipelineDbContext db)
 
     public override async Task HandleAsync(CancellationToken ct)
     {
-        var ownerUserId = CloudTemplateClaimHelper.GetOwnerUserId(User);
         var machineKey = Query<string>("machineKey", isRequired: false);
 
         var query = db
             .TemplateLibraryItems.AsNoTracking()
             .Include(x => x.TemplatePackage)
                 .ThenInclude(t => t.PrimaryMasterVersion)
-            .Where(x => x.OwnerUserId == ownerUserId && x.PeriodKey == "lifetime");
+            .Where(x => x.PeriodKey == "lifetime");
 
         if (!string.IsNullOrWhiteSpace(machineKey))
         {
-            query = query.Where(x => x.MachineKey == machineKey);
+            var trimmedKey = machineKey.Trim();
+            query = query.Where(x => x.MachineKey == trimmedKey);
         }
 
         var items = await query.OrderByDescending(x => x.AddedAt).ToListAsync(ct);

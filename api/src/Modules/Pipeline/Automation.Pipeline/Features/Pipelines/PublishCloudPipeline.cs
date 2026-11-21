@@ -47,6 +47,7 @@ public class PublishCloudPipelineEndpoint(PipelineDbContext db)
     {
         Post("publish-cloud");
         Group<PipelinesGroup>();
+        Permissions(Constants.PipelinePermissions.Pipeline.Create);
         Description(b => b
             .Produces<PublishCloudPipelineResponse>(200)
             .WithSummary("Publish an immutable Cloud PipelineVersion and create a Template or Project View"));

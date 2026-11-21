@@ -140,7 +140,7 @@ public class TemplateLibraryItem : AuditableEntity
 {
     public Guid TemplatePackageId { get; set; }
     public TemplatePackage TemplatePackage { get; set; } = null!;
-    public Guid OwnerUserId { get; set; }
+    public Guid? OwnerUserId { get; set; }
     public string MachineKey { get; set; } = string.Empty;
     public int UsedRuns { get; set; }
     public int? MaxRuns { get; set; }

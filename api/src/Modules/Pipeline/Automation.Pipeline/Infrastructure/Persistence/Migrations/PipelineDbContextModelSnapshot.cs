@@ -72,43 +72,6 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                     b.ToTable("Pipelines", "pipeline");
                 });
 
-            modelBuilder.Entity("Automation.Pipeline.Domain.Entities.ConstantProfile", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("OwnerUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("RunnerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<JsonDocument>("ValuesJson")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("ConstantProfiles", "pipeline");
-                });
-
             modelBuilder.Entity("Automation.Pipeline.Domain.Entities.PipelineScript", b =>
                 {
                     b.Property<Guid>("Id")
@@ -237,9 +200,6 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                     b.Property<string>("CreatedBy")
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("DefaultConstantProfileId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("PinnedVersionId")
                         .HasColumnType("uuid");
 
@@ -273,9 +233,6 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("AddedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid?>("ConstantProfileId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -289,7 +246,7 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                     b.Property<int?>("MaxRuns")
                         .HasColumnType("integer");
 
-                    b.Property<Guid>("OwnerUserId")
+                    b.Property<Guid?>("OwnerUserId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("PeriodKey")
@@ -310,11 +267,9 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ConstantProfileId");
-
                     b.HasIndex("TemplatePackageId");
 
-                    b.HasIndex("OwnerUserId", "TemplatePackageId", "MachineKey", "PeriodKey")
+                    b.HasIndex("MachineKey", "TemplatePackageId", "PeriodKey")
                         .IsUnique();
 
                     b.ToTable("TemplateLibraryItems", "pipeline");
@@ -561,18 +516,11 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Automation.Pipeline.Domain.Entities.TemplateLibraryItem", b =>
                 {
-                    b.HasOne("Automation.Pipeline.Domain.Entities.ConstantProfile", "ConstantProfile")
-                        .WithMany()
-                        .HasForeignKey("ConstantProfileId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("Automation.Pipeline.Domain.Entities.TemplatePackage", "TemplatePackage")
                         .WithMany()
                         .HasForeignKey("TemplatePackageId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("ConstantProfile");
 
                     b.Navigation("TemplatePackage");
                 });

@@ -200,25 +200,25 @@ export function LocalNodePaletteWorkbench({
         mode === "review" ? item.status === "modified" : Boolean(libraryEdits[item.key]);
       const diffs = existing
         ? computeScriptPinDiffs(
-            existing.inputs || [],
-            existing.outputs || [],
-            item.inputs || [],
-            item.outputs || [],
-          )
+          existing.inputs || [],
+          existing.outputs || [],
+          item.inputs || [],
+          item.outputs || [],
+        )
         : {
-            inputPinDiffs: [],
-            outputPinDiffs: [],
-            breakingInputIds: new Set<string>(),
-            breakingOutputIds: new Set<string>(),
-          };
+          inputPinDiffs: [],
+          outputPinDiffs: [],
+          breakingInputIds: new Set<string>(),
+          breakingOutputIds: new Set<string>(),
+        };
       const impactReport = isModified
         ? computeLocalScriptImpact(item.key, diffs, localPipelines)
         : {
-            affectedPipelineCount: 0,
-            affectedNodeCount: 0,
-            affectedEdgeCount: 0,
-            affectedPipelineNames: [],
-          };
+          affectedPipelineCount: 0,
+          affectedNodeCount: 0,
+          affectedEdgeCount: 0,
+          affectedPipelineNames: [],
+        };
 
       return {
         key: item.key,
@@ -279,32 +279,32 @@ export function LocalNodePaletteWorkbench({
         prev.map((item, idx) =>
           idx === safeSelectedIndex
             ? {
-                ...item,
-                suggestedName: updatedDto.suggestedName,
-                suggestedLabel: updatedDto.suggestedLabel,
-                executor: updatedDto.executor,
-                description: updatedDto.description ?? undefined,
-                inputs: (updatedDto.inputs || []).map((p) => ({
-                  id: p.id,
-                  label: p.label,
-                  primitiveType: p.primitiveType as any,
-                  structType: p.structType ?? undefined,
-                  isRequired: Boolean(p.isRequired),
-                  defaultValue: p.defaultValue,
-                  description: p.description ?? undefined,
-                  metadata: p.metadata ?? undefined,
-                })),
-                outputs: (updatedDto.outputs || []).map((p) => ({
-                  id: p.id,
-                  label: p.label,
-                  primitiveType: p.primitiveType as any,
-                  structType: p.structType ?? undefined,
-                  isRequired: Boolean(p.isRequired),
-                  defaultValue: p.defaultValue,
-                  description: p.description ?? undefined,
-                  metadata: p.metadata ?? undefined,
-                })),
-              }
+              ...item,
+              suggestedName: updatedDto.suggestedName,
+              suggestedLabel: updatedDto.suggestedLabel,
+              executor: updatedDto.executor,
+              description: updatedDto.description ?? undefined,
+              inputs: (updatedDto.inputs || []).map((p) => ({
+                id: p.id,
+                label: p.label,
+                primitiveType: p.primitiveType as any,
+                structType: p.structType ?? undefined,
+                isRequired: Boolean(p.isRequired),
+                defaultValue: p.defaultValue,
+                description: p.description ?? undefined,
+                metadata: p.metadata ?? undefined,
+              })),
+              outputs: (updatedDto.outputs || []).map((p) => ({
+                id: p.id,
+                label: p.label,
+                primitiveType: p.primitiveType as any,
+                structType: p.structType ?? undefined,
+                isRequired: Boolean(p.isRequired),
+                defaultValue: p.defaultValue,
+                description: p.description ?? undefined,
+                metadata: p.metadata ?? undefined,
+              })),
+            }
             : item,
         ),
       );
@@ -540,11 +540,11 @@ export function LocalNodePaletteWorkbench({
           </div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-sm font-bold tracking-tight text-foreground">
-              Node Palette
+              Local Scripts
             </h1>
             {mode === "library" ? (
               <Badge variant="outline" className="text-[11px] font-mono">
-                Palette · {libraryItems.length} nodes
+                Scripts · {libraryItems.length}
               </Badge>
             ) : (
               <Badge

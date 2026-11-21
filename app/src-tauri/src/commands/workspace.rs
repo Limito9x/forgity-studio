@@ -22,6 +22,7 @@ pub struct WorkspaceInitResult {
     pub origin_template_id: Option<String>,
     pub origin_template_slug: Option<String>,
     pub origin_version_id: Option<String>,
+    pub origin_template_version: Option<u32>,
     pub origin_template_title: Option<String>,
 }
 
@@ -86,6 +87,11 @@ pub fn open_or_init_workspace_root(root_path: String) -> Result<WorkspaceInitRes
     let origin_template_id = db.get_workspace_meta("origin_template_id").ok().flatten().filter(|s| !s.trim().is_empty());
     let origin_template_slug = db.get_workspace_meta("origin_template_slug").ok().flatten().filter(|s| !s.trim().is_empty());
     let origin_version_id = db.get_workspace_meta("origin_version_id").ok().flatten().filter(|s| !s.trim().is_empty());
+    let origin_template_version = db
+        .get_workspace_meta("origin_template_version")
+        .ok()
+        .flatten()
+        .and_then(|s| s.trim().parse::<u32>().ok());
     let origin_template_title = db.get_workspace_meta("origin_template_title").ok().flatten().filter(|s| !s.trim().is_empty());
 
     Ok(WorkspaceInitResult {
@@ -97,6 +103,7 @@ pub fn open_or_init_workspace_root(root_path: String) -> Result<WorkspaceInitRes
         origin_template_id,
         origin_template_slug,
         origin_version_id,
+        origin_template_version,
         origin_template_title,
     })
 }

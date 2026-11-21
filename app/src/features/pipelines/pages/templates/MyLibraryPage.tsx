@@ -3,11 +3,25 @@ import { Library, Play, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useGetMyLibrary } from "@/gen/endpoints/templates/templates";
+import { useQuery } from "@tanstack/react-query";
+import { customInstance } from "@/lib/api-client";
+import type { TemplateLibraryItemDto } from "@/gen/model";
+import { useEffectiveMachineKey } from "@/lib/platform/filePickerStrategy";
 
 export function MyLibraryPage() {
   const navigate = useNavigate();
-  const { data: items = [], isLoading } = useGetMyLibrary();
+  const { data: machineKey } = useEffectiveMachineKey();
+  const { data: items = [], isLoading } = useQuery<TemplateLibraryItemDto[]>({
+    queryKey: ["/api/templates/my-library", machineKey],
+    queryFn: ({ signal }) =>
+      customInstance<TemplateLibraryItemDto[]>({
+        url: "/api/templates/my-library",
+        method: "GET",
+        params: { machineKey },
+        signal,
+      }),
+    enabled: Boolean(machineKey),
+  });
 
   return (
     <div className="page-container space-y-6">

@@ -17,7 +17,6 @@ public class GetMyLibraryItemEndpoint(PipelineDbContext db)
     public override async Task HandleAsync(CancellationToken ct)
     {
         var libraryItemId = Route<Guid>("libraryItemId");
-        var ownerUserId = CloudTemplateClaimHelper.GetOwnerUserId(User);
 
         var x = await db
             .TemplateLibraryItems.AsNoTracking()
@@ -26,7 +25,7 @@ public class GetMyLibraryItemEndpoint(PipelineDbContext db)
             .Include(i => i.TemplatePackage)
                 .ThenInclude(t => t.Members)
                     .ThenInclude(m => m.PipelineVersion)
-            .FirstOrDefaultAsync(i => i.Id == libraryItemId && i.OwnerUserId == ownerUserId, ct);
+            .FirstOrDefaultAsync(i => i.Id == libraryItemId, ct);
 
         if (x is null)
         {

@@ -60,13 +60,23 @@ export async function getLocalMachineInfo(): Promise<LocalMachineInfo> {
   return resolvePromise;
 }
 
+import { useQuery } from "@tanstack/react-query";
+
 /**
- * Returns the permanent hardware machine key on Tauri Desktop,
- * falling back to "local-workstation" on Web.
+ * Returns the permanent cryptographic hardware fingerprint on Tauri Desktop,
+ * falling back to machineKey or "local-workstation" on Web.
  */
 export async function getEffectiveMachineKey(): Promise<string> {
   const info = await getLocalMachineInfo();
-  return info.machineKey?.trim() || "local-workstation";
+  return info.hardwareFingerprint?.trim() || info.machineKey?.trim() || "local-workstation";
+}
+
+export function useEffectiveMachineKey() {
+  return useQuery({
+    queryKey: ["local-machine-effective-key"],
+    queryFn: getEffectiveMachineKey,
+    staleTime: Infinity,
+  });
 }
 
 /**

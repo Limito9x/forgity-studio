@@ -51,9 +51,6 @@ pub fn run() {
             analyze_local_scripts_native,
             run_local_pipeline_draft_native,
             run_local_pipeline,
-    list_local_execution_runs,
-    get_local_execution_detail,
-    delete_local_execution_history,
             run_cloud_bundle,
             export_execution_bundle,
             build_publish_bundle_json,
@@ -77,7 +74,8 @@ pub fn run() {
             touch_workspace_opened,
             remove_workspace_from_registry,
             commands::workspace::reveal_workspace_in_explorer,
-            fork_template_workspace
+            fork_template_workspace,
+            update_forked_workspace
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

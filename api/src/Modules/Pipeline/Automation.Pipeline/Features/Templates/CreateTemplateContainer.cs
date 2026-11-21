@@ -68,6 +68,7 @@ public class CreateTemplateContainerEndpoint(PipelineDbContext db, IAssetApi ass
     {
         Post("containers");
         Group<TemplatesGroup>();
+        Permissions(Constants.PipelinePermissions.Pipeline.Create, Constants.PipelinePermissions.Pipeline.Update);
         Description(b => b
             .Produces<CreateTemplateContainerResponse>(200)
             .WithSummary("Slice 2: Package ingested Master, Components, Scripts, Constants & Assets into a Template Package Container"));

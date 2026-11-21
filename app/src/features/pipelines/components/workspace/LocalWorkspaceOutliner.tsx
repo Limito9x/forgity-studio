@@ -28,7 +28,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { BaseDialog } from "@/components/custom-ui/overlays/dialog/BaseDialog";
 import { toast } from "sonner";
 import { openNativeFileOrFolderDialog, isTauriRuntime } from "@/lib/platform/filePickerStrategy";
-import { useGetMyLibrary } from "@/gen/endpoints/templates/templates";
+import { useEffectiveMachineKey } from "@/lib/platform/filePickerStrategy";
+import { useGetCloudTemplates } from "@/gen/endpoints/templates/templates";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { customInstance } from "@/lib/api-client";
+import type { TemplateLibraryItemDto } from "@/gen/model";
+import { prepareTemplateForkPayload } from "../../dialogs/ForkTemplateDialog";
 import { featureFlags } from "@/config/featureFlags";
 import { SUPPORTED_EXECUTOR_KEYS, getSoftwareMetadata } from "@/features/runners/constants/dccEngines";
 import { ExecutorIcon } from "@/features/runners/components/ExecutorIcon";
@@ -85,6 +90,8 @@ export function LocalWorkspaceOutliner({
     rootPath,
     config,
     originTemplateId,
+    originVersionId,
+    originTemplateVersion,
     switchRootFolder,
   } = useLocalWorkspaceConfig(projectId);
 
@@ -127,12 +134,74 @@ export function LocalWorkspaceOutliner({
   const [createExecutor, setCreateExecutor] = useState<string>("blender");
   const [newPipelineName, setNewPipelineName] = useState("");
 
-  const { data: libraryItems = [] } = useGetMyLibrary();
+  const queryClient = useQueryClient();
+  const [isUpdatingTemplate, setIsUpdatingTemplate] = useState(false);
+  const { data: effectiveMachineKey } = useEffectiveMachineKey();
+  const { data: libraryItems = [] } = useQuery<TemplateLibraryItemDto[]>({
+    queryKey: ["/api/templates/my-library", effectiveMachineKey],
+    queryFn: ({ signal }) =>
+      customInstance<TemplateLibraryItemDto[]>({
+        url: "/api/templates/my-library",
+        method: "GET",
+        params: { machineKey: effectiveMachineKey },
+        signal,
+      }),
+    enabled: Boolean(effectiveMachineKey),
+  });
+  const { data: cloudTemplates = [] } = useGetCloudTemplates({
+    query: { enabled: Boolean(originTemplateId) },
+  });
   const matchedLibraryItem = originTemplateId
     ? libraryItems.find((item) => item.templatePackageId === originTemplateId)
     : undefined;
-  const remainingRuns = matchedLibraryItem?.remainingRuns ?? null;
-  const maxRuns = matchedLibraryItem?.maxRuns ?? null;
+  const cloudTemplate = originTemplateId
+    ? cloudTemplates.find((t) => t.templatePackageId === originTemplateId)
+    : undefined;
+  const localTemplateVersion = originTemplateVersion ?? 1;
+  const hasTemplateUpdate = Boolean(
+    cloudTemplate &&
+      (cloudTemplate.versionNumber > localTemplateVersion ||
+        (cloudTemplate.primaryMasterVersionId &&
+          originVersionId &&
+          cloudTemplate.primaryMasterVersionId !== originVersionId))
+  );
+  const maxRuns = matchedLibraryItem?.maxRuns ?? cloudTemplate?.defaultQuotaLimit ?? null;
+  const remainingRuns =
+    matchedLibraryItem?.remainingRuns ??
+    (maxRuns !== null ? maxRuns : null);
+
+  const handleUpdateTemplateInPlace = async () => {
+    if (!originTemplateId || !rootPath || isUpdatingTemplate) return;
+    setIsUpdatingTemplate(true);
+    try {
+      const payload = await prepareTemplateForkPayload(originTemplateId);
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("update_forked_workspace", {
+        params: {
+          targetRootPath: rootPath,
+          workspaceName: rootFolderName,
+          templateId: payload.templateId,
+          templateSlug: payload.templateSlug,
+          versionId: payload.versionId,
+          templateVersion: payload.templateVersion,
+          templateTitle: payload.templateTitle,
+          pipelines: payload.pipelines,
+          paletteJson: payload.paletteJson,
+          structsJson: payload.structsJson,
+          constantsJson: payload.constantsJson,
+          assets: payload.assets,
+        },
+      });
+      await queryClient.invalidateQueries({ queryKey: ["local-workspace"] });
+      await queryClient.invalidateQueries({ queryKey: ["workspace-registry"] });
+      toast.success(`Updated workspace to template v${payload.templateVersion}. Constants & history preserved.`);
+    } catch (err: any) {
+      const msg = typeof err === "string" ? err : err?.message || "Failed to update template.";
+      toast.error(msg);
+    } finally {
+      setIsUpdatingTemplate(false);
+    }
+  };
 
   const rootFolderName = rootPath ? rootPath.split(/[/\\]/).filter(Boolean).pop() || "Workspace" : "No Workspace";
 
@@ -368,16 +437,30 @@ export function LocalWorkspaceOutliner({
               {maxRuns !== null ? `${remainingRuns ?? 0}/${maxRuns} Runs` : "Unlimited"}
             </span>
           </div>
-          {matchedLibraryItem && (
-            <button
-              onClick={() => {
-                window.location.hash = `#/templates/library/${matchedLibraryItem.id}`;
-              }}
-              className="text-[10px] font-medium text-primary hover:underline cursor-pointer"
-            >
-              Library
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {hasTemplateUpdate && cloudTemplate && (
+              <button
+                type="button"
+                onClick={handleUpdateTemplateInPlace}
+                disabled={isUpdatingTemplate}
+                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-amber-500/15 text-amber-500 border border-amber-500/30 hover:bg-amber-500/25 transition-colors cursor-pointer disabled:opacity-50"
+                title={`Update workspace to Template v${cloudTemplate.versionNumber} (preserves Constants & History)`}
+              >
+                <RefreshCw className={`h-2.5 w-2.5 ${isUpdatingTemplate ? "animate-spin" : ""}`} />
+                <span>Update v{cloudTemplate.versionNumber}</span>
+              </button>
+            )}
+            {matchedLibraryItem && (
+              <button
+                onClick={() => {
+                  window.location.hash = `#/templates/library/${matchedLibraryItem.id}`;
+                }}
+                className="text-[10px] font-medium text-primary hover:underline cursor-pointer"
+              >
+                Library
+              </button>
+            )}
+          </div>
         </div>
       )}
 

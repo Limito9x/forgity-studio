@@ -44,7 +44,7 @@ public class DispatchCloudBundleEndpoint(PipelineDbContext db)
                     .Include(x => x.TemplatePackage)
                         .ThenInclude(t => t.PrimaryMasterVersion)
                     .FirstOrDefaultAsync(
-                        x => x.Id == req.LibraryItemId.Value && x.OwnerUserId == ownerUserId,
+                        x => x.Id == req.LibraryItemId.Value,
                         ct
                     );
                 pkg = libraryItem?.TemplatePackage;
@@ -62,8 +62,7 @@ public class DispatchCloudBundleEndpoint(PipelineDbContext db)
                         .TemplateLibraryItems.AsNoTracking()
                         .FirstOrDefaultAsync(
                             x =>
-                                x.OwnerUserId == ownerUserId
-                                && x.TemplatePackageId == pkg.Id
+                                x.TemplatePackageId == pkg.Id
                                 && x.MachineKey == req.MachineKey
                                 && x.PeriodKey == "lifetime",
                             ct

@@ -12,18 +12,30 @@ import {
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { getEffectiveMachineKey } from "@/lib/platform/filePickerStrategy";
+import { getEffectiveMachineKey, useEffectiveMachineKey } from "@/lib/platform/filePickerStrategy";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useQuery } from "@tanstack/react-query";
+import { customInstance } from "@/lib/api-client";
+import type { CloudTemplateSummaryDto } from "@/gen/model";
 import {
-  useGetCloudTemplates,
   useAddTemplateToLibrary,
 } from "@/gen/endpoints/templates/templates";
 
 export function TemplatesCatalogPage({ machineKey = "local-workstation" }: { machineKey?: string }) {
   const navigate = useNavigate();
-  const { data: templates = [], isLoading, refetch } = useGetCloudTemplates();
+  const { data: effectiveMachineKey } = useEffectiveMachineKey();
+  const { data: templates = [], isLoading, refetch } = useQuery<CloudTemplateSummaryDto[]>({
+    queryKey: ["/api/templates", effectiveMachineKey],
+    queryFn: ({ signal }) =>
+      customInstance<CloudTemplateSummaryDto[]>({
+        url: "/api/templates",
+        method: "GET",
+        params: effectiveMachineKey ? { machineKey: effectiveMachineKey } : undefined,
+        signal,
+      }),
+  });
   const addToLibrary = useAddTemplateToLibrary();
 
   const [search, setSearch] = useState("");

@@ -22,6 +22,7 @@ public class GetCloudDataPipelinesEndpoint(PipelineDbContext db)
     {
         Get("pipelines");
         Group<CloudDataGroup>();
+        Permissions(Constants.PipelinePermissions.Pipeline.GetAll);
         Description(b => b.WithSummary("List all pipelines in the Unified Cloud Data Pool"));
     }
 

@@ -60,6 +60,7 @@ public class IngestCloudDataManifestEndpoint(PipelineDbContext db)
     {
         Post("manifest/ingest");
         Group<CloudDataGroup>();
+        Permissions(Constants.PipelinePermissions.Pipeline.Create);
         Description(b => b.WithSummary("Idempotent ingest of canonical pipeline graphs and scripts into Unified Cloud Data Pool"));
     }
 

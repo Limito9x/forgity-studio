@@ -24,8 +24,6 @@ public class ConsumeTemplateQuotaEndpoint(PipelineDbContext db)
 
     public override async Task HandleAsync(ConsumeTemplateQuotaRequest req, CancellationToken ct)
     {
-        var ownerUserId = CloudTemplateClaimHelper.GetOwnerUserId(User);
-
         var existing = req.LibraryItemId.HasValue
             ? await db.TemplateLibraryItems.FirstOrDefaultAsync(
                 x => x.Id == req.LibraryItemId.Value,
@@ -35,8 +33,7 @@ public class ConsumeTemplateQuotaEndpoint(PipelineDbContext db)
                 q =>
                     q.TemplatePackageId == req.TemplatePackageId
                     && q.MachineKey == req.MachineKey
-                    && q.PeriodKey == "lifetime"
-                    && (ownerUserId == Guid.Empty || q.OwnerUserId == ownerUserId),
+                    && q.PeriodKey == "lifetime",
                 ct
             );
 

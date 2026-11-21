@@ -199,7 +199,7 @@ export function UnifiedSidebar() {
       title: "Templates Admin",
       url: "/admin/templates",
       icon: PackagePlus,
-      visible: hasAnyPermission("templates:") || hasAnyPermission("studios:"),
+      visible: hasAnyPermission("pipeline:") || hasAnyPermission("templates:") || hasAnyPermission("studios:"),
       isActive: pathname.startsWith("/admin/templates"),
     },
   ].filter((item) => item.visible);

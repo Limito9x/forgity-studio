@@ -70,6 +70,7 @@ export function usePipelineLiveTracking({
   }, [currentExecution?.id, currentExecution?.status]);
 
   const clearActiveExecution = useCallback(() => {
+    activeExecutionIdRef.current = null;
     setActiveExecutionId(null);
     setActiveRunningNodeId(null);
     setLiveNodeStatuses({});

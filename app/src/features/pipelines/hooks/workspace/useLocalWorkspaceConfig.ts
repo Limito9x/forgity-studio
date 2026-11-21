@@ -171,6 +171,7 @@ export function useLocalWorkspaceConfig(targetId: string, initialExplicitRootPat
     originTemplateId: query.data?.originTemplateId || null,
     originTemplateSlug: query.data?.originTemplateSlug || null,
     originVersionId: query.data?.originVersionId || null,
+    originTemplateVersion: query.data?.originTemplateVersion ?? null,
     originTemplateTitle: query.data?.originTemplateTitle || null,
     initialPaletteJson: query.data?.localPaletteJson || null,
     initialStructsJson: query.data?.localStructsJson || null,

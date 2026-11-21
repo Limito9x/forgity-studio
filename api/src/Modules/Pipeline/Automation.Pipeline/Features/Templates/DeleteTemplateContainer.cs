@@ -17,6 +17,7 @@ public class DeleteTemplateContainerEndpoint(PipelineDbContext db)
     {
         Delete("containers/{id:guid}");
         Group<TemplatesGroup>();
+        Permissions(Constants.PipelinePermissions.Pipeline.Delete);
         Description(b =>
             b.WithSummary("Smart remove a template container (hard delete if unused, or archive if users forked it)")
         );

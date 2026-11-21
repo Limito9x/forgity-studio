@@ -9,11 +9,13 @@ import {
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
-import { getEffectiveMachineKey } from "@/lib/platform/filePickerStrategy";
+import { getEffectiveMachineKey, useEffectiveMachineKey } from "@/lib/platform/filePickerStrategy";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useQuery } from "@tanstack/react-query";
+import { customInstance } from "@/lib/api-client";
+import type { CloudTemplateSummaryDto } from "@/gen/model";
 import {
-  useGetCloudTemplates,
   useGetTemplateContainerById,
   useAddTemplateToLibrary,
 } from "@/gen/endpoints/templates/templates";
@@ -41,7 +43,17 @@ export function TemplatePreviewPage({
   machineKey = "local-workstation",
 }: TemplatePreviewPageProps) {
   const navigate = useNavigate();
-  const { data: templates = [], refetch: refetchList } = useGetCloudTemplates();
+  const { data: effectiveMachineKey } = useEffectiveMachineKey();
+  const { data: templates = [], refetch: refetchList } = useQuery<CloudTemplateSummaryDto[]>({
+    queryKey: ["/api/templates", effectiveMachineKey],
+    queryFn: ({ signal }) =>
+      customInstance<CloudTemplateSummaryDto[]>({
+        url: "/api/templates",
+        method: "GET",
+        params: effectiveMachineKey ? { machineKey: effectiveMachineKey } : undefined,
+        signal,
+      }),
+  });
   const { data: detail, isLoading } = useGetTemplateContainerById(templateId);
   const addToLibrary = useAddTemplateToLibrary();
 

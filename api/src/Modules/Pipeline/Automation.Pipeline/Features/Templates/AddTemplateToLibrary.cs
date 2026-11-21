@@ -42,9 +42,8 @@ public class AddTemplateToLibraryEndpoint(PipelineDbContext db)
             .TemplateLibraryItems
             .FirstOrDefaultAsync(
                 x =>
-                    x.OwnerUserId == ownerUserId
+                    x.MachineKey == machineKey
                     && x.TemplatePackageId == templatePackageId
-                    && x.MachineKey == machineKey
                     && x.PeriodKey == "lifetime",
                 ct
             );
@@ -54,7 +53,7 @@ public class AddTemplateToLibraryEndpoint(PipelineDbContext db)
             existing = new TemplateLibraryItem
             {
                 TemplatePackageId = templatePackageId,
-                OwnerUserId = ownerUserId,
+                OwnerUserId = ownerUserId != Guid.Empty ? ownerUserId : null,
                 MachineKey = machineKey,
                 UsedRuns = 0,
                 MaxRuns = pkg.DefaultQuotaLimit,

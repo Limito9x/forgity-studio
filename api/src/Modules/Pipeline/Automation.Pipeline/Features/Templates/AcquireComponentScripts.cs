@@ -143,7 +143,7 @@ public class AcquireComponentScriptsEndpoint(PipelineDbContext db)
             }
         }
 
-        // 3. Verify user ownership & quota in TemplateLibraryItems (auto-provision with DefaultQuotaLimit if forked directly)
+        // 3. Verify machine-first ownership & quota in TemplateLibraryItems (auto-provision with DefaultQuotaLimit if forked directly)
         var effectiveMachineKey = string.IsNullOrWhiteSpace(req.MachineKey)
             ? "local-workstation"
             : req.MachineKey.Trim();
@@ -151,28 +151,16 @@ public class AcquireComponentScriptsEndpoint(PipelineDbContext db)
         var libraryItem = await db.TemplateLibraryItems.FirstOrDefaultAsync(
             q => q.TemplatePackageId == req.TemplatePackageId
                  && q.MachineKey == effectiveMachineKey
-                 && q.PeriodKey == "lifetime"
-                 && (ownerUserId == Guid.Empty || q.OwnerUserId == ownerUserId),
+                 && q.PeriodKey == "lifetime",
             ct
         );
-
-        if (libraryItem is null)
-        {
-            // Fallback: match by templatePackageId and ownerUserId across machines
-            libraryItem = await db.TemplateLibraryItems.FirstOrDefaultAsync(
-                q => q.TemplatePackageId == req.TemplatePackageId
-                     && q.PeriodKey == "lifetime"
-                     && (ownerUserId == Guid.Empty || q.OwnerUserId == ownerUserId),
-                ct
-            );
-        }
 
         if (libraryItem is null)
         {
             libraryItem = new Domain.Entities.TemplateLibraryItem
             {
                 TemplatePackageId = req.TemplatePackageId,
-                OwnerUserId = ownerUserId,
+                OwnerUserId = ownerUserId != Guid.Empty ? ownerUserId : null,
                 MachineKey = effectiveMachineKey,
                 UsedRuns = 0,
                 MaxRuns = template.DefaultQuotaLimit,
@@ -188,16 +176,24 @@ public class AcquireComponentScriptsEndpoint(PipelineDbContext db)
             await db.SaveChangesAsync(ct);
         }
 
-        // 4. Resolve per-member quota policy and atomically consume quota if effectiveUnits > 0
-        var targetMember = template.Members.FirstOrDefault(m =>
-            (req.PipelineVersionId.HasValue && m.PipelineVersionId == req.PipelineVersionId.Value)
-            || (!string.IsNullOrWhiteSpace(req.ComponentSlug)
-                && string.Equals(m.PipelineVersion.Slug, req.ComponentSlug.Trim(), StringComparison.OrdinalIgnoreCase))
-        ) ?? template.Members.FirstOrDefault(m =>
-            m.PipelineVersion.VersionScripts.Any(vs =>
-                !string.IsNullOrWhiteSpace(vs.PipelineScript.ScriptHash)
-                && requestedHashes.Contains(vs.PipelineScript.ScriptHash, StringComparer.OrdinalIgnoreCase))
-        );
+        // 4. Resolve per-member quota policy (match ComponentSlug FIRST, then ScriptHash, then PipelineVersionId)
+        var normalizedSlug = req.ComponentSlug?.Trim().Replace("-", "_");
+        var targetMember =
+            (!string.IsNullOrWhiteSpace(normalizedSlug)
+                ? template.Members.FirstOrDefault(m =>
+                    string.Equals(
+                        m.PipelineVersion.Slug.Replace("-", "_"),
+                        normalizedSlug,
+                        StringComparison.OrdinalIgnoreCase))
+                : null)
+            ?? template.Members.FirstOrDefault(m =>
+                string.Equals(m.Role, "component", StringComparison.OrdinalIgnoreCase)
+                && m.PipelineVersion.VersionScripts.Any(vs =>
+                    !string.IsNullOrWhiteSpace(vs.PipelineScript.ScriptHash)
+                    && requestedHashes.Contains(vs.PipelineScript.ScriptHash, StringComparer.OrdinalIgnoreCase)))
+            ?? (req.PipelineVersionId.HasValue
+                ? template.Members.FirstOrDefault(m => m.PipelineVersionId == req.PipelineVersionId.Value)
+                : null);
 
         int effectiveUnits = req.UnitCount;
         if (targetMember is not null)

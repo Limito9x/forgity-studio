@@ -84,9 +84,8 @@ public class PipelineDbContext : DbContext
             .Entity<TemplateLibraryItem>()
             .HasIndex(x => new
             {
-                x.OwnerUserId,
-                x.TemplatePackageId,
                 x.MachineKey,
+                x.TemplatePackageId,
                 x.PeriodKey,
             })
             .IsUnique();
