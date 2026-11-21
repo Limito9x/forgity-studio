@@ -46,7 +46,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "REPLACE_WITH_TAURI_SIGNER_PUBLIC_KEY",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNDNkFCQjZBQzZCRUFFM0MKUldROHJyN0dhcnRxUFBnUzFTYkRtWithbkllR1g2aElXOUZ4bVBuVC9vYXNVY3VqYktkaWxTTk4K",
       "endpoints": [
         "https://github.com/Limito9x/forgity-studio/releases/latest/download/latest.json"
       ]
