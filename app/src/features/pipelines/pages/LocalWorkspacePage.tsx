@@ -82,7 +82,6 @@ export function LocalWorkspacePage({ projectId, explicitRootPath }: LocalWorkspa
   const {
     draftNodes,
     localStructs,
-    isScanning,
     scanAndSyncScripts,
     reanalyzeSingleScript,
     removeNodeFromPalette,
@@ -114,7 +113,6 @@ export function LocalWorkspacePage({ projectId, explicitRootPath }: LocalWorkspa
     setActiveTab,
     paletteScanRequest,
     paletteInitialScriptKey,
-    requestPaletteScan,
   } = useWorkspaceTabsStore();
 
   const uiPrefs = useProjectUiPrefs(projectId);

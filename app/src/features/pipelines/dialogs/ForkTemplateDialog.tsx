@@ -351,7 +351,11 @@ export function ForkTemplateDialog({
         params: { workspaceId: result.workspaceId } as any,
       });
     } catch (err: any) {
-      toast.error(err?.message || "Failed to fork template to local workspace.");
+      const errMsg =
+        typeof err === "string"
+          ? err
+          : err?.message || (err ? String(err) : "");
+      toast.error(errMsg || "Failed to fork template to local workspace.");
     } finally {
       setIsForking(false);
     }

@@ -116,7 +116,7 @@ export function computeLocalScriptImpact(
 
   for (const p of pipelines) {
     try {
-      const graph = pipelineYamlToGraph(p.content, p.fullPath);
+      const graph = pipelineYamlToGraph(p.content);
       const matchingNodeIds = new Set(
         (graph.nodes || [])
           .filter((n: any) => matchesScriptKey(n.refId, scriptKey))
@@ -129,13 +129,15 @@ export function computeLocalScriptImpact(
 
       for (const edge of graph.edges || []) {
         if (
-          matchingNodeIds.has(edge.targetNodeId) &&
-          diffs.breakingInputIds.has(edge.targetPin)
+          matchingNodeIds.has(edge.target) &&
+          edge.targetHandle &&
+          diffs.breakingInputIds.has(edge.targetHandle)
         ) {
           affectedEdgeCount++;
         } else if (
-          matchingNodeIds.has(edge.sourceNodeId) &&
-          diffs.breakingOutputIds.has(edge.sourcePin)
+          matchingNodeIds.has(edge.source) &&
+          edge.sourceHandle &&
+          diffs.breakingOutputIds.has(edge.sourceHandle)
         ) {
           affectedEdgeCount++;
         }
@@ -172,7 +174,7 @@ export async function reconcileLocalPipelines(
 
   for (const p of pipelines) {
     try {
-      const graph = pipelineYamlToGraph(p.content, p.fullPath);
+      const graph = pipelineYamlToGraph(p.content);
       let modified = false;
 
       let nextNodes = [...(graph.nodes || [])];

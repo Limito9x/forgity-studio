@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { Node } from "@xyflow/react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   usePipelineExecution,
   usePipelineExecutions,
@@ -20,6 +21,7 @@ export function usePipelineLiveTracking({
   isLocalMode = false,
   setNodes,
 }: UsePipelineLiveTrackingArgs) {
+  const queryClient = useQueryClient();
   const [activeExecutionId, setActiveExecutionId] = useState<string | null>(
     null,
   );
@@ -71,6 +73,7 @@ export function usePipelineLiveTracking({
     setActiveExecutionId(null);
     setActiveRunningNodeId(null);
     setLiveNodeStatuses({});
+    setLiveNodeProgress({});
     setLiveNodeOutputs({});
     setLiveNodeErrors({});
     setLocalLogs([]);
@@ -115,6 +118,18 @@ export function usePipelineLiveTracking({
             setLocalRunStatus("running");
             setLocalRunError(null);
             setIsExecutionRunning(true);
+            setNodes((currentNodes) =>
+              currentNodes.map((n) => ({
+                ...n,
+                data: {
+                  ...(n.data as CustomPipelineNodeData),
+                  executionStatus: "waiting",
+                  executionProgress: null,
+                  executionError: null,
+                  executionOutputs: null,
+                },
+              }))
+            );
             break;
           }
           case "node_started": {
@@ -196,10 +211,12 @@ export function usePipelineLiveTracking({
             if (activeExecutionIdRef.current && payload.run_id && payload.run_id !== activeExecutionIdRef.current) {
               break;
             }
+            activeExecutionIdRef.current = null;
             setIsExecutionRunning(false);
             setActiveRunningNodeId(null);
             const ok = Boolean(payload.succeeded);
             setLocalRunStatus(ok ? "succeeded" : "failed");
+            void queryClient.invalidateQueries({ queryKey: ["/api/templates/my-library"] });
             if (ok) {
               setLocalRunError(null);
               toast.success("Local Pipeline Succeeded");
@@ -249,6 +266,7 @@ export function usePipelineLiveTracking({
   }, [isLocalMode]);
 
   const isCancelledRef = useRef(false);
+  const activeExecutionIdRef = useRef<string | null>(null);
 
   usePipelineSignalR(pipelineId, {
     onExecutionStarted: (execId: string) => {
@@ -414,6 +432,8 @@ export function usePipelineLiveTracking({
             (newStatus === "failed"
               ? (currentExecution?.errorMessage ?? null)
               : null);
+        } else if (isLocalMode && localRunStatus === "running") {
+          newStatus = "waiting";
         } else if (nodeOutputs[node.id]) {
           newStatus = "succeeded";
         } else if (
@@ -454,8 +474,11 @@ export function usePipelineLiveTracking({
     activeExecutionId,
     currentExecution,
     liveNodeStatuses,
+    liveNodeProgress,
     liveNodeOutputs,
     liveNodeErrors,
+    isLocalMode,
+    localRunStatus,
     setNodes,
   ]);
 

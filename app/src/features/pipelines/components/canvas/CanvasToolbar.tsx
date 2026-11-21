@@ -225,7 +225,7 @@ export function CanvasToolbar({
             </div>
           )}
 
-          {!isLocalMode && renderTriggerBadge()}
+          {!isLocalMode && !readOnly && renderTriggerBadge()}
 
           {/* Autosave Indicator */}
           {canSaveDraft && (
@@ -338,7 +338,7 @@ export function CanvasToolbar({
         </div>
 
         {/* History / Executions Drawer Trigger */}
-        {!isLocalMode && onOpenHistory && (
+        {!readOnly && onOpenHistory && (
           <Button
             variant="outline"
             size="sm"

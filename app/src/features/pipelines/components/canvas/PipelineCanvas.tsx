@@ -278,7 +278,7 @@ function PipelineCanvasContent({
           readOnly={readOnly}
           onOpenRunModal={onRequestRun ?? (() => setIsRunModalOpen(true))}
           onOpenHistory={
-            isLocalMode
+            readOnly
               ? undefined
               : () => {
                   live.setDrawerDefaultTab("history");
@@ -460,6 +460,7 @@ function PipelineCanvasContent({
         {isDrawerOpen && (
           <LiveExecutionDrawer
             pipelineId={graph.id}
+            rootPath={rootPath}
             executionId={live.activeExecutionId}
             onClose={() => setIsDrawerOpen(false)}
             defaultTab={live.drawerDefaultTab}

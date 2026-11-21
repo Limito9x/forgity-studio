@@ -25,6 +25,7 @@ pub struct RunnerWorkerHandle {
 pub struct LocalExecutionState {
     pub worker: Arc<Mutex<Option<RunnerWorkerHandle>>>,
     pub current_run_id: Arc<Mutex<Option<String>>>,
+    pub current_run_context: Arc<Mutex<Option<(String, PathBuf, i64)>>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -253,6 +254,7 @@ fn send_worker_command(
         }
 
         let app_out = app.clone();
+        let run_ctx_ref = state.current_run_context.clone();
         std::thread::spawn(move || {
             let reader = BufReader::new(stdout);
             for line in reader.lines().map_while(Result::ok) {
@@ -264,6 +266,61 @@ fn send_worker_command(
                     if parsed.get("type").and_then(|t| t.as_str()) == Some("dcc_sessions") {
                         let _ = app_out.emit("local-pipeline://dcc-sessions", parsed);
                     } else {
+                        // Persist execution timing & node metrics into .forgity/workspace.db
+                        if let Ok(ctx_guard) = run_ctx_ref.lock() {
+                            if let Some((ref tracked_run_id, ref root_path, run_started_ms)) = *ctx_guard {
+                                let ev_run_id = parsed.get("run_id").and_then(|v| v.as_str()).unwrap_or("");
+                                if ev_run_id == tracked_run_id {
+                                    let now_ms = std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .map(|d| d.as_millis() as i64)
+                                        .unwrap_or(run_started_ms);
+                                    if let Ok(db) = forgity_core::workspace_db::WorkspaceDb::open(root_path) {
+                                        match parsed.get("type").and_then(|t| t.as_str()) {
+                                            Some("run_started") => {
+                                                let pid = parsed.get("pipeline_id").and_then(|v| v.as_str()).unwrap_or("unknown");
+                                                let pkind = parsed.get("pipeline_kind").and_then(|v| v.as_str()).unwrap_or("master");
+                                                let _ = db.insert_execution_run(tracked_run_id, pid, pkind, now_ms);
+                                            }
+                                            Some("node_started") => {
+                                                if let Some(nid) = parsed.get("node_id").and_then(|v| v.as_str()) {
+                                                    let ntype = parsed.get("node_type").and_then(|v| v.as_str()).unwrap_or("");
+                                                    let label = parsed.get("label").and_then(|v| v.as_str());
+                                                    let btotal = parsed.get("batch_total").and_then(|v| v.as_i64());
+                                                    let offset = (now_ms - run_started_ms).max(0);
+                                                    let _ = db.upsert_execution_node_start(tracked_run_id, nid, ntype, label, now_ms, offset, btotal);
+                                                }
+                                            }
+                                            Some("node_progress") => {
+                                                if let Some(nid) = parsed.get("node_id").and_then(|v| v.as_str()) {
+                                                    let st = parsed.get("status").and_then(|v| v.as_str()).unwrap_or("running");
+                                                    let comp = parsed.get("completed").and_then(|v| v.as_i64());
+                                                    let tot = parsed.get("total").and_then(|v| v.as_i64());
+                                                    let _ = db.update_execution_node_progress(tracked_run_id, nid, st, comp, tot);
+                                                }
+                                            }
+                                            Some("node_completed") => {
+                                                if let Some(nid) = parsed.get("node_id").and_then(|v| v.as_str()) {
+                                                    let ok = parsed.get("succeeded").and_then(|v| v.as_bool()).unwrap_or(false);
+                                                    let dur = parsed.get("duration_ms").and_then(|v| v.as_i64()).unwrap_or(0);
+                                                    let err = parsed.get("error_message").and_then(|v| v.as_str());
+                                                    let outs = parsed.get("outputs").map(|v| v.to_string());
+                                                    let _ = db.complete_execution_node(tracked_run_id, nid, ok, now_ms, dur, err, outs.as_deref());
+                                                }
+                                            }
+                                            Some("run_completed") => {
+                                                let ok = parsed.get("succeeded").and_then(|v| v.as_bool()).unwrap_or(false);
+                                                let dur = parsed.get("duration_ms").and_then(|v| v.as_i64()).unwrap_or(0);
+                                                let err = parsed.get("error_message").and_then(|v| v.as_str());
+                                                let outs = parsed.get("outputs").map(|v| v.to_string());
+                                                let _ = db.complete_execution_run(tracked_run_id, ok, now_ms, dur, err, outs.as_deref());
+                                            }
+                                            _ => {}
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         let _ = app_out.emit("local-pipeline://event", parsed);
                     }
                 }
@@ -373,6 +430,9 @@ pub fn run_local_pipeline(
     if let Ok(mut cur) = state.current_run_id.lock() {
         *cur = Some(run_id.clone());
     }
+    if let Ok(mut ctx) = state.current_run_context.lock() {
+        *ctx = Some((run_id.clone(), PathBuf::from(&root_path), now_ms as i64));
+    }
 
     let runner_path = send_worker_command(
         &app,
@@ -462,4 +522,33 @@ pub fn stop_local_dcc_session(
         }),
     )?;
     Ok(())
+}
+
+#[tauri::command]
+pub fn list_local_execution_runs(
+    root_path: String,
+    pipeline_id: Option<String>,
+    limit: Option<usize>,
+) -> Result<Vec<forgity_core::workspace_db::LocalExecutionRunRow>, String> {
+    let db = forgity_core::workspace_db::WorkspaceDb::open(Path::new(&root_path))?;
+    db.list_execution_runs(pipeline_id.as_deref(), limit.unwrap_or(30))
+}
+
+#[tauri::command]
+pub fn get_local_execution_detail(
+    root_path: String,
+    run_id: String,
+) -> Result<Option<forgity_core::workspace_db::LocalExecutionDetail>, String> {
+    let db = forgity_core::workspace_db::WorkspaceDb::open(Path::new(&root_path))?;
+    db.get_execution_detail(&run_id)
+}
+
+#[tauri::command]
+pub fn delete_local_execution_history(
+    root_path: String,
+    run_id: Option<String>,
+    pipeline_id: Option<String>,
+) -> Result<(), String> {
+    let db = forgity_core::workspace_db::WorkspaceDb::open(Path::new(&root_path))?;
+    db.delete_execution_history(run_id.as_deref(), pipeline_id.as_deref())
 }

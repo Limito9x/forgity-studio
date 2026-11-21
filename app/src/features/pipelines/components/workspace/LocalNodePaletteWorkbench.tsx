@@ -402,7 +402,7 @@ export function LocalNodePaletteWorkbench({
             },
           ],
           localPipelines,
-          savePipelineDraft,
+          ({ fullPath, content }) => savePipelineDraft({ filePath: fullPath, content }),
         );
         if (reconciledCount > 0) {
           toast.info(`Reconciled wires in ${reconciledCount} local pipeline(s).`);
@@ -490,7 +490,7 @@ export function LocalNodePaletteWorkbench({
       const reconciledCount = await reconcileLocalPipelines(
         reconcileChanges,
         localPipelines,
-        savePipelineDraft,
+        ({ fullPath, content }) => savePipelineDraft({ filePath: fullPath, content }),
       );
       toast.success(
         reconciledCount > 0

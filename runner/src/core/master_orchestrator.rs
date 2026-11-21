@@ -235,6 +235,17 @@ impl MasterOrchestrator {
                     for (k, v) in &runtime_inputs {
                         start_outputs.insert(k.clone(), v.clone());
                     }
+                    let _ = self
+                        .event_sink
+                        .emit_pipeline_event(RunnerExecutionEvent::NodeCompleted {
+                            run_id: run_id.to_string(),
+                            node_id: node_def.id.clone(),
+                            succeeded: true,
+                            outputs: None,
+                            error_message: None,
+                            duration_ms: 0,
+                        })
+                        .await;
                     self.notify_upstream_completed(
                         &node_def.id,
                         &start_outputs,
@@ -257,6 +268,17 @@ impl MasterOrchestrator {
                     for (k, v) in wired {
                         end_inputs.insert(k, v);
                     }
+                    let _ = self
+                        .event_sink
+                        .emit_pipeline_event(RunnerExecutionEvent::NodeCompleted {
+                            run_id: run_id.to_string(),
+                            node_id: node_def.id.clone(),
+                            succeeded: true,
+                            outputs: None,
+                            error_message: None,
+                            duration_ms: 0,
+                        })
+                        .await;
                     final_outputs = end_inputs;
                     scheduler.mark_node_completed(&node_def.id, HashMap::new());
                     continue;
@@ -450,6 +472,19 @@ impl MasterOrchestrator {
                                 }
                                 // Chuyển trạng thái từ BUSY -> FREE để sẵn sàng nhận đợt tiếp theo (hoặc COMPLETED)
                                 session.state = DownstreamWaveState::Free;
+                                let _ = self
+                                    .event_sink
+                                    .emit_pipeline_event(RunnerExecutionEvent::NodeProgress {
+                                        run_id: run_id.to_string(),
+                                        node_id: session.downstream_def.id.clone(),
+                                        status: "waiting".to_string(),
+                                        outputs: None,
+                                        error_message: None,
+                                        batch_index: None,
+                                        completed: Some(session.all_dispatched_items.len()),
+                                        total: None,
+                                    })
+                                    .await;
                             }
                         }
                     }
@@ -574,6 +609,19 @@ impl MasterOrchestrator {
                 }
                 session.all_dispatched_items.extend(chunk.clone());
                 session.state = DownstreamWaveState::Busy;
+                let _ = self
+                    .event_sink
+                    .emit_pipeline_event(RunnerExecutionEvent::NodeProgress {
+                        run_id: run_id.to_string(),
+                        node_id: session.downstream_def.id.clone(),
+                        status: "running".to_string(),
+                        outputs: None,
+                        error_message: None,
+                        batch_index: Some(session.wave_index),
+                        completed: Some(session.all_dispatched_items.len()),
+                        total: None,
+                    })
+                    .await;
                 let wave_index = session.wave_index;
                 session.wave_index += 1;
 
@@ -710,6 +758,13 @@ impl MasterOrchestrator {
         cancel: CancellationToken,
     ) -> Result<(String, HashMap<String, Value>)> {
         let started_at = Instant::now();
+        let batch_config = extract_batch_config(&node_def);
+        let batch_total = batch_config.as_ref().and_then(|cfg| {
+            match resolved_inputs.get(&cfg.iterable_pin_name) {
+                Some(Value::Array(arr)) if !arr.is_empty() => Some(arr.len()),
+                _ => None,
+            }
+        });
 
         let _ = event_sink
             .emit_pipeline_event(RunnerExecutionEvent::NodeStarted {
@@ -717,8 +772,8 @@ impl MasterOrchestrator {
                 node_id: node_def.id.clone(),
                 node_type: node_def.tool.clone(),
                 label: node_def.label.clone(),
-                batch_index: None,
-                batch_total: None,
+                batch_index: batch_total.map(|_| 0),
+                batch_total,
             })
             .await;
 
@@ -726,8 +781,40 @@ impl MasterOrchestrator {
             .resolve_component(&node_def.tool)
             .with_context(|| format!("Failed to resolve component for node '{}'", node_def.id))?;
 
-        let batch_config = extract_batch_config(&node_def);
         let sub_run_id = format!("{}_{}", master_run_id, node_def.id);
+
+        // Bọc item_tx để phát NodeProgress (completed / total) lên Master Canvas mỗi khi 1 item hoàn thành
+        let wrapped_item_tx = if let Some(total) = batch_total {
+            let (prog_tx, mut prog_rx) = mpsc::unbounded_channel::<HashMap<String, Value>>();
+            let sink_clone = event_sink.clone();
+            let run_id_clone = master_run_id.to_string();
+            let nid_clone = node_def.id.clone();
+            let fwd_tx = item_tx.clone();
+            tokio::spawn(async move {
+                let mut done = 0usize;
+                while let Some(item_out) = prog_rx.recv().await {
+                    done += 1;
+                    let _ = sink_clone
+                        .emit_pipeline_event(RunnerExecutionEvent::NodeProgress {
+                            run_id: run_id_clone.clone(),
+                            node_id: nid_clone.clone(),
+                            status: "running".to_string(),
+                            outputs: None,
+                            error_message: None,
+                            batch_index: Some(done.saturating_sub(1)),
+                            completed: Some(done),
+                            total: Some(total),
+                        })
+                        .await;
+                    if let Some(ref tx) = fwd_tx {
+                        let _ = tx.send(item_out);
+                    }
+                }
+            });
+            Some(prog_tx)
+        } else {
+            item_tx
+        };
 
         match comp_orch
             .execute_with_stream(
@@ -735,7 +822,7 @@ impl MasterOrchestrator {
                 sub_run_id,
                 resolved_inputs,
                 batch_config,
-                item_tx,
+                wrapped_item_tx,
                 cancel,
             )
             .await

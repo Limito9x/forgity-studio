@@ -59,22 +59,10 @@ pub async fn run_bundle(
     run_parsed_bundle(bundle, json_events, run_id_override, config_override).await
 }
 
-pub async fn run_parsed_bundle(
-    bundle: ExecutionBundle,
-    json_events: bool,
-    run_id_override: Option<String>,
+fn build_resolver_for_bundle(
+    bundle: &ExecutionBundle,
     config_override: Option<&Path>,
-) -> Result<()> {
-    let is_component = bundle.pipeline_kind.eq_ignore_ascii_case("component");
-    let run_id = run_id_override
-        .or_else(|| bundle.run_id.clone())
-        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-
-    let has_remote_scripts = bundle
-        .scripts
-        .values()
-        .any(|s| s.full_path.as_os_str().is_empty() && s.content_hash.is_some());
-
+) -> Arc<dyn ResourceResolver> {
     let runner_cfg = load_config(config_override, false).ok().and_then(|(c, _)| c);
     let default_api_url = std::env::var("FORGITY_API_URL")
         .ok()
@@ -97,7 +85,7 @@ pub async fn run_parsed_bundle(
         .as_ref()
         .is_some_and(|l| !l.template_view_id.trim().is_empty());
 
-    let resolver: Arc<dyn ResourceResolver> = if has_valid_cloud_lease {
+    if has_valid_cloud_lease {
         let mut lease = bundle.cloud_lease.clone().unwrap_or_else(|| crate::core::bundle::CloudLeaseConfig {
             api_url: None,
             template_view_id: String::new(),
@@ -112,10 +100,24 @@ pub async fn run_parsed_bundle(
         let api_url = env_api_url
             .or_else(|| lease.api_url.clone())
             .unwrap_or(default_api_url);
-        Arc::new(CloudTemplateResourceResolver::from_bundle(&bundle, api_url, lease))
+        Arc::new(CloudTemplateResourceResolver::from_bundle(bundle, api_url, lease))
     } else {
-        Arc::new(BundleResourceResolver::from_bundle(&bundle))
-    };
+        Arc::new(BundleResourceResolver::from_bundle(bundle))
+    }
+}
+
+pub async fn run_parsed_bundle(
+    bundle: ExecutionBundle,
+    json_events: bool,
+    run_id_override: Option<String>,
+    config_override: Option<&Path>,
+) -> Result<()> {
+    let is_component = bundle.pipeline_kind.eq_ignore_ascii_case("component");
+    let run_id = run_id_override
+        .or_else(|| bundle.run_id.clone())
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    let resolver = build_resolver_for_bundle(&bundle, config_override);
 
     let active_stages = Arc::new(ActiveStageManager::new());
     let dcc_pool = Arc::new(DccPool::new(crate::cli::daemon::get_daemon_data_dir()));
@@ -327,8 +329,7 @@ pub async fn run_worker(config_override: Option<&Path>) -> Result<()> {
                     .or_else(|| parsed.run_id.clone())
                     .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
                 let is_component = parsed.pipeline_kind.eq_ignore_ascii_case("component");
-                let resolver: Arc<dyn ResourceResolver> =
-                    Arc::new(BundleResourceResolver::from_bundle(&parsed));
+                let resolver = build_resolver_for_bundle(&parsed, config_owned.as_deref());
                 let cancel = CancellationToken::new();
                 {
                     let mut guard = cancels.lock().await;

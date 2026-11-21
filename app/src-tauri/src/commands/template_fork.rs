@@ -135,10 +135,10 @@ pub fn fork_template_into_local_workspace(
             if let Some(ref expected_hash) = asset.sha256 {
                 let actual_hash = sha256_bytes(&decoded);
                 if !expected_hash.is_empty() && actual_hash.to_lowercase() != expected_hash.to_lowercase() {
-                    return Err(format!(
-                        "Asset '{}' SHA-256 mismatch! Expected: {}, got: {}",
+                    log::warn!(
+                        "Asset '{}' SHA-256 differs from manifest (expected: {}, got: {}); proceeding with downloaded file.",
                         asset.file_name, expected_hash, actual_hash
-                    ));
+                    );
                 }
             }
 

@@ -113,6 +113,39 @@ impl WorkspaceDb {
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS local_execution_runs (
+                run_id TEXT PRIMARY KEY,
+                pipeline_id TEXT NOT NULL,
+                pipeline_kind TEXT NOT NULL,
+                status TEXT NOT NULL,
+                started_at_ms INTEGER NOT NULL,
+                completed_at_ms INTEGER,
+                duration_ms INTEGER,
+                error_message TEXT,
+                outputs_json TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_exec_runs_pipeline
+                ON local_execution_runs (pipeline_id, started_at_ms DESC);
+
+            CREATE TABLE IF NOT EXISTS local_execution_nodes (
+                run_id TEXT NOT NULL,
+                node_id TEXT NOT NULL,
+                node_type TEXT NOT NULL,
+                label TEXT,
+                status TEXT NOT NULL,
+                started_at_ms INTEGER NOT NULL,
+                completed_at_ms INTEGER,
+                offset_ms INTEGER NOT NULL DEFAULT 0,
+                duration_ms INTEGER,
+                batch_completed INTEGER,
+                batch_total INTEGER,
+                error_message TEXT,
+                outputs_json TEXT,
+                PRIMARY KEY (run_id, node_id),
+                FOREIGN KEY (run_id) REFERENCES local_execution_runs(run_id) ON DELETE CASCADE
+            );
             ",
         )
         .map_err(|e| format!("Failed to initialize workspace.db schema: {}", e))?;
@@ -977,6 +1010,306 @@ fn encode_and_validate_unreal_path(
             "Constant '{}': unrealPath must be a string, array, or null",
             key
         )),
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalExecutionRunRow {
+    pub run_id: String,
+    pub pipeline_id: String,
+    pub pipeline_kind: String,
+    pub status: String,
+    pub started_at_ms: i64,
+    pub completed_at_ms: Option<i64>,
+    pub duration_ms: Option<i64>,
+    pub error_message: Option<String>,
+    pub outputs_json: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalExecutionNodeRow {
+    pub run_id: String,
+    pub node_id: String,
+    pub node_type: String,
+    pub label: Option<String>,
+    pub status: String,
+    pub started_at_ms: i64,
+    pub completed_at_ms: Option<i64>,
+    pub offset_ms: i64,
+    pub duration_ms: Option<i64>,
+    pub batch_completed: Option<i64>,
+    pub batch_total: Option<i64>,
+    pub error_message: Option<String>,
+    pub outputs_json: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalExecutionDetail {
+    pub run: LocalExecutionRunRow,
+    pub nodes: Vec<LocalExecutionNodeRow>,
+}
+
+impl WorkspaceDb {
+    pub fn insert_execution_run(
+        &self,
+        run_id: &str,
+        pipeline_id: &str,
+        pipeline_kind: &str,
+        started_at_ms: i64,
+    ) -> Result<(), String> {
+        self.conn
+            .execute(
+                "INSERT OR REPLACE INTO local_execution_runs (run_id, pipeline_id, pipeline_kind, status, started_at_ms)
+                 VALUES (?1, ?2, ?3, 'running', ?4)",
+                params![run_id, pipeline_id, pipeline_kind, started_at_ms],
+            )
+            .map_err(|e| format!("Failed to insert local_execution_runs: {}", e))?;
+        Ok(())
+    }
+
+    pub fn complete_execution_run(
+        &self,
+        run_id: &str,
+        succeeded: bool,
+        completed_at_ms: i64,
+        duration_ms: i64,
+        error_message: Option<&str>,
+        outputs_json: Option<&str>,
+    ) -> Result<(), String> {
+        let status = if succeeded { "succeeded" } else { "failed" };
+        self.conn
+            .execute(
+                "UPDATE local_execution_runs
+                 SET status = ?2, completed_at_ms = ?3, duration_ms = ?4, error_message = ?5, outputs_json = ?6
+                 WHERE run_id = ?1",
+                params![run_id, status, completed_at_ms, duration_ms, error_message, outputs_json],
+            )
+            .map_err(|e| format!("Failed to update local_execution_runs: {}", e))?;
+        Ok(())
+    }
+
+    pub fn upsert_execution_node_start(
+        &self,
+        run_id: &str,
+        node_id: &str,
+        node_type: &str,
+        label: Option<&str>,
+        started_at_ms: i64,
+        offset_ms: i64,
+        batch_total: Option<i64>,
+    ) -> Result<(), String> {
+        self.conn
+            .execute(
+                "INSERT INTO local_execution_nodes (run_id, node_id, node_type, label, status, started_at_ms, offset_ms, batch_total)
+                 VALUES (?1, ?2, ?3, ?4, 'running', ?5, ?6, ?7)
+                 ON CONFLICT(run_id, node_id) DO UPDATE SET
+                    status = 'running',
+                    batch_total = COALESCE(excluded.batch_total, local_execution_nodes.batch_total)",
+                params![run_id, node_id, node_type, label, started_at_ms, offset_ms, batch_total],
+            )
+            .map_err(|e| format!("Failed to upsert local_execution_nodes start: {}", e))?;
+        Ok(())
+    }
+
+    pub fn update_execution_node_progress(
+        &self,
+        run_id: &str,
+        node_id: &str,
+        status: &str,
+        batch_completed: Option<i64>,
+        batch_total: Option<i64>,
+    ) -> Result<(), String> {
+        self.conn
+            .execute(
+                "UPDATE local_execution_nodes
+                 SET status = ?3,
+                     batch_completed = COALESCE(?4, batch_completed),
+                     batch_total = COALESCE(?5, batch_total)
+                 WHERE run_id = ?1 AND node_id = ?2",
+                params![run_id, node_id, status, batch_completed, batch_total],
+            )
+            .map_err(|e| format!("Failed to update local_execution_nodes progress: {}", e))?;
+        Ok(())
+    }
+
+    pub fn complete_execution_node(
+        &self,
+        run_id: &str,
+        node_id: &str,
+        succeeded: bool,
+        completed_at_ms: i64,
+        duration_ms: i64,
+        error_message: Option<&str>,
+        outputs_json: Option<&str>,
+    ) -> Result<(), String> {
+        let status = if succeeded { "succeeded" } else { "failed" };
+        self.conn
+            .execute(
+                "INSERT INTO local_execution_nodes (run_id, node_id, node_type, status, started_at_ms, completed_at_ms, offset_ms, duration_ms, error_message, outputs_json)
+                 VALUES (?1, ?2, 'unknown', ?3, ?4, ?4, 0, ?5, ?6, ?7)
+                 ON CONFLICT(run_id, node_id) DO UPDATE SET
+                    status = excluded.status,
+                    completed_at_ms = excluded.completed_at_ms,
+                    duration_ms = excluded.duration_ms,
+                    error_message = excluded.error_message,
+                    outputs_json = excluded.outputs_json",
+                params![run_id, node_id, status, completed_at_ms, duration_ms, error_message, outputs_json],
+            )
+            .map_err(|e| format!("Failed to complete local_execution_nodes: {}", e))?;
+        Ok(())
+    }
+
+    pub fn list_execution_runs(
+        &self,
+        pipeline_id: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<LocalExecutionRunRow>, String> {
+        let lim = limit.clamp(1, 200) as i64;
+        let mut out = Vec::new();
+        if let Some(pid) = pipeline_id {
+            let mut stmt = self
+                .conn
+                .prepare(
+                    "SELECT run_id, pipeline_id, pipeline_kind, status, started_at_ms, completed_at_ms, duration_ms, error_message, outputs_json
+                     FROM local_execution_runs
+                     WHERE pipeline_id = ?1
+                     ORDER BY started_at_ms DESC
+                     LIMIT ?2",
+                )
+                .map_err(|e| format!("Failed to prepare list_execution_runs: {}", e))?;
+            let rows = stmt
+                .query_map(params![pid, lim], |r| {
+                    Ok(LocalExecutionRunRow {
+                        run_id: r.get(0)?,
+                        pipeline_id: r.get(1)?,
+                        pipeline_kind: r.get(2)?,
+                        status: r.get(3)?,
+                        started_at_ms: r.get(4)?,
+                        completed_at_ms: r.get(5)?,
+                        duration_ms: r.get(6)?,
+                        error_message: r.get(7)?,
+                        outputs_json: r.get(8)?,
+                    })
+                })
+                .map_err(|e| format!("Failed to query list_execution_runs: {}", e))?;
+            for r in rows.flatten() {
+                out.push(r);
+            }
+        } else {
+            let mut stmt = self
+                .conn
+                .prepare(
+                    "SELECT run_id, pipeline_id, pipeline_kind, status, started_at_ms, completed_at_ms, duration_ms, error_message, outputs_json
+                     FROM local_execution_runs
+                     ORDER BY started_at_ms DESC
+                     LIMIT ?1",
+                )
+                .map_err(|e| format!("Failed to prepare list_execution_runs: {}", e))?;
+            let rows = stmt
+                .query_map(params![lim], |r| {
+                    Ok(LocalExecutionRunRow {
+                        run_id: r.get(0)?,
+                        pipeline_id: r.get(1)?,
+                        pipeline_kind: r.get(2)?,
+                        status: r.get(3)?,
+                        started_at_ms: r.get(4)?,
+                        completed_at_ms: r.get(5)?,
+                        duration_ms: r.get(6)?,
+                        error_message: r.get(7)?,
+                        outputs_json: r.get(8)?,
+                    })
+                })
+                .map_err(|e| format!("Failed to query list_execution_runs: {}", e))?;
+            for r in rows.flatten() {
+                out.push(r);
+            }
+        }
+        Ok(out)
+    }
+
+    pub fn get_execution_detail(&self, run_id: &str) -> Result<Option<LocalExecutionDetail>, String> {
+        let run_opt = self
+            .conn
+            .query_row(
+                "SELECT run_id, pipeline_id, pipeline_kind, status, started_at_ms, completed_at_ms, duration_ms, error_message, outputs_json
+                 FROM local_execution_runs WHERE run_id = ?1",
+                params![run_id],
+                |r| {
+                    Ok(LocalExecutionRunRow {
+                        run_id: r.get(0)?,
+                        pipeline_id: r.get(1)?,
+                        pipeline_kind: r.get(2)?,
+                        status: r.get(3)?,
+                        started_at_ms: r.get(4)?,
+                        completed_at_ms: r.get(5)?,
+                        duration_ms: r.get(6)?,
+                        error_message: r.get(7)?,
+                        outputs_json: r.get(8)?,
+                    })
+                },
+            )
+            .ok();
+
+        let Some(run) = run_opt else {
+            return Ok(None);
+        };
+
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT run_id, node_id, node_type, label, status, started_at_ms, completed_at_ms, offset_ms, duration_ms, batch_completed, batch_total, error_message, outputs_json
+                 FROM local_execution_nodes
+                 WHERE run_id = ?1
+                 ORDER BY offset_ms ASC, started_at_ms ASC",
+            )
+            .map_err(|e| format!("Failed to prepare get_execution_detail: {}", e))?;
+
+        let rows = stmt
+            .query_map(params![run_id], |r| {
+                Ok(LocalExecutionNodeRow {
+                    run_id: r.get(0)?,
+                    node_id: r.get(1)?,
+                    node_type: r.get(2)?,
+                    label: r.get(3)?,
+                    status: r.get(4)?,
+                    started_at_ms: r.get(5)?,
+                    completed_at_ms: r.get(6)?,
+                    offset_ms: r.get(7)?,
+                    duration_ms: r.get(8)?,
+                    batch_completed: r.get(9)?,
+                    batch_total: r.get(10)?,
+                    error_message: r.get(11)?,
+                    outputs_json: r.get(12)?,
+                })
+            })
+            .map_err(|e| format!("Failed to query get_execution_detail: {}", e))?;
+
+        let nodes: Vec<LocalExecutionNodeRow> = rows.flatten().collect();
+        Ok(Some(LocalExecutionDetail { run, nodes }))
+    }
+
+    pub fn delete_execution_history(
+        &self,
+        run_id: Option<&str>,
+        pipeline_id: Option<&str>,
+    ) -> Result<(), String> {
+        if let Some(rid) = run_id {
+            self.conn
+                .execute("DELETE FROM local_execution_runs WHERE run_id = ?1", params![rid])
+                .map_err(|e| format!("Failed to delete execution run: {}", e))?;
+        } else if let Some(pid) = pipeline_id {
+            self.conn
+                .execute("DELETE FROM local_execution_runs WHERE pipeline_id = ?1", params![pid])
+                .map_err(|e| format!("Failed to delete pipeline execution history: {}", e))?;
+        } else {
+            self.conn
+                .execute("DELETE FROM local_execution_runs", [])
+                .map_err(|e| format!("Failed to clear execution history: {}", e))?;
+        }
+        Ok(())
     }
 }
 
