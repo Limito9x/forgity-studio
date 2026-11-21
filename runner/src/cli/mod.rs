@@ -10,6 +10,7 @@ pub mod run_local;
 pub mod setup;
 pub mod start;
 pub mod update;
+pub mod workspace;
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -125,29 +126,6 @@ pub enum Commands {
         workspace: Option<PathBuf>,
     },
 
-    /// Execute a local Component Pipe (*.component.yaml) or Master Pipeline (*.pipeline.yaml) 100% locally without Backend
-    RunLocal {
-        /// Path to the workspace root containing .forgity/workspace.db
-        #[arg(short, long)]
-        workspace: PathBuf,
-
-        /// Path to the .component.yaml or .pipeline.yaml file
-        #[arg(short, long)]
-        pipeline: PathBuf,
-
-        /// Optional JSON object string of runtime inputs for the Start node
-        #[arg(long)]
-        inputs_json: Option<String>,
-
-        /// Emit newline-delimited JSON RunnerExecutionEvent objects to stdout (logs go to stderr)
-        #[arg(long)]
-        json_events: bool,
-
-        /// Optional explicit run ID (defaults to generated UUID v4)
-        #[arg(long)]
-        run_id: Option<String>,
-    },
-
     /// Execute a self-contained ExecutionBundle DTO (from stdin or JSON file) without touching workspace.db
     RunBundle {
         /// Path to an ExecutionBundle JSON file (if omitted or --stdin is set, reads from stdin)
@@ -166,4 +144,13 @@ pub enum Commands {
         #[arg(long)]
         run_id: Option<String>,
     },
+
+    /// Inspect, validate, bundle, and run local workspace pipelines using forgity-core
+    Workspace {
+        #[command(subcommand)]
+        action: workspace::WorkspaceAction,
+    },
+
+    /// Persistent local sidecar worker communicating via NDJSON over stdin/stdout (keeps DccPool warm)
+    Worker,
 }

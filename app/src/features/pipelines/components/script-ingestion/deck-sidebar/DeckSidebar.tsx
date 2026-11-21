@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SlideThumbnailCard } from "./SlideThumbnailCard";
-import type { AnalyzedCustomNodeDto } from "@/gen/model";
+import type { AnalyzedCustomNodeDto } from "@/features/pipelines/types/pipelineGraphTypes";
 
 interface DeckSidebarProps {
   nodes: AnalyzedCustomNodeDto[];
@@ -182,6 +182,7 @@ export function DeckSidebar({
               node={node}
               index={originalIndex}
               isSelected={originalIndex === selectedIndex}
+              showStatusBadge={showStatusFilters}
               onClick={() => onSelectIndex(originalIndex)}
               onRemove={() => onRemoveNode(node.key)}
             />

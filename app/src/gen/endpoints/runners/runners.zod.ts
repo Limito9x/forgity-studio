@@ -141,6 +141,24 @@ export const GetStudioRunnersResponseItem = /*#__PURE__*/ zod.object({
 })
 export const GetStudioRunnersResponse = /*#__PURE__*/ zod.array(GetStudioRunnersResponseItem)
 
+/**
+ * @summary Device-first auto check-in for desktop workstations (quota identity)
+ */
+export const CheckInRunnerBody = /*#__PURE__*/ zod.object({
+  "hardwareFingerprint": /*#__PURE__*/ zod.string(),
+  "machineKey": /*#__PURE__*/ zod.string(),
+  "name": /*#__PURE__*/ zod.string(),
+  "osPlatform": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "appVersion": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+})
+
+export const CheckInRunnerResponse = /*#__PURE__*/ zod.object({
+  "runnerId": /*#__PURE__*/ zod.uuid(),
+  "machineKey": /*#__PURE__*/ zod.string(),
+  "hardwareFingerprint": /*#__PURE__*/ zod.string(),
+  "isActive": /*#__PURE__*/ zod.boolean()
+})
+
 export const GenerateSetupTokenBody = /*#__PURE__*/ zod.object({
   "studioId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid())
 })

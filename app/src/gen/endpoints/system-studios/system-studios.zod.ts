@@ -17,7 +17,6 @@ export const GetStudiosForAdminResponseItem = /*#__PURE__*/ zod.object({
   "name": /*#__PURE__*/ zod.string(),
   "slug": /*#__PURE__*/ zod.string(),
   "planTier": /*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2)]),
-  "executionCreditsRemaining": /*#__PURE__*/ zod.int(),
   "studioManagedStorageQuotaBytes": /*#__PURE__*/ zod.int(),
   "studioManagedStorageUsedBytes": /*#__PURE__*/ zod.int(),
   "projectCount": /*#__PURE__*/ zod.int(),
@@ -35,7 +34,6 @@ export const UpdateStudioQuotaForAdminParams = /*#__PURE__*/ zod.object({
 
 export const UpdateStudioQuotaForAdminBody = /*#__PURE__*/ zod.object({
   "planTier": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2)])),
-  "executionCreditsRemaining": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int()),
   "studioManagedStorageQuotaBytes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int())
 })
 

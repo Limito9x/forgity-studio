@@ -31,4 +31,8 @@ impl DccExecutor for BlenderExecutor {
 
         Ok(args)
     }
+
+    fn supports_keep_alive(&self) -> bool {
+        false
+    }
 }

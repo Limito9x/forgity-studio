@@ -9,7 +9,7 @@ public static class WolverineRabbitMqExtensions
     public static WolverineOptions UseSharedRabbitMq(this WolverineOptions options, IConfiguration configuration)
     {
         var enabledStr = configuration["RabbitMQ:Enabled"];
-        if (bool.TryParse(enabledStr, out var isEnabled) && !isEnabled)
+        if (!bool.TryParse(enabledStr, out var isEnabled) || !isEnabled)
         {
             return options;
         }

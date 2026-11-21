@@ -1,5 +1,5 @@
 import React, { type MouseEvent } from "react";
-import type { PipelineFileAssetDto, PinDefinition } from "@/gen/model";
+import type { PipelineFileAssetDto, PinDefinition } from "@/features/pipelines/types/pipelineGraphTypes";
 import { Plus } from "lucide-react";
 import { PinInputRow, PinOutputRow } from "./PinRow";
 

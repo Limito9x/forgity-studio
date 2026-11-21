@@ -12,7 +12,6 @@ using Scalar.AspNetCore;
 using Automation.SharedKernel.Extensions.ExceptionHandling;
 
 using Automation.Runner.Extensions;
-using Automation.Pipeline.Extensions;
 
 using Automation.SharedKernel.Extensions.Security;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -117,7 +116,6 @@ app.UseFastEndpoints(c =>
 });
 
 app.MapHub<Automation.Notifications.Features.Notifications.NotificationHub>("/hubs/notifications");
-app.MapRunnerGrpcServices();
 
 if (app.Environment.IsDevelopment())
 {

@@ -37,6 +37,7 @@ export function CollectionNodeView({ id, data, selected }: NodeProps) {
         badgeLabel="Collection"
         badgeVariantClass="border-purple-500/40 text-purple-600 dark:text-purple-400 bg-purple-500/10 font-semibold"
         status={nodeData.executionStatus}
+        progress={nodeData.executionProgress}
       />
 
       <ExecPinBar

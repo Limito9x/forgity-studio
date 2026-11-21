@@ -7,7 +7,6 @@ import { BaseDialog } from "@/components/custom-ui/overlays/dialog/BaseDialog";
 import { toast } from "sonner";
 import {
   Building2,
-  Zap,
   HardDrive,
   RefreshCw,
   Sliders,
@@ -29,13 +28,11 @@ export function SystemStudiosPage() {
 
   // Edit Dialog form state
   const [planTier, setPlanTier] = useState<number>(0);
-  const [credits, setCredits] = useState<number>(50);
   const [quotaMb, setQuotaMb] = useState<number>(200);
 
   const openEditDialog = (s: StudioAdminSummaryDto) => {
     setEditingStudio(s);
     setPlanTier(s.planTier);
-    setCredits(s.executionCreditsRemaining);
     setQuotaMb(Math.round(s.studioManagedStorageQuotaBytes / (1024 * 1024)));
   };
 
@@ -47,7 +44,6 @@ export function SystemStudiosPage() {
       await updateQuotaMutation.mutateAsync({
         id: editingStudio.id,
         planTier,
-        executionCreditsRemaining: credits,
         studioManagedStorageQuotaBytes: quotaMb * 1024 * 1024,
       });
       toast.success(`Updated quota for "${editingStudio.name}"!`);
@@ -113,7 +109,6 @@ export function SystemStudiosPage() {
                 <th className="px-4 py-3">Studio Name</th>
                 <th className="px-4 py-3">Slug</th>
                 <th className="px-4 py-3">Plan Tier</th>
-                <th className="px-4 py-3">Execution Credits</th>
                 <th className="px-4 py-3">Studio Cloud Storage</th>
                 <th className="px-4 py-3">Projects</th>
                 <th className="px-4 py-3 text-right">Actions</th>
@@ -122,14 +117,14 @@ export function SystemStudiosPage() {
             <tbody className="divide-y divide-border/40">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-muted-foreground">
+                  <td colSpan={6} className="text-center py-12 text-muted-foreground">
                     <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2 text-primary" />
                     Loading platform studios...
                   </td>
                 </tr>
               ) : filteredStudios.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-muted-foreground">
+                  <td colSpan={6} className="text-center py-12 text-muted-foreground">
                     No studios found.
                   </td>
                 </tr>
@@ -138,7 +133,6 @@ export function SystemStudiosPage() {
                   const planInfo = PLAN_LABELS[s.planTier] || PLAN_LABELS[0];
                   const usedMb = Math.round(s.studioManagedStorageUsedBytes / (1024 * 1024));
                   const quotaMbVal = Math.round(s.studioManagedStorageQuotaBytes / (1024 * 1024));
-                  const isLowCredits = s.executionCreditsRemaining <= 5;
 
                   return (
                     <tr key={s.id} className="hover:bg-muted/20 transition-colors">
@@ -151,12 +145,6 @@ export function SystemStudiosPage() {
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${planInfo.color}`}>
                           {planInfo.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1 font-mono text-xs font-semibold ${isLowCredits ? "text-amber-500" : "text-foreground"}`}>
-                          <Zap className="h-3.5 w-3.5 text-primary" />
-                          {s.executionCreditsRemaining} Runs
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs">
@@ -212,21 +200,6 @@ export function SystemStudiosPage() {
                 <option value={1}>Indie Pro</option>
                 <option value={2}>Studio Team</option>
               </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="adj-credits">Execution Credits Remaining</Label>
-              <Input
-                id="adj-credits"
-                type="number"
-                min={0}
-                value={credits}
-                onChange={(e) => setCredits(Number(e.target.value))}
-                required
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Number of remaining pipeline runs allocated to this studio.
-              </p>
             </div>
 
             <div className="space-y-1.5">

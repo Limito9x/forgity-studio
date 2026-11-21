@@ -10,7 +10,5 @@ export interface UpdateStudioQuotaRequest {
   /** @nullable */
   planTier?: number | null;
   /** @nullable */
-  executionCreditsRemaining?: number | null;
-  /** @nullable */
   studioManagedStorageQuotaBytes?: number | null;
 }

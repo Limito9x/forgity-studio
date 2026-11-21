@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type WorkspaceTabKind = "pipeline" | "palette" | "structs" | "constants";
+export type WorkspaceTabKind = "pipeline" | "palette" | "constants";
 
 export interface WorkspaceTabViewport {
   x: number;
@@ -31,6 +31,7 @@ interface WorkspaceTabsStoreState {
   paletteInitialScriptKey?: string;
   getProjectState: (projectId: string) => ProjectWorkbenchState;
   requestPaletteScan: (projectId: string, scriptKey?: string) => void;
+  consumePaletteScan: () => void;
   openPipelineTab: (
     projectId: string,
     draft: {
@@ -40,10 +41,7 @@ interface WorkspaceTabsStoreState {
       executor?: string;
     },
   ) => void;
-  openSingletonTab: (
-    projectId: string,
-    kind: "palette" | "structs" | "constants",
-  ) => void;
+  openSingletonTab: (projectId: string, kind: "palette" | "constants") => void;
   closeTab: (projectId: string, tabId: string) => void;
   setActiveTab: (projectId: string, tabId: string) => void;
   toggleOutliner: (projectId: string) => void;
@@ -62,11 +60,10 @@ const DEFAULT_PROJECT_STATE: ProjectWorkbenchState = {
 };
 
 const SINGLETON_META: Record<
-  "palette" | "structs" | "constants",
+  "palette" | "constants",
   { id: string; title: string }
 > = {
-  palette: { id: "singleton:palette", title: "Node Palette" },
-  structs: { id: "singleton:structs", title: "Structs" },
+  palette: { id: "singleton:palette", title: "Scripts" },
   constants: { id: "singleton:constants", title: "Constants" },
 };
 
@@ -83,6 +80,10 @@ export const useWorkspaceTabsStore = create<WorkspaceTabsStoreState>()(
           paletteScanRequest: state.paletteScanRequest + 1,
           paletteInitialScriptKey: scriptKey,
         }));
+      },
+
+      consumePaletteScan: () => {
+        set({ paletteScanRequest: 0 });
       },
 
       getProjectState: (projectId: string) => {
@@ -265,4 +266,3 @@ export const useWorkspaceTabsStore = create<WorkspaceTabsStoreState>()(
     },
   ),
 );
-

@@ -1,5 +1,5 @@
 import { Trash2, Loader2, Info } from "lucide-react";
-import type { PipelineSummaryDto } from "@/gen/model";
+import type { PipelineSummaryDto } from "@/features/pipelines/types/pipelineGraphTypes";
 import { PipelineCard } from "./PipelineCard";
 
 interface TrashPipelinesTabProps {

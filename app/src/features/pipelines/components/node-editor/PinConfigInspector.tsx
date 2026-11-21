@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { PinDefinition } from "@/gen/model";
+import type { PinDefinition } from "@/features/pipelines/types/pipelineGraphTypes";
 import {
   STATIC_PIN_CATALOGUE,
   normalizePinType,
@@ -11,8 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Sliders, X, ListFilter, AlignLeft, Tags, LayoutTemplate } from "lucide-react";
+import { Sliders, X, ListFilter, AlignLeft, Tags, LayoutTemplate, FolderOpen } from "lucide-react";
 import { TagsInput } from "@/components/custom-ui/inputs/tags-input/TagsInput";
+import { isTauriRuntime, openNativeFileOrFolderDialog } from "@/lib/platform/filePickerStrategy";
+import { ConstantHintInput } from "../../form-controls/ConstantHintInput";
 
 interface PinConfigInspectorProps {
   selectedPin: {
@@ -74,8 +76,11 @@ export function PinConfigInspector({
     currentCardinality === "Array" ||
     String(pin.primitiveType ?? "").includes("[]");
 
-  const controlType = useMemo<"auto" | "select" | "textarea" | "tagsInput">(() => {
+  const controlType = useMemo<"auto" | "path" | "select" | "textarea" | "tagsInput">(() => {
     const t = String(parsedMetadata.type || "").toLowerCase();
+    if (t === "path") {
+      return "path";
+    }
     if (t === "textarea" || parsedMetadata.multiline) {
       return "textarea";
     }
@@ -104,7 +109,25 @@ export function PinConfigInspector({
       delete nextMeta.rows;
       delete nextMeta.allowCustom;
       delete nextMeta.multiline;
+      delete nextMeta.pathKind;
+      delete nextMeta.defaultFolder;
+      delete nextMeta.accept;
       updateMetadata(Object.keys(nextMeta).length > 0 ? nextMeta : null);
+      return;
+    }
+
+    if (newType === "path") {
+      const nextMeta = { ...parsedMetadata };
+      delete nextMeta.options;
+      delete nextMeta.rows;
+      delete nextMeta.multiline;
+      updateMetadata({
+        ...nextMeta,
+        type: "path",
+        pathKind: parsedMetadata.pathKind === "file" ? "file" : "folder",
+        defaultFolder: parsedMetadata.defaultFolder || "",
+        accept: parsedMetadata.accept || "",
+      });
       return;
     }
 
@@ -249,32 +272,6 @@ export function PinConfigInspector({
           </Select>
         </div>
 
-        {/* Struct Type for EntityRef */}
-        {normType === "EntityRef" && (
-          <div className="space-y-1.5 animate-in fade-in duration-150">
-            <Label className="text-xs font-semibold">Struct Type</Label>
-            <Select
-              selectedKey={pin.structType || "Resource"}
-              onSelectionChange={(key) =>
-                onUpdatePin({ ...pin, structType: String(key) })
-              }
-            >
-              <SelectTrigger className="text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem id="Resource">Resource</SelectItem>
-                <SelectItem id="Workstation">Workstation</SelectItem>
-                <SelectItem id="Repository">Repository</SelectItem>
-                <SelectItem id="Runner">Runner</SelectItem>
-                <SelectItem id="ContentItem">ContentItem</SelectItem>
-                <SelectItem id="ContentType">ContentType</SelectItem>
-                <SelectItem id="Tag">Tag</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
         {/* Cardinality (Single vs Array) */}
         <div className="space-y-1.5">
           <Label className="text-xs font-semibold">Cardinality</Label>
@@ -316,6 +313,14 @@ export function PinConfigInspector({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem id="auto">Auto / Default (Based on Data Type)</SelectItem>
+                  {normType === "String" && !isCollection && (
+                    <SelectItem id="path">
+                      <div className="flex items-center gap-1.5">
+                        <FolderOpen className="size-3 text-primary" />
+                        <span>Local Path Picker (File / Folder)</span>
+                      </div>
+                    </SelectItem>
+                  )}
                   <SelectItem id="select">
                     <div className="flex items-center gap-1.5">
                       <ListFilter className="size-3 text-primary" />
@@ -372,6 +377,77 @@ export function PinConfigInspector({
                     onChange={handleToggleAllowCustom}
                   />
                 </div>
+              </div>
+            )}
+
+            {/* Sub-config for Local Path Picker */}
+            {controlType === "path" && (
+              <div className="space-y-2.5 pt-2 border-t border-primary/10 animate-in fade-in duration-150">
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-medium text-foreground">Path Target</Label>
+                  <Select
+                    selectedKey={parsedMetadata.pathKind === "file" ? "file" : "folder"}
+                    onSelectionChange={(k) =>
+                      updateMetadata({ ...parsedMetadata, pathKind: String(k) === "file" ? "file" : "folder" })
+                    }
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem id="folder">Folder</SelectItem>
+                      <SelectItem id="file">File</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-medium text-foreground">Default Folder</Label>
+                  <div className="flex items-center gap-1.5">
+                    <ConstantHintInput
+                      className="h-8 text-xs bg-background font-mono"
+                      placeholder="e.g. D:/Assets/Daz or ${DAZ_ROOT}"
+                      value={parsedMetadata.defaultFolder || ""}
+                      onValueChange={(val) =>
+                        updateMetadata({ ...parsedMetadata, defaultFolder: val })
+                      }
+                    />
+                    {isTauriRuntime() && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2 shrink-0"
+                        onPress={async () => {
+                          const picked = await openNativeFileOrFolderDialog({
+                            mode: "folder",
+                            title: "Select Default Folder",
+                            defaultPath: parsedMetadata.defaultFolder || undefined,
+                          });
+                          if (picked) {
+                            updateMetadata({ ...parsedMetadata, defaultFolder: picked });
+                          }
+                        }}
+                      >
+                        <FolderOpen className="size-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {parsedMetadata.pathKind === "file" && (
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-medium text-foreground">Allowed Extensions</Label>
+                    <Input
+                      className="h-8 text-xs bg-background font-mono"
+                      placeholder="e.g. .duf, .fbx, .py"
+                      value={parsedMetadata.accept || ""}
+                      onChange={(e) =>
+                        updateMetadata({ ...parsedMetadata, accept: e.target.value })
+                      }
+                    />
+                  </div>
+                )}
               </div>
             )}
 

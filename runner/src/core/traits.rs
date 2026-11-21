@@ -35,6 +35,10 @@ pub enum RunnerExecutionEvent {
         outputs: Option<HashMap<String, Value>>,
         error_message: Option<String>,
         batch_index: Option<usize>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        completed: Option<usize>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        total: Option<usize>,
     },
     NodeCompleted {
         run_id: String,
@@ -126,6 +130,8 @@ impl EventSink for StdoutJsonEventSink {
             outputs: msg.outputs.clone(),
             error_message: msg.error_message.clone(),
             batch_index: None,
+            completed: None,
+            total: None,
         });
         Ok(())
     }
@@ -180,16 +186,40 @@ impl QuotaGate for UnlimitedQuotaGate {
 pub struct ResolvedScript {
     pub key: String,
     pub executor: String,
+    #[serde(default)]
     pub full_path: PathBuf,
+    #[serde(default)]
+    pub inline_source: Option<String>,
+    #[serde(default)]
+    pub content_hash: Option<String>,
+    #[serde(default)]
+    pub source_ref: Option<Value>,
     #[serde(default)]
     pub requirements: Vec<String>,
     #[serde(default)]
     pub default_inputs: HashMap<String, Value>,
 }
 
+/// Contract đã materialize của 1 Constant node (sinh bởi Bundle Compiler, không cần đoán pin ở Runner).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolvedConstantSpec {
+    pub outputs: HashMap<String, Value>,
+    #[serde(default)]
+    pub template_vars: Vec<String>,
+}
+
 /// Cổng tra cứu tài nguyên cho Engine (tách Orchestrator khỏi nguồn dữ liệu: Bundle DTO vs SQLite vs Cloud).
+#[async_trait]
 pub trait ResourceResolver: Send + Sync {
     fn resolve_script(&self, tool_ref: &str) -> Result<ResolvedScript>;
     fn resolve_component(&self, component_ref: &str) -> Result<DagPipelineDocument>;
-    fn resolve_constant(&self, constant_ref: &str) -> Result<Option<Value>>;
+    fn resolve_constant_spec(&self, constant_ref: &str) -> Result<Option<ResolvedConstantSpec>>;
+
+    /// Pre-flight kiểm tra toàn bộ script trong Component trước khi chạy:
+    /// Nếu phát hiện script không thuộc workspace (thiếu file local, chỉ có content_hash),
+    /// tự động gửi yêu cầu lên Cloud kèm context Template để trừ quota và nạp code vào RAM.
+    async fn preflight_component(&self, _doc: &DagPipelineDocument, _unit_count: usize) -> Result<()> {
+        Ok(())
+    }
 }

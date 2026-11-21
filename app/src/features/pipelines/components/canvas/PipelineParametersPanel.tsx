@@ -8,8 +8,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PipelineParameterDto } from "../../hooks/usePipelineGraph";
-import { usePipelineFormScope } from "../../form-scope/PipelineFormScope";
-import { useGetStructCatalogue } from "@/gen/endpoints/pipelines/pipelines";
+import { getPipelineParameterPinId } from "../../adapters/pipelineParameterPins";
+import { usePipelineWorkspaceOptional } from "../../context/PipelineWorkspaceContext";
 import { ParameterList } from "./parameters/ParameterList";
 import { ParameterEditorForm } from "./parameters/ParameterEditorForm";
 import type { ParameterTab } from "./parameters/types";
@@ -22,12 +22,6 @@ interface PipelineParametersPanelProps {
   onAddParameter: (param: PipelineParameterDto) => void;
   onUpdateParameter?: (key: string, param: Partial<PipelineParameterDto>) => void;
   onDeleteParameter: (key: string) => void;
-  onSpawnCapsule: (
-    key: string,
-    kind: "Variable" | "Runner" | "Repository" | "Workspace" | "Context",
-    type: any
-  ) => void;
-  onSpawnAction: (toolKey: "SetVariable", varName: string) => void;
   isOpen: boolean;
   onToggle: () => void;
   activeTab?: ParameterTab;
@@ -40,21 +34,19 @@ export function PipelineParametersPanel({
   onAddParameter,
   onUpdateParameter,
   onDeleteParameter,
-  onSpawnCapsule,
-  onSpawnAction,
   isOpen,
   onToggle,
   activeTab: controlledTab,
   onTabChange,
 }: PipelineParametersPanelProps) {
   const [internalTab, setInternalTab] = useState<ParameterTab>("inputs");
-  const activeTab = (controlledTab === "variables" ? "inputs" : controlledTab) ?? internalTab;
+  const activeTab = controlledTab ?? internalTab;
 
   const [isCreating, setIsCreating] = useState(false);
   const [editingParam, setEditingParam] = useState<PipelineParameterDto | null>(null);
 
-  const { projectId = "" } = usePipelineFormScope();
-  const { data: structCatalogue = [] } = useGetStructCatalogue({ projectId });
+  const workspaceCtx = usePipelineWorkspaceOptional();
+  const structCatalogue = workspaceCtx?.structCatalogue ?? [];
 
   const setTab = (tab: ParameterTab) => {
     setIsCreating(false);
@@ -85,7 +77,10 @@ export function PipelineParametersPanel({
     }
   }, [activeTab, inputs, outputs]);
 
-  const existingKeys = useMemo(() => parameters.map((p) => p.key), [parameters]);
+  const existingKeys = useMemo(
+    () => parameters.map(getPipelineParameterPinId).filter(Boolean),
+    [parameters]
+  );
 
   return (
     <div
@@ -223,8 +218,6 @@ export function PipelineParametersPanel({
                 setEditingParam(param);
               }}
               onDelete={onDeleteParameter}
-              onSpawnCapsule={onSpawnCapsule}
-              onSpawnAction={onSpawnAction}
             />
           </div>
         ) : (

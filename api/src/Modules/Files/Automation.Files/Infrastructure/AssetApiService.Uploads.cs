@@ -92,7 +92,7 @@ public partial class AssetApiService
         foreach (var req in requestList)
         {
             var existing = existingAssets.FirstOrDefault(x =>
-                x.HashSha256 == req.HashSha256 && x.SizeBytes == req.SizeBytes
+                x.HashSha256 == req.HashSha256
             );
             if (existing != null && existing.IsConfirmed)
             {
@@ -185,10 +185,13 @@ public partial class AssetApiService
             if (actualSize == null)
                 return Result.Fail($"File not found on storage for asset '{asset.Id}'.");
 
+            if (actualSize.Value <= 0)
+                return Result.Fail($"Uploaded file is empty for asset '{asset.Id}'.");
+
             if (actualSize.Value != asset.SizeBytes)
-                return Result.Fail(
-                    $"File size mismatch for asset '{asset.Id}'. Expected {asset.SizeBytes}, but found {actualSize.Value}."
-                );
+            {
+                dbContext.Entry(asset).Property(x => x.SizeBytes).CurrentValue = actualSize.Value;
+            }
 
             asset.MarkAsConfirmed();
             return Result.Ok();

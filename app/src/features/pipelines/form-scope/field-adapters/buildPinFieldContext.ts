@@ -1,4 +1,4 @@
-import type { PinDefinition } from "@/gen/model";
+import type { PinDefinition } from "@/features/pipelines/types/pipelineGraphTypes";
 import { normalizePinType } from "./normalizePinType.ts";
 import type { NormalizedCardinality, PinFieldContext, PinMetadataHint } from "./types";
 
@@ -27,10 +27,24 @@ export function buildPinFieldContext(
 ): PinFieldContext {
   const pinId = pin.id || "";
   const label = pin.label || pinId;
-  const primitive = normalizePinType(pin.primitiveType);
-  const cardinality = normalizePinCardinality(pin.cardinality, pin.primitiveType);
-  const hint = parsePinMetadataHint(pin.metadata);
-  const rawStruct = pin.structType?.trim() || null;
+  const primitive = normalizePinType((pin as any).dataType ?? pin.primitiveType);
+  const cardinality = normalizePinCardinality(pin.cardinality, (pin as any).dataType ?? pin.primitiveType);
+  let hint = parsePinMetadataHint(pin.metadata);
+  if (pin.uiMeta?.inputMode) {
+    if (pin.uiMeta.inputMode === "path" || pin.uiMeta.inputMode === "directory") {
+      hint = {
+        ...hint,
+        type: hint?.type || "path",
+        pathKind: hint?.pathKind || (pin.uiMeta.inputMode === "directory" ? "folder" : "file"),
+        accept: hint?.accept || (pin.uiMeta.acceptExtensions?.length ? pin.uiMeta.acceptExtensions.join(",") : undefined),
+      };
+    } else if (pin.uiMeta.inputMode === "multiline") {
+      hint = { ...hint, type: hint?.type || "textarea", multiline: true };
+    } else if (pin.uiMeta.inputMode === "select") {
+      hint = { ...hint, type: hint?.type || "select" };
+    }
+  }
+  const rawStruct = (pin as any).structSlug?.trim() || pin.structType?.trim() || null;
 
   return {
     pin,

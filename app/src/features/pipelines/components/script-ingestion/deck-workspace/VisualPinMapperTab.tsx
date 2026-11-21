@@ -9,9 +9,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { PinCardList } from "../../node-editor/PinCardList";
 import { PinConfigInspector } from "../../node-editor/PinConfigInspector";
-import type { AnalyzedCustomNodeDto, PinDefinition } from "@/gen/model";
-import { PinPrimitiveType } from "@/gen/model/pinPrimitiveType";
-import { PinCardinality } from "@/gen/model/pinCardinality";
+import {
+  PinPrimitiveType,
+  PinCardinality,
+  type AnalyzedCustomNodeDto,
+  type PinDefinition,
+} from "@/features/pipelines/types/pipelineGraphTypes";
 
 interface VisualPinMapperTabProps {
   node: AnalyzedCustomNodeDto;
@@ -39,6 +42,8 @@ export function VisualPinMapperTab({
   const handleAddInput = () => {
     const newPin: PinDefinition = {
       id: `param_${inputs.length + 1}`,
+      name: `param_${inputs.length + 1}`,
+      direction: "Input",
       label: `Param ${inputs.length + 1}`,
       primitiveType: PinPrimitiveType.String,
       cardinality: PinCardinality.Single,
@@ -61,6 +66,8 @@ export function VisualPinMapperTab({
   const handleAddOutput = () => {
     const newPin: PinDefinition = {
       id: `output_${outputs.length + 1}`,
+      name: `output_${outputs.length + 1}`,
+      direction: "Output",
       label: `Output ${outputs.length + 1}`,
       primitiveType: PinPrimitiveType.String,
       cardinality: PinCardinality.Single,

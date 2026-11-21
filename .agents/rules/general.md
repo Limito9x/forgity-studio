@@ -20,7 +20,10 @@ Những quy tắc này áp dụng cho toàn bộ workspace Monorepo `Automation/
   }
   ```
 - **Lệnh shell thay thế (khi không dùng MCP):** `codegraph explore "<query>" --path "d:\\FullStack\\Automation"`.
-- **Tuyệt đối cấm mò mẫm bằng Grep/View:** Nghiêm cấm dùng `grep_search`, `list_dir`, hoặc `view_file` để tìm kiếm mò mẫm, phán đoán mù mờ khi chưa dùng CodeGraph để nắm toàn bộ bức tranh dependencies, blast radius và verbatim source code.
+- **Khi CodeGraph chưa cover hoặc cần xác minh cục bộ — bắt buộc dùng 2 công cụ đã cài sẵn:**
+  - `ast-grep` (0.51+): tìm theo cấu trúc AST. Cú pháp: `ast-grep run -p '<pattern>' -l <lang> <dir>` (lang: `rust`, `ts`, `tsx`, `cs`, `yaml`, `json`...). Thay thế hàng loạt: thêm `-r '<rewrite>'`. Quét cả file bị `.gitignore`: thêm `--no-ignore`. **Không dùng `sg`** (alias deprecated).
+  - `rg` (ripgrep 15.x, PCRE2 + JIT): tìm text/literal. Cú pháp: `rg -n "<text>" <dir> -g "*.rs"`.
+- **Tuyệt đối cấm mò mẫm bằng Grep/View:** Nghiêm cấm dùng `grep`, `findstr`, `Select-String`, `list_dir`, hoặc `view_file` để tìm kiếm mò mẫm, phán đoán mù mờ khi chưa dùng CodeGraph để nắm toàn bộ bức tranh dependencies, blast radius và verbatim source code.
 
 ---
 
@@ -85,6 +88,13 @@ Khi thực hiện tác vụ, hãy xác định khu vực mã nguồn đang thao 
 4. **Tầng 4 - Hoàn Tất Phase & Chuyển Giao Tuần Tự (No Auto-Run Next Phase):**
    - Sau khi thực thi xong Phase X và nghiệm thu đạt yêu cầu, Agent tóm tắt kết quả và dừng lại.
    - **Nghiêm cấm tự động nhảy sang code Phase tiếp theo** khi chưa lập Implementation Plan chi tiết cho Phase mới và chưa được User duyệt.
+
+5. **Git Checkpoint Bắt Buộc (Pre-Plan & Per-Phase Commit):**
+   - **Trước khi bắt đầu thực thi Phase đầu tiên của Plan:** Kiểm tra `git status`; nếu có thay đổi chưa lưu từ tác vụ trước, bắt buộc phải **commit** (hoặc xác nhận với User để commit) nhằm đảm bảo baseline sạch sẽ trước khi code theo plan.
+   - **Điều kiện hoàn thành mỗi Phase:** Một Phase chỉ được coi là hoàn thành khi:
+     1. Toàn bộ scope của Phase đó **build/typecheck thành công** (ví dụ: `dotnet build`, `pnpm tsc`, `cargo check` tùy theo scope).
+     2. Toàn bộ thay đổi của Phase đã được **commit** gọn gàng vào Git.
+   - **Nghiêm cấm sang Phase mới** khi Phase hiện tại chưa build pass và chưa được commit.
 
 ---
 

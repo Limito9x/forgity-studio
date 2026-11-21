@@ -26,7 +26,6 @@ public class StudioApiService(StudioDbContext db) : IStudioApi, IProjectsApi
             studio.Name,
             studio.Slug,
             studio.PlanTier,
-            studio.ExecutionCreditsRemaining,
             studio.StudioManagedStorageQuotaBytes,
             studio.StudioManagedStorageUsedBytes
         ));
@@ -43,24 +42,9 @@ public class StudioApiService(StudioDbContext db) : IStudioApi, IProjectsApi
             studio.Name,
             studio.Slug,
             studio.PlanTier,
-            studio.ExecutionCreditsRemaining,
             studio.StudioManagedStorageQuotaBytes,
             studio.StudioManagedStorageUsedBytes
         ));
-    }
-
-    public async Task<Result> ConsumeExecutionCreditAsync(Guid studioId, int amount = 1, CancellationToken ct = default)
-    {
-        var studio = await db.Studios.FirstOrDefaultAsync(s => s.Id == studioId, ct);
-        if (studio == null)
-            return Result.Fail($"Studio with ID '{studioId}' was not found.");
-
-        if (studio.ExecutionCreditsRemaining < amount)
-            return Result.Fail($"Insufficient execution credits. Remaining: {studio.ExecutionCreditsRemaining}, Required: {amount}.");
-
-        studio.ExecutionCreditsRemaining -= amount;
-        await db.SaveChangesAsync(ct);
-        return Result.Ok();
     }
 
     public async Task<Result> UpdateManagedStorageUsageAsync(Guid studioId, long deltaBytes, CancellationToken ct = default)
@@ -84,7 +68,6 @@ public class StudioApiService(StudioDbContext db) : IStudioApi, IProjectsApi
                 s.Name,
                 s.Slug,
                 s.PlanTier,
-                s.ExecutionCreditsRemaining,
                 s.StudioManagedStorageQuotaBytes,
                 s.StudioManagedStorageUsedBytes,
                 s.Projects.Count,
@@ -103,9 +86,6 @@ public class StudioApiService(StudioDbContext db) : IStudioApi, IProjectsApi
 
         if (dto.PlanTier.HasValue)
             studio.PlanTier = dto.PlanTier.Value;
-
-        if (dto.ExecutionCreditsRemaining.HasValue)
-            studio.ExecutionCreditsRemaining = dto.ExecutionCreditsRemaining.Value;
 
         if (dto.StudioManagedStorageQuotaBytes.HasValue)
             studio.StudioManagedStorageQuotaBytes = dto.StudioManagedStorageQuotaBytes.Value;

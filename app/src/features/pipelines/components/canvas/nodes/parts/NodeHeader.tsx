@@ -1,7 +1,7 @@
 import { type ReactNode } from "react";
 import { useNodeId } from "@xyflow/react";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, AlertCircle, AlertTriangle, Loader2 } from "lucide-react";
+import { CheckCircle2, AlertCircle, AlertTriangle, Loader2, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNodeDiagnostics } from "@/features/pipelines/form-scope/PipelineFormScope";
 
@@ -14,7 +14,8 @@ interface NodeHeaderProps {
   subtitle: string;
   badgeLabel?: string | null;
   badgeVariantClass?: string;
-  status?: "idle" | "running" | "succeeded" | "failed";
+  status?: "idle" | "waiting" | "running" | "succeeded" | "failed";
+  progress?: { completed: number; total: number } | null;
 }
 
 export function NodeHeader({
@@ -27,6 +28,7 @@ export function NodeHeader({
   badgeLabel,
   badgeVariantClass,
   status = "idle",
+  progress,
 }: NodeHeaderProps) {
   const contextNodeId = useNodeId();
   const effectiveNodeId = explicitNodeId || contextNodeId || undefined;
@@ -73,6 +75,15 @@ export function NodeHeader({
         )}
 
         {/* Runtime Execution Status */}
+        {progress && progress.total > 1 && (status === "running" || status === "waiting" || status === "succeeded") && (
+          <Badge
+            variant="outline"
+            className="h-5 px-1.5 text-[9px] font-mono border-sky-500/40 text-sky-600 dark:text-sky-400 bg-sky-500/10"
+          >
+            {progress.completed}/{progress.total}
+          </Badge>
+        )}
+        {status === "waiting" && <Clock className="h-3.5 w-3.5 text-sky-500" />}
         {status === "running" && <Loader2 className="h-3.5 w-3.5 text-amber-500 animate-spin" />}
         {status === "succeeded" && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
         {status === "failed" && <AlertCircle className="h-3.5 w-3.5 text-destructive" />}

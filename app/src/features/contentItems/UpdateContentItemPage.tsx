@@ -1,9 +1,7 @@
 import { useState, useMemo } from "react";
 import { FormPageShell } from "@/components/layout/shells/FormPageShell";
 import { ContentItemForm, type ContentItemFormValues } from "./components/ContentItemForm";
-import { ContentResourcesTab } from "./components/ContentResourcesTab";
 import { useGetContentItem, useUpdateContentItem } from "./hooks/useContentItems";
-import { useGetResourcesByContent } from "@/gen/endpoints/resources/resources";
 import { useParams } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -28,11 +26,6 @@ export function UpdateContentItemPage() {
     const { data: contentType } = useGetContentType(projectId, typeKey);
 
     const { data: itemData, isLoading, error } = useGetContentItem(projectId, typeKey, itemKey);
-    const { data: linkedResources } = useGetResourcesByContent(itemData?.id ?? "", {
-        query: {
-            enabled: !!itemData?.id,
-        },
-    });
 
     const updateContentItem = useUpdateContentItem({ projectId, contentTypeKey: typeKey });
 
@@ -152,16 +145,6 @@ export function UpdateContentItemPage() {
                     >
                         <Layers className="size-3.5" />
                         <span>Workspace Resources</span>
-                        {linkedResources && linkedResources.length > 0 && (
-                            <span className={cn(
-                                "px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold",
-                                activeTab === "resources"
-                                    ? "bg-primary-foreground/20 text-primary-foreground"
-                                    : "bg-primary/10 text-primary"
-                            )}>
-                                {linkedResources.length}
-                            </span>
-                        )}
                     </button>
                 </div>
 
@@ -173,17 +156,6 @@ export function UpdateContentItemPage() {
                         initialData={initialFormValues}
                         onSubmit={handleSubmit}
                     />
-                )}
-
-                {/* Tab 2: Linked Workspace Resources */}
-                {activeTab === "resources" && (
-                    <div className="pt-2">
-                        <ContentResourcesTab
-                            contentId={itemData.id}
-                            contentName={itemData.name}
-                            projectId={projectId}
-                        />
-                    </div>
                 )}
             </div>
         </FormPageShell>

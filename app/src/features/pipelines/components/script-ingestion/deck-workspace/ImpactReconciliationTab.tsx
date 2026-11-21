@@ -1,7 +1,7 @@
 import { CheckCircle2, ShieldAlert, GitBranch, Layers, Unlink, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { AnalyzedCustomNodeDto } from "@/gen/model";
+import type { AnalyzedCustomNodeDto } from "@/features/pipelines/types/pipelineGraphTypes";
 
 interface ImpactReconciliationTabProps {
   node: AnalyzedCustomNodeDto;

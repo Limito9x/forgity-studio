@@ -6,7 +6,9 @@ import { useAssetField } from "@/hooks/useFileUpload";
 import { useOptionalProject } from "@/features/projects/context/ProjectContext";
 import { FileUploadField } from "../custom-ui/inputs/file-upload/FileUploadField";
 import { registerField, type ExtractConfig } from "@/lib/field-registry";
-import type { AssetDto } from "@/gen/model/assetDto";
+import type { ConfirmAssetDto } from "@/gen/model/confirmAssetDto";
+
+export type AssetDto = ConfirmAssetDto & { name?: string };
 
 export interface FormFileUploadProps<T extends FieldValues>
   extends BaseFormControlProps<T>,

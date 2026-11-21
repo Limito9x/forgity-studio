@@ -1,6 +1,6 @@
 import { definitionKey, indexDefinitions } from "../../nodeDefinitions";
 import { createContext, useContext, useMemo, type ReactNode } from "react";
-import type { NodePaletteItemDto } from "@/gen/model";
+import type { NodePaletteItemDto } from "@/features/pipelines/types/pipelineGraphTypes";
 
 const Definitions = createContext<Map<string, NodePaletteItemDto>>(new Map());
 export function NodeDefinitionsProvider({ items, children }: { items: NodePaletteItemDto[]; children: ReactNode }) {
@@ -9,4 +9,7 @@ export function NodeDefinitionsProvider({ items, children }: { items: NodePalett
 }
 export function useNodeDefinition(kind = "", refId = "") {
   return useContext(Definitions).get(definitionKey(kind, refId));
+}
+export function useNodeDefinitionsMap() {
+  return useContext(Definitions);
 }

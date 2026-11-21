@@ -5,13 +5,13 @@ import { Sliders, CheckCircle2, Key } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FormRenderer } from "@/components/dynamic-form/FormRenderer";
 import { useNodeDefinition } from "./NodeDefinitions";
-import { nodeView } from "../../nodeDefinitions";
+import { nodeView, resolveNodePinsFromDefinition } from "../../nodeDefinitions";
 import type { CustomPipelineNodeData } from "./nodes/types";
 import { PipelineStartNodeInspector } from "./PipelineStartNodeInspector";
 import { pipelineRegistry } from "../../form-scope/pipelineRegistry";
 import { usePipelineFormScope, useNodeDiagnostics } from "../../form-scope/PipelineFormScope";
 import { pinToFieldDefinition } from "../../form-scope/pinToFieldDefinition";
-import { useGetStructCatalogue } from "@/gen/endpoints/pipelines/pipelines";
+import { usePipelineWorkspaceOptional } from "../../context/PipelineWorkspaceContext";
 import { NodeConfigHeader } from "./inspector/NodeConfigHeader";
 import { NodeConfigDiagnosticsBanner } from "./inspector/NodeConfigDiagnosticsBanner";
 import { NodeConfigStructSelector } from "./inspector/NodeConfigStructSelector";
@@ -43,7 +43,8 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
   isReadOnly = false,
 }: NodeConfigInspectorProps) {
   const { edges = [], nodes = [], projectId = "" } = usePipelineFormScope();
-  const { data: structCatalogue = [] } = useGetStructCatalogue({ projectId });
+  const workspaceCtx = usePipelineWorkspaceOptional();
+  const structCatalogue = workspaceCtx?.structCatalogue ?? [];
   const { nodeDiagnostics, errorCount, warningCount, hasErrors, getPinDiagnostics } =
     useNodeDiagnostics(node?.id);
 
@@ -58,7 +59,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
 
   const isStructSelector = definition?.capabilities?.inspectorMode === "StructSelector";
   const hasModeSelector = (definition?.capabilities?.schemaConfigKeys || []).some(
-    (k) => String(k).toLowerCase() === "mode"
+    (k: any) => String(k).toLowerCase() === "mode"
   );
 
   const isComponentPipeNode =
@@ -69,7 +70,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
   const isConstantNode = Boolean((definition?.capabilities as any)?.isConstantNode);
   const constCaps = (definition?.capabilities as any) || {};
 
-  const inputs = data.inputs || [];
+  const inputs = resolveNodePinsFromDefinition(data, definition).inputs;
   const configValues = data.configValues || {};
 
   // Form Management with React Hook Form
@@ -232,7 +233,7 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
                 maxConcurrency={Number(configValues["_maxConcurrency"]) || 2}
                 iterablePin={String(configValues["_iterablePin"] || "")}
                 skipOnError={configValues["_skipOnError"] !== false}
-                availablePins={configurableInputs.map((p) => ({ id: p.id || "", label: p.label }))}
+                availablePins={configurableInputs.map((p) => ({ id: p.id || "", label: p.name || p.id || "" }))}
                 isReadOnly={isReadOnly}
                 onUpdateBatch={(updates) => {
                   if (updates.isBatch !== undefined) onUpdateConfig(node.id, "_isBatch", updates.isBatch);
@@ -264,15 +265,19 @@ export const NodeConfigInspector = memo(function NodeConfigInspector({
                   </div>
                   <div className="pt-1">
                     <span className="text-foreground/80 block">Resolved Value:</span>
-                    <div className="bg-background/80 p-2 rounded border border-border/50 text-[11px] text-amber-400 break-all select-all">
-                      {String(constCaps.resolvedValue ?? "")}
+                    <div className="bg-background/80 p-2 rounded border border-border/50 text-[11px] text-amber-400 break-all whitespace-pre-wrap select-all">
+                      {Array.isArray(constCaps.resolvedValue)
+                        ? constCaps.resolvedValue.join("\n")
+                        : String(constCaps.resolvedValue ?? "")}
                     </div>
                   </div>
                   {constCaps.resolvedUnrealPath && (
                     <div className="pt-1">
                       <span className="text-foreground/80 block">Virtual Path (/Game/...):</span>
-                      <div className="bg-background/80 p-2 rounded border border-border/50 text-[11px] text-indigo-400 break-all select-all">
-                        {String(constCaps.resolvedUnrealPath)}
+                      <div className="bg-background/80 p-2 rounded border border-border/50 text-[11px] text-indigo-400 break-all whitespace-pre-wrap select-all">
+                        {Array.isArray(constCaps.resolvedUnrealPath)
+                          ? constCaps.resolvedUnrealPath.join("\n")
+                          : String(constCaps.resolvedUnrealPath)}
                       </div>
                     </div>
                   )}

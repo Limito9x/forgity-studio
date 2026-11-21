@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { useLocalPaletteQuery } from "../../hooks/workspace";
+import { useWorkspaceTabsStore } from "../../stores/useWorkspaceTabsStore";
 import {
   useWorkspaceUiPrefsStore,
   useProjectUiPrefs,
@@ -30,7 +31,14 @@ import type {
   LocalDraftNode,
   LocalStructDefinition,
 } from "../../types/workspaceConfig";
-import type { AnalyzedCustomNodeDto } from "@/gen/model";
+import type { AnalyzedCustomNodeDto } from "@/features/pipelines/types/pipelineGraphTypes";
+import { useLocalPipelinesQuery } from "../../hooks/workspace/useLocalPipelinesQuery";
+import {
+  computeScriptPinDiffs,
+  computeLocalScriptImpact,
+  reconcileLocalPipelines,
+  type ReconcileChange,
+} from "../../utils/localScriptReconciler";
 
 interface LocalNodePaletteWorkbenchProps {
   projectId: string;
@@ -58,6 +66,11 @@ export function LocalNodePaletteWorkbench({
     saveScriptOverride,
   } = useLocalPaletteQuery(rootPath, scriptsDir, customIgnores);
 
+  const {
+    pipelines: localPipelines,
+    savePipelineDraft,
+  } = useLocalPipelinesQuery(rootPath);
+
   const uiPrefs = useProjectUiPrefs(projectId);
   const setPaletteDeckPrefs = useWorkspaceUiPrefsStore((s) => s.setPaletteDeckPrefs);
 
@@ -68,6 +81,7 @@ export function LocalNodePaletteWorkbench({
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const [libraryEdits, setLibraryEdits] = useState<Record<string, LocalDraftNode>>({});
   const [isSavingOverride, setIsSavingOverride] = useState(false);
+  const [reconcileStrategies, setReconcileStrategies] = useState<Record<string, number>>({});
 
   const activeTab: IngestionActiveTab = uiPrefs.paletteDeck.activeTab || "pins";
   const setActiveTab = (tab: IngestionActiveTab) => {
@@ -132,6 +146,12 @@ export function LocalNodePaletteWorkbench({
             lastSyncedAt: node.lastSyncedAt || "",
           };
         });
+        const statusRank = { new: 0, modified: 1, unchanged: 2 } as const;
+        items.sort(
+          (a, b) =>
+            statusRank[a.status] - statusRank[b.status] ||
+            (a.suggestedLabel || a.fileName).localeCompare(b.suggestedLabel || b.fileName)
+        );
         setStagedNodes(items);
         if (initialScriptKey) {
           const foundIdx = items.findIndex((i) => i.key === initialScriptKey);
@@ -153,12 +173,15 @@ export function LocalNodePaletteWorkbench({
     }
   };
 
-  // Only scan when user explicitly triggers Sync (scanRequest increments > 0)
+  const consumePaletteScan = useWorkspaceTabsStore((s) => s.consumePaletteScan);
+
+  // Only scan when user explicitly triggers Sync (consume request immediately so re-opening tab doesn't re-scan)
   useEffect(() => {
     if (scanRequest > 0) {
+      consumePaletteScan();
       runDiskScan();
     }
-  }, [scanRequest]);
+  }, [scanRequest, consumePaletteScan]);
 
   // Select initial script in library mode if provided
   useEffect(() => {
@@ -171,48 +194,75 @@ export function LocalNodePaletteWorkbench({
   const activeItems = mode === "review" ? stagedNodes : libraryItems;
 
   const analyzedNodes: AnalyzedCustomNodeDto[] = useMemo(() => {
-    return activeItems.map((item) => ({
-      key: item.key,
-      fileName: item.fileName,
-      suggestedName: item.suggestedName,
-      suggestedLabel: item.suggestedLabel,
-      executor: item.executor,
-      description: item.description ?? null,
-      contentHash: item.contentHash,
-      isOverride: mode === "review" ? item.status === "modified" : false,
-      existingNodeId: null,
-      hasBreakingChanges: false,
-      impactReport: {
-        affectedPipelineCount: 0,
-        affectedNodeCount: 0,
-        affectedEdgeCount: 0,
-        affectedPipelineNames: [],
-      },
-      inputPinDiffs: [],
-      outputPinDiffs: [],
-      inputs: item.inputs.map((p) => ({
-        id: p.id,
-        label: p.label,
-        primitiveType: p.primitiveType as any,
-        structType: p.structType ?? null,
-        isRequired: Boolean(p.isRequired),
-        defaultValue: p.defaultValue ?? null,
-        description: p.description ?? null,
-        metadata: p.metadata ?? null,
-      })),
-      outputs: item.outputs.map((p) => ({
-        id: p.id,
-        label: p.label,
-        primitiveType: p.primitiveType as any,
-        structType: p.structType ?? null,
-        isRequired: Boolean(p.isRequired),
-        defaultValue: p.defaultValue ?? null,
-        description: p.description ?? null,
-        metadata: p.metadata ?? null,
-      })),
-      dependencies: item.dependencies,
-    }));
-  }, [activeItems, mode]);
+    return activeItems.map((item) => {
+      const existing = draftNodes[item.key];
+      const isModified =
+        mode === "review" ? item.status === "modified" : Boolean(libraryEdits[item.key]);
+      const diffs = existing
+        ? computeScriptPinDiffs(
+          existing.inputs || [],
+          existing.outputs || [],
+          item.inputs || [],
+          item.outputs || [],
+        )
+        : {
+          inputPinDiffs: [],
+          outputPinDiffs: [],
+          breakingInputIds: new Set<string>(),
+          breakingOutputIds: new Set<string>(),
+        };
+      const impactReport = isModified
+        ? computeLocalScriptImpact(item.key, diffs, localPipelines)
+        : {
+          affectedPipelineCount: 0,
+          affectedNodeCount: 0,
+          affectedEdgeCount: 0,
+          affectedPipelineNames: [],
+        };
+
+      return {
+        key: item.key,
+        fileName: item.fileName,
+        suggestedName: item.suggestedName,
+        suggestedLabel: item.suggestedLabel,
+        executor: item.executor,
+        description: item.description ?? null,
+        contentHash: item.contentHash,
+        isOverride: isModified,
+        localStatus: item.status,
+        existingNodeId: null,
+        hasBreakingChanges: impactReport.affectedEdgeCount > 0,
+        impactReport,
+        inputPinDiffs: diffs.inputPinDiffs,
+        outputPinDiffs: diffs.outputPinDiffs,
+        inputs: item.inputs.map((p) => ({
+          id: p.id,
+          name: p.name || p.id,
+          direction: "Input",
+          label: p.label,
+          primitiveType: p.primitiveType as any,
+          structType: p.structType ?? null,
+          isRequired: Boolean(p.isRequired),
+          defaultValue: p.defaultValue ?? null,
+          description: p.description ?? null,
+          metadata: p.metadata ?? null,
+        })),
+        outputs: item.outputs.map((p) => ({
+          id: p.id,
+          name: p.name || p.id,
+          direction: "Output",
+          label: p.label,
+          primitiveType: p.primitiveType as any,
+          structType: p.structType ?? null,
+          isRequired: Boolean(p.isRequired),
+          defaultValue: p.defaultValue ?? null,
+          description: p.description ?? null,
+          metadata: p.metadata ?? null,
+        })),
+        dependencies: item.dependencies,
+      };
+    });
+  }, [activeItems, mode, draftNodes, libraryEdits, localPipelines]);
 
   const safeSelectedIndex = Math.min(
     selectedIndex,
@@ -229,32 +279,32 @@ export function LocalNodePaletteWorkbench({
         prev.map((item, idx) =>
           idx === safeSelectedIndex
             ? {
-                ...item,
-                suggestedName: updatedDto.suggestedName,
-                suggestedLabel: updatedDto.suggestedLabel,
-                executor: updatedDto.executor,
-                description: updatedDto.description ?? undefined,
-                inputs: (updatedDto.inputs || []).map((p) => ({
-                  id: p.id,
-                  label: p.label,
-                  primitiveType: p.primitiveType as any,
-                  structType: p.structType ?? undefined,
-                  isRequired: Boolean(p.isRequired),
-                  defaultValue: p.defaultValue,
-                  description: p.description ?? undefined,
-                  metadata: p.metadata ?? undefined,
-                })),
-                outputs: (updatedDto.outputs || []).map((p) => ({
-                  id: p.id,
-                  label: p.label,
-                  primitiveType: p.primitiveType as any,
-                  structType: p.structType ?? undefined,
-                  isRequired: Boolean(p.isRequired),
-                  defaultValue: p.defaultValue,
-                  description: p.description ?? undefined,
-                  metadata: p.metadata ?? undefined,
-                })),
-              }
+              ...item,
+              suggestedName: updatedDto.suggestedName,
+              suggestedLabel: updatedDto.suggestedLabel,
+              executor: updatedDto.executor,
+              description: updatedDto.description ?? undefined,
+              inputs: (updatedDto.inputs || []).map((p) => ({
+                id: p.id,
+                label: p.label,
+                primitiveType: p.primitiveType as any,
+                structType: p.structType ?? undefined,
+                isRequired: Boolean(p.isRequired),
+                defaultValue: p.defaultValue,
+                description: p.description ?? undefined,
+                metadata: p.metadata ?? undefined,
+              })),
+              outputs: (updatedDto.outputs || []).map((p) => ({
+                id: p.id,
+                label: p.label,
+                primitiveType: p.primitiveType as any,
+                structType: p.structType ?? undefined,
+                isRequired: Boolean(p.isRequired),
+                defaultValue: p.defaultValue,
+                description: p.description ?? undefined,
+                metadata: p.metadata ?? undefined,
+              })),
+            }
             : item,
         ),
       );
@@ -333,6 +383,31 @@ export function LocalNodePaletteWorkbench({
           outputs: outputsMap,
         },
       });
+      const existing = draftNodes[edited.key];
+      if (existing) {
+        const diffs = computeScriptPinDiffs(
+          existing.inputs || [],
+          existing.outputs || [],
+          edited.inputs || [],
+          edited.outputs || [],
+        );
+        const reconciledCount = await reconcileLocalPipelines(
+          [
+            {
+              scriptKey: edited.key,
+              strategy: reconcileStrategies[edited.key] ?? 0,
+              diffs,
+              newInputs: (edited.inputs || []) as any,
+              newOutputs: (edited.outputs || []) as any,
+            },
+          ],
+          localPipelines,
+          ({ fullPath, content }) => savePipelineDraft({ filePath: fullPath, content }),
+        );
+        if (reconciledCount > 0) {
+          toast.info(`Reconciled wires in ${reconciledCount} local pipeline(s).`);
+        }
+      }
       setLibraryEdits((prev) => {
         const next = { ...prev };
         delete next[edited.key];
@@ -392,10 +467,39 @@ export function LocalNodePaletteWorkbench({
     }
 
     try {
+      const reconcileChanges: ReconcileChange[] = [];
+      for (const item of stagedNodes) {
+        const existing = draftNodes[item.key];
+        if (!existing || item.status !== "modified") continue;
+        const diffs = computeScriptPinDiffs(
+          existing.inputs || [],
+          existing.outputs || [],
+          item.inputs || [],
+          item.outputs || [],
+        );
+        reconcileChanges.push({
+          scriptKey: item.key,
+          strategy: reconcileStrategies[item.key] ?? 0,
+          diffs,
+          newInputs: (item.inputs || []) as any,
+          newOutputs: (item.outputs || []) as any,
+        });
+      }
+
       await applyPalette({ nodes: nodesMap, structs: stagedStructs });
-      toast.success(`Synced ${stagedNodes.length} nodes to Local Palette!`);
+      const reconciledCount = await reconcileLocalPipelines(
+        reconcileChanges,
+        localPipelines,
+        ({ fullPath, content }) => savePipelineDraft({ filePath: fullPath, content }),
+      );
+      toast.success(
+        reconciledCount > 0
+          ? `Synced ${stagedNodes.length} nodes and reconciled ${reconciledCount} pipeline(s)!`
+          : `Synced ${stagedNodes.length} nodes to Local Palette!`,
+      );
       setMode("library");
       setStagedNodes([]);
+      setReconcileStrategies({});
     } catch (err: any) {
       toast.error("Failed to save local palette", {
         description: err?.message,
@@ -436,11 +540,11 @@ export function LocalNodePaletteWorkbench({
           </div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-sm font-bold tracking-tight text-foreground">
-              Node Palette
+              Local Scripts
             </h1>
             {mode === "library" ? (
               <Badge variant="outline" className="text-[11px] font-mono">
-                Palette · {libraryItems.length} nodes
+                Scripts · {libraryItems.length}
               </Badge>
             ) : (
               <Badge
@@ -573,8 +677,13 @@ export function LocalNodePaletteWorkbench({
                 {activeTab === "impact" && (
                   <ImpactReconciliationTab
                     node={selectedNode}
-                    strategy={0}
-                    onStrategyChange={() => {}}
+                    strategy={reconcileStrategies[selectedNode.key] ?? 0}
+                    onStrategyChange={(strategy) =>
+                      setReconcileStrategies((prev) => ({
+                        ...prev,
+                        [selectedNode.key]: strategy,
+                      }))
+                    }
                   />
                 )}
               </div>

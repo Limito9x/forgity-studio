@@ -18,7 +18,7 @@ export function UpdateUserPage() {
             { id, data },
             {
                 onSuccess: () => {
-                    navigate({ to: "/users/$id", params: { id } });
+                    navigate({ to: "/admin/users/$id", params: { id } });
                 }
             }
         );

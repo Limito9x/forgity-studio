@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as LocalRouteImport } from './routes/local'
@@ -19,60 +20,68 @@ import { Route as AuthAcceptInviteRouteImport } from './routes/auth/accept-invit
 import { Route as AuthForgotPasswordRouteImport } from './routes/auth/forgot-password'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as AuthLogoutRouteImport } from './routes/auth/logout'
+import { Route as AuthRegisterRouteImport } from './routes/auth/register'
 import { Route as AuthResetPasswordRouteImport } from './routes/auth/reset-password'
 import { Route as LocalIndexRouteImport } from './routes/local/index'
 import { Route as LocalMachineRouteImport } from './routes/local/machine'
-import { Route as ProtectedLayoutIndexRouteImport } from './routes/_protected/_layout/index'
 import { Route as ProtectedLayout403RouteImport } from './routes/_protected/_layout/403'
 import { Route as ProtectedLayoutDevRouteImport } from './routes/_protected/_layout/dev'
-import { Route as ProtectedLayoutRolesRouteRouteImport } from './routes/_protected/_layout/roles/route'
-import { Route as ProtectedLayoutRunnersRouteImport } from './routes/_protected/_layout/runners'
-import { Route as ProtectedLayoutSettingsRouteRouteImport } from './routes/_protected/_layout/settings/route'
-import { Route as ProtectedLayoutStorageRouteImport } from './routes/_protected/_layout/storage'
-import { Route as ProtectedLayoutUsersRouteRouteImport } from './routes/_protected/_layout/users/route'
-import { Route as ProtectedLayoutRolesIndexRouteImport } from './routes/_protected/_layout/roles/index'
-import { Route as ProtectedLayoutRunnersRunnerIdRouteImport } from './routes/_protected/_layout/runners_.$runnerId'
-import { Route as ProtectedLayoutSettingsIndexRouteImport } from './routes/_protected/_layout/settings/index'
-import { Route as ProtectedLayoutSettingsNotificationsRouteImport } from './routes/_protected/_layout/settings/notifications'
-import { Route as ProtectedLayoutSettingsProfileRouteImport } from './routes/_protected/_layout/settings/profile'
-import { Route as ProtectedLayoutSettingsSecurityRouteImport } from './routes/_protected/_layout/settings/security'
-import { Route as ProtectedLayoutSystemAuditLogsRouteImport } from './routes/_protected/_layout/system/audit-logs'
-import { Route as ProtectedLayoutSystemSettingsRouteImport } from './routes/_protected/_layout/system/settings'
-import { Route as ProtectedLayoutSystemStudiosRouteImport } from './routes/_protected/_layout/system/studios'
-import { Route as ProtectedLayoutUsersIndexRouteImport } from './routes/_protected/_layout/users/index'
-import { Route as ProtectedLayoutUsersNewRouteImport } from './routes/_protected/_layout/users/new'
-import { Route as ProtectedLayoutSStudioSlugIndexRouteImport } from './routes/_protected/_layout/s/$studioSlug/index'
-import { Route as ProtectedLayoutSStudioSlugRunnersRouteImport } from './routes/_protected/_layout/s/$studioSlug/runners'
-import { Route as ProtectedLayoutSStudioSlugStorageRouteImport } from './routes/_protected/_layout/s/$studioSlug/storage'
-import { Route as ProtectedLayoutSystemAuditLogsIndexRouteImport } from './routes/_protected/_layout/system/audit-logs/index'
-import { Route as ProtectedLayoutSystemAuditLogsIdRouteImport } from './routes/_protected/_layout/system/audit-logs/$id'
-import { Route as ProtectedLayoutUsersIdIndexRouteImport } from './routes/_protected/_layout/users/$id/index'
-import { Route as ProtectedLayoutUsersIdEditRouteImport } from './routes/_protected/_layout/users/$id/edit'
-import { Route as ProtectedLayoutSStudioSlugProjectsIndexRouteImport } from './routes/_protected/_layout/s/$studioSlug/projects/index'
-import { Route as ProtectedLayoutSStudioSlugRunnersRunnerIdRouteImport } from './routes/_protected/_layout/s/$studioSlug/runners_.$runnerId'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/route'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/content-types'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/contents'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/migrations'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdOverviewRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/overview'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/structs'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/content-types/index'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/contents/index'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/index'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/$pipelineId'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/structs/index'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/index'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/index'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/new'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/index'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/new'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/workspace/index'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/structs/$structId/builder'
-import { Route as ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRouteImport } from './routes/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
+import { Route as ProtectedLayoutAccountSettingsRouteRouteImport } from './routes/_protected/_layout/account/settings/route'
+import { Route as ProtectedLayoutAdminIndexRouteImport } from './routes/_protected/_layout/admin/index'
+import { Route as ProtectedLayoutAdminAuditLogsRouteImport } from './routes/_protected/_layout/admin/audit-logs'
+import { Route as ProtectedLayoutAdminRolesRouteRouteImport } from './routes/_protected/_layout/admin/roles/route'
+import { Route as ProtectedLayoutAdminSettingsRouteImport } from './routes/_protected/_layout/admin/settings'
+import { Route as ProtectedLayoutAdminStudiosRouteImport } from './routes/_protected/_layout/admin/studios'
+import { Route as ProtectedLayoutAdminTemplatesRouteImport } from './routes/_protected/_layout/admin/templates'
+import { Route as ProtectedLayoutAdminUsersRouteRouteImport } from './routes/_protected/_layout/admin/users/route'
+import { Route as ProtectedLayoutStudioIndexRouteImport } from './routes/_protected/_layout/studio/index'
+import { Route as ProtectedLayoutTemplatesIndexRouteImport } from './routes/_protected/_layout/templates/index'
+import { Route as ProtectedLayoutTemplatesTemplateIdRouteImport } from './routes/_protected/_layout/templates/$templateId'
+import { Route as ProtectedLayoutWorkspacesIndexRouteImport } from './routes/_protected/_layout/workspaces/index'
+import { Route as ProtectedLayoutWorkspacesWorkspaceIdRouteImport } from './routes/_protected/_layout/workspaces/$workspaceId'
+import { Route as ProtectedLayoutAccountSettingsIndexRouteImport } from './routes/_protected/_layout/account/settings/index'
+import { Route as ProtectedLayoutAccountSettingsNotificationsRouteImport } from './routes/_protected/_layout/account/settings/notifications'
+import { Route as ProtectedLayoutAccountSettingsProfileRouteImport } from './routes/_protected/_layout/account/settings/profile'
+import { Route as ProtectedLayoutAccountSettingsSecurityRouteImport } from './routes/_protected/_layout/account/settings/security'
+import { Route as ProtectedLayoutAdminAuditLogsIndexRouteImport } from './routes/_protected/_layout/admin/audit-logs/index'
+import { Route as ProtectedLayoutAdminAuditLogsIdRouteImport } from './routes/_protected/_layout/admin/audit-logs/$id'
+import { Route as ProtectedLayoutAdminRolesIndexRouteImport } from './routes/_protected/_layout/admin/roles/index'
+import { Route as ProtectedLayoutAdminUsersIndexRouteImport } from './routes/_protected/_layout/admin/users/index'
+import { Route as ProtectedLayoutAdminUsersNewRouteImport } from './routes/_protected/_layout/admin/users/new'
+import { Route as ProtectedLayoutStudioStudioSlugIndexRouteImport } from './routes/_protected/_layout/studio/$studioSlug/index'
+import { Route as ProtectedLayoutStudioStudioSlugRunnersRouteImport } from './routes/_protected/_layout/studio/$studioSlug/runners'
+import { Route as ProtectedLayoutStudioStudioSlugStorageRouteImport } from './routes/_protected/_layout/studio/$studioSlug/storage'
+import { Route as ProtectedLayoutTemplatesLibraryIndexRouteImport } from './routes/_protected/_layout/templates/library/index'
+import { Route as ProtectedLayoutTemplatesLibraryLibraryItemIdRouteImport } from './routes/_protected/_layout/templates/library/$libraryItemId'
+import { Route as ProtectedLayoutAdminUsersIdIndexRouteImport } from './routes/_protected/_layout/admin/users/$id/index'
+import { Route as ProtectedLayoutAdminUsersIdEditRouteImport } from './routes/_protected/_layout/admin/users/$id/edit'
+import { Route as ProtectedLayoutStudioStudioSlugProjectsIndexRouteImport } from './routes/_protected/_layout/studio/$studioSlug/projects/index'
+import { Route as ProtectedLayoutStudioStudioSlugRunnersRunnerIdRouteImport } from './routes/_protected/_layout/studio/$studioSlug/runners_.$runnerId'
+import { Route as ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRouteImport } from './routes/_protected/_project/studio/$studioSlug/projects/$projectId/route'
+import { Route as ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRouteImport } from './routes/_protected/_project/studio/$studioSlug/projects/$projectId/content-types'
+import { Route as ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRouteImport } from './routes/_protected/_project/studio/$studioSlug/projects/$projectId/contents'
+import { Route as ProtectedProjectStudioStudioSlugProjectsProjectIdMigrationsRouteImport } from './routes/_protected/_project/studio/$studioSlug/projects/$projectId/migrations'
+import { Route as ProtectedProjectStudioStudioSlugProjectsProjectIdOverviewRouteImport } from './routes/_protected/_project/studio/$studioSlug/projects/$projectId/overview'
+import { Route as ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRouteImport } from './routes/_protected/_project/studio/$studioSlug/projects/$projectId/structs'
+import { Route as ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesIndexRouteImport } from './routes/_protected/_project/studio/$studioSlug/projects/$projectId/content-types/index'
+import { Route as ProtectedProjectStudioStudioSlugProjectsProjectIdContentsIndexRouteImport } from './routes/_protected/_project/studio/$studioSlug/projects/$projectId/contents/index'
+import { Route as ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRouteImport } from './routes/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey'
+import { Route as ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineIndexRouteImport } from './routes/_protected/_project/studio/$studioSlug/projects/$projectId/pipeline/index'
+import { Route as ProtectedProjectStudioStudioSlugProjectsProjectIdPipelinePipelineIdRouteImport } from './routes/_protected/_project/studio/$studioSlug/projects/$projectId/pipeline/$pipelineId'
+import { Route as ProtectedProjectStudioStudioSlugProjectsProjectIdStructsIndexRouteImport } from './routes/_protected/_project/studio/$studioSlug/projects/$projectId/structs/index'
+import { Route as ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRouteImport } from './routes/_protected/_project/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId/index'
+import { Route as ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRouteImport } from './routes/_protected/_project/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder'
+import { Route as ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyIndexRouteImport } from './routes/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey/index'
+import { Route as ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyNewRouteImport } from './routes/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey/new'
+import { Route as ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineWorkspaceIndexRouteImport } from './routes/_protected/_project/studio/$studioSlug/projects/$projectId/pipeline/workspace/index'
+import { Route as ProtectedProjectStudioStudioSlugProjectsProjectIdStructsStructIdBuilderRouteImport } from './routes/_protected/_project/studio/$studioSlug/projects/$projectId/structs/$structId/builder'
+import { Route as ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRouteImport } from './routes/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
 
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProtectedRoute = ProtectedRouteImport.update({
   id: '/_protected',
   getParentRoute: () => rootRouteImport,
@@ -120,6 +129,11 @@ const AuthLogoutRoute = AuthLogoutRouteImport.update({
   path: '/logout',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthRegisterRoute = AuthRegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
@@ -135,11 +149,6 @@ const LocalMachineRoute = LocalMachineRouteImport.update({
   path: '/machine',
   getParentRoute: () => LocalRoute,
 } as any)
-const ProtectedLayoutIndexRoute = ProtectedLayoutIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => ProtectedLayoutRoute,
-} as any)
 const ProtectedLayout403Route = ProtectedLayout403RouteImport.update({
   id: '/403',
   path: '/403',
@@ -150,335 +159,357 @@ const ProtectedLayoutDevRoute = ProtectedLayoutDevRouteImport.update({
   path: '/dev',
   getParentRoute: () => ProtectedLayoutRoute,
 } as any)
-const ProtectedLayoutRolesRouteRoute =
-  ProtectedLayoutRolesRouteRouteImport.update({
-    id: '/roles',
-    path: '/roles',
+const ProtectedLayoutAccountSettingsRouteRoute =
+  ProtectedLayoutAccountSettingsRouteRouteImport.update({
+    id: '/account/settings',
+    path: '/account/settings',
     getParentRoute: () => ProtectedLayoutRoute,
   } as any)
-const ProtectedLayoutRunnersRoute = ProtectedLayoutRunnersRouteImport.update({
-  id: '/runners',
-  path: '/runners',
-  getParentRoute: () => ProtectedLayoutRoute,
-} as any)
-const ProtectedLayoutSettingsRouteRoute =
-  ProtectedLayoutSettingsRouteRouteImport.update({
-    id: '/settings',
-    path: '/settings',
+const ProtectedLayoutAdminIndexRoute =
+  ProtectedLayoutAdminIndexRouteImport.update({
+    id: '/admin/',
+    path: '/admin/',
     getParentRoute: () => ProtectedLayoutRoute,
   } as any)
-const ProtectedLayoutStorageRoute = ProtectedLayoutStorageRouteImport.update({
-  id: '/storage',
-  path: '/storage',
-  getParentRoute: () => ProtectedLayoutRoute,
-} as any)
-const ProtectedLayoutUsersRouteRoute =
-  ProtectedLayoutUsersRouteRouteImport.update({
-    id: '/users',
-    path: '/users',
+const ProtectedLayoutAdminAuditLogsRoute =
+  ProtectedLayoutAdminAuditLogsRouteImport.update({
+    id: '/admin/audit-logs',
+    path: '/admin/audit-logs',
     getParentRoute: () => ProtectedLayoutRoute,
   } as any)
-const ProtectedLayoutRolesIndexRoute =
-  ProtectedLayoutRolesIndexRouteImport.update({
+const ProtectedLayoutAdminRolesRouteRoute =
+  ProtectedLayoutAdminRolesRouteRouteImport.update({
+    id: '/admin/roles',
+    path: '/admin/roles',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutAdminSettingsRoute =
+  ProtectedLayoutAdminSettingsRouteImport.update({
+    id: '/admin/settings',
+    path: '/admin/settings',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutAdminStudiosRoute =
+  ProtectedLayoutAdminStudiosRouteImport.update({
+    id: '/admin/studios',
+    path: '/admin/studios',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutAdminTemplatesRoute =
+  ProtectedLayoutAdminTemplatesRouteImport.update({
+    id: '/admin/templates',
+    path: '/admin/templates',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutAdminUsersRouteRoute =
+  ProtectedLayoutAdminUsersRouteRouteImport.update({
+    id: '/admin/users',
+    path: '/admin/users',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutStudioIndexRoute =
+  ProtectedLayoutStudioIndexRouteImport.update({
+    id: '/studio/',
+    path: '/studio/',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutTemplatesIndexRoute =
+  ProtectedLayoutTemplatesIndexRouteImport.update({
+    id: '/templates/',
+    path: '/templates/',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutTemplatesTemplateIdRoute =
+  ProtectedLayoutTemplatesTemplateIdRouteImport.update({
+    id: '/templates/$templateId',
+    path: '/templates/$templateId',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutWorkspacesIndexRoute =
+  ProtectedLayoutWorkspacesIndexRouteImport.update({
+    id: '/workspaces/',
+    path: '/workspaces/',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutWorkspacesWorkspaceIdRoute =
+  ProtectedLayoutWorkspacesWorkspaceIdRouteImport.update({
+    id: '/workspaces/$workspaceId',
+    path: '/workspaces/$workspaceId',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutAccountSettingsIndexRoute =
+  ProtectedLayoutAccountSettingsIndexRouteImport.update({
     id: '/',
     path: '/',
-    getParentRoute: () => ProtectedLayoutRolesRouteRoute,
+    getParentRoute: () => ProtectedLayoutAccountSettingsRouteRoute,
   } as any)
-const ProtectedLayoutRunnersRunnerIdRoute =
-  ProtectedLayoutRunnersRunnerIdRouteImport.update({
-    id: '/runners_/$runnerId',
-    path: '/runners/$runnerId',
-    getParentRoute: () => ProtectedLayoutRoute,
-  } as any)
-const ProtectedLayoutSettingsIndexRoute =
-  ProtectedLayoutSettingsIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => ProtectedLayoutSettingsRouteRoute,
-  } as any)
-const ProtectedLayoutSettingsNotificationsRoute =
-  ProtectedLayoutSettingsNotificationsRouteImport.update({
+const ProtectedLayoutAccountSettingsNotificationsRoute =
+  ProtectedLayoutAccountSettingsNotificationsRouteImport.update({
     id: '/notifications',
     path: '/notifications',
-    getParentRoute: () => ProtectedLayoutSettingsRouteRoute,
+    getParentRoute: () => ProtectedLayoutAccountSettingsRouteRoute,
   } as any)
-const ProtectedLayoutSettingsProfileRoute =
-  ProtectedLayoutSettingsProfileRouteImport.update({
+const ProtectedLayoutAccountSettingsProfileRoute =
+  ProtectedLayoutAccountSettingsProfileRouteImport.update({
     id: '/profile',
     path: '/profile',
-    getParentRoute: () => ProtectedLayoutSettingsRouteRoute,
+    getParentRoute: () => ProtectedLayoutAccountSettingsRouteRoute,
   } as any)
-const ProtectedLayoutSettingsSecurityRoute =
-  ProtectedLayoutSettingsSecurityRouteImport.update({
+const ProtectedLayoutAccountSettingsSecurityRoute =
+  ProtectedLayoutAccountSettingsSecurityRouteImport.update({
     id: '/security',
     path: '/security',
-    getParentRoute: () => ProtectedLayoutSettingsRouteRoute,
+    getParentRoute: () => ProtectedLayoutAccountSettingsRouteRoute,
   } as any)
-const ProtectedLayoutSystemAuditLogsRoute =
-  ProtectedLayoutSystemAuditLogsRouteImport.update({
-    id: '/system/audit-logs',
-    path: '/system/audit-logs',
-    getParentRoute: () => ProtectedLayoutRoute,
-  } as any)
-const ProtectedLayoutSystemSettingsRoute =
-  ProtectedLayoutSystemSettingsRouteImport.update({
-    id: '/system/settings',
-    path: '/system/settings',
-    getParentRoute: () => ProtectedLayoutRoute,
-  } as any)
-const ProtectedLayoutSystemStudiosRoute =
-  ProtectedLayoutSystemStudiosRouteImport.update({
-    id: '/system/studios',
-    path: '/system/studios',
-    getParentRoute: () => ProtectedLayoutRoute,
-  } as any)
-const ProtectedLayoutUsersIndexRoute =
-  ProtectedLayoutUsersIndexRouteImport.update({
+const ProtectedLayoutAdminAuditLogsIndexRoute =
+  ProtectedLayoutAdminAuditLogsIndexRouteImport.update({
     id: '/',
     path: '/',
-    getParentRoute: () => ProtectedLayoutUsersRouteRoute,
+    getParentRoute: () => ProtectedLayoutAdminAuditLogsRoute,
   } as any)
-const ProtectedLayoutUsersNewRoute = ProtectedLayoutUsersNewRouteImport.update({
-  id: '/new',
-  path: '/new',
-  getParentRoute: () => ProtectedLayoutUsersRouteRoute,
-} as any)
-const ProtectedLayoutSStudioSlugIndexRoute =
-  ProtectedLayoutSStudioSlugIndexRouteImport.update({
-    id: '/s/$studioSlug/',
-    path: '/s/$studioSlug/',
-    getParentRoute: () => ProtectedLayoutRoute,
-  } as any)
-const ProtectedLayoutSStudioSlugRunnersRoute =
-  ProtectedLayoutSStudioSlugRunnersRouteImport.update({
-    id: '/s/$studioSlug/runners',
-    path: '/s/$studioSlug/runners',
-    getParentRoute: () => ProtectedLayoutRoute,
-  } as any)
-const ProtectedLayoutSStudioSlugStorageRoute =
-  ProtectedLayoutSStudioSlugStorageRouteImport.update({
-    id: '/s/$studioSlug/storage',
-    path: '/s/$studioSlug/storage',
-    getParentRoute: () => ProtectedLayoutRoute,
-  } as any)
-const ProtectedLayoutSystemAuditLogsIndexRoute =
-  ProtectedLayoutSystemAuditLogsIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => ProtectedLayoutSystemAuditLogsRoute,
-  } as any)
-const ProtectedLayoutSystemAuditLogsIdRoute =
-  ProtectedLayoutSystemAuditLogsIdRouteImport.update({
+const ProtectedLayoutAdminAuditLogsIdRoute =
+  ProtectedLayoutAdminAuditLogsIdRouteImport.update({
     id: '/$id',
     path: '/$id',
-    getParentRoute: () => ProtectedLayoutSystemAuditLogsRoute,
+    getParentRoute: () => ProtectedLayoutAdminAuditLogsRoute,
   } as any)
-const ProtectedLayoutUsersIdIndexRoute =
-  ProtectedLayoutUsersIdIndexRouteImport.update({
+const ProtectedLayoutAdminRolesIndexRoute =
+  ProtectedLayoutAdminRolesIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => ProtectedLayoutAdminRolesRouteRoute,
+  } as any)
+const ProtectedLayoutAdminUsersIndexRoute =
+  ProtectedLayoutAdminUsersIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => ProtectedLayoutAdminUsersRouteRoute,
+  } as any)
+const ProtectedLayoutAdminUsersNewRoute =
+  ProtectedLayoutAdminUsersNewRouteImport.update({
+    id: '/new',
+    path: '/new',
+    getParentRoute: () => ProtectedLayoutAdminUsersRouteRoute,
+  } as any)
+const ProtectedLayoutStudioStudioSlugIndexRoute =
+  ProtectedLayoutStudioStudioSlugIndexRouteImport.update({
+    id: '/studio/$studioSlug/',
+    path: '/studio/$studioSlug/',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutStudioStudioSlugRunnersRoute =
+  ProtectedLayoutStudioStudioSlugRunnersRouteImport.update({
+    id: '/studio/$studioSlug/runners',
+    path: '/studio/$studioSlug/runners',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutStudioStudioSlugStorageRoute =
+  ProtectedLayoutStudioStudioSlugStorageRouteImport.update({
+    id: '/studio/$studioSlug/storage',
+    path: '/studio/$studioSlug/storage',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutTemplatesLibraryIndexRoute =
+  ProtectedLayoutTemplatesLibraryIndexRouteImport.update({
+    id: '/templates/library/',
+    path: '/templates/library/',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutTemplatesLibraryLibraryItemIdRoute =
+  ProtectedLayoutTemplatesLibraryLibraryItemIdRouteImport.update({
+    id: '/templates/library/$libraryItemId',
+    path: '/templates/library/$libraryItemId',
+    getParentRoute: () => ProtectedLayoutRoute,
+  } as any)
+const ProtectedLayoutAdminUsersIdIndexRoute =
+  ProtectedLayoutAdminUsersIdIndexRouteImport.update({
     id: '/$id/',
     path: '/$id/',
-    getParentRoute: () => ProtectedLayoutUsersRouteRoute,
+    getParentRoute: () => ProtectedLayoutAdminUsersRouteRoute,
   } as any)
-const ProtectedLayoutUsersIdEditRoute =
-  ProtectedLayoutUsersIdEditRouteImport.update({
+const ProtectedLayoutAdminUsersIdEditRoute =
+  ProtectedLayoutAdminUsersIdEditRouteImport.update({
     id: '/$id/edit',
     path: '/$id/edit',
-    getParentRoute: () => ProtectedLayoutUsersRouteRoute,
+    getParentRoute: () => ProtectedLayoutAdminUsersRouteRoute,
   } as any)
-const ProtectedLayoutSStudioSlugProjectsIndexRoute =
-  ProtectedLayoutSStudioSlugProjectsIndexRouteImport.update({
-    id: '/s/$studioSlug/projects/',
-    path: '/s/$studioSlug/projects/',
+const ProtectedLayoutStudioStudioSlugProjectsIndexRoute =
+  ProtectedLayoutStudioStudioSlugProjectsIndexRouteImport.update({
+    id: '/studio/$studioSlug/projects/',
+    path: '/studio/$studioSlug/projects/',
     getParentRoute: () => ProtectedLayoutRoute,
   } as any)
-const ProtectedLayoutSStudioSlugRunnersRunnerIdRoute =
-  ProtectedLayoutSStudioSlugRunnersRunnerIdRouteImport.update({
-    id: '/s/$studioSlug/runners_/$runnerId',
-    path: '/s/$studioSlug/runners/$runnerId',
+const ProtectedLayoutStudioStudioSlugRunnersRunnerIdRoute =
+  ProtectedLayoutStudioStudioSlugRunnersRunnerIdRouteImport.update({
+    id: '/studio/$studioSlug/runners_/$runnerId',
+    path: '/studio/$studioSlug/runners/$runnerId',
     getParentRoute: () => ProtectedLayoutRoute,
   } as any)
-const ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteImport.update({
-    id: '/s/$studioSlug/projects/$projectId',
-    path: '/s/$studioSlug/projects/$projectId',
+const ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRouteImport.update({
+    id: '/studio/$studioSlug/projects/$projectId',
+    path: '/studio/$studioSlug/projects/$projectId',
     getParentRoute: () => ProtectedProjectRoute,
   } as any)
-const ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteImport.update({
-    id: '/content-types',
-    path: '/content-types',
-    getParentRoute: () =>
-      ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
-  } as any)
-const ProtectedProjectSStudioSlugProjectsProjectIdContentsRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteImport.update({
+const ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRoute =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRouteImport.update(
+    {
+      id: '/content-types',
+      path: '/content-types',
+      getParentRoute: () =>
+        ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute,
+    } as any,
+  )
+const ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRoute =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRouteImport.update({
     id: '/contents',
     path: '/contents',
     getParentRoute: () =>
-      ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
+      ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute,
   } as any)
-const ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRouteImport.update({
-    id: '/migrations',
-    path: '/migrations',
-    getParentRoute: () =>
-      ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
-  } as any)
-const ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdOverviewRouteImport.update({
+const ProtectedProjectStudioStudioSlugProjectsProjectIdMigrationsRoute =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdMigrationsRouteImport.update(
+    {
+      id: '/migrations',
+      path: '/migrations',
+      getParentRoute: () =>
+        ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute,
+    } as any,
+  )
+const ProtectedProjectStudioStudioSlugProjectsProjectIdOverviewRoute =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdOverviewRouteImport.update({
     id: '/overview',
     path: '/overview',
     getParentRoute: () =>
-      ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
+      ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute,
   } as any)
-const ProtectedProjectSStudioSlugProjectsProjectIdStructsRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteImport.update({
+const ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRoute =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRouteImport.update({
     id: '/structs',
     path: '/structs',
     getParentRoute: () =>
-      ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
+      ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute,
   } as any)
-const ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRouteImport.update(
+const ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesIndexRoute =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesIndexRouteImport.update(
     {
       id: '/',
       path: '/',
       getParentRoute: () =>
-        ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute,
+        ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRoute,
     } as any,
   )
-const ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () =>
-      ProtectedProjectSStudioSlugProjectsProjectIdContentsRoute,
-  } as any)
-const ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteImport.update(
+const ProtectedProjectStudioStudioSlugProjectsProjectIdContentsIndexRoute =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentsIndexRouteImport.update(
+    {
+      id: '/',
+      path: '/',
+      getParentRoute: () =>
+        ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRoute,
+    } as any,
+  )
+const ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRoute =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRouteImport.update(
     {
       id: '/$typeKey',
       path: '/$typeKey',
       getParentRoute: () =>
-        ProtectedProjectSStudioSlugProjectsProjectIdContentsRoute,
+        ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRoute,
     } as any,
   )
-const ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRouteImport.update({
-    id: '/pipeline/',
-    path: '/pipeline/',
-    getParentRoute: () =>
-      ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
-  } as any)
-const ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRouteImport.update(
+const ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineIndexRoute =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineIndexRouteImport.update(
+    {
+      id: '/pipeline/',
+      path: '/pipeline/',
+      getParentRoute: () =>
+        ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute,
+    } as any,
+  )
+const ProtectedProjectStudioStudioSlugProjectsProjectIdPipelinePipelineIdRoute =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdPipelinePipelineIdRouteImport.update(
     {
       id: '/pipeline/$pipelineId',
       path: '/pipeline/$pipelineId',
       getParentRoute: () =>
-        ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
+        ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute,
     } as any,
   )
-const ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () =>
-      ProtectedProjectSStudioSlugProjectsProjectIdStructsRoute,
-  } as any)
-const ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRouteImport.update(
-    {
-      id: '/$contentTypeId/',
-      path: '/$contentTypeId/',
-      getParentRoute: () =>
-        ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute,
-    } as any,
-  )
-const ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRouteImport.update(
-    {
-      id: '/$contentTypeId/builder',
-      path: '/$contentTypeId/builder',
-      getParentRoute: () =>
-        ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute,
-    } as any,
-  )
-const ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRouteImport.update(
+const ProtectedProjectStudioStudioSlugProjectsProjectIdStructsIndexRoute =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdStructsIndexRouteImport.update(
     {
       id: '/',
       path: '/',
       getParentRoute: () =>
-        ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute,
+        ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRoute,
     } as any,
   )
-const ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRouteImport.update(
+const ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRouteImport.update(
+    {
+      id: '/$contentTypeId/',
+      path: '/$contentTypeId/',
+      getParentRoute: () =>
+        ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRoute,
+    } as any,
+  )
+const ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRouteImport.update(
+    {
+      id: '/$contentTypeId/builder',
+      path: '/$contentTypeId/builder',
+      getParentRoute: () =>
+        ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRoute,
+    } as any,
+  )
+const ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyIndexRouteImport.update(
+    {
+      id: '/',
+      path: '/',
+      getParentRoute: () =>
+        ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRoute,
+    } as any,
+  )
+const ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyNewRoute =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyNewRouteImport.update(
     {
       id: '/new',
       path: '/new',
       getParentRoute: () =>
-        ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute,
+        ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRoute,
     } as any,
   )
-const ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRouteImport.update(
-    {
-      id: '/pipeline/nodes/',
-      path: '/pipeline/nodes/',
-      getParentRoute: () =>
-        ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
-    } as any,
-  )
-const ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRouteImport.update(
-    {
-      id: '/pipeline/nodes/ingest',
-      path: '/pipeline/nodes/ingest',
-      getParentRoute: () =>
-        ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
-    } as any,
-  )
-const ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRouteImport.update(
-    {
-      id: '/pipeline/nodes/new',
-      path: '/pipeline/nodes/new',
-      getParentRoute: () =>
-        ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
-    } as any,
-  )
-const ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRouteImport.update(
+const ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineWorkspaceIndexRouteImport.update(
     {
       id: '/pipeline/workspace/',
       path: '/pipeline/workspace/',
       getParentRoute: () =>
-        ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute,
+        ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute,
     } as any,
   )
-const ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRouteImport.update(
+const ProtectedProjectStudioStudioSlugProjectsProjectIdStructsStructIdBuilderRoute =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdStructsStructIdBuilderRouteImport.update(
     {
       id: '/$structId/builder',
       path: '/$structId/builder',
       getParentRoute: () =>
-        ProtectedProjectSStudioSlugProjectsProjectIdStructsRoute,
+        ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRoute,
     } as any,
   )
-const ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute =
-  ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRouteImport.update(
+const ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRouteImport.update(
     {
       id: '/$itemKey/edit',
       path: '/$itemKey/edit',
       getParentRoute: () =>
-        ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute,
+        ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRoute,
     } as any,
   )
 
 export interface FileRoutesByFullPath {
-  '/': typeof ProtectedLayoutIndexRoute
+  '/': typeof IndexRoute
   '/auth': typeof AuthRouteWithChildren
   '/local': typeof LocalRouteWithChildren
   '/onboarding': typeof ProtectedOnboardingRoute
@@ -486,114 +517,123 @@ export interface FileRoutesByFullPath {
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
+  '/auth/register': typeof AuthRegisterRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/local/machine': typeof LocalMachineRoute
   '/local/': typeof LocalIndexRoute
-  '/roles': typeof ProtectedLayoutRolesRouteRouteWithChildren
-  '/settings': typeof ProtectedLayoutSettingsRouteRouteWithChildren
-  '/users': typeof ProtectedLayoutUsersRouteRouteWithChildren
   '/403': typeof ProtectedLayout403Route
   '/dev': typeof ProtectedLayoutDevRoute
-  '/runners': typeof ProtectedLayoutRunnersRoute
-  '/storage': typeof ProtectedLayoutStorageRoute
-  '/runners/$runnerId': typeof ProtectedLayoutRunnersRunnerIdRoute
-  '/settings/notifications': typeof ProtectedLayoutSettingsNotificationsRoute
-  '/settings/profile': typeof ProtectedLayoutSettingsProfileRoute
-  '/settings/security': typeof ProtectedLayoutSettingsSecurityRoute
-  '/system/audit-logs': typeof ProtectedLayoutSystemAuditLogsRouteWithChildren
-  '/system/settings': typeof ProtectedLayoutSystemSettingsRoute
-  '/system/studios': typeof ProtectedLayoutSystemStudiosRoute
-  '/users/new': typeof ProtectedLayoutUsersNewRoute
-  '/roles/': typeof ProtectedLayoutRolesIndexRoute
-  '/settings/': typeof ProtectedLayoutSettingsIndexRoute
-  '/users/': typeof ProtectedLayoutUsersIndexRoute
-  '/s/$studioSlug/runners': typeof ProtectedLayoutSStudioSlugRunnersRoute
-  '/s/$studioSlug/storage': typeof ProtectedLayoutSStudioSlugStorageRoute
-  '/system/audit-logs/$id': typeof ProtectedLayoutSystemAuditLogsIdRoute
-  '/users/$id/edit': typeof ProtectedLayoutUsersIdEditRoute
-  '/s/$studioSlug/': typeof ProtectedLayoutSStudioSlugIndexRoute
-  '/system/audit-logs/': typeof ProtectedLayoutSystemAuditLogsIndexRoute
-  '/users/$id/': typeof ProtectedLayoutUsersIdIndexRoute
-  '/s/$studioSlug/projects/$projectId': typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteWithChildren
-  '/s/$studioSlug/runners/$runnerId': typeof ProtectedLayoutSStudioSlugRunnersRunnerIdRoute
-  '/s/$studioSlug/projects/': typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
-  '/s/$studioSlug/projects/$projectId/content-types': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteWithChildren
-  '/s/$studioSlug/projects/$projectId/contents': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteWithChildren
-  '/s/$studioSlug/projects/$projectId/migrations': typeof ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRoute
-  '/s/$studioSlug/projects/$projectId/overview': typeof ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute
-  '/s/$studioSlug/projects/$projectId/structs': typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteWithChildren
-  '/s/$studioSlug/projects/$projectId/contents/$typeKey': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteWithChildren
-  '/s/$studioSlug/projects/$projectId/pipeline/$pipelineId': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRoute
-  '/s/$studioSlug/projects/$projectId/content-types/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRoute
-  '/s/$studioSlug/projects/$projectId/contents/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRoute
-  '/s/$studioSlug/projects/$projectId/pipeline/': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRoute
-  '/s/$studioSlug/projects/$projectId/structs/': typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRoute
-  '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute
-  '/s/$studioSlug/projects/$projectId/contents/$typeKey/new': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRoute
-  '/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRoute
-  '/s/$studioSlug/projects/$projectId/pipeline/nodes/new': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute
-  '/s/$studioSlug/projects/$projectId/structs/$structId/builder': typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRoute
-  '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute
-  '/s/$studioSlug/projects/$projectId/contents/$typeKey/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute
-  '/s/$studioSlug/projects/$projectId/pipeline/nodes/': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute
-  '/s/$studioSlug/projects/$projectId/pipeline/workspace/': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute
-  '/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute
+  '/account/settings': typeof ProtectedLayoutAccountSettingsRouteRouteWithChildren
+  '/admin/roles': typeof ProtectedLayoutAdminRolesRouteRouteWithChildren
+  '/admin/users': typeof ProtectedLayoutAdminUsersRouteRouteWithChildren
+  '/admin/audit-logs': typeof ProtectedLayoutAdminAuditLogsRouteWithChildren
+  '/admin/settings': typeof ProtectedLayoutAdminSettingsRoute
+  '/admin/studios': typeof ProtectedLayoutAdminStudiosRoute
+  '/admin/templates': typeof ProtectedLayoutAdminTemplatesRoute
+  '/templates/$templateId': typeof ProtectedLayoutTemplatesTemplateIdRoute
+  '/workspaces/$workspaceId': typeof ProtectedLayoutWorkspacesWorkspaceIdRoute
+  '/admin/': typeof ProtectedLayoutAdminIndexRoute
+  '/studio/': typeof ProtectedLayoutStudioIndexRoute
+  '/templates/': typeof ProtectedLayoutTemplatesIndexRoute
+  '/workspaces/': typeof ProtectedLayoutWorkspacesIndexRoute
+  '/account/settings/notifications': typeof ProtectedLayoutAccountSettingsNotificationsRoute
+  '/account/settings/profile': typeof ProtectedLayoutAccountSettingsProfileRoute
+  '/account/settings/security': typeof ProtectedLayoutAccountSettingsSecurityRoute
+  '/admin/audit-logs/$id': typeof ProtectedLayoutAdminAuditLogsIdRoute
+  '/admin/users/new': typeof ProtectedLayoutAdminUsersNewRoute
+  '/studio/$studioSlug/runners': typeof ProtectedLayoutStudioStudioSlugRunnersRoute
+  '/studio/$studioSlug/storage': typeof ProtectedLayoutStudioStudioSlugStorageRoute
+  '/templates/library/$libraryItemId': typeof ProtectedLayoutTemplatesLibraryLibraryItemIdRoute
+  '/account/settings/': typeof ProtectedLayoutAccountSettingsIndexRoute
+  '/admin/audit-logs/': typeof ProtectedLayoutAdminAuditLogsIndexRoute
+  '/admin/roles/': typeof ProtectedLayoutAdminRolesIndexRoute
+  '/admin/users/': typeof ProtectedLayoutAdminUsersIndexRoute
+  '/studio/$studioSlug/': typeof ProtectedLayoutStudioStudioSlugIndexRoute
+  '/templates/library/': typeof ProtectedLayoutTemplatesLibraryIndexRoute
+  '/studio/$studioSlug/projects/$projectId': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRouteWithChildren
+  '/admin/users/$id/edit': typeof ProtectedLayoutAdminUsersIdEditRoute
+  '/studio/$studioSlug/runners/$runnerId': typeof ProtectedLayoutStudioStudioSlugRunnersRunnerIdRoute
+  '/admin/users/$id/': typeof ProtectedLayoutAdminUsersIdIndexRoute
+  '/studio/$studioSlug/projects/': typeof ProtectedLayoutStudioStudioSlugProjectsIndexRoute
+  '/studio/$studioSlug/projects/$projectId/content-types': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRouteWithChildren
+  '/studio/$studioSlug/projects/$projectId/contents': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRouteWithChildren
+  '/studio/$studioSlug/projects/$projectId/migrations': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdMigrationsRoute
+  '/studio/$studioSlug/projects/$projectId/overview': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdOverviewRoute
+  '/studio/$studioSlug/projects/$projectId/structs': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRouteWithChildren
+  '/studio/$studioSlug/projects/$projectId/contents/$typeKey': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRouteWithChildren
+  '/studio/$studioSlug/projects/$projectId/pipeline/$pipelineId': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdPipelinePipelineIdRoute
+  '/studio/$studioSlug/projects/$projectId/content-types/': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesIndexRoute
+  '/studio/$studioSlug/projects/$projectId/contents/': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsIndexRoute
+  '/studio/$studioSlug/projects/$projectId/pipeline/': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineIndexRoute
+  '/studio/$studioSlug/projects/$projectId/structs/': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdStructsIndexRoute
+  '/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute
+  '/studio/$studioSlug/projects/$projectId/contents/$typeKey/new': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyNewRoute
+  '/studio/$studioSlug/projects/$projectId/structs/$structId/builder': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdStructsStructIdBuilderRoute
+  '/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId/': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute
+  '/studio/$studioSlug/projects/$projectId/contents/$typeKey/': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute
+  '/studio/$studioSlug/projects/$projectId/pipeline/workspace/': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute
+  '/studio/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof ProtectedLayoutIndexRoute
+  '/': typeof IndexRoute
   '/auth': typeof AuthRouteWithChildren
   '/onboarding': typeof ProtectedOnboardingRoute
   '/auth/accept-invite': typeof AuthAcceptInviteRoute
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
+  '/auth/register': typeof AuthRegisterRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/local/machine': typeof LocalMachineRoute
   '/local': typeof LocalIndexRoute
   '/403': typeof ProtectedLayout403Route
   '/dev': typeof ProtectedLayoutDevRoute
-  '/runners': typeof ProtectedLayoutRunnersRoute
-  '/storage': typeof ProtectedLayoutStorageRoute
-  '/runners/$runnerId': typeof ProtectedLayoutRunnersRunnerIdRoute
-  '/settings/notifications': typeof ProtectedLayoutSettingsNotificationsRoute
-  '/settings/profile': typeof ProtectedLayoutSettingsProfileRoute
-  '/settings/security': typeof ProtectedLayoutSettingsSecurityRoute
-  '/system/settings': typeof ProtectedLayoutSystemSettingsRoute
-  '/system/studios': typeof ProtectedLayoutSystemStudiosRoute
-  '/users/new': typeof ProtectedLayoutUsersNewRoute
-  '/roles': typeof ProtectedLayoutRolesIndexRoute
-  '/settings': typeof ProtectedLayoutSettingsIndexRoute
-  '/users': typeof ProtectedLayoutUsersIndexRoute
-  '/s/$studioSlug/runners': typeof ProtectedLayoutSStudioSlugRunnersRoute
-  '/s/$studioSlug/storage': typeof ProtectedLayoutSStudioSlugStorageRoute
-  '/system/audit-logs/$id': typeof ProtectedLayoutSystemAuditLogsIdRoute
-  '/users/$id/edit': typeof ProtectedLayoutUsersIdEditRoute
-  '/s/$studioSlug': typeof ProtectedLayoutSStudioSlugIndexRoute
-  '/system/audit-logs': typeof ProtectedLayoutSystemAuditLogsIndexRoute
-  '/users/$id': typeof ProtectedLayoutUsersIdIndexRoute
-  '/s/$studioSlug/projects/$projectId': typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteWithChildren
-  '/s/$studioSlug/runners/$runnerId': typeof ProtectedLayoutSStudioSlugRunnersRunnerIdRoute
-  '/s/$studioSlug/projects': typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
-  '/s/$studioSlug/projects/$projectId/migrations': typeof ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRoute
-  '/s/$studioSlug/projects/$projectId/overview': typeof ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute
-  '/s/$studioSlug/projects/$projectId/pipeline/$pipelineId': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRoute
-  '/s/$studioSlug/projects/$projectId/content-types': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRoute
-  '/s/$studioSlug/projects/$projectId/contents': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRoute
-  '/s/$studioSlug/projects/$projectId/pipeline': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRoute
-  '/s/$studioSlug/projects/$projectId/structs': typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRoute
-  '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute
-  '/s/$studioSlug/projects/$projectId/contents/$typeKey/new': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRoute
-  '/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRoute
-  '/s/$studioSlug/projects/$projectId/pipeline/nodes/new': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute
-  '/s/$studioSlug/projects/$projectId/structs/$structId/builder': typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRoute
-  '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute
-  '/s/$studioSlug/projects/$projectId/contents/$typeKey': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute
-  '/s/$studioSlug/projects/$projectId/pipeline/nodes': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute
-  '/s/$studioSlug/projects/$projectId/pipeline/workspace': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute
-  '/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute
+  '/admin/settings': typeof ProtectedLayoutAdminSettingsRoute
+  '/admin/studios': typeof ProtectedLayoutAdminStudiosRoute
+  '/admin/templates': typeof ProtectedLayoutAdminTemplatesRoute
+  '/templates/$templateId': typeof ProtectedLayoutTemplatesTemplateIdRoute
+  '/workspaces/$workspaceId': typeof ProtectedLayoutWorkspacesWorkspaceIdRoute
+  '/admin': typeof ProtectedLayoutAdminIndexRoute
+  '/studio': typeof ProtectedLayoutStudioIndexRoute
+  '/templates': typeof ProtectedLayoutTemplatesIndexRoute
+  '/workspaces': typeof ProtectedLayoutWorkspacesIndexRoute
+  '/account/settings/notifications': typeof ProtectedLayoutAccountSettingsNotificationsRoute
+  '/account/settings/profile': typeof ProtectedLayoutAccountSettingsProfileRoute
+  '/account/settings/security': typeof ProtectedLayoutAccountSettingsSecurityRoute
+  '/admin/audit-logs/$id': typeof ProtectedLayoutAdminAuditLogsIdRoute
+  '/admin/users/new': typeof ProtectedLayoutAdminUsersNewRoute
+  '/studio/$studioSlug/runners': typeof ProtectedLayoutStudioStudioSlugRunnersRoute
+  '/studio/$studioSlug/storage': typeof ProtectedLayoutStudioStudioSlugStorageRoute
+  '/templates/library/$libraryItemId': typeof ProtectedLayoutTemplatesLibraryLibraryItemIdRoute
+  '/account/settings': typeof ProtectedLayoutAccountSettingsIndexRoute
+  '/admin/audit-logs': typeof ProtectedLayoutAdminAuditLogsIndexRoute
+  '/admin/roles': typeof ProtectedLayoutAdminRolesIndexRoute
+  '/admin/users': typeof ProtectedLayoutAdminUsersIndexRoute
+  '/studio/$studioSlug': typeof ProtectedLayoutStudioStudioSlugIndexRoute
+  '/templates/library': typeof ProtectedLayoutTemplatesLibraryIndexRoute
+  '/studio/$studioSlug/projects/$projectId': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRouteWithChildren
+  '/admin/users/$id/edit': typeof ProtectedLayoutAdminUsersIdEditRoute
+  '/studio/$studioSlug/runners/$runnerId': typeof ProtectedLayoutStudioStudioSlugRunnersRunnerIdRoute
+  '/admin/users/$id': typeof ProtectedLayoutAdminUsersIdIndexRoute
+  '/studio/$studioSlug/projects': typeof ProtectedLayoutStudioStudioSlugProjectsIndexRoute
+  '/studio/$studioSlug/projects/$projectId/migrations': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdMigrationsRoute
+  '/studio/$studioSlug/projects/$projectId/overview': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdOverviewRoute
+  '/studio/$studioSlug/projects/$projectId/pipeline/$pipelineId': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdPipelinePipelineIdRoute
+  '/studio/$studioSlug/projects/$projectId/content-types': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesIndexRoute
+  '/studio/$studioSlug/projects/$projectId/contents': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsIndexRoute
+  '/studio/$studioSlug/projects/$projectId/pipeline': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineIndexRoute
+  '/studio/$studioSlug/projects/$projectId/structs': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdStructsIndexRoute
+  '/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute
+  '/studio/$studioSlug/projects/$projectId/contents/$typeKey/new': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyNewRoute
+  '/studio/$studioSlug/projects/$projectId/structs/$structId/builder': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdStructsStructIdBuilderRoute
+  '/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute
+  '/studio/$studioSlug/projects/$projectId/contents/$typeKey': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute
+  '/studio/$studioSlug/projects/$projectId/pipeline/workspace': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute
+  '/studio/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
   '/_protected': typeof ProtectedRouteWithChildren
   '/auth': typeof AuthRouteWithChildren
   '/local': typeof LocalRouteWithChildren
@@ -604,59 +644,62 @@ export interface FileRoutesById {
   '/auth/forgot-password': typeof AuthForgotPasswordRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
+  '/auth/register': typeof AuthRegisterRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/local/machine': typeof LocalMachineRoute
   '/local/': typeof LocalIndexRoute
-  '/_protected/_layout/roles': typeof ProtectedLayoutRolesRouteRouteWithChildren
-  '/_protected/_layout/settings': typeof ProtectedLayoutSettingsRouteRouteWithChildren
-  '/_protected/_layout/users': typeof ProtectedLayoutUsersRouteRouteWithChildren
   '/_protected/_layout/403': typeof ProtectedLayout403Route
   '/_protected/_layout/dev': typeof ProtectedLayoutDevRoute
-  '/_protected/_layout/runners': typeof ProtectedLayoutRunnersRoute
-  '/_protected/_layout/storage': typeof ProtectedLayoutStorageRoute
-  '/_protected/_layout/': typeof ProtectedLayoutIndexRoute
-  '/_protected/_layout/runners_/$runnerId': typeof ProtectedLayoutRunnersRunnerIdRoute
-  '/_protected/_layout/settings/notifications': typeof ProtectedLayoutSettingsNotificationsRoute
-  '/_protected/_layout/settings/profile': typeof ProtectedLayoutSettingsProfileRoute
-  '/_protected/_layout/settings/security': typeof ProtectedLayoutSettingsSecurityRoute
-  '/_protected/_layout/system/audit-logs': typeof ProtectedLayoutSystemAuditLogsRouteWithChildren
-  '/_protected/_layout/system/settings': typeof ProtectedLayoutSystemSettingsRoute
-  '/_protected/_layout/system/studios': typeof ProtectedLayoutSystemStudiosRoute
-  '/_protected/_layout/users/new': typeof ProtectedLayoutUsersNewRoute
-  '/_protected/_layout/roles/': typeof ProtectedLayoutRolesIndexRoute
-  '/_protected/_layout/settings/': typeof ProtectedLayoutSettingsIndexRoute
-  '/_protected/_layout/users/': typeof ProtectedLayoutUsersIndexRoute
-  '/_protected/_layout/s/$studioSlug/runners': typeof ProtectedLayoutSStudioSlugRunnersRoute
-  '/_protected/_layout/s/$studioSlug/storage': typeof ProtectedLayoutSStudioSlugStorageRoute
-  '/_protected/_layout/system/audit-logs/$id': typeof ProtectedLayoutSystemAuditLogsIdRoute
-  '/_protected/_layout/users/$id/edit': typeof ProtectedLayoutUsersIdEditRoute
-  '/_protected/_layout/s/$studioSlug/': typeof ProtectedLayoutSStudioSlugIndexRoute
-  '/_protected/_layout/system/audit-logs/': typeof ProtectedLayoutSystemAuditLogsIndexRoute
-  '/_protected/_layout/users/$id/': typeof ProtectedLayoutUsersIdIndexRoute
-  '/_protected/_project/s/$studioSlug/projects/$projectId': typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteWithChildren
-  '/_protected/_layout/s/$studioSlug/runners_/$runnerId': typeof ProtectedLayoutSStudioSlugRunnersRunnerIdRoute
-  '/_protected/_layout/s/$studioSlug/projects/': typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
-  '/_protected/_project/s/$studioSlug/projects/$projectId/content-types': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteWithChildren
-  '/_protected/_project/s/$studioSlug/projects/$projectId/contents': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteWithChildren
-  '/_protected/_project/s/$studioSlug/projects/$projectId/migrations': typeof ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRoute
-  '/_protected/_project/s/$studioSlug/projects/$projectId/overview': typeof ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute
-  '/_protected/_project/s/$studioSlug/projects/$projectId/structs': typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteWithChildren
-  '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteWithChildren
-  '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/$pipelineId': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRoute
-  '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRoute
-  '/_protected/_project/s/$studioSlug/projects/$projectId/contents/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRoute
-  '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRoute
-  '/_protected/_project/s/$studioSlug/projects/$projectId/structs/': typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRoute
-  '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute
-  '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/new': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRoute
-  '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRoute
-  '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/new': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute
-  '/_protected/_project/s/$studioSlug/projects/$projectId/structs/$structId/builder': typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRoute
-  '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute
-  '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute
-  '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute
-  '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/workspace/': typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute
-  '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit': typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute
+  '/_protected/_layout/account/settings': typeof ProtectedLayoutAccountSettingsRouteRouteWithChildren
+  '/_protected/_layout/admin/roles': typeof ProtectedLayoutAdminRolesRouteRouteWithChildren
+  '/_protected/_layout/admin/users': typeof ProtectedLayoutAdminUsersRouteRouteWithChildren
+  '/_protected/_layout/admin/audit-logs': typeof ProtectedLayoutAdminAuditLogsRouteWithChildren
+  '/_protected/_layout/admin/settings': typeof ProtectedLayoutAdminSettingsRoute
+  '/_protected/_layout/admin/studios': typeof ProtectedLayoutAdminStudiosRoute
+  '/_protected/_layout/admin/templates': typeof ProtectedLayoutAdminTemplatesRoute
+  '/_protected/_layout/templates/$templateId': typeof ProtectedLayoutTemplatesTemplateIdRoute
+  '/_protected/_layout/workspaces/$workspaceId': typeof ProtectedLayoutWorkspacesWorkspaceIdRoute
+  '/_protected/_layout/admin/': typeof ProtectedLayoutAdminIndexRoute
+  '/_protected/_layout/studio/': typeof ProtectedLayoutStudioIndexRoute
+  '/_protected/_layout/templates/': typeof ProtectedLayoutTemplatesIndexRoute
+  '/_protected/_layout/workspaces/': typeof ProtectedLayoutWorkspacesIndexRoute
+  '/_protected/_layout/account/settings/notifications': typeof ProtectedLayoutAccountSettingsNotificationsRoute
+  '/_protected/_layout/account/settings/profile': typeof ProtectedLayoutAccountSettingsProfileRoute
+  '/_protected/_layout/account/settings/security': typeof ProtectedLayoutAccountSettingsSecurityRoute
+  '/_protected/_layout/admin/audit-logs/$id': typeof ProtectedLayoutAdminAuditLogsIdRoute
+  '/_protected/_layout/admin/users/new': typeof ProtectedLayoutAdminUsersNewRoute
+  '/_protected/_layout/studio/$studioSlug/runners': typeof ProtectedLayoutStudioStudioSlugRunnersRoute
+  '/_protected/_layout/studio/$studioSlug/storage': typeof ProtectedLayoutStudioStudioSlugStorageRoute
+  '/_protected/_layout/templates/library/$libraryItemId': typeof ProtectedLayoutTemplatesLibraryLibraryItemIdRoute
+  '/_protected/_layout/account/settings/': typeof ProtectedLayoutAccountSettingsIndexRoute
+  '/_protected/_layout/admin/audit-logs/': typeof ProtectedLayoutAdminAuditLogsIndexRoute
+  '/_protected/_layout/admin/roles/': typeof ProtectedLayoutAdminRolesIndexRoute
+  '/_protected/_layout/admin/users/': typeof ProtectedLayoutAdminUsersIndexRoute
+  '/_protected/_layout/studio/$studioSlug/': typeof ProtectedLayoutStudioStudioSlugIndexRoute
+  '/_protected/_layout/templates/library/': typeof ProtectedLayoutTemplatesLibraryIndexRoute
+  '/_protected/_project/studio/$studioSlug/projects/$projectId': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRouteWithChildren
+  '/_protected/_layout/admin/users/$id/edit': typeof ProtectedLayoutAdminUsersIdEditRoute
+  '/_protected/_layout/studio/$studioSlug/runners_/$runnerId': typeof ProtectedLayoutStudioStudioSlugRunnersRunnerIdRoute
+  '/_protected/_layout/admin/users/$id/': typeof ProtectedLayoutAdminUsersIdIndexRoute
+  '/_protected/_layout/studio/$studioSlug/projects/': typeof ProtectedLayoutStudioStudioSlugProjectsIndexRoute
+  '/_protected/_project/studio/$studioSlug/projects/$projectId/content-types': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRouteWithChildren
+  '/_protected/_project/studio/$studioSlug/projects/$projectId/contents': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRouteWithChildren
+  '/_protected/_project/studio/$studioSlug/projects/$projectId/migrations': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdMigrationsRoute
+  '/_protected/_project/studio/$studioSlug/projects/$projectId/overview': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdOverviewRoute
+  '/_protected/_project/studio/$studioSlug/projects/$projectId/structs': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRouteWithChildren
+  '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRouteWithChildren
+  '/_protected/_project/studio/$studioSlug/projects/$projectId/pipeline/$pipelineId': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdPipelinePipelineIdRoute
+  '/_protected/_project/studio/$studioSlug/projects/$projectId/content-types/': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesIndexRoute
+  '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsIndexRoute
+  '/_protected/_project/studio/$studioSlug/projects/$projectId/pipeline/': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineIndexRoute
+  '/_protected/_project/studio/$studioSlug/projects/$projectId/structs/': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdStructsIndexRoute
+  '/_protected/_project/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute
+  '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey/new': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyNewRoute
+  '/_protected/_project/studio/$studioSlug/projects/$projectId/structs/$structId/builder': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdStructsStructIdBuilderRoute
+  '/_protected/_project/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId/': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute
+  '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey/': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute
+  '/_protected/_project/studio/$studioSlug/projects/$projectId/pipeline/workspace/': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute
+  '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit': typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -669,58 +712,62 @@ export interface FileRouteTypes {
     | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/logout'
+    | '/auth/register'
     | '/auth/reset-password'
     | '/local/machine'
     | '/local/'
-    | '/roles'
-    | '/settings'
-    | '/users'
     | '/403'
     | '/dev'
-    | '/runners'
-    | '/storage'
-    | '/runners/$runnerId'
-    | '/settings/notifications'
-    | '/settings/profile'
-    | '/settings/security'
-    | '/system/audit-logs'
-    | '/system/settings'
-    | '/system/studios'
-    | '/users/new'
-    | '/roles/'
-    | '/settings/'
-    | '/users/'
-    | '/s/$studioSlug/runners'
-    | '/s/$studioSlug/storage'
-    | '/system/audit-logs/$id'
-    | '/users/$id/edit'
-    | '/s/$studioSlug/'
-    | '/system/audit-logs/'
-    | '/users/$id/'
-    | '/s/$studioSlug/projects/$projectId'
-    | '/s/$studioSlug/runners/$runnerId'
-    | '/s/$studioSlug/projects/'
-    | '/s/$studioSlug/projects/$projectId/content-types'
-    | '/s/$studioSlug/projects/$projectId/contents'
-    | '/s/$studioSlug/projects/$projectId/migrations'
-    | '/s/$studioSlug/projects/$projectId/overview'
-    | '/s/$studioSlug/projects/$projectId/structs'
-    | '/s/$studioSlug/projects/$projectId/contents/$typeKey'
-    | '/s/$studioSlug/projects/$projectId/pipeline/$pipelineId'
-    | '/s/$studioSlug/projects/$projectId/content-types/'
-    | '/s/$studioSlug/projects/$projectId/contents/'
-    | '/s/$studioSlug/projects/$projectId/pipeline/'
-    | '/s/$studioSlug/projects/$projectId/structs/'
-    | '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder'
-    | '/s/$studioSlug/projects/$projectId/contents/$typeKey/new'
-    | '/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest'
-    | '/s/$studioSlug/projects/$projectId/pipeline/nodes/new'
-    | '/s/$studioSlug/projects/$projectId/structs/$structId/builder'
-    | '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/'
-    | '/s/$studioSlug/projects/$projectId/contents/$typeKey/'
-    | '/s/$studioSlug/projects/$projectId/pipeline/nodes/'
-    | '/s/$studioSlug/projects/$projectId/pipeline/workspace/'
-    | '/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
+    | '/account/settings'
+    | '/admin/roles'
+    | '/admin/users'
+    | '/admin/audit-logs'
+    | '/admin/settings'
+    | '/admin/studios'
+    | '/admin/templates'
+    | '/templates/$templateId'
+    | '/workspaces/$workspaceId'
+    | '/admin/'
+    | '/studio/'
+    | '/templates/'
+    | '/workspaces/'
+    | '/account/settings/notifications'
+    | '/account/settings/profile'
+    | '/account/settings/security'
+    | '/admin/audit-logs/$id'
+    | '/admin/users/new'
+    | '/studio/$studioSlug/runners'
+    | '/studio/$studioSlug/storage'
+    | '/templates/library/$libraryItemId'
+    | '/account/settings/'
+    | '/admin/audit-logs/'
+    | '/admin/roles/'
+    | '/admin/users/'
+    | '/studio/$studioSlug/'
+    | '/templates/library/'
+    | '/studio/$studioSlug/projects/$projectId'
+    | '/admin/users/$id/edit'
+    | '/studio/$studioSlug/runners/$runnerId'
+    | '/admin/users/$id/'
+    | '/studio/$studioSlug/projects/'
+    | '/studio/$studioSlug/projects/$projectId/content-types'
+    | '/studio/$studioSlug/projects/$projectId/contents'
+    | '/studio/$studioSlug/projects/$projectId/migrations'
+    | '/studio/$studioSlug/projects/$projectId/overview'
+    | '/studio/$studioSlug/projects/$projectId/structs'
+    | '/studio/$studioSlug/projects/$projectId/contents/$typeKey'
+    | '/studio/$studioSlug/projects/$projectId/pipeline/$pipelineId'
+    | '/studio/$studioSlug/projects/$projectId/content-types/'
+    | '/studio/$studioSlug/projects/$projectId/contents/'
+    | '/studio/$studioSlug/projects/$projectId/pipeline/'
+    | '/studio/$studioSlug/projects/$projectId/structs/'
+    | '/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder'
+    | '/studio/$studioSlug/projects/$projectId/contents/$typeKey/new'
+    | '/studio/$studioSlug/projects/$projectId/structs/$structId/builder'
+    | '/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId/'
+    | '/studio/$studioSlug/projects/$projectId/contents/$typeKey/'
+    | '/studio/$studioSlug/projects/$projectId/pipeline/workspace/'
+    | '/studio/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -730,52 +777,57 @@ export interface FileRouteTypes {
     | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/logout'
+    | '/auth/register'
     | '/auth/reset-password'
     | '/local/machine'
     | '/local'
     | '/403'
     | '/dev'
-    | '/runners'
-    | '/storage'
-    | '/runners/$runnerId'
-    | '/settings/notifications'
-    | '/settings/profile'
-    | '/settings/security'
-    | '/system/settings'
-    | '/system/studios'
-    | '/users/new'
-    | '/roles'
-    | '/settings'
-    | '/users'
-    | '/s/$studioSlug/runners'
-    | '/s/$studioSlug/storage'
-    | '/system/audit-logs/$id'
-    | '/users/$id/edit'
-    | '/s/$studioSlug'
-    | '/system/audit-logs'
-    | '/users/$id'
-    | '/s/$studioSlug/projects/$projectId'
-    | '/s/$studioSlug/runners/$runnerId'
-    | '/s/$studioSlug/projects'
-    | '/s/$studioSlug/projects/$projectId/migrations'
-    | '/s/$studioSlug/projects/$projectId/overview'
-    | '/s/$studioSlug/projects/$projectId/pipeline/$pipelineId'
-    | '/s/$studioSlug/projects/$projectId/content-types'
-    | '/s/$studioSlug/projects/$projectId/contents'
-    | '/s/$studioSlug/projects/$projectId/pipeline'
-    | '/s/$studioSlug/projects/$projectId/structs'
-    | '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder'
-    | '/s/$studioSlug/projects/$projectId/contents/$typeKey/new'
-    | '/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest'
-    | '/s/$studioSlug/projects/$projectId/pipeline/nodes/new'
-    | '/s/$studioSlug/projects/$projectId/structs/$structId/builder'
-    | '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId'
-    | '/s/$studioSlug/projects/$projectId/contents/$typeKey'
-    | '/s/$studioSlug/projects/$projectId/pipeline/nodes'
-    | '/s/$studioSlug/projects/$projectId/pipeline/workspace'
-    | '/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
+    | '/admin/settings'
+    | '/admin/studios'
+    | '/admin/templates'
+    | '/templates/$templateId'
+    | '/workspaces/$workspaceId'
+    | '/admin'
+    | '/studio'
+    | '/templates'
+    | '/workspaces'
+    | '/account/settings/notifications'
+    | '/account/settings/profile'
+    | '/account/settings/security'
+    | '/admin/audit-logs/$id'
+    | '/admin/users/new'
+    | '/studio/$studioSlug/runners'
+    | '/studio/$studioSlug/storage'
+    | '/templates/library/$libraryItemId'
+    | '/account/settings'
+    | '/admin/audit-logs'
+    | '/admin/roles'
+    | '/admin/users'
+    | '/studio/$studioSlug'
+    | '/templates/library'
+    | '/studio/$studioSlug/projects/$projectId'
+    | '/admin/users/$id/edit'
+    | '/studio/$studioSlug/runners/$runnerId'
+    | '/admin/users/$id'
+    | '/studio/$studioSlug/projects'
+    | '/studio/$studioSlug/projects/$projectId/migrations'
+    | '/studio/$studioSlug/projects/$projectId/overview'
+    | '/studio/$studioSlug/projects/$projectId/pipeline/$pipelineId'
+    | '/studio/$studioSlug/projects/$projectId/content-types'
+    | '/studio/$studioSlug/projects/$projectId/contents'
+    | '/studio/$studioSlug/projects/$projectId/pipeline'
+    | '/studio/$studioSlug/projects/$projectId/structs'
+    | '/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder'
+    | '/studio/$studioSlug/projects/$projectId/contents/$typeKey/new'
+    | '/studio/$studioSlug/projects/$projectId/structs/$structId/builder'
+    | '/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId'
+    | '/studio/$studioSlug/projects/$projectId/contents/$typeKey'
+    | '/studio/$studioSlug/projects/$projectId/pipeline/workspace'
+    | '/studio/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
   id:
     | '__root__'
+    | '/'
     | '/_protected'
     | '/auth'
     | '/local'
@@ -786,62 +838,66 @@ export interface FileRouteTypes {
     | '/auth/forgot-password'
     | '/auth/login'
     | '/auth/logout'
+    | '/auth/register'
     | '/auth/reset-password'
     | '/local/machine'
     | '/local/'
-    | '/_protected/_layout/roles'
-    | '/_protected/_layout/settings'
-    | '/_protected/_layout/users'
     | '/_protected/_layout/403'
     | '/_protected/_layout/dev'
-    | '/_protected/_layout/runners'
-    | '/_protected/_layout/storage'
-    | '/_protected/_layout/'
-    | '/_protected/_layout/runners_/$runnerId'
-    | '/_protected/_layout/settings/notifications'
-    | '/_protected/_layout/settings/profile'
-    | '/_protected/_layout/settings/security'
-    | '/_protected/_layout/system/audit-logs'
-    | '/_protected/_layout/system/settings'
-    | '/_protected/_layout/system/studios'
-    | '/_protected/_layout/users/new'
-    | '/_protected/_layout/roles/'
-    | '/_protected/_layout/settings/'
-    | '/_protected/_layout/users/'
-    | '/_protected/_layout/s/$studioSlug/runners'
-    | '/_protected/_layout/s/$studioSlug/storage'
-    | '/_protected/_layout/system/audit-logs/$id'
-    | '/_protected/_layout/users/$id/edit'
-    | '/_protected/_layout/s/$studioSlug/'
-    | '/_protected/_layout/system/audit-logs/'
-    | '/_protected/_layout/users/$id/'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId'
-    | '/_protected/_layout/s/$studioSlug/runners_/$runnerId'
-    | '/_protected/_layout/s/$studioSlug/projects/'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/content-types'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/contents'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/migrations'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/overview'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/structs'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/$pipelineId'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/contents/'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/structs/'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/new'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/new'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/structs/$structId/builder'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/workspace/'
-    | '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
+    | '/_protected/_layout/account/settings'
+    | '/_protected/_layout/admin/roles'
+    | '/_protected/_layout/admin/users'
+    | '/_protected/_layout/admin/audit-logs'
+    | '/_protected/_layout/admin/settings'
+    | '/_protected/_layout/admin/studios'
+    | '/_protected/_layout/admin/templates'
+    | '/_protected/_layout/templates/$templateId'
+    | '/_protected/_layout/workspaces/$workspaceId'
+    | '/_protected/_layout/admin/'
+    | '/_protected/_layout/studio/'
+    | '/_protected/_layout/templates/'
+    | '/_protected/_layout/workspaces/'
+    | '/_protected/_layout/account/settings/notifications'
+    | '/_protected/_layout/account/settings/profile'
+    | '/_protected/_layout/account/settings/security'
+    | '/_protected/_layout/admin/audit-logs/$id'
+    | '/_protected/_layout/admin/users/new'
+    | '/_protected/_layout/studio/$studioSlug/runners'
+    | '/_protected/_layout/studio/$studioSlug/storage'
+    | '/_protected/_layout/templates/library/$libraryItemId'
+    | '/_protected/_layout/account/settings/'
+    | '/_protected/_layout/admin/audit-logs/'
+    | '/_protected/_layout/admin/roles/'
+    | '/_protected/_layout/admin/users/'
+    | '/_protected/_layout/studio/$studioSlug/'
+    | '/_protected/_layout/templates/library/'
+    | '/_protected/_project/studio/$studioSlug/projects/$projectId'
+    | '/_protected/_layout/admin/users/$id/edit'
+    | '/_protected/_layout/studio/$studioSlug/runners_/$runnerId'
+    | '/_protected/_layout/admin/users/$id/'
+    | '/_protected/_layout/studio/$studioSlug/projects/'
+    | '/_protected/_project/studio/$studioSlug/projects/$projectId/content-types'
+    | '/_protected/_project/studio/$studioSlug/projects/$projectId/contents'
+    | '/_protected/_project/studio/$studioSlug/projects/$projectId/migrations'
+    | '/_protected/_project/studio/$studioSlug/projects/$projectId/overview'
+    | '/_protected/_project/studio/$studioSlug/projects/$projectId/structs'
+    | '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey'
+    | '/_protected/_project/studio/$studioSlug/projects/$projectId/pipeline/$pipelineId'
+    | '/_protected/_project/studio/$studioSlug/projects/$projectId/content-types/'
+    | '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/'
+    | '/_protected/_project/studio/$studioSlug/projects/$projectId/pipeline/'
+    | '/_protected/_project/studio/$studioSlug/projects/$projectId/structs/'
+    | '/_protected/_project/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder'
+    | '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey/new'
+    | '/_protected/_project/studio/$studioSlug/projects/$projectId/structs/$structId/builder'
+    | '/_protected/_project/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId/'
+    | '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey/'
+    | '/_protected/_project/studio/$studioSlug/projects/$projectId/pipeline/workspace/'
+    | '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
   ProtectedRoute: typeof ProtectedRouteWithChildren
   AuthRoute: typeof AuthRouteWithChildren
   LocalRoute: typeof LocalRouteWithChildren
@@ -849,6 +905,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_protected': {
       id: '/_protected'
       path: ''
@@ -919,6 +982,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthLogoutRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/auth/register': {
+      id: '/auth/register'
+      path: '/register'
+      fullPath: '/auth/register'
+      preLoaderRoute: typeof AuthRegisterRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/auth/reset-password': {
       id: '/auth/reset-password'
       path: '/reset-password'
@@ -940,13 +1010,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LocalMachineRouteImport
       parentRoute: typeof LocalRoute
     }
-    '/_protected/_layout/': {
-      id: '/_protected/_layout/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof ProtectedLayoutIndexRouteImport
-      parentRoute: typeof ProtectedLayoutRoute
-    }
     '/_protected/_layout/403': {
       id: '/_protected/_layout/403'
       path: '/403'
@@ -961,591 +1024,623 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedLayoutDevRouteImport
       parentRoute: typeof ProtectedLayoutRoute
     }
-    '/_protected/_layout/roles': {
-      id: '/_protected/_layout/roles'
-      path: '/roles'
-      fullPath: '/roles'
-      preLoaderRoute: typeof ProtectedLayoutRolesRouteRouteImport
+    '/_protected/_layout/account/settings': {
+      id: '/_protected/_layout/account/settings'
+      path: '/account/settings'
+      fullPath: '/account/settings'
+      preLoaderRoute: typeof ProtectedLayoutAccountSettingsRouteRouteImport
       parentRoute: typeof ProtectedLayoutRoute
     }
-    '/_protected/_layout/runners': {
-      id: '/_protected/_layout/runners'
-      path: '/runners'
-      fullPath: '/runners'
-      preLoaderRoute: typeof ProtectedLayoutRunnersRouteImport
+    '/_protected/_layout/admin/': {
+      id: '/_protected/_layout/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof ProtectedLayoutAdminIndexRouteImport
       parentRoute: typeof ProtectedLayoutRoute
     }
-    '/_protected/_layout/settings': {
-      id: '/_protected/_layout/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof ProtectedLayoutSettingsRouteRouteImport
+    '/_protected/_layout/admin/audit-logs': {
+      id: '/_protected/_layout/admin/audit-logs'
+      path: '/admin/audit-logs'
+      fullPath: '/admin/audit-logs'
+      preLoaderRoute: typeof ProtectedLayoutAdminAuditLogsRouteImport
       parentRoute: typeof ProtectedLayoutRoute
     }
-    '/_protected/_layout/storage': {
-      id: '/_protected/_layout/storage'
-      path: '/storage'
-      fullPath: '/storage'
-      preLoaderRoute: typeof ProtectedLayoutStorageRouteImport
+    '/_protected/_layout/admin/roles': {
+      id: '/_protected/_layout/admin/roles'
+      path: '/admin/roles'
+      fullPath: '/admin/roles'
+      preLoaderRoute: typeof ProtectedLayoutAdminRolesRouteRouteImport
       parentRoute: typeof ProtectedLayoutRoute
     }
-    '/_protected/_layout/users': {
-      id: '/_protected/_layout/users'
-      path: '/users'
-      fullPath: '/users'
-      preLoaderRoute: typeof ProtectedLayoutUsersRouteRouteImport
+    '/_protected/_layout/admin/settings': {
+      id: '/_protected/_layout/admin/settings'
+      path: '/admin/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof ProtectedLayoutAdminSettingsRouteImport
       parentRoute: typeof ProtectedLayoutRoute
     }
-    '/_protected/_layout/roles/': {
-      id: '/_protected/_layout/roles/'
+    '/_protected/_layout/admin/studios': {
+      id: '/_protected/_layout/admin/studios'
+      path: '/admin/studios'
+      fullPath: '/admin/studios'
+      preLoaderRoute: typeof ProtectedLayoutAdminStudiosRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
+    }
+    '/_protected/_layout/admin/templates': {
+      id: '/_protected/_layout/admin/templates'
+      path: '/admin/templates'
+      fullPath: '/admin/templates'
+      preLoaderRoute: typeof ProtectedLayoutAdminTemplatesRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
+    }
+    '/_protected/_layout/admin/users': {
+      id: '/_protected/_layout/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof ProtectedLayoutAdminUsersRouteRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
+    }
+    '/_protected/_layout/studio/': {
+      id: '/_protected/_layout/studio/'
+      path: '/studio'
+      fullPath: '/studio/'
+      preLoaderRoute: typeof ProtectedLayoutStudioIndexRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
+    }
+    '/_protected/_layout/templates/': {
+      id: '/_protected/_layout/templates/'
+      path: '/templates'
+      fullPath: '/templates/'
+      preLoaderRoute: typeof ProtectedLayoutTemplatesIndexRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
+    }
+    '/_protected/_layout/templates/$templateId': {
+      id: '/_protected/_layout/templates/$templateId'
+      path: '/templates/$templateId'
+      fullPath: '/templates/$templateId'
+      preLoaderRoute: typeof ProtectedLayoutTemplatesTemplateIdRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
+    }
+    '/_protected/_layout/workspaces/': {
+      id: '/_protected/_layout/workspaces/'
+      path: '/workspaces'
+      fullPath: '/workspaces/'
+      preLoaderRoute: typeof ProtectedLayoutWorkspacesIndexRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
+    }
+    '/_protected/_layout/workspaces/$workspaceId': {
+      id: '/_protected/_layout/workspaces/$workspaceId'
+      path: '/workspaces/$workspaceId'
+      fullPath: '/workspaces/$workspaceId'
+      preLoaderRoute: typeof ProtectedLayoutWorkspacesWorkspaceIdRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
+    }
+    '/_protected/_layout/account/settings/': {
+      id: '/_protected/_layout/account/settings/'
       path: '/'
-      fullPath: '/roles/'
-      preLoaderRoute: typeof ProtectedLayoutRolesIndexRouteImport
-      parentRoute: typeof ProtectedLayoutRolesRouteRoute
+      fullPath: '/account/settings/'
+      preLoaderRoute: typeof ProtectedLayoutAccountSettingsIndexRouteImport
+      parentRoute: typeof ProtectedLayoutAccountSettingsRouteRoute
     }
-    '/_protected/_layout/runners_/$runnerId': {
-      id: '/_protected/_layout/runners_/$runnerId'
-      path: '/runners/$runnerId'
-      fullPath: '/runners/$runnerId'
-      preLoaderRoute: typeof ProtectedLayoutRunnersRunnerIdRouteImport
-      parentRoute: typeof ProtectedLayoutRoute
-    }
-    '/_protected/_layout/settings/': {
-      id: '/_protected/_layout/settings/'
-      path: '/'
-      fullPath: '/settings/'
-      preLoaderRoute: typeof ProtectedLayoutSettingsIndexRouteImport
-      parentRoute: typeof ProtectedLayoutSettingsRouteRoute
-    }
-    '/_protected/_layout/settings/notifications': {
-      id: '/_protected/_layout/settings/notifications'
+    '/_protected/_layout/account/settings/notifications': {
+      id: '/_protected/_layout/account/settings/notifications'
       path: '/notifications'
-      fullPath: '/settings/notifications'
-      preLoaderRoute: typeof ProtectedLayoutSettingsNotificationsRouteImport
-      parentRoute: typeof ProtectedLayoutSettingsRouteRoute
+      fullPath: '/account/settings/notifications'
+      preLoaderRoute: typeof ProtectedLayoutAccountSettingsNotificationsRouteImport
+      parentRoute: typeof ProtectedLayoutAccountSettingsRouteRoute
     }
-    '/_protected/_layout/settings/profile': {
-      id: '/_protected/_layout/settings/profile'
+    '/_protected/_layout/account/settings/profile': {
+      id: '/_protected/_layout/account/settings/profile'
       path: '/profile'
-      fullPath: '/settings/profile'
-      preLoaderRoute: typeof ProtectedLayoutSettingsProfileRouteImport
-      parentRoute: typeof ProtectedLayoutSettingsRouteRoute
+      fullPath: '/account/settings/profile'
+      preLoaderRoute: typeof ProtectedLayoutAccountSettingsProfileRouteImport
+      parentRoute: typeof ProtectedLayoutAccountSettingsRouteRoute
     }
-    '/_protected/_layout/settings/security': {
-      id: '/_protected/_layout/settings/security'
+    '/_protected/_layout/account/settings/security': {
+      id: '/_protected/_layout/account/settings/security'
       path: '/security'
-      fullPath: '/settings/security'
-      preLoaderRoute: typeof ProtectedLayoutSettingsSecurityRouteImport
-      parentRoute: typeof ProtectedLayoutSettingsRouteRoute
+      fullPath: '/account/settings/security'
+      preLoaderRoute: typeof ProtectedLayoutAccountSettingsSecurityRouteImport
+      parentRoute: typeof ProtectedLayoutAccountSettingsRouteRoute
     }
-    '/_protected/_layout/system/audit-logs': {
-      id: '/_protected/_layout/system/audit-logs'
-      path: '/system/audit-logs'
-      fullPath: '/system/audit-logs'
-      preLoaderRoute: typeof ProtectedLayoutSystemAuditLogsRouteImport
-      parentRoute: typeof ProtectedLayoutRoute
-    }
-    '/_protected/_layout/system/settings': {
-      id: '/_protected/_layout/system/settings'
-      path: '/system/settings'
-      fullPath: '/system/settings'
-      preLoaderRoute: typeof ProtectedLayoutSystemSettingsRouteImport
-      parentRoute: typeof ProtectedLayoutRoute
-    }
-    '/_protected/_layout/system/studios': {
-      id: '/_protected/_layout/system/studios'
-      path: '/system/studios'
-      fullPath: '/system/studios'
-      preLoaderRoute: typeof ProtectedLayoutSystemStudiosRouteImport
-      parentRoute: typeof ProtectedLayoutRoute
-    }
-    '/_protected/_layout/users/': {
-      id: '/_protected/_layout/users/'
+    '/_protected/_layout/admin/audit-logs/': {
+      id: '/_protected/_layout/admin/audit-logs/'
       path: '/'
-      fullPath: '/users/'
-      preLoaderRoute: typeof ProtectedLayoutUsersIndexRouteImport
-      parentRoute: typeof ProtectedLayoutUsersRouteRoute
+      fullPath: '/admin/audit-logs/'
+      preLoaderRoute: typeof ProtectedLayoutAdminAuditLogsIndexRouteImport
+      parentRoute: typeof ProtectedLayoutAdminAuditLogsRoute
     }
-    '/_protected/_layout/users/new': {
-      id: '/_protected/_layout/users/new'
+    '/_protected/_layout/admin/audit-logs/$id': {
+      id: '/_protected/_layout/admin/audit-logs/$id'
+      path: '/$id'
+      fullPath: '/admin/audit-logs/$id'
+      preLoaderRoute: typeof ProtectedLayoutAdminAuditLogsIdRouteImport
+      parentRoute: typeof ProtectedLayoutAdminAuditLogsRoute
+    }
+    '/_protected/_layout/admin/roles/': {
+      id: '/_protected/_layout/admin/roles/'
+      path: '/'
+      fullPath: '/admin/roles/'
+      preLoaderRoute: typeof ProtectedLayoutAdminRolesIndexRouteImport
+      parentRoute: typeof ProtectedLayoutAdminRolesRouteRoute
+    }
+    '/_protected/_layout/admin/users/': {
+      id: '/_protected/_layout/admin/users/'
+      path: '/'
+      fullPath: '/admin/users/'
+      preLoaderRoute: typeof ProtectedLayoutAdminUsersIndexRouteImport
+      parentRoute: typeof ProtectedLayoutAdminUsersRouteRoute
+    }
+    '/_protected/_layout/admin/users/new': {
+      id: '/_protected/_layout/admin/users/new'
       path: '/new'
-      fullPath: '/users/new'
-      preLoaderRoute: typeof ProtectedLayoutUsersNewRouteImport
-      parentRoute: typeof ProtectedLayoutUsersRouteRoute
+      fullPath: '/admin/users/new'
+      preLoaderRoute: typeof ProtectedLayoutAdminUsersNewRouteImport
+      parentRoute: typeof ProtectedLayoutAdminUsersRouteRoute
     }
-    '/_protected/_layout/s/$studioSlug/': {
-      id: '/_protected/_layout/s/$studioSlug/'
-      path: '/s/$studioSlug'
-      fullPath: '/s/$studioSlug/'
-      preLoaderRoute: typeof ProtectedLayoutSStudioSlugIndexRouteImport
+    '/_protected/_layout/studio/$studioSlug/': {
+      id: '/_protected/_layout/studio/$studioSlug/'
+      path: '/studio/$studioSlug'
+      fullPath: '/studio/$studioSlug/'
+      preLoaderRoute: typeof ProtectedLayoutStudioStudioSlugIndexRouteImport
       parentRoute: typeof ProtectedLayoutRoute
     }
-    '/_protected/_layout/s/$studioSlug/runners': {
-      id: '/_protected/_layout/s/$studioSlug/runners'
-      path: '/s/$studioSlug/runners'
-      fullPath: '/s/$studioSlug/runners'
-      preLoaderRoute: typeof ProtectedLayoutSStudioSlugRunnersRouteImport
+    '/_protected/_layout/studio/$studioSlug/runners': {
+      id: '/_protected/_layout/studio/$studioSlug/runners'
+      path: '/studio/$studioSlug/runners'
+      fullPath: '/studio/$studioSlug/runners'
+      preLoaderRoute: typeof ProtectedLayoutStudioStudioSlugRunnersRouteImport
       parentRoute: typeof ProtectedLayoutRoute
     }
-    '/_protected/_layout/s/$studioSlug/storage': {
-      id: '/_protected/_layout/s/$studioSlug/storage'
-      path: '/s/$studioSlug/storage'
-      fullPath: '/s/$studioSlug/storage'
-      preLoaderRoute: typeof ProtectedLayoutSStudioSlugStorageRouteImport
+    '/_protected/_layout/studio/$studioSlug/storage': {
+      id: '/_protected/_layout/studio/$studioSlug/storage'
+      path: '/studio/$studioSlug/storage'
+      fullPath: '/studio/$studioSlug/storage'
+      preLoaderRoute: typeof ProtectedLayoutStudioStudioSlugStorageRouteImport
       parentRoute: typeof ProtectedLayoutRoute
     }
-    '/_protected/_layout/system/audit-logs/': {
-      id: '/_protected/_layout/system/audit-logs/'
-      path: '/'
-      fullPath: '/system/audit-logs/'
-      preLoaderRoute: typeof ProtectedLayoutSystemAuditLogsIndexRouteImport
-      parentRoute: typeof ProtectedLayoutSystemAuditLogsRoute
+    '/_protected/_layout/templates/library/': {
+      id: '/_protected/_layout/templates/library/'
+      path: '/templates/library'
+      fullPath: '/templates/library/'
+      preLoaderRoute: typeof ProtectedLayoutTemplatesLibraryIndexRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
     }
-    '/_protected/_layout/system/audit-logs/$id': {
-      id: '/_protected/_layout/system/audit-logs/$id'
+    '/_protected/_layout/templates/library/$libraryItemId': {
+      id: '/_protected/_layout/templates/library/$libraryItemId'
+      path: '/templates/library/$libraryItemId'
+      fullPath: '/templates/library/$libraryItemId'
+      preLoaderRoute: typeof ProtectedLayoutTemplatesLibraryLibraryItemIdRouteImport
+      parentRoute: typeof ProtectedLayoutRoute
+    }
+    '/_protected/_layout/admin/users/$id/': {
+      id: '/_protected/_layout/admin/users/$id/'
       path: '/$id'
-      fullPath: '/system/audit-logs/$id'
-      preLoaderRoute: typeof ProtectedLayoutSystemAuditLogsIdRouteImport
-      parentRoute: typeof ProtectedLayoutSystemAuditLogsRoute
+      fullPath: '/admin/users/$id/'
+      preLoaderRoute: typeof ProtectedLayoutAdminUsersIdIndexRouteImport
+      parentRoute: typeof ProtectedLayoutAdminUsersRouteRoute
     }
-    '/_protected/_layout/users/$id/': {
-      id: '/_protected/_layout/users/$id/'
-      path: '/$id'
-      fullPath: '/users/$id/'
-      preLoaderRoute: typeof ProtectedLayoutUsersIdIndexRouteImport
-      parentRoute: typeof ProtectedLayoutUsersRouteRoute
-    }
-    '/_protected/_layout/users/$id/edit': {
-      id: '/_protected/_layout/users/$id/edit'
+    '/_protected/_layout/admin/users/$id/edit': {
+      id: '/_protected/_layout/admin/users/$id/edit'
       path: '/$id/edit'
-      fullPath: '/users/$id/edit'
-      preLoaderRoute: typeof ProtectedLayoutUsersIdEditRouteImport
-      parentRoute: typeof ProtectedLayoutUsersRouteRoute
+      fullPath: '/admin/users/$id/edit'
+      preLoaderRoute: typeof ProtectedLayoutAdminUsersIdEditRouteImport
+      parentRoute: typeof ProtectedLayoutAdminUsersRouteRoute
     }
-    '/_protected/_layout/s/$studioSlug/projects/': {
-      id: '/_protected/_layout/s/$studioSlug/projects/'
-      path: '/s/$studioSlug/projects'
-      fullPath: '/s/$studioSlug/projects/'
-      preLoaderRoute: typeof ProtectedLayoutSStudioSlugProjectsIndexRouteImport
+    '/_protected/_layout/studio/$studioSlug/projects/': {
+      id: '/_protected/_layout/studio/$studioSlug/projects/'
+      path: '/studio/$studioSlug/projects'
+      fullPath: '/studio/$studioSlug/projects/'
+      preLoaderRoute: typeof ProtectedLayoutStudioStudioSlugProjectsIndexRouteImport
       parentRoute: typeof ProtectedLayoutRoute
     }
-    '/_protected/_layout/s/$studioSlug/runners_/$runnerId': {
-      id: '/_protected/_layout/s/$studioSlug/runners_/$runnerId'
-      path: '/s/$studioSlug/runners/$runnerId'
-      fullPath: '/s/$studioSlug/runners/$runnerId'
-      preLoaderRoute: typeof ProtectedLayoutSStudioSlugRunnersRunnerIdRouteImport
+    '/_protected/_layout/studio/$studioSlug/runners_/$runnerId': {
+      id: '/_protected/_layout/studio/$studioSlug/runners_/$runnerId'
+      path: '/studio/$studioSlug/runners/$runnerId'
+      fullPath: '/studio/$studioSlug/runners/$runnerId'
+      preLoaderRoute: typeof ProtectedLayoutStudioStudioSlugRunnersRunnerIdRouteImport
       parentRoute: typeof ProtectedLayoutRoute
     }
-    '/_protected/_project/s/$studioSlug/projects/$projectId': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId'
-      path: '/s/$studioSlug/projects/$projectId'
-      fullPath: '/s/$studioSlug/projects/$projectId'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteImport
+    '/_protected/_project/studio/$studioSlug/projects/$projectId': {
+      id: '/_protected/_project/studio/$studioSlug/projects/$projectId'
+      path: '/studio/$studioSlug/projects/$projectId'
+      fullPath: '/studio/$studioSlug/projects/$projectId'
+      preLoaderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRouteImport
       parentRoute: typeof ProtectedProjectRoute
     }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/content-types': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/content-types'
+    '/_protected/_project/studio/$studioSlug/projects/$projectId/content-types': {
+      id: '/_protected/_project/studio/$studioSlug/projects/$projectId/content-types'
       path: '/content-types'
-      fullPath: '/s/$studioSlug/projects/$projectId/content-types'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
+      fullPath: '/studio/$studioSlug/projects/$projectId/content-types'
+      preLoaderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRouteImport
+      parentRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute
     }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/contents': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/contents'
+    '/_protected/_project/studio/$studioSlug/projects/$projectId/contents': {
+      id: '/_protected/_project/studio/$studioSlug/projects/$projectId/contents'
       path: '/contents'
-      fullPath: '/s/$studioSlug/projects/$projectId/contents'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
+      fullPath: '/studio/$studioSlug/projects/$projectId/contents'
+      preLoaderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRouteImport
+      parentRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute
     }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/migrations': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/migrations'
+    '/_protected/_project/studio/$studioSlug/projects/$projectId/migrations': {
+      id: '/_protected/_project/studio/$studioSlug/projects/$projectId/migrations'
       path: '/migrations'
-      fullPath: '/s/$studioSlug/projects/$projectId/migrations'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
+      fullPath: '/studio/$studioSlug/projects/$projectId/migrations'
+      preLoaderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdMigrationsRouteImport
+      parentRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute
     }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/overview': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/overview'
+    '/_protected/_project/studio/$studioSlug/projects/$projectId/overview': {
+      id: '/_protected/_project/studio/$studioSlug/projects/$projectId/overview'
       path: '/overview'
-      fullPath: '/s/$studioSlug/projects/$projectId/overview'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdOverviewRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
+      fullPath: '/studio/$studioSlug/projects/$projectId/overview'
+      preLoaderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdOverviewRouteImport
+      parentRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute
     }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/structs': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/structs'
+    '/_protected/_project/studio/$studioSlug/projects/$projectId/structs': {
+      id: '/_protected/_project/studio/$studioSlug/projects/$projectId/structs'
       path: '/structs'
-      fullPath: '/s/$studioSlug/projects/$projectId/structs'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
+      fullPath: '/studio/$studioSlug/projects/$projectId/structs'
+      preLoaderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRouteImport
+      parentRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute
     }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/'
+    '/_protected/_project/studio/$studioSlug/projects/$projectId/content-types/': {
+      id: '/_protected/_project/studio/$studioSlug/projects/$projectId/content-types/'
       path: '/'
-      fullPath: '/s/$studioSlug/projects/$projectId/content-types/'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute
+      fullPath: '/studio/$studioSlug/projects/$projectId/content-types/'
+      preLoaderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesIndexRouteImport
+      parentRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRoute
     }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/contents/': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/contents/'
+    '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/': {
+      id: '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/'
       path: '/'
-      fullPath: '/s/$studioSlug/projects/$projectId/contents/'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsRoute
+      fullPath: '/studio/$studioSlug/projects/$projectId/contents/'
+      preLoaderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsIndexRouteImport
+      parentRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRoute
     }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey'
+    '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey': {
+      id: '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey'
       path: '/$typeKey'
-      fullPath: '/s/$studioSlug/projects/$projectId/contents/$typeKey'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsRoute
+      fullPath: '/studio/$studioSlug/projects/$projectId/contents/$typeKey'
+      preLoaderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRouteImport
+      parentRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRoute
     }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/'
+    '/_protected/_project/studio/$studioSlug/projects/$projectId/pipeline/': {
+      id: '/_protected/_project/studio/$studioSlug/projects/$projectId/pipeline/'
       path: '/pipeline'
-      fullPath: '/s/$studioSlug/projects/$projectId/pipeline/'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
+      fullPath: '/studio/$studioSlug/projects/$projectId/pipeline/'
+      preLoaderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineIndexRouteImport
+      parentRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute
     }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/$pipelineId': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/$pipelineId'
+    '/_protected/_project/studio/$studioSlug/projects/$projectId/pipeline/$pipelineId': {
+      id: '/_protected/_project/studio/$studioSlug/projects/$projectId/pipeline/$pipelineId'
       path: '/pipeline/$pipelineId'
-      fullPath: '/s/$studioSlug/projects/$projectId/pipeline/$pipelineId'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
+      fullPath: '/studio/$studioSlug/projects/$projectId/pipeline/$pipelineId'
+      preLoaderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdPipelinePipelineIdRouteImport
+      parentRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute
     }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/structs/': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/structs/'
+    '/_protected/_project/studio/$studioSlug/projects/$projectId/structs/': {
+      id: '/_protected/_project/studio/$studioSlug/projects/$projectId/structs/'
       path: '/'
-      fullPath: '/s/$studioSlug/projects/$projectId/structs/'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsRoute
+      fullPath: '/studio/$studioSlug/projects/$projectId/structs/'
+      preLoaderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdStructsIndexRouteImport
+      parentRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRoute
     }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/'
+    '/_protected/_project/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId/': {
+      id: '/_protected/_project/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId/'
       path: '/$contentTypeId'
-      fullPath: '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute
+      fullPath: '/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId/'
+      preLoaderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRouteImport
+      parentRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRoute
     }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder'
+    '/_protected/_project/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder': {
+      id: '/_protected/_project/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder'
       path: '/$contentTypeId/builder'
-      fullPath: '/s/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute
+      fullPath: '/studio/$studioSlug/projects/$projectId/content-types/$contentTypeId/builder'
+      preLoaderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRouteImport
+      parentRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRoute
     }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/'
+    '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey/': {
+      id: '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey/'
       path: '/'
-      fullPath: '/s/$studioSlug/projects/$projectId/contents/$typeKey/'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute
+      fullPath: '/studio/$studioSlug/projects/$projectId/contents/$typeKey/'
+      preLoaderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyIndexRouteImport
+      parentRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRoute
     }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/new': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/new'
+    '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey/new': {
+      id: '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey/new'
       path: '/new'
-      fullPath: '/s/$studioSlug/projects/$projectId/contents/$typeKey/new'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute
+      fullPath: '/studio/$studioSlug/projects/$projectId/contents/$typeKey/new'
+      preLoaderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyNewRouteImport
+      parentRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRoute
     }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/'
-      path: '/pipeline/nodes'
-      fullPath: '/s/$studioSlug/projects/$projectId/pipeline/nodes/'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
-    }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest'
-      path: '/pipeline/nodes/ingest'
-      fullPath: '/s/$studioSlug/projects/$projectId/pipeline/nodes/ingest'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
-    }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/new': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/nodes/new'
-      path: '/pipeline/nodes/new'
-      fullPath: '/s/$studioSlug/projects/$projectId/pipeline/nodes/new'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
-    }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/workspace/': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/pipeline/workspace/'
+    '/_protected/_project/studio/$studioSlug/projects/$projectId/pipeline/workspace/': {
+      id: '/_protected/_project/studio/$studioSlug/projects/$projectId/pipeline/workspace/'
       path: '/pipeline/workspace'
-      fullPath: '/s/$studioSlug/projects/$projectId/pipeline/workspace/'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute
+      fullPath: '/studio/$studioSlug/projects/$projectId/pipeline/workspace/'
+      preLoaderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineWorkspaceIndexRouteImport
+      parentRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute
     }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/structs/$structId/builder': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/structs/$structId/builder'
+    '/_protected/_project/studio/$studioSlug/projects/$projectId/structs/$structId/builder': {
+      id: '/_protected/_project/studio/$studioSlug/projects/$projectId/structs/$structId/builder'
       path: '/$structId/builder'
-      fullPath: '/s/$studioSlug/projects/$projectId/structs/$structId/builder'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsRoute
+      fullPath: '/studio/$studioSlug/projects/$projectId/structs/$structId/builder'
+      preLoaderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdStructsStructIdBuilderRouteImport
+      parentRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRoute
     }
-    '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit': {
-      id: '/_protected/_project/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
+    '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit': {
+      id: '/_protected/_project/studio/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
       path: '/$itemKey/edit'
-      fullPath: '/s/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
-      preLoaderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRouteImport
-      parentRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute
+      fullPath: '/studio/$studioSlug/projects/$projectId/contents/$typeKey/$itemKey/edit'
+      preLoaderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRouteImport
+      parentRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRoute
     }
   }
 }
 
-interface ProtectedLayoutRolesRouteRouteChildren {
-  ProtectedLayoutRolesIndexRoute: typeof ProtectedLayoutRolesIndexRoute
+interface ProtectedLayoutAccountSettingsRouteRouteChildren {
+  ProtectedLayoutAccountSettingsNotificationsRoute: typeof ProtectedLayoutAccountSettingsNotificationsRoute
+  ProtectedLayoutAccountSettingsProfileRoute: typeof ProtectedLayoutAccountSettingsProfileRoute
+  ProtectedLayoutAccountSettingsSecurityRoute: typeof ProtectedLayoutAccountSettingsSecurityRoute
+  ProtectedLayoutAccountSettingsIndexRoute: typeof ProtectedLayoutAccountSettingsIndexRoute
 }
 
-const ProtectedLayoutRolesRouteRouteChildren: ProtectedLayoutRolesRouteRouteChildren =
+const ProtectedLayoutAccountSettingsRouteRouteChildren: ProtectedLayoutAccountSettingsRouteRouteChildren =
   {
-    ProtectedLayoutRolesIndexRoute: ProtectedLayoutRolesIndexRoute,
+    ProtectedLayoutAccountSettingsNotificationsRoute:
+      ProtectedLayoutAccountSettingsNotificationsRoute,
+    ProtectedLayoutAccountSettingsProfileRoute:
+      ProtectedLayoutAccountSettingsProfileRoute,
+    ProtectedLayoutAccountSettingsSecurityRoute:
+      ProtectedLayoutAccountSettingsSecurityRoute,
+    ProtectedLayoutAccountSettingsIndexRoute:
+      ProtectedLayoutAccountSettingsIndexRoute,
   }
 
-const ProtectedLayoutRolesRouteRouteWithChildren =
-  ProtectedLayoutRolesRouteRoute._addFileChildren(
-    ProtectedLayoutRolesRouteRouteChildren,
+const ProtectedLayoutAccountSettingsRouteRouteWithChildren =
+  ProtectedLayoutAccountSettingsRouteRoute._addFileChildren(
+    ProtectedLayoutAccountSettingsRouteRouteChildren,
   )
 
-interface ProtectedLayoutSettingsRouteRouteChildren {
-  ProtectedLayoutSettingsNotificationsRoute: typeof ProtectedLayoutSettingsNotificationsRoute
-  ProtectedLayoutSettingsProfileRoute: typeof ProtectedLayoutSettingsProfileRoute
-  ProtectedLayoutSettingsSecurityRoute: typeof ProtectedLayoutSettingsSecurityRoute
-  ProtectedLayoutSettingsIndexRoute: typeof ProtectedLayoutSettingsIndexRoute
+interface ProtectedLayoutAdminRolesRouteRouteChildren {
+  ProtectedLayoutAdminRolesIndexRoute: typeof ProtectedLayoutAdminRolesIndexRoute
 }
 
-const ProtectedLayoutSettingsRouteRouteChildren: ProtectedLayoutSettingsRouteRouteChildren =
+const ProtectedLayoutAdminRolesRouteRouteChildren: ProtectedLayoutAdminRolesRouteRouteChildren =
   {
-    ProtectedLayoutSettingsNotificationsRoute:
-      ProtectedLayoutSettingsNotificationsRoute,
-    ProtectedLayoutSettingsProfileRoute: ProtectedLayoutSettingsProfileRoute,
-    ProtectedLayoutSettingsSecurityRoute: ProtectedLayoutSettingsSecurityRoute,
-    ProtectedLayoutSettingsIndexRoute: ProtectedLayoutSettingsIndexRoute,
+    ProtectedLayoutAdminRolesIndexRoute: ProtectedLayoutAdminRolesIndexRoute,
   }
 
-const ProtectedLayoutSettingsRouteRouteWithChildren =
-  ProtectedLayoutSettingsRouteRoute._addFileChildren(
-    ProtectedLayoutSettingsRouteRouteChildren,
+const ProtectedLayoutAdminRolesRouteRouteWithChildren =
+  ProtectedLayoutAdminRolesRouteRoute._addFileChildren(
+    ProtectedLayoutAdminRolesRouteRouteChildren,
   )
 
-interface ProtectedLayoutUsersRouteRouteChildren {
-  ProtectedLayoutUsersNewRoute: typeof ProtectedLayoutUsersNewRoute
-  ProtectedLayoutUsersIndexRoute: typeof ProtectedLayoutUsersIndexRoute
-  ProtectedLayoutUsersIdEditRoute: typeof ProtectedLayoutUsersIdEditRoute
-  ProtectedLayoutUsersIdIndexRoute: typeof ProtectedLayoutUsersIdIndexRoute
+interface ProtectedLayoutAdminUsersRouteRouteChildren {
+  ProtectedLayoutAdminUsersNewRoute: typeof ProtectedLayoutAdminUsersNewRoute
+  ProtectedLayoutAdminUsersIndexRoute: typeof ProtectedLayoutAdminUsersIndexRoute
+  ProtectedLayoutAdminUsersIdEditRoute: typeof ProtectedLayoutAdminUsersIdEditRoute
+  ProtectedLayoutAdminUsersIdIndexRoute: typeof ProtectedLayoutAdminUsersIdIndexRoute
 }
 
-const ProtectedLayoutUsersRouteRouteChildren: ProtectedLayoutUsersRouteRouteChildren =
+const ProtectedLayoutAdminUsersRouteRouteChildren: ProtectedLayoutAdminUsersRouteRouteChildren =
   {
-    ProtectedLayoutUsersNewRoute: ProtectedLayoutUsersNewRoute,
-    ProtectedLayoutUsersIndexRoute: ProtectedLayoutUsersIndexRoute,
-    ProtectedLayoutUsersIdEditRoute: ProtectedLayoutUsersIdEditRoute,
-    ProtectedLayoutUsersIdIndexRoute: ProtectedLayoutUsersIdIndexRoute,
+    ProtectedLayoutAdminUsersNewRoute: ProtectedLayoutAdminUsersNewRoute,
+    ProtectedLayoutAdminUsersIndexRoute: ProtectedLayoutAdminUsersIndexRoute,
+    ProtectedLayoutAdminUsersIdEditRoute: ProtectedLayoutAdminUsersIdEditRoute,
+    ProtectedLayoutAdminUsersIdIndexRoute:
+      ProtectedLayoutAdminUsersIdIndexRoute,
   }
 
-const ProtectedLayoutUsersRouteRouteWithChildren =
-  ProtectedLayoutUsersRouteRoute._addFileChildren(
-    ProtectedLayoutUsersRouteRouteChildren,
+const ProtectedLayoutAdminUsersRouteRouteWithChildren =
+  ProtectedLayoutAdminUsersRouteRoute._addFileChildren(
+    ProtectedLayoutAdminUsersRouteRouteChildren,
   )
 
-interface ProtectedLayoutSystemAuditLogsRouteChildren {
-  ProtectedLayoutSystemAuditLogsIdRoute: typeof ProtectedLayoutSystemAuditLogsIdRoute
-  ProtectedLayoutSystemAuditLogsIndexRoute: typeof ProtectedLayoutSystemAuditLogsIndexRoute
+interface ProtectedLayoutAdminAuditLogsRouteChildren {
+  ProtectedLayoutAdminAuditLogsIdRoute: typeof ProtectedLayoutAdminAuditLogsIdRoute
+  ProtectedLayoutAdminAuditLogsIndexRoute: typeof ProtectedLayoutAdminAuditLogsIndexRoute
 }
 
-const ProtectedLayoutSystemAuditLogsRouteChildren: ProtectedLayoutSystemAuditLogsRouteChildren =
+const ProtectedLayoutAdminAuditLogsRouteChildren: ProtectedLayoutAdminAuditLogsRouteChildren =
   {
-    ProtectedLayoutSystemAuditLogsIdRoute:
-      ProtectedLayoutSystemAuditLogsIdRoute,
-    ProtectedLayoutSystemAuditLogsIndexRoute:
-      ProtectedLayoutSystemAuditLogsIndexRoute,
+    ProtectedLayoutAdminAuditLogsIdRoute: ProtectedLayoutAdminAuditLogsIdRoute,
+    ProtectedLayoutAdminAuditLogsIndexRoute:
+      ProtectedLayoutAdminAuditLogsIndexRoute,
   }
 
-const ProtectedLayoutSystemAuditLogsRouteWithChildren =
-  ProtectedLayoutSystemAuditLogsRoute._addFileChildren(
-    ProtectedLayoutSystemAuditLogsRouteChildren,
+const ProtectedLayoutAdminAuditLogsRouteWithChildren =
+  ProtectedLayoutAdminAuditLogsRoute._addFileChildren(
+    ProtectedLayoutAdminAuditLogsRouteChildren,
   )
 
 interface ProtectedLayoutRouteChildren {
-  ProtectedLayoutRolesRouteRoute: typeof ProtectedLayoutRolesRouteRouteWithChildren
-  ProtectedLayoutSettingsRouteRoute: typeof ProtectedLayoutSettingsRouteRouteWithChildren
-  ProtectedLayoutUsersRouteRoute: typeof ProtectedLayoutUsersRouteRouteWithChildren
   ProtectedLayout403Route: typeof ProtectedLayout403Route
   ProtectedLayoutDevRoute: typeof ProtectedLayoutDevRoute
-  ProtectedLayoutRunnersRoute: typeof ProtectedLayoutRunnersRoute
-  ProtectedLayoutStorageRoute: typeof ProtectedLayoutStorageRoute
-  ProtectedLayoutIndexRoute: typeof ProtectedLayoutIndexRoute
-  ProtectedLayoutRunnersRunnerIdRoute: typeof ProtectedLayoutRunnersRunnerIdRoute
-  ProtectedLayoutSystemAuditLogsRoute: typeof ProtectedLayoutSystemAuditLogsRouteWithChildren
-  ProtectedLayoutSystemSettingsRoute: typeof ProtectedLayoutSystemSettingsRoute
-  ProtectedLayoutSystemStudiosRoute: typeof ProtectedLayoutSystemStudiosRoute
-  ProtectedLayoutSStudioSlugRunnersRoute: typeof ProtectedLayoutSStudioSlugRunnersRoute
-  ProtectedLayoutSStudioSlugStorageRoute: typeof ProtectedLayoutSStudioSlugStorageRoute
-  ProtectedLayoutSStudioSlugIndexRoute: typeof ProtectedLayoutSStudioSlugIndexRoute
-  ProtectedLayoutSStudioSlugRunnersRunnerIdRoute: typeof ProtectedLayoutSStudioSlugRunnersRunnerIdRoute
-  ProtectedLayoutSStudioSlugProjectsIndexRoute: typeof ProtectedLayoutSStudioSlugProjectsIndexRoute
+  ProtectedLayoutAccountSettingsRouteRoute: typeof ProtectedLayoutAccountSettingsRouteRouteWithChildren
+  ProtectedLayoutAdminRolesRouteRoute: typeof ProtectedLayoutAdminRolesRouteRouteWithChildren
+  ProtectedLayoutAdminUsersRouteRoute: typeof ProtectedLayoutAdminUsersRouteRouteWithChildren
+  ProtectedLayoutAdminAuditLogsRoute: typeof ProtectedLayoutAdminAuditLogsRouteWithChildren
+  ProtectedLayoutAdminSettingsRoute: typeof ProtectedLayoutAdminSettingsRoute
+  ProtectedLayoutAdminStudiosRoute: typeof ProtectedLayoutAdminStudiosRoute
+  ProtectedLayoutAdminTemplatesRoute: typeof ProtectedLayoutAdminTemplatesRoute
+  ProtectedLayoutTemplatesTemplateIdRoute: typeof ProtectedLayoutTemplatesTemplateIdRoute
+  ProtectedLayoutWorkspacesWorkspaceIdRoute: typeof ProtectedLayoutWorkspacesWorkspaceIdRoute
+  ProtectedLayoutAdminIndexRoute: typeof ProtectedLayoutAdminIndexRoute
+  ProtectedLayoutStudioIndexRoute: typeof ProtectedLayoutStudioIndexRoute
+  ProtectedLayoutTemplatesIndexRoute: typeof ProtectedLayoutTemplatesIndexRoute
+  ProtectedLayoutWorkspacesIndexRoute: typeof ProtectedLayoutWorkspacesIndexRoute
+  ProtectedLayoutStudioStudioSlugRunnersRoute: typeof ProtectedLayoutStudioStudioSlugRunnersRoute
+  ProtectedLayoutStudioStudioSlugStorageRoute: typeof ProtectedLayoutStudioStudioSlugStorageRoute
+  ProtectedLayoutTemplatesLibraryLibraryItemIdRoute: typeof ProtectedLayoutTemplatesLibraryLibraryItemIdRoute
+  ProtectedLayoutStudioStudioSlugIndexRoute: typeof ProtectedLayoutStudioStudioSlugIndexRoute
+  ProtectedLayoutTemplatesLibraryIndexRoute: typeof ProtectedLayoutTemplatesLibraryIndexRoute
+  ProtectedLayoutStudioStudioSlugRunnersRunnerIdRoute: typeof ProtectedLayoutStudioStudioSlugRunnersRunnerIdRoute
+  ProtectedLayoutStudioStudioSlugProjectsIndexRoute: typeof ProtectedLayoutStudioStudioSlugProjectsIndexRoute
 }
 
 const ProtectedLayoutRouteChildren: ProtectedLayoutRouteChildren = {
-  ProtectedLayoutRolesRouteRoute: ProtectedLayoutRolesRouteRouteWithChildren,
-  ProtectedLayoutSettingsRouteRoute:
-    ProtectedLayoutSettingsRouteRouteWithChildren,
-  ProtectedLayoutUsersRouteRoute: ProtectedLayoutUsersRouteRouteWithChildren,
   ProtectedLayout403Route: ProtectedLayout403Route,
   ProtectedLayoutDevRoute: ProtectedLayoutDevRoute,
-  ProtectedLayoutRunnersRoute: ProtectedLayoutRunnersRoute,
-  ProtectedLayoutStorageRoute: ProtectedLayoutStorageRoute,
-  ProtectedLayoutIndexRoute: ProtectedLayoutIndexRoute,
-  ProtectedLayoutRunnersRunnerIdRoute: ProtectedLayoutRunnersRunnerIdRoute,
-  ProtectedLayoutSystemAuditLogsRoute:
-    ProtectedLayoutSystemAuditLogsRouteWithChildren,
-  ProtectedLayoutSystemSettingsRoute: ProtectedLayoutSystemSettingsRoute,
-  ProtectedLayoutSystemStudiosRoute: ProtectedLayoutSystemStudiosRoute,
-  ProtectedLayoutSStudioSlugRunnersRoute:
-    ProtectedLayoutSStudioSlugRunnersRoute,
-  ProtectedLayoutSStudioSlugStorageRoute:
-    ProtectedLayoutSStudioSlugStorageRoute,
-  ProtectedLayoutSStudioSlugIndexRoute: ProtectedLayoutSStudioSlugIndexRoute,
-  ProtectedLayoutSStudioSlugRunnersRunnerIdRoute:
-    ProtectedLayoutSStudioSlugRunnersRunnerIdRoute,
-  ProtectedLayoutSStudioSlugProjectsIndexRoute:
-    ProtectedLayoutSStudioSlugProjectsIndexRoute,
+  ProtectedLayoutAccountSettingsRouteRoute:
+    ProtectedLayoutAccountSettingsRouteRouteWithChildren,
+  ProtectedLayoutAdminRolesRouteRoute:
+    ProtectedLayoutAdminRolesRouteRouteWithChildren,
+  ProtectedLayoutAdminUsersRouteRoute:
+    ProtectedLayoutAdminUsersRouteRouteWithChildren,
+  ProtectedLayoutAdminAuditLogsRoute:
+    ProtectedLayoutAdminAuditLogsRouteWithChildren,
+  ProtectedLayoutAdminSettingsRoute: ProtectedLayoutAdminSettingsRoute,
+  ProtectedLayoutAdminStudiosRoute: ProtectedLayoutAdminStudiosRoute,
+  ProtectedLayoutAdminTemplatesRoute: ProtectedLayoutAdminTemplatesRoute,
+  ProtectedLayoutTemplatesTemplateIdRoute:
+    ProtectedLayoutTemplatesTemplateIdRoute,
+  ProtectedLayoutWorkspacesWorkspaceIdRoute:
+    ProtectedLayoutWorkspacesWorkspaceIdRoute,
+  ProtectedLayoutAdminIndexRoute: ProtectedLayoutAdminIndexRoute,
+  ProtectedLayoutStudioIndexRoute: ProtectedLayoutStudioIndexRoute,
+  ProtectedLayoutTemplatesIndexRoute: ProtectedLayoutTemplatesIndexRoute,
+  ProtectedLayoutWorkspacesIndexRoute: ProtectedLayoutWorkspacesIndexRoute,
+  ProtectedLayoutStudioStudioSlugRunnersRoute:
+    ProtectedLayoutStudioStudioSlugRunnersRoute,
+  ProtectedLayoutStudioStudioSlugStorageRoute:
+    ProtectedLayoutStudioStudioSlugStorageRoute,
+  ProtectedLayoutTemplatesLibraryLibraryItemIdRoute:
+    ProtectedLayoutTemplatesLibraryLibraryItemIdRoute,
+  ProtectedLayoutStudioStudioSlugIndexRoute:
+    ProtectedLayoutStudioStudioSlugIndexRoute,
+  ProtectedLayoutTemplatesLibraryIndexRoute:
+    ProtectedLayoutTemplatesLibraryIndexRoute,
+  ProtectedLayoutStudioStudioSlugRunnersRunnerIdRoute:
+    ProtectedLayoutStudioStudioSlugRunnersRunnerIdRoute,
+  ProtectedLayoutStudioStudioSlugProjectsIndexRoute:
+    ProtectedLayoutStudioStudioSlugProjectsIndexRoute,
 }
 
 const ProtectedLayoutRouteWithChildren = ProtectedLayoutRoute._addFileChildren(
   ProtectedLayoutRouteChildren,
 )
 
-interface ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteChildren {
-  ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRoute
-  ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute
-  ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute
+interface ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRouteChildren {
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesIndexRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesIndexRoute
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute
 }
 
-const ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteChildren: ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteChildren =
+const ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRouteChildren: ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRouteChildren =
   {
-    ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdContentTypesIndexRoute,
-    ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute,
-    ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute,
+    ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesIndexRoute:
+      ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesIndexRoute,
+    ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute:
+      ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdBuilderRoute,
+    ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute:
+      ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesContentTypeIdIndexRoute,
   }
 
-const ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteWithChildren =
-  ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute._addFileChildren(
-    ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteChildren,
+const ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRouteWithChildren =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRoute._addFileChildren(
+    ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRouteChildren,
   )
 
-interface ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteChildren {
-  ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRoute
-  ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute
-  ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute
+interface ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRouteChildren {
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyNewRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyNewRoute
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute
 }
 
-const ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteChildren: ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteChildren =
+const ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRouteChildren: ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRouteChildren =
   {
-    ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyNewRoute,
-    ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute,
-    ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute,
+    ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyNewRoute:
+      ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyNewRoute,
+    ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute:
+      ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyIndexRoute,
+    ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute:
+      ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyItemKeyEditRoute,
   }
 
-const ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteWithChildren =
-  ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute._addFileChildren(
-    ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteChildren,
+const ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRouteWithChildren =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRoute._addFileChildren(
+    ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRouteChildren,
   )
 
-interface ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteChildren {
-  ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteWithChildren
-  ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRoute
+interface ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRouteChildren {
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRouteWithChildren
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentsIndexRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsIndexRoute
 }
 
-const ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteChildren: ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteChildren =
+const ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRouteChildren: ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRouteChildren =
   {
-    ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdContentsTypeKeyRouteWithChildren,
-    ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdContentsIndexRoute,
+    ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRoute:
+      ProtectedProjectStudioStudioSlugProjectsProjectIdContentsTypeKeyRouteWithChildren,
+    ProtectedProjectStudioStudioSlugProjectsProjectIdContentsIndexRoute:
+      ProtectedProjectStudioStudioSlugProjectsProjectIdContentsIndexRoute,
   }
 
-const ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteWithChildren =
-  ProtectedProjectSStudioSlugProjectsProjectIdContentsRoute._addFileChildren(
-    ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteChildren,
+const ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRouteWithChildren =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRoute._addFileChildren(
+    ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRouteChildren,
   )
 
-interface ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteChildren {
-  ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRoute
-  ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRoute
+interface ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRouteChildren {
+  ProtectedProjectStudioStudioSlugProjectsProjectIdStructsIndexRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdStructsIndexRoute
+  ProtectedProjectStudioStudioSlugProjectsProjectIdStructsStructIdBuilderRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdStructsStructIdBuilderRoute
 }
 
-const ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteChildren: ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteChildren =
+const ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRouteChildren: ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRouteChildren =
   {
-    ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdStructsIndexRoute,
-    ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdStructsStructIdBuilderRoute,
+    ProtectedProjectStudioStudioSlugProjectsProjectIdStructsIndexRoute:
+      ProtectedProjectStudioStudioSlugProjectsProjectIdStructsIndexRoute,
+    ProtectedProjectStudioStudioSlugProjectsProjectIdStructsStructIdBuilderRoute:
+      ProtectedProjectStudioStudioSlugProjectsProjectIdStructsStructIdBuilderRoute,
   }
 
-const ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteWithChildren =
-  ProtectedProjectSStudioSlugProjectsProjectIdStructsRoute._addFileChildren(
-    ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteChildren,
+const ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRouteWithChildren =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRoute._addFileChildren(
+    ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRouteChildren,
   )
 
-interface ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteChildren {
-  ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteWithChildren
-  ProtectedProjectSStudioSlugProjectsProjectIdContentsRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteWithChildren
-  ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRoute
-  ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute
-  ProtectedProjectSStudioSlugProjectsProjectIdStructsRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteWithChildren
-  ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRoute
-  ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRoute
-  ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRoute
-  ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute
-  ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute
-  ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute
+interface ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRouteChildren {
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRouteWithChildren
+  ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRouteWithChildren
+  ProtectedProjectStudioStudioSlugProjectsProjectIdMigrationsRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdMigrationsRoute
+  ProtectedProjectStudioStudioSlugProjectsProjectIdOverviewRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdOverviewRoute
+  ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRouteWithChildren
+  ProtectedProjectStudioStudioSlugProjectsProjectIdPipelinePipelineIdRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdPipelinePipelineIdRoute
+  ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineIndexRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineIndexRoute
+  ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute
 }
 
-const ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteChildren: ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteChildren =
+const ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRouteChildren: ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRouteChildren =
   {
-    ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdContentTypesRouteWithChildren,
-    ProtectedProjectSStudioSlugProjectsProjectIdContentsRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdContentsRouteWithChildren,
-    ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdMigrationsRoute,
-    ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdOverviewRoute,
-    ProtectedProjectSStudioSlugProjectsProjectIdStructsRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdStructsRouteWithChildren,
-    ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdPipelinePipelineIdRoute,
-    ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdPipelineIndexRoute,
-    ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIngestRoute,
-    ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesNewRoute,
-    ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdPipelineNodesIndexRoute,
-    ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute:
-      ProtectedProjectSStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute,
+    ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRoute:
+      ProtectedProjectStudioStudioSlugProjectsProjectIdContentTypesRouteWithChildren,
+    ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRoute:
+      ProtectedProjectStudioStudioSlugProjectsProjectIdContentsRouteWithChildren,
+    ProtectedProjectStudioStudioSlugProjectsProjectIdMigrationsRoute:
+      ProtectedProjectStudioStudioSlugProjectsProjectIdMigrationsRoute,
+    ProtectedProjectStudioStudioSlugProjectsProjectIdOverviewRoute:
+      ProtectedProjectStudioStudioSlugProjectsProjectIdOverviewRoute,
+    ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRoute:
+      ProtectedProjectStudioStudioSlugProjectsProjectIdStructsRouteWithChildren,
+    ProtectedProjectStudioStudioSlugProjectsProjectIdPipelinePipelineIdRoute:
+      ProtectedProjectStudioStudioSlugProjectsProjectIdPipelinePipelineIdRoute,
+    ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineIndexRoute:
+      ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineIndexRoute,
+    ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute:
+      ProtectedProjectStudioStudioSlugProjectsProjectIdPipelineWorkspaceIndexRoute,
   }
 
-const ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteWithChildren =
-  ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute._addFileChildren(
-    ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteChildren,
+const ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRouteWithChildren =
+  ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute._addFileChildren(
+    ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRouteChildren,
   )
 
 interface ProtectedProjectRouteChildren {
-  ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute: typeof ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteWithChildren
+  ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute: typeof ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRouteWithChildren
 }
 
 const ProtectedProjectRouteChildren: ProtectedProjectRouteChildren = {
-  ProtectedProjectSStudioSlugProjectsProjectIdRouteRoute:
-    ProtectedProjectSStudioSlugProjectsProjectIdRouteRouteWithChildren,
+  ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRoute:
+    ProtectedProjectStudioStudioSlugProjectsProjectIdRouteRouteWithChildren,
 }
 
 const ProtectedProjectRouteWithChildren =
@@ -1572,6 +1667,7 @@ interface AuthRouteChildren {
   AuthForgotPasswordRoute: typeof AuthForgotPasswordRoute
   AuthLoginRoute: typeof AuthLoginRoute
   AuthLogoutRoute: typeof AuthLogoutRoute
+  AuthRegisterRoute: typeof AuthRegisterRoute
   AuthResetPasswordRoute: typeof AuthResetPasswordRoute
 }
 
@@ -1580,6 +1676,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthForgotPasswordRoute: AuthForgotPasswordRoute,
   AuthLoginRoute: AuthLoginRoute,
   AuthLogoutRoute: AuthLogoutRoute,
+  AuthRegisterRoute: AuthRegisterRoute,
   AuthResetPasswordRoute: AuthResetPasswordRoute,
 }
 
@@ -1598,6 +1695,7 @@ const LocalRouteChildren: LocalRouteChildren = {
 const LocalRouteWithChildren = LocalRoute._addFileChildren(LocalRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
   ProtectedRoute: ProtectedRouteWithChildren,
   AuthRoute: AuthRouteWithChildren,
   LocalRoute: LocalRouteWithChildren,

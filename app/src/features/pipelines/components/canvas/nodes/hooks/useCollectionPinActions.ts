@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useReactFlow } from "@xyflow/react";
-import type { PinDefinition, NodeCapabilitiesDto } from "@/gen/model";
+import type { PinDefinition, NodeCapabilitiesDto } from "@/features/pipelines/types/pipelineGraphTypes";
 import { isExecPin } from "../types";
 
 interface UseCollectionPinActionsOptions {
@@ -16,7 +16,7 @@ export function useCollectionPinActions({
   nodeId,
   capabilities,
 }: UseCollectionPinActionsOptions) {
-  const { setNodes } = useReactFlow();
+  const { setNodes, setEdges } = useReactFlow();
   const pinAddMode = capabilities?.pinAddMode || "Sequence";
 
   const handleAddPin = useCallback(
@@ -27,6 +27,7 @@ export function useCollectionPinActions({
         nds.map((n) => {
           if (n.id !== nodeId) return n;
           const currentInputs: PinDefinition[] = (n.data as any).inputs || [];
+
           const currentDynamic: string[] = currentInputs
             .filter((p) => !isExecPin(p) && Boolean(p.id))
             .map((p) => p.id as string);
@@ -70,13 +71,14 @@ export function useCollectionPinActions({
         })
       );
     },
-    [nodeId, pinAddMode, setNodes, capabilities]
+    [nodeId, pinAddMode, setNodes, setEdges, capabilities]
   );
 
   const handleRemovePin = useCallback(
     (e: React.MouseEvent, pinId: string) => {
       e.stopPropagation();
       if (!capabilities?.canRemovePin || capabilities.protectedPinIds?.includes(pinId)) return;
+
       setNodes((nds) =>
         nds.map((n) => {
           if (n.id !== nodeId) return n;
@@ -119,7 +121,7 @@ export function useCollectionPinActions({
         })
       );
     },
-    [nodeId, pinAddMode, setNodes, capabilities]
+    [nodeId, pinAddMode, setNodes, setEdges, capabilities]
   );
 
   return {

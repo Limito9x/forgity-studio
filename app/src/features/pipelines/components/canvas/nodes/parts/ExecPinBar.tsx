@@ -1,5 +1,5 @@
 import { Handle, Position } from "@xyflow/react";
-import type { PinDefinition } from "@/gen/model";
+import type { PinDefinition } from "@/features/pipelines/types/pipelineGraphTypes";
 
 interface ExecPinBarProps {
   showExecIn?: boolean;

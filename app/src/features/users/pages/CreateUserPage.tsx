@@ -16,7 +16,7 @@ export function CreateUserPage() {
             { data },
             {
                 onSuccess: () => {
-                    navigate({ to: "/users" });
+                    navigate({ to: "/admin/users" });
                 }
             }
         );

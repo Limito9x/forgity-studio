@@ -1,4 +1,4 @@
-import type { NodePaletteItemDto, PinDefinition } from "@/gen/model";
+import type { NodePaletteItemDto, PinDefinition } from "@/features/pipelines/types/pipelineGraphTypes";
 
 export const definitionKey = (kind: string, refId: string) => `${kind}:${refId.toLowerCase()}`;
 export function indexDefinitions(items: NodePaletteItemDto[]) {
@@ -28,10 +28,10 @@ export function indexDefinitions(items: NodePaletteItemDto[]) {
   }
   return definitions;
 }
-export function nodeView(kind: string, definition?: NodePaletteItemDto) {
+export function nodeView(kind: string, definition?: NodePaletteItemDto, refId?: string) {
   if (["Start", "Return", "FlowControl"].includes(kind)) return kind;
+  if (refId?.startsWith("local:constant:") || (definition?.capabilities as any)?.isConstantNode) return "Constant";
   if (!definition) return "Missing";
-  if ((definition.capabilities as any)?.isConstantNode) return "Constant";
   const variant = definition.capabilities?.viewVariant;
   return variant === "Collection" || variant === "Struct" || variant === "Constant" ? variant : "Standard";
 }
@@ -39,17 +39,27 @@ export function nodeView(kind: string, definition?: NodePaletteItemDto) {
 export function filterPalette(items: NodePaletteItemDto[], executor?: string) {
   return items.filter((item) => {
     if (!item.isVisibleInPalette) return false;
-    if (!executor) return true;
+    const itemExec = (item.executor || "").toLowerCase();
+    const isStartOrReturn = item.key === "Start" || item.key === "Return";
+    const isConstant = item.source === "Constant" || item.key.startsWith("local:constant:");
+    const isPure = itemExec === "pure" || item.key.startsWith("local:pure:");
+    const isComponent = item.source === "SubPipeline" || item.category === "Components" || item.key.startsWith("local:component:");
+
+    if (isStartOrReturn || isConstant) return true;
+
+    // Master Pipeline (no stage executor): allows Components + Pure orchestration (Joint), forbids raw DCC scripts
+    if (!executor) {
+      return isPure || isComponent;
+    }
+
     const exec = executor.toLowerCase();
-    const itemExec = item.executor.toLowerCase();
-    // Pure nodes (such as Make/Break local structs or pure math) are stage-agnostic and allowed everywhere
-    if (itemExec === "pure") return true;
-    if (exec === "macro") return item.source === "SubPipeline" || item.category === "Flow Control" || item.key === "Return";
+    // Component Pipe (has stage executor): forbids Pure orchestration (Joint) and nested Components
+    if (isPure || isComponent) return false;
+
+    if (exec === "macro") return item.category === "Flow Control";
     if (["server", "dotnet", "builtin"].includes(exec)) {
-      if (item.source === "SubPipeline" || item.key === "Return" || item.category === "Flow Control") {
-        return false;
-      }
-      return item.source === "Tool" || item.source === "BuiltIn" || ["builtin", "dotnet"].includes(item.executor.toLowerCase());
+      if (item.category === "Flow Control") return false;
+      return item.source === "Tool" || item.source === "BuiltIn" || ["builtin", "dotnet"].includes(itemExec);
     }
     if (itemExec === exec) return true;
     // Allow generic Python scripts to run inside DCC stages (Unreal, Blender, Daz, etc.)
@@ -136,5 +146,193 @@ export function applyNodeConfigUpdate(
   return {
     configValues: { ...base, [pinId]: value },
     didChangeStructType: false,
+  };
+}
+
+/**
+ * Returns true when a node's pin schema & visual metadata should be driven
+ * directly by its Palette definition (SSOT) rather than frozen snapshot pins.
+ */
+export function isPaletteDrivenShape(
+  kind: string | undefined,
+  definition?: NodePaletteItemDto
+): boolean {
+  if (!definition) return false;
+  const k = String(kind || "");
+  if (k === "Start" || k === "Return" || k === "FlowControl") return false;
+  if (definition.hasDynamicPins) return false;
+  if (definition.capabilities?.viewVariant === "Collection") return false;
+  return true;
+}
+
+/**
+ * Resolves live pins & metadata from the Palette definition when the node is
+ * palette-driven, falling back to snapshot data only for dynamic/missing nodes.
+ */
+export function resolveNodePinsFromDefinition<
+  T extends {
+    kind?: string;
+    label?: string | null;
+    executor?: string | null;
+    category?: string | null;
+    inputs?: PinDefinition[];
+    outputs?: PinDefinition[];
+    configValues?: Record<string, unknown>;
+  }
+>(nodeData: T, definition?: NodePaletteItemDto) {
+  const defInputs =
+    (definition?.inputs as PinDefinition[] | undefined) ??
+    ((definition?.dataInputs as unknown) as PinDefinition[] | undefined) ??
+    [];
+  const defOutputs =
+    (definition?.outputs as PinDefinition[] | undefined) ??
+    ((definition?.dataOutputs as unknown) as PinDefinition[] | undefined) ??
+    [];
+
+  const baseInputs =
+    !isPaletteDrivenShape(nodeData.kind, definition) || !definition
+      ? nodeData.inputs || []
+      : defInputs;
+  const baseOutputs =
+    !isPaletteDrivenShape(nodeData.kind, definition) || !definition
+      ? nodeData.outputs || []
+      : defOutputs;
+
+  const isBatch = Boolean(nodeData.configValues?._isBatch);
+  const iterablePin = String(nodeData.configValues?._iterablePin || "").trim();
+
+  // Promote the selected iterable input pin to Array when Parallel Batch Execution is active
+  const resolvedInputs =
+    isBatch && iterablePin
+      ? baseInputs.map((pin) =>
+          pin.id === iterablePin && pin.cardinality !== ("Array" as any) && (pin.cardinality as any) !== 1
+            ? { ...pin, cardinality: "Array" as any }
+            : pin
+        )
+      : baseInputs;
+
+  if (!isPaletteDrivenShape(nodeData.kind, definition) || !definition) {
+    return {
+      inputs: resolvedInputs,
+      outputs: baseOutputs,
+      label: nodeData.label || "",
+      executor: definition?.executor ?? nodeData.executor,
+      category: definition?.category ?? nodeData.category,
+    };
+  }
+  return {
+    inputs: resolvedInputs,
+    outputs: baseOutputs,
+    label: definition.label || nodeData.label || "",
+    executor: definition.executor || nodeData.executor,
+    category: definition.category || nodeData.category,
+  };
+}
+
+function hasMatchingPin(
+  pins: readonly PinDefinition[] | undefined,
+  handleId: string | null | undefined,
+  isOutput: boolean
+): boolean {
+  const raw = String(handleId || "").trim().toLowerCase();
+  if (!raw) return true;
+  if (raw === "exec" || (isOutput ? raw === "exec_out" || raw === "out" : raw === "exec_in" || raw === "in")) {
+    return true;
+  }
+  if (!pins || pins.length === 0) return false;
+  return pins.some(
+    (p) =>
+      String(p.id || "").toLowerCase() === raw ||
+      String(p.label || "").toLowerCase() === raw
+  );
+}
+
+/**
+ * Reconciles canvas nodes and edges against the latest Palette definitions:
+ * - Hydrates static nodes' pins & labels from Palette (SSOT)
+ * - Detects and prunes wires connected to pins that no longer exist
+ */
+export function reconcileGraphWithDefinitions<
+  TNode extends { id: string; data: Record<string, any> },
+  TEdge extends {
+    id: string;
+    source: string;
+    target: string;
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
+  }
+>(
+  nodes: TNode[],
+  edges: TEdge[],
+  definitions: Map<string, NodePaletteItemDto>
+): {
+  nodes: TNode[];
+  edges: TEdge[];
+  nodesChanged: boolean;
+  removedEdges: TEdge[];
+} {
+  let nodesChanged = false;
+  const nextNodes = nodes.map((node) => {
+    const data = node.data || {};
+    const def = definitions.get(definitionKey(String(data.kind || ""), String(data.refId || "")));
+    if (!isPaletteDrivenShape(data.kind, def) || !def) {
+      return node;
+    }
+
+    const nextInputs = (def.inputs as PinDefinition[]) || [];
+    const nextOutputs = (def.outputs as PinDefinition[]) || [];
+    const nextLabel = def.label || data.label;
+    const nextExecutor = def.executor || data.executor;
+    const nextCategory = def.category || data.category;
+
+    const pinsSame =
+      arePinListsEqual(data.inputs, nextInputs) &&
+      arePinListsEqual(data.outputs, nextOutputs);
+    const metaSame =
+      data.label === nextLabel &&
+      data.executor === nextExecutor &&
+      data.category === nextCategory;
+
+    if (pinsSame && metaSame) {
+      return node;
+    }
+
+    nodesChanged = true;
+    return {
+      ...node,
+      data: {
+        ...data,
+        inputs: nextInputs,
+        outputs: nextOutputs,
+        label: nextLabel,
+        executor: nextExecutor,
+        category: nextCategory,
+      },
+    };
+  });
+
+  const nodeMap = new Map(nextNodes.map((n) => [n.id, n]));
+  const removedEdges: TEdge[] = [];
+  const nextEdges = edges.filter((edge) => {
+    const src = nodeMap.get(edge.source);
+    const tgt = nodeMap.get(edge.target);
+    if (!src || !tgt) {
+      removedEdges.push(edge);
+      return false;
+    }
+    const srcOk = hasMatchingPin(src.data?.outputs, edge.sourceHandle, true);
+    const tgtOk = hasMatchingPin(tgt.data?.inputs, edge.targetHandle, false);
+    if (!srcOk || !tgtOk) {
+      removedEdges.push(edge);
+      return false;
+    }
+    return true;
+  });
+
+  return {
+    nodes: nextNodes,
+    edges: nextEdges,
+    nodesChanged,
+    removedEdges,
   };
 }

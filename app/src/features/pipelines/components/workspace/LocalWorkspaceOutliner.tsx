@@ -25,11 +25,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { BaseDialog } from "@/components/custom-ui/overlays/dialog/BaseDialog";
 import { toast } from "sonner";
 import { openNativeFileOrFolderDialog, isTauriRuntime } from "@/lib/platform/filePickerStrategy";
-import { useDialogStore } from "@/stores/dialogStore";
-import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
-import { useStudioQuota } from "@/features/studios/hooks/useStudioQuota";
+import { useEffectiveMachineKey } from "@/lib/platform/filePickerStrategy";
+import { useGetCloudTemplates } from "@/gen/endpoints/templates/templates";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { customInstance } from "@/lib/api-client";
+import type { TemplateLibraryItemDto } from "@/gen/model";
+import { prepareTemplateForkPayload } from "../../dialogs/ForkTemplateDialog";
 import { featureFlags } from "@/config/featureFlags";
 import { SUPPORTED_EXECUTOR_KEYS, getSoftwareMetadata } from "@/features/runners/constants/dccEngines";
 import { ExecutorIcon } from "@/features/runners/components/ExecutorIcon";
@@ -77,7 +81,6 @@ export function LocalWorkspaceOutliner({
   onSyncPalette,
   onOpenConfig,
   onOpenConstants,
-  onOpenStructs,
   onOpenPullDialog,
   onOpenUnpackDialog,
   isCreatingPipelineExternal,
@@ -86,6 +89,9 @@ export function LocalWorkspaceOutliner({
   const {
     rootPath,
     config,
+    originTemplateId,
+    originVersionId,
+    originTemplateVersion,
     switchRootFolder,
   } = useLocalWorkspaceConfig(projectId);
 
@@ -128,9 +134,74 @@ export function LocalWorkspaceOutliner({
   const [createExecutor, setCreateExecutor] = useState<string>("blender");
   const [newPipelineName, setNewPipelineName] = useState("");
 
-  const { studioSlug } = useCurrentStudio();
-  const { data: studioQuota } = useStudioQuota(studioSlug);
-  const creditsRemaining = studioQuota?.executionCreditsRemaining ?? 50;
+  const queryClient = useQueryClient();
+  const [isUpdatingTemplate, setIsUpdatingTemplate] = useState(false);
+  const { data: effectiveMachineKey } = useEffectiveMachineKey();
+  const { data: libraryItems = [] } = useQuery<TemplateLibraryItemDto[]>({
+    queryKey: ["/api/templates/my-library", effectiveMachineKey],
+    queryFn: ({ signal }) =>
+      customInstance<TemplateLibraryItemDto[]>({
+        url: "/api/templates/my-library",
+        method: "GET",
+        params: { machineKey: effectiveMachineKey },
+        signal,
+      }),
+    enabled: Boolean(effectiveMachineKey),
+  });
+  const { data: cloudTemplates = [] } = useGetCloudTemplates({
+    query: { enabled: Boolean(originTemplateId) },
+  });
+  const matchedLibraryItem = originTemplateId
+    ? libraryItems.find((item) => item.templatePackageId === originTemplateId)
+    : undefined;
+  const cloudTemplate = originTemplateId
+    ? cloudTemplates.find((t) => t.templatePackageId === originTemplateId)
+    : undefined;
+  const localTemplateVersion = originTemplateVersion ?? 1;
+  const hasTemplateUpdate = Boolean(
+    cloudTemplate &&
+      (cloudTemplate.versionNumber > localTemplateVersion ||
+        (cloudTemplate.primaryMasterVersionId &&
+          originVersionId &&
+          cloudTemplate.primaryMasterVersionId !== originVersionId))
+  );
+  const maxRuns = matchedLibraryItem?.maxRuns ?? cloudTemplate?.defaultQuotaLimit ?? null;
+  const remainingRuns =
+    matchedLibraryItem?.remainingRuns ??
+    (maxRuns !== null ? maxRuns : null);
+
+  const handleUpdateTemplateInPlace = async () => {
+    if (!originTemplateId || !rootPath || isUpdatingTemplate) return;
+    setIsUpdatingTemplate(true);
+    try {
+      const payload = await prepareTemplateForkPayload(originTemplateId);
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("update_forked_workspace", {
+        params: {
+          targetRootPath: rootPath,
+          workspaceName: rootFolderName,
+          templateId: payload.templateId,
+          templateSlug: payload.templateSlug,
+          versionId: payload.versionId,
+          templateVersion: payload.templateVersion,
+          templateTitle: payload.templateTitle,
+          pipelines: payload.pipelines,
+          paletteJson: payload.paletteJson,
+          structsJson: payload.structsJson,
+          constantsJson: payload.constantsJson,
+          assets: payload.assets,
+        },
+      });
+      await queryClient.invalidateQueries({ queryKey: ["local-workspace"] });
+      await queryClient.invalidateQueries({ queryKey: ["workspace-registry"] });
+      toast.success(`Updated workspace to template v${payload.templateVersion}. Constants & history preserved.`);
+    } catch (err: any) {
+      const msg = typeof err === "string" ? err : err?.message || "Failed to update template.";
+      toast.error(msg);
+    } finally {
+      setIsUpdatingTemplate(false);
+    }
+  };
 
   const rootFolderName = rootPath ? rootPath.split(/[/\\]/).filter(Boolean).pop() || "Workspace" : "No Workspace";
 
@@ -205,12 +276,19 @@ export function LocalWorkspaceOutliner({
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent, draft: ScannedPipelineYamlItemRust) => {
-    e.stopPropagation();
-    if (!confirm(`Are you sure you want to delete "${draft.fileName}"?`)) return;
+  const [pendingDeleteDraft, setPendingDeleteDraft] = useState<ScannedPipelineYamlItemRust | null>(null);
 
+  const handleDelete = (e: React.MouseEvent, draft: ScannedPipelineYamlItemRust) => {
+    e.stopPropagation();
+    setPendingDeleteDraft(draft);
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDeleteDraft) return;
+    const target = pendingDeleteDraft;
+    setPendingDeleteDraft(null);
     try {
-      await deletePipeline(draft.fullPath);
+      await deletePipeline(target.fullPath);
       toast.success("Pipeline deleted from disk!");
     } catch (err: any) {
       toast.error("Failed to delete pipeline", { description: err?.message });
@@ -242,18 +320,6 @@ export function LocalWorkspaceOutliner({
         <div className="w-5 h-px bg-border/60 my-0.5" />
         <button
           type="button"
-          onClick={onOpenStructs}
-          title="Structs"
-          className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
-            activeTabId === "singleton:structs"
-              ? "bg-indigo-500/15 text-indigo-400"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-          }`}
-        >
-          <Boxes className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
           onClick={onOpenConstants}
           title="Constants"
           className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
@@ -267,7 +333,7 @@ export function LocalWorkspaceOutliner({
         <button
           type="button"
           onClick={onOpenPalette}
-          title={`Node Palette (${paletteCount})`}
+          title={`Scripts (${paletteCount})`}
           className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
             activeTabId === "singleton:palette"
               ? "bg-emerald-500/15 text-emerald-400"
@@ -361,42 +427,46 @@ export function LocalWorkspaceOutliner({
         </div>
       </div>
 
-      {/* Solo Dev Preview Quota Badge */}
-      <div className="px-3 py-1.5 bg-muted/20 border-b border-border/40 flex items-center justify-between text-[11px]">
-        <button
-          onClick={() => useDialogStore.getState().openDialog("upgrade-plan", { quota: studioQuota })}
-          className="flex items-center gap-1.5 hover:opacity-80 transition-opacity text-muted-foreground hover:text-foreground cursor-pointer"
-        >
-          <Zap className={`h-3 w-3 ${creditsRemaining <= 5 ? "text-amber-500 fill-amber-500" : "text-primary"}`} />
-          <span>Solo Preview:</span>
-          <span className={`font-mono font-semibold ${creditsRemaining <= 0 ? "text-destructive" : "text-foreground"}`}>
-            {creditsRemaining}/50 Runs
-          </span>
-        </button>
-        <button
-          onClick={() => useDialogStore.getState().openDialog("upgrade-plan", { quota: studioQuota })}
-          className="text-[10px] font-medium text-primary hover:underline cursor-pointer"
-        >
-          {creditsRemaining <= 0 ? "Upgrade" : "Plan"}
-        </button>
-      </div>
+      {/* Template Quota Badge (only shown if workspace originated from a Template) */}
+      {originTemplateId && (
+        <div className="px-3 py-1.5 bg-muted/20 border-b border-border/40 flex items-center justify-between text-[11px]">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Zap className={`h-3 w-3 ${remainingRuns !== null && remainingRuns <= 5 ? "text-amber-500 fill-amber-500" : "text-primary"}`} />
+            <span>Template Quota:</span>
+            <span className={`font-mono font-semibold ${remainingRuns !== null && remainingRuns <= 0 ? "text-destructive" : "text-foreground"}`}>
+              {maxRuns !== null ? `${remainingRuns ?? 0}/${maxRuns} Runs` : "Unlimited"}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {hasTemplateUpdate && cloudTemplate && (
+              <button
+                type="button"
+                onClick={handleUpdateTemplateInPlace}
+                disabled={isUpdatingTemplate}
+                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-amber-500/15 text-amber-500 border border-amber-500/30 hover:bg-amber-500/25 transition-colors cursor-pointer disabled:opacity-50"
+                title={`Update workspace to Template v${cloudTemplate.versionNumber} (preserves Constants & History)`}
+              >
+                <RefreshCw className={`h-2.5 w-2.5 ${isUpdatingTemplate ? "animate-spin" : ""}`} />
+                <span>Update v{cloudTemplate.versionNumber}</span>
+              </button>
+            )}
+            {matchedLibraryItem && (
+              <button
+                onClick={() => {
+                  window.location.hash = `#/templates/library/${matchedLibraryItem.id}`;
+                }}
+                className="text-[10px] font-medium text-primary hover:underline cursor-pointer"
+              >
+                Library
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto px-2 py-2.5 space-y-3">
-        {/* Top Navigation Items: Structs, Constants, Node Palette */}
+        {/* Top Navigation Items: Constants, Node Palette */}
         <div className="space-y-0.5 pb-2 border-b border-border/50">
-          <button
-            type="button"
-            onClick={onOpenStructs}
-            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-              activeTabId === "singleton:structs"
-                ? "bg-indigo-500/15 text-indigo-400"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-            }`}
-          >
-            <Boxes className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
-            <span className="truncate">Structs</span>
-          </button>
-
           <button
             type="button"
             onClick={onOpenConstants}
@@ -420,7 +490,7 @@ export function LocalWorkspaceOutliner({
           >
             <div className="flex items-center gap-2 min-w-0">
               <Cpu className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-              <span className="truncate">Node Palette</span>
+              <span className="truncate">Scripts</span>
               <span className="text-[10px] font-mono text-muted-foreground">({paletteCount})</span>
             </div>
             <button
@@ -773,6 +843,30 @@ export function LocalWorkspaceOutliner({
         </div>
 
       </div>
+
+      <BaseDialog
+        open={Boolean(pendingDeleteDraft)}
+        onOpenChange={(open) => {
+          if (!open) setPendingDeleteDraft(null);
+        }}
+        title="Delete Pipeline"
+        description={`Are you sure you want to delete "${pendingDeleteDraft?.fileName ?? ""}" from disk? This action cannot be undone.`}
+        size="sm"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" onPress={() => setPendingDeleteDraft(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" size="sm" onPress={confirmDelete}>
+              Delete
+            </Button>
+          </div>
+        }
+      >
+        <div className="text-xs text-muted-foreground">
+          File: <span className="font-mono text-foreground">{pendingDeleteDraft?.fileName}</span>
+        </div>
+      </BaseDialog>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import type { Node } from "@xyflow/react";
-import type { StageKind } from "@/gen/model/stageKind";
+type StageKind = number | string;
 
 /**
  * Helper to determine if a handle is an Exec Flow handle

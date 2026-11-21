@@ -24,10 +24,11 @@ export type {
   AttachRunnerToStudioRequest,
 };
 
-export const useRunners = () => {
+export const useRunners = (options?: { enabled?: boolean }) => {
   return RunnersApi.useGetRunners<RunnerDto[]>(undefined, {
     query: {
       placeholderData: keepPreviousData,
+      enabled: options?.enabled ?? true,
       staleTime: 60_000,
       select: (data: any) => data as unknown as RunnerDto[],
     },

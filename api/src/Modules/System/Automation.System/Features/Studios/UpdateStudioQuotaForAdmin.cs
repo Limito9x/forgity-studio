@@ -8,7 +8,6 @@ namespace Automation.SystemModule.Features.Studios;
 public record UpdateStudioQuotaRequest(
     Guid Id,
     StudioPlanTier? PlanTier = null,
-    int? ExecutionCreditsRemaining = null,
     long? StudioManagedStorageQuotaBytes = null
 );
 
@@ -33,7 +32,6 @@ public class UpdateStudioQuotaForAdmin(IStudioApi studioApi)
     {
         var dto = new AdminUpdateStudioQuotaDto(
             req.PlanTier,
-            req.ExecutionCreditsRemaining,
             req.StudioManagedStorageQuotaBytes
         );
 

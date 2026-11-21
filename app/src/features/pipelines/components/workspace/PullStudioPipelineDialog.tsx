@@ -11,10 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { usePipelines } from "../../hooks/usePipelines";
-import { getPipelineGraph } from "@/gen/endpoints/pipelines/pipelines";
-import { graphToPipelineYaml } from "../../utils/pipelineDslConverter";
-import { useLocalWorkspaceConfig, useLocalPipelinesQuery, saveLocalPipelineSnapshot } from "../../hooks/workspace";
-import type { ExtendedPipelineGraphDto } from "../../hooks/usePipelineGraph";
+import { useLocalWorkspaceConfig, useLocalPipelinesQuery } from "../../hooks/workspace";
 import type { ScannedPipelineYamlItemRust } from "../../types/workspaceConfig";
 
 interface PullStudioPipelineDialogProps {
@@ -65,7 +62,6 @@ export function PullStudioPipelineDialog(props: PullStudioPipelineDialogProps) {
     if (selectedIds.size === 0 || !rootPath) return;
     setIsPulling(true);
 
-    const pipelinesDir = config?.pipelinesDir || "pipelines";
     const selectedList = pipelines.filter((p) => selectedIds.has(p.id));
     let lastPulledDraft: ScannedPipelineYamlItemRust | null = null;
     let successCount = 0;
@@ -74,47 +70,8 @@ export function PullStudioPipelineDialog(props: PullStudioPipelineDialogProps) {
       await Promise.all(
         selectedList.map(async (meta) => {
           try {
-            const graphDto = (await getPipelineGraph(meta.id)) as ExtendedPipelineGraphDto;
-            if (!graphDto || !graphDto.nodes) return;
-
-            const rawName = graphDto.name || meta.name || "pipeline";
-            const fileSlug =
-              rawName
-                .toLowerCase()
-                .replace(/[^a-z0-9_-]/g, "_")
-                .replace(/_+/g, "_")
-                .replace(/^_|_$/g, "") || "pipeline";
-
-            // Save Snapshot (.forgity/snapshots/<slug>.snap.json)
-            await saveLocalPipelineSnapshot(rootPath, fileSlug, JSON.stringify(graphDto, null, 2));
-
-            // Compile to Declarative YAML DSL
-            const yamlContent = graphToPipelineYaml(
-              graphDto.name || meta.name,
-              graphDto.nodes as any,
-              graphDto.edges as any
-            );
-
-            // Save .pipeline.yaml via Tauri IPC
-            const normalizedRoot = rootPath.replace(/[/\\]+$/, "");
-            const normalizedDir = pipelinesDir === "." ? "" : `/${pipelinesDir.replace(/^[/\\]+/, "")}`;
-            const fullPath = `${normalizedRoot}${normalizedDir}/${fileSlug}.pipeline.yaml`.replace(/\\/g, "/");
-            const { invoke } = await import("@tauri-apps/api/core");
-            await invoke("save_local_pipeline_draft", {
-              filePath: fullPath,
-              content: yamlContent,
-            });
-
-            lastPulledDraft = {
-              fileName: `${fileSlug}.pipeline.yaml`,
-              relativePath: `${pipelinesDir}/${fileSlug}.pipeline.yaml`,
-              fullPath,
-              content: yamlContent,
-              lastModifiedMs: Date.now(),
-              pipelineKind: "master",
-              executor: undefined,
-            };
-            successCount++;
+            toast.info(`Cloud pipeline ${meta.name} cannot be pulled directly. Legacy .NET cloud graph endpoints are deprecated.`);
+            return;
           } catch (itemErr) {
             console.error(`Failed to pull pipeline "${meta.name}":`, itemErr);
           }

@@ -100,17 +100,27 @@ impl DagScheduler {
                 let target_node = to_parts[0];
                 let target_pin = to_parts[1];
 
+                // Track unique node-to-node dependency so multiple wires (e.g. exec + data)
+                // between the same pair of nodes only increment remaining_dependencies once.
+                let is_new_dependency = if nodes_state.contains_key(target_node) {
+                    if let Some(source_state) = nodes_state.get_mut(source_node) {
+                        source_state.dependents.insert(target_node.to_string())
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+
                 if let Some(target_state) = nodes_state.get_mut(target_node) {
-                    target_state.remaining_dependencies += 1;
+                    if is_new_dependency {
+                        target_state.remaining_dependencies += 1;
+                    }
                     target_state.incoming_connections.push((
                         target_pin.to_string(),
                         source_node.to_string(),
                         source_pin.to_string(),
                     ));
-                }
-
-                if let Some(source_state) = nodes_state.get_mut(source_node) {
-                    source_state.dependents.insert(target_node.to_string());
                 }
             }
         }
@@ -182,15 +192,49 @@ impl DagScheduler {
                 resolved.insert(k.clone(), v.clone());
             }
 
-            // Nạp inputs từ Blackboard theo incoming connections
+            // Nạp inputs từ Blackboard theo incoming connections.
+            // Nếu có >= 2 dây cùng cắm vào 1 target_pin (ví dụ Joint multi-wire fan-in),
+            // tự động gom thành mảng phẳng thay vì dây sau ghi đè dây trước.
+            let mut wire_buckets: HashMap<String, Vec<Value>> = HashMap::new();
             for (target_pin, source_node, source_pin) in &state.incoming_connections {
                 if let Some(val) = self.blackboard.get_pin_value(source_node, source_pin) {
-                    resolved.insert(target_pin.clone(), val);
+                    wire_buckets
+                        .entry(target_pin.clone())
+                        .or_default()
+                        .push(val);
+                }
+            }
+            for (target_pin, mut vals) in wire_buckets {
+                if vals.len() == 1 {
+                    resolved.insert(target_pin, vals.remove(0));
+                } else {
+                    let mut merged = Vec::new();
+                    for val in vals {
+                        match val {
+                            Value::Array(arr) => merged.extend(arr),
+                            Value::Null => {}
+                            other => merged.push(other),
+                        }
+                    }
+                    resolved.insert(target_pin, Value::Array(merged));
                 }
             }
         }
 
         resolved
+    }
+
+    /// Trả về danh sách cạnh nối vào node: `(target_pin, source_node, source_pin)`
+    pub fn incoming_connections(&self, node_id: &str) -> Vec<(String, String, String)> {
+        self.nodes_state
+            .get(node_id)
+            .map(|s| s.incoming_connections.clone())
+            .unwrap_or_default()
+    }
+
+    /// Kiểm tra xem trong ready_queue có node nào đang chờ thực thi không
+    pub fn has_ready_nodes(&self) -> bool {
+        !self.ready_queue.is_empty()
     }
 
     /// Kiểm tra xem toàn bộ đồ thị đã hoàn thành chưa

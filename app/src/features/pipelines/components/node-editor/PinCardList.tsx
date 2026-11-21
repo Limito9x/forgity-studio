@@ -1,4 +1,4 @@
-import type { PinDefinition } from "@/gen/model";
+import type { PinDefinition } from "@/features/pipelines/types/pipelineGraphTypes";
 import { PinCardItem } from "./PinCardItem";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";

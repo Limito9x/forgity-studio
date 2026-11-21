@@ -216,11 +216,6 @@ namespace Automation.Studio.Infrastructure.Persistence.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text");
 
-                    b.Property<int>("ExecutionCreditsRemaining")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(50);
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(255)

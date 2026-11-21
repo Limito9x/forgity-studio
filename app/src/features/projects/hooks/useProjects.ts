@@ -6,10 +6,14 @@ import { z } from "zod";
 
 type projectQuery = z.infer<typeof GetProjectsQueryParams>;
 
-export const useProjects = (params: projectQuery) => {
+export const useProjects = (
+    params: projectQuery,
+    options?: { enabled?: boolean }
+) => {
     return ProjectsApi.useGetProjects(params, {
         query: {
             placeholderData: keepPreviousData,
+            enabled: options?.enabled ?? true,
         }
     });
 };

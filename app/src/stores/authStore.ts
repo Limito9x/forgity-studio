@@ -27,6 +27,8 @@ interface AuthState {
   clearToken: () => void;
   /** Xóa profile (sau khi logout) */
   clearProfile: () => void;
+  /** Xóa toàn bộ phiên đăng nhập (token, profile, permissions) */
+  logout: () => void;
 }
 
 // -----------------------------------------------------------------------------
@@ -46,6 +48,7 @@ export const useAuthStore = create<AuthState>()(
       hasAnyPermission: (prefix) => get().permissions.includes('*') || get().permissions.some(p => p.startsWith(prefix)),
       clearToken: () => set({ accessToken: null }),
       clearProfile: () => set({ profile: null, permissions: [] }),
+      logout: () => set({ accessToken: null, profile: null, permissions: [] }),
     }),
     {
       name: 'auth', // key trong localStorage

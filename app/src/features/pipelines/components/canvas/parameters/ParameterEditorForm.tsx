@@ -14,7 +14,8 @@ import { FormRenderer } from "@/components/dynamic-form/FormRenderer";
 import { pipelineRegistry } from "../../../form-scope/pipelineRegistry";
 import { pipelineInputToFieldDefinition } from "../../../form-scope/pinToFieldDefinition";
 import type { PipelineParameterDto, PipelineParameterKind } from "../../../hooks/usePipelineGraph";
-import type { StructDefinitionDto } from "@/gen/model";
+import { getPipelineParameterPinId } from "../../../adapters/pipelineParameterPins";
+import type { StructDefinitionDto } from "@/features/pipelines/types/pipelineGraphTypes";
 import {
   TYPE_OPTIONS,
   CARDINALITY_OPTIONS,
@@ -34,6 +35,28 @@ interface ParameterFormData {
   defaultValue: any;
   description: string;
   isRequired: boolean;
+  controlMode: "auto" | "path";
+  pathKind: "file" | "folder";
+  defaultFolder: string;
+  accept: string;
+}
+
+function parseContextMeta(raw?: Record<string, any> | string | null): Partial<ParameterFormData> {
+  if (!raw) return {};
+  try {
+    const obj = typeof raw === "object" ? (raw as Record<string, any>) : JSON.parse(String(raw));
+    if (String(obj?.type || "").toLowerCase() === "path") {
+      return {
+        controlMode: "path",
+        pathKind: obj.pathKind === "file" ? "file" : "folder",
+        defaultFolder: obj.defaultFolder || "",
+        accept: obj.accept || "",
+      };
+    }
+  } catch {
+    // ignore invalid json
+  }
+  return {};
 }
 
 interface ParameterEditorFormProps {
@@ -57,6 +80,7 @@ export function ParameterEditorForm({
   onSaveEdit,
   onCancel,
 }: ParameterEditorFormProps) {
+  const initialMeta = parseContextMeta(editingParam?.contextData);
   const form = useForm<ParameterFormData>({
     defaultValues: {
       key: editingParam?.key ?? "",
@@ -67,15 +91,24 @@ export function ParameterEditorForm({
       defaultValue: editingParam?.defaultValue ?? "",
       description: editingParam?.description ?? "",
       isRequired: Boolean(editingParam?.isRequired),
+      controlMode: initialMeta.controlMode ?? "auto",
+      pathKind: initialMeta.pathKind ?? "folder",
+      defaultFolder: initialMeta.defaultFolder ?? "",
+      accept: initialMeta.accept ?? "",
     },
   });
 
   const watchedType = form.watch("type");
   const watchedCardinality = form.watch("cardinality");
   const watchedStructType = form.watch("structType");
+  const watchedControlMode = form.watch("controlMode");
+  const watchedPathKind = form.watch("pathKind");
+  const watchedDefaultFolder = form.watch("defaultFolder");
+  const watchedAccept = form.watch("accept");
 
   useEffect(() => {
     if (editingParam) {
+      const meta = parseContextMeta(editingParam.contextData);
       form.reset({
         key: editingParam.key,
         label: editingParam.label ?? editingParam.key,
@@ -85,6 +118,10 @@ export function ParameterEditorForm({
         defaultValue: editingParam.defaultValue ?? "",
         description: editingParam.description ?? "",
         isRequired: Boolean(editingParam.isRequired),
+        controlMode: meta.controlMode ?? "auto",
+        pathKind: meta.pathKind ?? "folder",
+        defaultFolder: meta.defaultFolder ?? "",
+        accept: meta.accept ?? "",
       });
     } else {
       form.reset({
@@ -96,9 +133,26 @@ export function ParameterEditorForm({
         defaultValue: "",
         description: "",
         isRequired: false,
+        controlMode: "auto",
+        pathKind: "folder",
+        defaultFolder: "",
+        accept: "",
       });
     }
   }, [editingParam, form]);
+
+  const activeContextData = useMemo<Record<string, any> | null>(() => {
+    if (watchedType !== "String" || watchedControlMode !== "path") {
+      return null;
+    }
+    return {
+      type: "path",
+      pathKind: watchedPathKind,
+      multiple: watchedCardinality === "Array",
+      defaultFolder: watchedDefaultFolder || undefined,
+      accept: watchedPathKind === "file" ? watchedAccept || undefined : undefined,
+    };
+  }, [watchedType, watchedCardinality, watchedControlMode, watchedPathKind, watchedDefaultFolder, watchedAccept]);
 
   const defaultValFieldDef = useMemo(() => {
     if (activeTab === "outputs") return null;
@@ -110,8 +164,9 @@ export function ParameterEditorForm({
       cardinality: watchedCardinality,
       structType: isEntityRef(watchedType) ? watchedStructType : null,
       defaultValue: form.getValues("defaultValue"),
-    });
-  }, [activeTab, watchedType, watchedCardinality, watchedStructType, form]);
+      ...(activeContextData ? { contextData: activeContextData } : {}),
+    } as any);
+  }, [activeTab, watchedType, watchedCardinality, watchedStructType, activeContextData, form]);
 
   const onSubmit = form.handleSubmit((data) => {
     const trimmedKey = data.key.trim();
@@ -136,11 +191,11 @@ export function ParameterEditorForm({
       const kindMap: Record<ParameterTab, PipelineParameterKind> = {
         inputs: "Input",
         outputs: "Output",
-        variables: "Variable",
       };
 
       const newParam: PipelineParameterDto = {
         id: crypto.randomUUID(),
+        name: trimmedKey,
         key: trimmedKey,
         label: data.label.trim() || trimmedKey,
         kind: kindMap[activeTab],
@@ -148,23 +203,25 @@ export function ParameterEditorForm({
         cardinality: data.cardinality as any,
         structType: isEntityRef(data.type) ? data.structType : null,
         defaultValue: finalDefVal,
-        description: data.description.trim() || null,
+        description: data.description.trim() || undefined,
         isRequired: data.isRequired,
         order: existingKeys.length + 1,
-        contextData: null,
+        contextData: activeContextData,
       };
 
       onSaveCreate(newParam);
       toast.success(`Added ${activeTab.slice(0, -1)} '${trimmedKey}'`);
     } else if (mode === "edit" && editingParam) {
-      onSaveEdit(editingParam.key, {
-        label: data.label.trim() || editingParam.key,
+      const parameterKey = getPipelineParameterPinId(editingParam);
+      onSaveEdit(parameterKey, {
+        label: data.label.trim() || parameterKey,
         type: data.type as any,
         cardinality: data.cardinality as any,
         structType: isEntityRef(data.type) ? data.structType : null,
         defaultValue: finalDefVal,
-        description: data.description.trim() || null,
+        description: data.description.trim() || undefined,
         isRequired: data.isRequired,
+        contextData: activeContextData,
       });
       toast.success(`Updated ${activeTab.slice(0, -1)} '${editingParam.key}'`);
     }
@@ -285,6 +342,93 @@ export function ParameterEditorForm({
               </Select>
             )}
           />
+        </div>
+      )}
+
+      {watchedType === "String" && activeTab !== "outputs" && (
+        <div className="space-y-2 p-2.5 rounded-lg border bg-muted/20">
+          <div className="space-y-1">
+            <label className="text-[10px] font-medium text-muted-foreground block">
+              UI Control Mode
+            </label>
+            <Controller
+              name="controlMode"
+              control={form.control}
+              render={({ field }) => (
+                <Select
+                  selectedKey={field.value}
+                  onSelectionChange={(k) => k && field.onChange(String(k))}
+                  className="w-full"
+                >
+                  <SelectTrigger className="h-7 text-xs w-full bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem id="auto">Auto (Standard Text)</SelectItem>
+                    <SelectItem id="path">Local Path Picker (File / Folder)</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </div>
+
+          {watchedControlMode === "path" && (
+            <div className="space-y-2 pt-1.5 border-t border-border/50">
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium text-muted-foreground block">
+                  Path Target
+                </label>
+                <Controller
+                  name="pathKind"
+                  control={form.control}
+                  render={({ field }) => (
+                    <Select
+                      selectedKey={field.value}
+                      onSelectionChange={(k) => k && field.onChange(String(k))}
+                      className="w-full"
+                    >
+                      <SelectTrigger className="h-7 text-xs w-full bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem id="folder">Folder</SelectItem>
+                        <SelectItem id="file">File</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+
+              <FormRenderer
+                registry={pipelineRegistry}
+                control={form.control as any}
+                fields={[
+                  {
+                    name: "defaultFolder",
+                    label: "Default Folder",
+                    type: "pin:pathInput",
+                    properties: {
+                      mode: "folder",
+                      placeholder: "e.g. D:/Assets/Daz or ${DAZ_ROOT}",
+                    },
+                  },
+                ]}
+              />
+
+              {watchedPathKind === "file" && (
+                <div className="space-y-1">
+                  <label className="text-[10px] font-medium text-muted-foreground block">
+                    Allowed Extensions
+                  </label>
+                  <Input
+                    {...form.register("accept")}
+                    placeholder="e.g. .duf, .fbx"
+                    className="h-7 text-xs font-mono bg-background"
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

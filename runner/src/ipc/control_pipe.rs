@@ -14,7 +14,8 @@ pub struct DccControlPipe {
 
 impl DccControlPipe {
     pub fn new(key: &str) -> Self {
-        let pipe_name = format!(r"\\.\pipe\forgity_dcc_{}", key);
+        let suffix = &uuid::Uuid::new_v4().simple().to_string()[..8];
+        let pipe_name = format!(r"\\.\pipe\forgity_dcc_{}_{}", key, suffix);
         Self {
             pipe_name,
             writer: Arc::new(Mutex::new(None)),

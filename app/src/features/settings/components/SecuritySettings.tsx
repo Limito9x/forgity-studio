@@ -47,7 +47,7 @@ export function SecuritySettings() {
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 md:hidden mb-4">
-          <Link to="/settings" className={buttonVariants({ variant: "ghost", size: "icon", className: "-ml-2" })}>
+          <Link to="/account/settings" className={buttonVariants({ variant: "ghost", size: "icon", className: "-ml-2" })}>
             <ChevronLeft className="h-5 w-5" />
           </Link>
           <h3 className="text-lg font-medium">{t("profile.settings", { defaultValue: "Settings" })}</h3>

@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { AlertCircle, AlertTriangle, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { PipelineDiagnostic } from "@/gen/model";
+import type { PipelineDiagnostic } from "@/features/pipelines/types/pipelineGraphTypes";
 
 interface NodeConfigDiagnosticsBannerProps {
   diagnostics: PipelineDiagnostic[];

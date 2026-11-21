@@ -81,6 +81,14 @@ Hệ thống đã **khai tử hoàn toàn Python Worker Daemon** cũ và chuyể
    - **CẤM Rác Pin & Pass-through Pin (Zero Pin Pollution):** Tuyệt đối cấm nhận một biến ở Input rồi lại trả về chính biến đó ở Output dictionary (như nhận `contracts` rồi trả về `contracts`). Canvas không phải là ống dẫn pass-through bừa bãi.
    - **CẤM Trivial Primitive Spam:** Không mở pin cho các chuỗi primitive vụn vặt (`character_name`, `character_tag`, `destination_folder`...) khi chúng hoàn toàn có thể tự infer từ tên file FBX hoặc quy ước cấu trúc thư mục của dự án.
    - **Bắt buộc 100% Type Hints:** Toàn bộ tham số của hàm `main()` bắt buộc phải có chú thích kiểu (`str`, `List[str]`, `Dict[str, Any]`, v.v.).
+   - **Quy Chuẩn AST Pin Discovery (Bắt buộc để `Rescan Disk` nhận đúng Pin):**
+     - **Output Pins tường minh:** Câu lệnh `return { ... }` của `main()` **BẮT BUỘC** phải liệt kê từng key string literal tường minh (`return {"body_mesh": ..., "wardrobe_items": ...}`). Tuyệt đối không dùng `return {**res}` hay `return res` vì bộ phân tích AST tĩnh của Node Palette sẽ không thấy Output Pins.
+     - **Input Pin đúng kiểu 1-1:** Tham số chính của `main()` phải dùng đúng kiểu dữ liệu mong muốn khi nối dây trên Canvas (ví dụ `fbx_files: List[str]` cho mảng, `target_object: str` cho 1 object). **Không dùng `Union[Dict[...], List[...], str]`** làm type hint chính của pin vì AST analyzer sẽ nhận nhầm thành Dict/Map; nếu cần tương thích ngược với input cũ thì đọc qua `**kwargs`.
+   - **Sidecar Metadata thay cho Map/Manifest cồng kềnh giữa các Stage:**
+     - Các script export tài sản ra đĩa (ví dụ `export_fbx.py`) nên ghi kèm file sidecar `<stem>.meta.json` nằm cạnh file xuất và truyền `List[str]` đường dẫn file (`exported_files`) sang stage sau, thay vì truyền dict/map metadata lớn qua pin IPC.
+     - Script tiêu thụ chỉ đọc sidecar của đúng danh sách file được truyền vào (không quét mù cả thư mục để tránh dính file cũ trên đĩa).
+   - **An toàn cho tác vụ nặng (No Blind Scene Fallback):**
+     - Các script nặng/biến đổi scene như `bake_mesh.py` tuyệt đối không fallback sang "tự lấy toàn bộ mesh đang visible trong scene" khi thiếu hoặc sai `target_object` — phải raise lỗi rõ ràng.
 
 4. **Nghiệm Thu Bắt Buộc Qua Script Harness (Mandatory Harness Verification Gate):**
    - Trước khi báo cáo hoàn tất việc tạo mới hoặc sửa đổi bất kỳ script nào trong `pipeline-scripts/`, Agent **BẮT BUỘC** phải chạy lệnh kiểm duyệt tự động:

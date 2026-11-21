@@ -12,7 +12,6 @@ export interface StudioAdminSummaryDto {
   name: string;
   slug: string;
   planTier: StudioPlanTier;
-  executionCreditsRemaining: number;
   studioManagedStorageQuotaBytes: number;
   studioManagedStorageUsedBytes: number;
   projectCount: number;

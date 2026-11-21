@@ -7,7 +7,7 @@ import { useNodeDiagnostics } from "@/features/pipelines/form-scope/PipelineForm
 interface NodeCardProps {
   nodeId?: string;
   selected?: boolean;
-  status?: "idle" | "running" | "succeeded" | "failed";
+  status?: "idle" | "waiting" | "running" | "succeeded" | "failed";
   executionError?: string | null;
   borderThemeClass?: string;
   className?: string;
@@ -112,6 +112,7 @@ export function NodeCard({
           : "border-border/80 hover:border-primary/50",
         borderThemeClass,
         // Runtime execution statuses
+        status === "waiting" && "border-sky-500/80 ring-1 ring-sky-500/30",
         status === "running" && "border-amber-500 ring-2 ring-amber-500/40 animate-pulse",
         status === "succeeded" && "border-emerald-500/90 ring-1 ring-emerald-500/20",
         status === "failed" && "border-destructive ring-2 ring-destructive/40",

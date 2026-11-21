@@ -103,6 +103,73 @@ parent_lib_module.PipelineHooks = PipelineHooks
 sys.modules["lib"] = parent_lib_module
 
 
+def execute_pure_step(tool_key: str, step_inputs: dict) -> dict:
+    """Evaluate inline Pure nodes (Constant, MakeStruct, BreakStruct, Joint) inside the stage."""
+    lower_tool = (tool_key or "").lower()
+
+    if ":struct:make:" in lower_tool or lower_tool == "makestruct":
+        struct_obj = {
+            k: v for k, v in (step_inputs or {}).items()
+            if k not in ("exec_in", "exec_out")
+        }
+        return {"struct_out": struct_obj, "output": struct_obj}
+
+    if ":struct:break:" in lower_tool or lower_tool == "breakstruct":
+        src = (
+            step_inputs.get("struct_in")
+            or step_inputs.get("input")
+            or step_inputs.get("target")
+            or (next(iter(step_inputs.values())) if step_inputs else {})
+        )
+        return dict(src) if isinstance(src, dict) else {}
+
+    if lower_tool in ("joint", "local:joint", "merge_array", "mergearray", "concatarray"):
+        merged = []
+        outputs = {}
+        for k in sorted((step_inputs or {}).keys()):
+            if k in ("exec_in", "exec_out"):
+                continue
+            v = step_inputs[k]
+            channel_items = []
+            if isinstance(v, list):
+                channel_items.extend(v)
+            elif v is not None:
+                channel_items.append(v)
+            merged.extend(channel_items)
+
+            lower_k = k.lower()
+            out_k = f"out_{lower_k[3:]}" if lower_k.startswith("in_") else f"out_{k}"
+            outputs[out_k] = channel_items
+
+        outputs["out_array"] = merged
+        outputs["output"] = merged
+        return outputs
+
+    if lower_tool.startswith("local:constant:") or lower_tool == "constant":
+        def _render_const(val: Any) -> Any:
+            if isinstance(val, str):
+                rendered = val
+                for k, v in (step_inputs or {}).items():
+                    if k in ("value", "disk_path", "virtual_path"):
+                        continue
+                    rendered = (
+                        rendered.replace(f"${{{k}}}", "" if v is None else str(v))
+                        .replace(f"{{{k}}}", "" if v is None else str(v))
+                    )
+                return rendered
+            if isinstance(val, list):
+                return [_render_const(item) for item in val]
+            return val
+
+        outputs = {}
+        for tmpl_key in ("value", "disk_path", "virtual_path"):
+            if tmpl_key in step_inputs and step_inputs[tmpl_key] is not None:
+                outputs[tmpl_key] = _render_const(step_inputs[tmpl_key])
+        return outputs
+
+    return {}
+
+
 def resolve_step_inputs(step_inputs: dict, all_step_outputs: dict, resolved_data: dict) -> dict:
     """Resolve final input values for a step by substituting $ref, $file, and $data markers."""
     resolved = {}
@@ -173,20 +240,39 @@ def resolve_step_inputs(step_inputs: dict, all_step_outputs: dict, resolved_data
 def apply_input_mappings(step: dict, step_inputs: dict, all_step_outputs: dict) -> dict:
     """Support intra-stage data flow from previous steps in this stage via InputMappings."""
     mappings = step.get("input_mappings", [])
+    wire_buckets = {}
     for m in mappings:
         target_pin = m.get("pin_key")
         src_node = m.get("source_node_id")
         src_pin = m.get("source_pin_key")
         if target_pin and src_node and src_pin and src_node in all_step_outputs:
             src_outs = all_step_outputs[src_node]
+            resolved_val = None
+            found = False
             if src_pin in src_outs and src_outs[src_pin] is not None:
-                step_inputs[target_pin] = src_outs[src_pin]
+                resolved_val = src_outs[src_pin]
+                found = True
             else:
                 for out_k, out_v in src_outs.items():
                     if out_k.lower() == src_pin.lower() or out_k.lower().replace("-", "_") == src_pin.lower().replace("-", "_"):
                         if out_v is not None:
-                            step_inputs[target_pin] = out_v
+                            resolved_val = out_v
+                            found = True
                         break
+            if found:
+                wire_buckets.setdefault(target_pin, []).append(resolved_val)
+
+    for target_pin, vals in wire_buckets.items():
+        if len(vals) == 1:
+            step_inputs[target_pin] = vals[0]
+        else:
+            merged = []
+            for v in vals:
+                if isinstance(v, list):
+                    merged.extend(v)
+                elif v is not None:
+                    merged.append(v)
+            step_inputs[target_pin] = merged
     return step_inputs
 
 
@@ -375,7 +461,45 @@ def main():
         step_succeeded = True
         step_err = None
 
-        if script_path and os.path.exists(script_path):
+        if step.get("step_type") == "pure":
+            try:
+                tool_key = step.get("entry_point") or ""
+                res = execute_pure_step(tool_key, step_inputs)
+                if isinstance(res, dict):
+                    step_outputs.update(res)
+                all_step_outputs[step_id] = step_outputs
+                print(f"[GuestRunner] Pure step '{step_name}' completed. Outputs: {list(step_outputs.keys())}", flush=True)
+            except Exception as e:
+                step_succeeded = False
+                step_err = f"{e}\n{traceback.format_exc()}"
+                overall_success = False
+                error_msg = step_err
+                print(f"[GuestRunner] ERROR in pure step '{step_name}': {step_err}", flush=True)
+        elif (step.get("inline_source") or step.get("inlineSource")) and isinstance(step.get("inline_source") or step.get("inlineSource"), str) and (step.get("inline_source") or step.get("inlineSource")).strip():
+            inline_source = step.get("inline_source") or step.get("inlineSource")
+            try:
+                import types
+                sys.argv = [f"<cloud:{step_name}>"]
+                module = types.ModuleType(f"cloud_step_{idx}")
+                module.__file__ = f"<cloud:{step_name}>"
+                exec(compile(inline_source, module.__file__, "exec"), module.__dict__)
+                res = call_script_main(module, step_inputs, module.__file__)
+                if isinstance(res, dict):
+                    step_outputs.update(res)
+                hook_outs = PipelineHooks.get_outputs()
+                if hook_outs:
+                    step_outputs.update(hook_outs)
+                all_step_outputs[step_id] = step_outputs
+                print(f"[GuestRunner] In-RAM Cloud Step '{step_name}' completed. Outputs: {list(step_outputs.keys())}", flush=True)
+            except Exception as e:
+                step_succeeded = False
+                step_err = f"{e}\n{traceback.format_exc()}"
+                overall_success = False
+                error_msg = step_err
+                print(f"[GuestRunner] ERROR in cloud step '{step_name}': {step_err}", flush=True)
+            finally:
+                sys.argv = original_argv
+        elif script_path and os.path.exists(script_path):
             try:
                 # Isolate sys.argv to avoid scripts reading host CLI flags like --pipe
                 sys.argv = [script_path]

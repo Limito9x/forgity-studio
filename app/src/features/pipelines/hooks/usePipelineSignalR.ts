@@ -1,4 +1,13 @@
-import { ExecutionStatus } from "@/gen/model/executionStatus";
+export const ExecutionStatus = {
+  Pending: "Pending",
+  Running: "Running",
+  WaitingForRunner: "WaitingForRunner",
+  WaitingForSubPipeline: "WaitingForSubPipeline",
+  Succeeded: "Succeeded",
+  Failed: "Failed",
+  Cancelled: "Cancelled",
+} as const;
+export type ExecutionStatus = (typeof ExecutionStatus)[keyof typeof ExecutionStatus];
 
 export function mapExecutionStatus(status: number | string): ExecutionStatus {
   if (typeof status === "string") {

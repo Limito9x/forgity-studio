@@ -1,0 +1,432 @@
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::path::Path;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TemplateAssetToStage {
+    pub file_name: String,
+    pub relative_path: Option<String>,
+    pub sha256: Option<String>,
+    pub data_base64: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TemplatePipelineFileToStage {
+    pub file_name: String,
+    pub relative_path: String,
+    pub pipeline_kind: String,
+    pub yaml_content: String,
+    pub snapshot_json: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ForkTemplateParams {
+    pub target_root_path: String,
+    pub workspace_name: String,
+    pub template_id: String,
+    #[serde(default)]
+    pub template_slug: Option<String>,
+    pub version_id: String,
+    #[serde(default)]
+    pub template_version: Option<u32>,
+    pub template_title: String,
+    pub pipelines: Vec<TemplatePipelineFileToStage>,
+    pub palette_json: Option<String>,
+    pub structs_json: Option<String>,
+    pub constants_json: Option<String>,
+    pub assets: Vec<TemplateAssetToStage>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ForkTemplateResult {
+    pub workspace_id: String,
+    pub workspace_slug: String,
+    pub root_path: String,
+    pub staged_pipelines: usize,
+    pub staged_assets: usize,
+}
+
+fn sha256_bytes(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    hex::encode(hasher.finalize())
+}
+
+pub fn fork_template_into_local_workspace(
+    app_data_dir: &Path,
+    params: ForkTemplateParams,
+) -> Result<ForkTemplateResult, String> {
+    let root = Path::new(&params.target_root_path);
+    if !root.exists() {
+        std::fs::create_dir_all(root)
+            .map_err(|e| format!("Failed to create workspace target directory: {}", e))?;
+    }
+
+    // 1. Initialize workspace root and .forgity/workspace.db
+    let db = forgity_core::workspace_db::WorkspaceDb::open(root)?;
+    let pipelines_dir = root.join("pipelines");
+    let assets_dir = root.join("assets");
+    let scripts_dir = root.join("pipeline-scripts");
+
+    std::fs::create_dir_all(&pipelines_dir)
+        .map_err(|e| format!("Failed to create pipelines dir: {}", e))?;
+    std::fs::create_dir_all(&assets_dir)
+        .map_err(|e| format!("Failed to create assets dir: {}", e))?;
+    std::fs::create_dir_all(&scripts_dir)
+        .map_err(|e| format!("Failed to create pipeline-scripts dir: {}", e))?;
+
+    // 2. Stage palette, structs, constants if provided
+    if let Some(ref pal) = params.palette_json {
+        let _ = db.save_palette_json(pal);
+    }
+    if let Some(ref structs) = params.structs_json {
+        let _ = db.save_structs_json(structs);
+    }
+    if let Some(ref consts) = params.constants_json {
+        let _ = db.save_constants_json(consts);
+    }
+
+    // Persist origin template metadata inside workspace.db
+    let _ = db.set_workspace_meta("origin_template_id", &params.template_id);
+    let _ = db.set_workspace_meta("origin_version_id", &params.version_id);
+    if let Some(ver) = params.template_version {
+        let _ = db.set_workspace_meta("origin_template_version", &ver.to_string());
+    }
+    if let Some(ref slug) = params.template_slug {
+        let _ = db.set_workspace_meta("origin_template_slug", slug);
+    }
+    let _ = db.set_workspace_meta("origin_template_title", &params.template_title);
+
+    // 3. Stage pipelines into pipelines/ and index into local_pipelines
+    let mut staged_pipelines_count = 0;
+    for pipe in &params.pipelines {
+        let file_path = pipelines_dir.join(&pipe.file_name);
+        std::fs::write(&file_path, &pipe.yaml_content)
+            .map_err(|e| format!("Failed to write pipeline file '{}': {}", pipe.file_name, e))?;
+
+        let slug = pipe.file_name
+            .trim_end_matches(".pipeline.yaml")
+            .trim_end_matches(".component.yaml")
+            .to_string();
+
+        if let Some(ref snap) = pipe.snapshot_json {
+            let _ = db.save_pipeline_entry_with_snapshot(
+                &slug,
+                &pipe.file_name,
+                &pipe.relative_path,
+                &pipe.pipeline_kind,
+                snap,
+            );
+        }
+
+        staged_pipelines_count += 1;
+    }
+
+    // 4. Stage Assets into assets/ and verify SHA-256
+    let mut staged_assets_count = 0;
+    for asset in &params.assets {
+        if let Some(ref b64) = asset.data_base64 {
+            // Standard base64 decoding (without external crate dependency)
+            // Or if small raw string:
+            let decoded = match parse_base64_or_raw(b64) {
+                Ok(bytes) => bytes,
+                Err(err) => return Err(format!("Asset '{}' base64 decode failed: {}", asset.file_name, err)),
+            };
+
+            if let Some(ref expected_hash) = asset.sha256 {
+                let actual_hash = sha256_bytes(&decoded);
+                if !expected_hash.is_empty() && actual_hash.to_lowercase() != expected_hash.to_lowercase() {
+                    return Err(format!(
+                        "Asset '{}' SHA-256 mismatch! Expected: {}, got: {}",
+                        asset.file_name, expected_hash, actual_hash
+                    ));
+                }
+            }
+
+            let asset_path = assets_dir.join(&asset.file_name);
+            std::fs::write(&asset_path, &decoded)
+                .map_err(|e| format!("Failed to write staged asset '{}': {}", asset.file_name, e))?;
+            staged_assets_count += 1;
+        }
+    }
+
+    // 5. Register in Workspace Registry (AppData)
+    let registry = forgity_core::workspace_registry::WorkspaceRegistryDb::open(app_data_dir)?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs().to_string())
+        .unwrap_or_else(|_| "0".to_string());
+
+    let workspace_id = format!("ws_fork_{}", &now);
+    let workspace_slug = registry.ensure_unique_slug(&params.workspace_name)?;
+    let ws = forgity_core::workspace_registry::RegisteredWorkspace {
+        id: workspace_id.clone(),
+        slug: workspace_slug.clone(),
+        name: params.workspace_name,
+        root_path: params.target_root_path.clone(),
+        linked_project_id: None,
+        origin_template_id: Some(params.template_id),
+        origin_template_slug: params.template_slug,
+        origin_version_id: Some(params.version_id),
+        origin_template_title: Some(params.template_title),
+        unreal_project_path: None,
+        last_opened_at: now.clone(),
+        created_at: now,
+    };
+
+    registry.upsert_workspace(&ws)?;
+
+    Ok(ForkTemplateResult {
+        workspace_id,
+        workspace_slug,
+        root_path: params.target_root_path,
+        staged_pipelines: staged_pipelines_count,
+        staged_assets: staged_assets_count,
+    })
+}
+
+#[tauri::command]
+pub async fn download_url_base64(url: String) -> Result<String, String> {
+    use base64::Engine as _;
+    let resp = reqwest::get(&url)
+        .await
+        .map_err(|e| format!("Failed to fetch {}: {}", url, e))?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {} when fetching {}", resp.status(), url));
+    }
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| format!("Failed to read response bytes from {}: {}", url, e))?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
+}
+
+#[tauri::command]
+pub fn fork_template_workspace(
+    app: tauri::AppHandle,
+    params: ForkTemplateParams,
+) -> Result<ForkTemplateResult, String> {
+    use tauri::Manager;
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app_data_dir: {}", e))?;
+    fork_template_into_local_workspace(&app_data_dir, params)
+}
+
+pub fn update_forked_workspace_in_place(
+    app_data_dir: &Path,
+    mut params: ForkTemplateParams,
+) -> Result<ForkTemplateResult, String> {
+    let root = Path::new(&params.target_root_path);
+    if !root.exists() {
+        return Err(format!("Workspace directory does not exist: {}", params.target_root_path));
+    }
+
+    let db = forgity_core::workspace_db::WorkspaceDb::open(root)?;
+
+    // Smart Constant Merge: preserve user-configured values & unrealPath
+    if let Some(ref incoming_consts_str) = params.constants_json {
+        if let (Ok(existing_str), Ok(mut incoming_arr)) = (
+            db.load_constants_json(),
+            serde_json::from_str::<Vec<serde_json::Value>>(incoming_consts_str),
+        ) {
+            if let Ok(existing_arr) = serde_json::from_str::<Vec<serde_json::Value>>(&existing_str) {
+                let mut existing_by_key = std::collections::HashMap::new();
+                for item in existing_arr {
+                    if let Some(k) = item.get("key").and_then(|v| v.as_str()) {
+                        existing_by_key.insert(k.to_string(), item);
+                    }
+                }
+                for inc in &mut incoming_arr {
+                    if let Some(k) = inc.get("key").and_then(|v| v.as_str()).map(|s| s.to_string()) {
+                        if let Some(old_item) = existing_by_key.get(&k) {
+                            let old_val = old_item.get("value");
+                            let has_user_val = match old_val {
+                                Some(serde_json::Value::Null) | None => false,
+                                Some(serde_json::Value::String(s)) => !s.trim().is_empty(),
+                                _ => true,
+                            };
+                            if has_user_val {
+                                if let Some(obj) = inc.as_object_mut() {
+                                    if let Some(v) = old_val {
+                                        obj.insert("value".to_string(), v.clone());
+                                    }
+                                    if let Some(up) = old_item.get("unrealPath") {
+                                        obj.insert("unrealPath".to_string(), up.clone());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if let Ok(merged_str) = serde_json::to_string(&incoming_arr) {
+                    params.constants_json = Some(merged_str);
+                }
+            }
+        }
+    }
+
+    let pipelines_dir = root.join("pipelines");
+    let assets_dir = root.join("assets");
+    std::fs::create_dir_all(&pipelines_dir)
+        .map_err(|e| format!("Failed to create pipelines dir: {}", e))?;
+    std::fs::create_dir_all(&assets_dir)
+        .map_err(|e| format!("Failed to create assets dir: {}", e))?;
+
+    if let Some(ref pal) = params.palette_json {
+        let _ = db.save_palette_json(pal);
+    }
+    if let Some(ref structs) = params.structs_json {
+        let _ = db.save_structs_json(structs);
+    }
+    if let Some(ref consts) = params.constants_json {
+        let _ = db.save_constants_json(consts);
+    }
+
+    let _ = db.set_workspace_meta("origin_template_id", &params.template_id);
+    let _ = db.set_workspace_meta("origin_version_id", &params.version_id);
+    if let Some(ver) = params.template_version {
+        let _ = db.set_workspace_meta("origin_template_version", &ver.to_string());
+    }
+    if let Some(ref slug) = params.template_slug {
+        let _ = db.set_workspace_meta("origin_template_slug", slug);
+    }
+    let _ = db.set_workspace_meta("origin_template_title", &params.template_title);
+
+    let mut staged_pipelines_count = 0;
+    for pipe in &params.pipelines {
+        let file_path = pipelines_dir.join(&pipe.file_name);
+        std::fs::write(&file_path, &pipe.yaml_content)
+            .map_err(|e| format!("Failed to write pipeline file '{}': {}", pipe.file_name, e))?;
+
+        let slug = pipe
+            .file_name
+            .trim_end_matches(".pipeline.yaml")
+            .trim_end_matches(".component.yaml")
+            .to_string();
+
+        if let Some(ref snap) = pipe.snapshot_json {
+            let _ = db.save_pipeline_entry_with_snapshot(
+                &slug,
+                &pipe.file_name,
+                &pipe.relative_path,
+                &pipe.pipeline_kind,
+                snap,
+            );
+        }
+        staged_pipelines_count += 1;
+    }
+
+    let mut staged_assets_count = 0;
+    for asset in &params.assets {
+        if let Some(ref b64) = asset.data_base64 {
+            let decoded = parse_base64_or_raw(b64)
+                .map_err(|err| format!("Asset '{}' base64 decode failed: {}", asset.file_name, err))?;
+            let asset_path = assets_dir.join(&asset.file_name);
+            std::fs::write(&asset_path, &decoded)
+                .map_err(|e| format!("Failed to write staged asset '{}': {}", asset.file_name, e))?;
+            staged_assets_count += 1;
+        }
+    }
+
+    let registry = forgity_core::workspace_registry::WorkspaceRegistryDb::open(app_data_dir)?;
+    if let Ok(Some(mut existing_ws)) = registry.get_workspace_by_root_path(&params.target_root_path) {
+        existing_ws.origin_version_id = Some(params.version_id);
+        existing_ws.origin_template_title = Some(params.template_title);
+        let _ = registry.upsert_workspace(&existing_ws);
+        return Ok(ForkTemplateResult {
+            workspace_id: existing_ws.id,
+            workspace_slug: existing_ws.slug,
+            root_path: params.target_root_path,
+            staged_pipelines: staged_pipelines_count,
+            staged_assets: staged_assets_count,
+        });
+    }
+
+    Ok(ForkTemplateResult {
+        workspace_id: String::new(),
+        workspace_slug: String::new(),
+        root_path: params.target_root_path,
+        staged_pipelines: staged_pipelines_count,
+        staged_assets: staged_assets_count,
+    })
+}
+
+#[tauri::command]
+pub fn update_forked_workspace(
+    app: tauri::AppHandle,
+    params: ForkTemplateParams,
+) -> Result<ForkTemplateResult, String> {
+    use tauri::Manager;
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app_data_dir: {}", e))?;
+    update_forked_workspace_in_place(&app_data_dir, params)
+}
+
+fn parse_base64_or_raw(input: &str) -> Result<Vec<u8>, String> {
+    // If input contains data URI scheme e.g. "data:...;base64,"
+    let raw = if let Some(idx) = input.find(";base64,") {
+        &input[idx + 8..]
+    } else {
+        input.trim()
+    };
+
+    // Standard base64 decoding helper
+    decode_b64(raw)
+}
+
+fn decode_b64(s: &str) -> Result<Vec<u8>, String> {
+    const B64_TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut table = [0xFFu8; 256];
+    for (i, &b) in B64_TABLE.iter().enumerate() {
+        table[b as usize] = i as u8;
+    }
+
+    let clean: Vec<u8> = s.bytes().filter(|b| !b.is_ascii_whitespace() && *b != b'=').collect();
+    let mut out = Vec::with_capacity((clean.len() * 3) / 4);
+
+    let chunks = clean.chunks_exact(4);
+    let rem = chunks.remainder();
+
+    for chunk in chunks {
+        let b0 = table[chunk[0] as usize];
+        let b1 = table[chunk[1] as usize];
+        let b2 = table[chunk[2] as usize];
+        let b3 = table[chunk[3] as usize];
+
+        if b0 == 0xFF || b1 == 0xFF || b2 == 0xFF || b3 == 0xFF {
+            return Err("Invalid base64 character".to_string());
+        }
+
+        out.push((b0 << 2) | (b1 >> 4));
+        out.push((b1 << 4) | (b2 >> 2));
+        out.push((b2 << 6) | b3);
+    }
+
+    if rem.len() == 2 {
+        let b0 = table[rem[0] as usize];
+        let b1 = table[rem[1] as usize];
+        if b0 == 0xFF || b1 == 0xFF {
+            return Err("Invalid base64 character".to_string());
+        }
+        out.push((b0 << 2) | (b1 >> 4));
+    } else if rem.len() == 3 {
+        let b0 = table[rem[0] as usize];
+        let b1 = table[rem[1] as usize];
+        let b2 = table[rem[2] as usize];
+        if b0 == 0xFF || b1 == 0xFF || b2 == 0xFF {
+            return Err("Invalid base64 character".to_string());
+        }
+        out.push((b0 << 2) | (b1 >> 4));
+        out.push((b1 << 4) | (b2 >> 2));
+    }
+
+    Ok(out)
+}

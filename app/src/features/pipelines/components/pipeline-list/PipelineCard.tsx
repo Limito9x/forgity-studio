@@ -26,7 +26,7 @@ import {
   Popover,
 } from "react-aria-components";
 import { cn } from "@/lib/utils";
-import type { PipelineSummaryDto } from "@/gen/model";
+import type { PipelineSummaryDto } from "@/features/pipelines/types/pipelineGraphTypes";
 import { useDialogStore } from "@/stores/dialogStore";
 import { useProjectNav } from "@/lib/navigation/useProjectNav";
 
@@ -222,7 +222,9 @@ export function PipelineCard({
             <Calendar className="h-3 w-3" />
             {p.deletedAt
               ? `Archived ${new Date(p.deletedAt).toLocaleDateString()}`
-              : new Date(p.createdAt).toLocaleDateString()}
+              : p.createdAt
+                ? new Date(p.createdAt).toLocaleDateString()
+                : "Recently"}
           </span>
 
           {mode === "active" ? (

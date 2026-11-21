@@ -7,11 +7,14 @@ export interface LocalStorageAdapterConfig {
   rootPath: string;
   pipelineSlug: string;
   filePath: string;
-  onRunDraft?: () => void;
+  pipelineKind?: "master" | "component";
+  executor?: string;
+  onRunDraft?: (runtimeInputs?: Record<string, any>) => Promise<void> | void;
+  onDraftSaved?: (graph: ExtendedPipelineGraphDto) => void;
 }
 
 export class LocalPipelineStorageAdapter implements IPipelineStorageAdapter {
-  readonly mode = "local" as const;
+  readonly source = "local" as const;
   private config: LocalStorageAdapterConfig;
 
   constructor(config: LocalStorageAdapterConfig) {
@@ -40,10 +43,17 @@ export class LocalPipelineStorageAdapter implements IPipelineStorageAdapter {
   ): Promise<PipelineStorageSaveResult> {
     const { rootPath, pipelineSlug, filePath } = this.config;
     try {
-      // 1. Tự sinh nội dung YAML nếu chưa có
+      // 1. Tự sinh nội dung YAML nếu chưa có (bảo toàn kind & executor của Component Pipe)
       const yaml =
         rawYamlContent ||
-        graphToPipelineYaml(graph.name, graph.nodes as any, graph.edges as any);
+        graphToPipelineYaml(
+          graph.name,
+          graph.nodes as any,
+          graph.edges as any,
+          undefined,
+          this.config.pipelineKind,
+          this.config.executor
+        );
 
       // 2. Lưu file .yaml trên đĩa
       await saveLocalPipelineDraft(filePath, yaml);
@@ -56,6 +66,8 @@ export class LocalPipelineStorageAdapter implements IPipelineStorageAdapter {
           JSON.stringify(graph, null, 2)
         );
       }
+
+      this.config.onDraftSaved?.(graph);
 
       return { success: true };
     } catch (err: any) {
@@ -82,9 +94,9 @@ export class LocalPipelineStorageAdapter implements IPipelineStorageAdapter {
     }
   }
 
-  async run(_options: PipelineRunOptions): Promise<any> {
+  async run(options: PipelineRunOptions): Promise<any> {
     if (this.config.onRunDraft) {
-      return this.config.onRunDraft();
+      return this.config.onRunDraft(options.runtimeInputs);
     }
     throw new Error("No runner delegate provided for local execution");
   }

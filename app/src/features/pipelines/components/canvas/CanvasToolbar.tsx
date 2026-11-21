@@ -16,18 +16,17 @@ import {
   Zap,
   RefreshCw,
   Pencil,
-  Download,
   LocateFixed,
   GitCommit,
-  UploadCloud,
   Laptop,
+  Power,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useReactFlow } from "@xyflow/react";
 import { cn } from "@/lib/utils";
 import { useUpdatePipelineMutation } from "../../hooks/usePipelines";
-import { usePipelineExport } from "../../hooks/usePipelineExportImport";
 import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
+import { useLocalDccSessions } from "../../hooks/workspace/useLocalDccSessions";
 import type { ValidationStatus } from "../../form-scope/PipelineFormScope";
 
 interface CanvasToolbarProps {
@@ -36,6 +35,8 @@ interface CanvasToolbarProps {
   pipelineName: string;
   triggerType?: number | string;
   isSaving: boolean;
+  canSaveDraft?: boolean;
+  canRun?: boolean;
   onOpenRunModal: () => void;
   onOpenHistory?: () => void;
   onOpenSnapshots?: () => void;
@@ -55,6 +56,7 @@ interface CanvasToolbarProps {
   viewMode?: "visual" | "yaml";
   onToggleViewMode?: (mode: "visual" | "yaml") => void;
   isRunningDraft?: boolean;
+  readOnly?: boolean;
 }
 
 export function CanvasToolbar({
@@ -63,6 +65,8 @@ export function CanvasToolbar({
   pipelineName,
   triggerType,
   isSaving,
+  canSaveDraft = true,
+  canRun = true,
   onOpenRunModal,
   onOpenHistory,
   onOpenSnapshots,
@@ -76,16 +80,18 @@ export function CanvasToolbar({
   isExecuting = false,
   isAutoFollow = true,
   onToggleAutoFollow,
-  onOpenPublishModal,
+  onOpenPublishModal: _onOpenPublishModal,
   isLocalMode = false,
   viewMode = "visual",
   onToggleViewMode,
   isRunningDraft = false,
+  readOnly = false,
 }: CanvasToolbarProps) {
   const { studioSlug } = useCurrentStudio();
   const { fitView, zoomIn, zoomOut } = useReactFlow();
   const updateMutation = useUpdatePipelineMutation(projectId, pipelineId);
-  const { exportSingle, isExportingSingle } = usePipelineExport();
+  const { sessions: localDccSessions, stopSession: stopLocalDccSession, isStopping: isStoppingDcc } =
+    useLocalDccSessions(isLocalMode);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(pipelineName);
@@ -156,7 +162,7 @@ export function CanvasToolbar({
       <div className="flex items-center gap-3 min-w-0">
         {!isLocalMode && (
           <Link
-            to="/s/$studioSlug/projects/$projectId/pipeline"
+            to="/studio/$studioSlug/projects/$projectId/pipeline"
             params={{ studioSlug, projectId }}
             className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "h-8 w-8 text-muted-foreground")}
           >
@@ -219,22 +225,24 @@ export function CanvasToolbar({
             </div>
           )}
 
-          {!isLocalMode && renderTriggerBadge()}
+          {!isLocalMode && !readOnly && renderTriggerBadge()}
 
           {/* Autosave Indicator */}
-          <div className="hidden lg:flex items-center gap-1.5 pl-2 text-xs text-muted-foreground">
-            {isSaving ? (
-              <>
-                <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                <span className="text-[11px]">Saving...</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle className="h-3 w-3 text-emerald-500" />
-                <span className="text-[11px] text-muted-foreground/80">Saved</span>
-              </>
-            )}
-          </div>
+          {canSaveDraft && (
+            <div className="hidden lg:flex items-center gap-1.5 pl-2 text-xs text-muted-foreground">
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                  <span className="text-[11px]">Saving...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-3 w-3 text-emerald-500" />
+                  <span className="text-[11px] text-muted-foreground/80">Saved</span>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -330,7 +338,7 @@ export function CanvasToolbar({
         </div>
 
         {/* History / Executions Drawer Trigger */}
-        {!isLocalMode && onOpenHistory && (
+        {!readOnly && onOpenHistory && (
           <Button
             variant="outline"
             size="sm"
@@ -355,105 +363,104 @@ export function CanvasToolbar({
           </Button>
         )}
 
-        {/* Publish to Studio Cloud Trigger */}
-        {onOpenPublishModal && (
-          <Button
-            variant="outline"
-            size="sm"
-            onPress={onOpenPublishModal}
-            className="h-8 text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
-          >
-            <UploadCloud className="h-3.5 w-3.5 text-primary" />
-            <span className="hidden sm:inline">Publish to Studio</span>
-          </Button>
-        )}
-
-        {/* Export Pipeline Package */}
-        {!isLocalMode && (
-          <Button
-            variant="outline"
-            size="sm"
-            onPress={() => {
-              if (pipelineId) {
-                exportSingle({ id: pipelineId });
-              }
-            }}
-            isDisabled={!pipelineId || isExportingSingle}
-            className="h-8 text-xs gap-1.5"
-          >
-            {isExportingSingle ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Download className="h-3.5 w-3.5 text-primary" />
-            )}
-            <span className="hidden sm:inline">Export</span>
-          </Button>
-        )}
-
         {/* Validate Button with Diagnostic Badge */}
-        <div className="flex items-center">
-          <Button
-            variant="outline"
-            size="sm"
-            onPress={onValidate}
-            isDisabled={isValidating || isExecuting || isRunningDraft}
-            className={cn(
-              "h-8 text-xs gap-1.5",
-              errorCount > 0
-                ? "border-destructive/50 text-destructive hover:bg-destructive/10"
-                : warningCount > 0
-                  ? "border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
-                  : ""
-            )}
-          >
-            {isValidating ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : errorCount > 0 ? (
-              <ShieldAlert className="h-3.5 w-3.5 text-destructive" />
-            ) : warningCount > 0 ? (
-              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-            ) : (
-              <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-            )}
-            <span className="hidden sm:inline">Validate</span>
+        {!readOnly && (
+          <div className="flex items-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onPress={onValidate}
+              isDisabled={isValidating || isExecuting || isRunningDraft}
+              className={cn(
+                "h-8 text-xs gap-1.5",
+                errorCount > 0
+                  ? "border-destructive/50 text-destructive hover:bg-destructive/10"
+                  : warningCount > 0
+                    ? "border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+                    : ""
+              )}
+            >
+              {isValidating ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : errorCount > 0 ? (
+                <ShieldAlert className="h-3.5 w-3.5 text-destructive" />
+              ) : warningCount > 0 ? (
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+              ) : (
+                <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+              )}
+              <span className="hidden sm:inline">Validate</span>
 
-            {/* Badges */}
-            {errorCount > 0 && (
-              <Badge variant="destructive" className="h-4 px-1 py-0 text-[9px] font-mono">
-                {errorCount}
-              </Badge>
-            )}
-            {errorCount === 0 && warningCount > 0 && (
-              <Badge
-                variant="outline"
-                className="h-4 px-1 py-0 text-[9px] font-mono border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
-              >
-                {warningCount}
-              </Badge>
-            )}
-            {isStale && (
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" title="Draft changed" />
-            )}
-          </Button>
+              {/* Badges */}
+              {errorCount > 0 && (
+                <Badge variant="destructive" className="h-4 px-1 py-0 text-[9px] font-mono">
+                  {errorCount}
+                </Badge>
+              )}
+              {errorCount === 0 && warningCount > 0 && (
+                <Badge
+                  variant="outline"
+                  className="h-4 px-1 py-0 text-[9px] font-mono border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
+                >
+                  {warningCount}
+                </Badge>
+              )}
+              {isStale && (
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" title="Draft changed" />
+              )}
+            </Button>
 
-          {/* Toggle Diagnostics Panel Button */}
-          {onToggleDiagnosticsPanel && (
-            <span title="Open Diagnostics List">
-              <Button
-                variant={isDiagnosticsPanelOpen ? "secondary" : "ghost"}
-                size="icon"
-                className="h-8 w-6 ml-0.5 px-0 text-muted-foreground hover:text-foreground"
-                onPress={onToggleDiagnosticsPanel}
-                aria-label="Toggle diagnostics list"
-              >
-                <span className="text-[10px] font-mono">▼</span>
-              </Button>
+            {/* Toggle Diagnostics Panel Button */}
+            {onToggleDiagnosticsPanel && (
+              <span title="Open Diagnostics List">
+                <Button
+                  variant={isDiagnosticsPanelOpen ? "secondary" : "ghost"}
+                  size="icon"
+                  className="h-8 w-6 ml-0.5 px-0 text-muted-foreground hover:text-foreground"
+                  onPress={onToggleDiagnosticsPanel}
+                  aria-label="Toggle diagnostics list"
+                >
+                  <span className="text-[10px] font-mono">▼</span>
+                </Button>
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Warm Local DCC Session Indicator (e.g. Resident Unreal) */}
+        {isLocalMode && localDccSessions.length > 0 && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full shrink-0",
+                localDccSessions[0].state === "busy"
+                  ? "bg-amber-500 animate-pulse"
+                  : "bg-emerald-500"
+              )}
+            />
+            <span
+              className="truncate max-w-[160px]"
+              title={`PID: ${localDccSessions[0].pid}${localDccSessions[0].project_path ? ` | ${localDccSessions[0].project_path}` : ""}`}
+            >
+              {localDccSessions[0].executor.toUpperCase()} Warm ·{" "}
+              {localDccSessions[0].state === "busy"
+                ? "Busy"
+                : `${Math.floor(localDccSessions[0].remaining_seconds / 60)}m ${localDccSessions[0].remaining_seconds % 60}s`}
             </span>
-          )}
-        </div>
+            <button
+              type="button"
+              onClick={() => stopLocalDccSession({ key: localDccSessions[0].key })}
+              disabled={isStoppingDcc}
+              title="Stop resident DCC process"
+              className="ml-0.5 p-0.5 rounded hover:bg-destructive/20 hover:text-destructive transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <Power className="h-3 w-3" />
+            </button>
+          </div>
+        )}
 
         {/* Run Pipeline Button */}
-        {isManual ? (
+        {canRun && (isManual ? (
           <Button
             size="sm"
             onPress={onOpenRunModal}
@@ -471,17 +478,16 @@ export function CanvasToolbar({
             ) : (
               <>
                 <Play className="h-3.5 w-3.5 fill-current" />
-                <span>{isLocalMode ? "Run Draft" : "Run Pipeline"}</span>
+                <span>Run</span>
               </>
             )}
           </Button>
         ) : (
           <div
-            title={`This pipeline is configured for automated trigger (${
-              triggerType === 1 || triggerType === "OnResourceCreated"
+            title={`This pipeline is configured for automated trigger (${triggerType === 1 || triggerType === "OnResourceCreated"
                 ? "On Resource Created"
                 : "On Version Updated"
-            }) and cannot be triggered manually.`}
+              }) and cannot be triggered manually.`}
             className="inline-block"
           >
             <Button size="sm" isDisabled className="h-8 text-xs gap-1.5 opacity-60">
@@ -489,7 +495,7 @@ export function CanvasToolbar({
               <span>Automated</span>
             </Button>
           </div>
-        )}
+        ))}
       </div>
     </div>
   );

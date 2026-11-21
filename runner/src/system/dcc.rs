@@ -76,6 +76,76 @@ pub fn scan_blender() -> Vec<DccApp> {
 
 pub fn scan_unreal() -> Vec<DccApp> {
     let mut found = Vec::new();
+    let mut seen_paths = std::collections::HashSet::new();
+
+    let mut push_unreal = |root_dir: PathBuf, version_hint: Option<String>| {
+        let candidate = root_dir
+            .join("Engine")
+            .join("Binaries")
+            .join("Win64")
+            .join("UnrealEditor-Cmd.exe");
+        if candidate.is_file() {
+            let norm = candidate.to_string_lossy().to_lowercase();
+            if seen_paths.insert(norm) {
+                let folder_name = root_dir
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "Unreal".to_string());
+                let version = version_hint.unwrap_or_else(|| folder_name.replace("UE_", ""));
+                found.push(DccApp {
+                    name: format!("Unreal Engine ({version})"),
+                    version,
+                    path: candidate,
+                });
+            }
+        }
+    };
+
+    #[cfg(target_os = "windows")]
+    {
+        use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
+        use winreg::RegKey;
+
+        // 1. Epic Games Launcher installs: HKLM\SOFTWARE\EpicGames\Unreal Engine\<ver> -> InstalledDirectory
+        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+        if let Ok(ue_key) = hklm.open_subkey(r"SOFTWARE\EpicGames\Unreal Engine") {
+            for ver_name in ue_key.enum_keys().filter_map(Result::ok) {
+                if let Ok(sub) = ue_key.open_subkey(&ver_name) {
+                    if let Ok(dir) = sub.get_value::<String, _>("InstalledDirectory") {
+                        push_unreal(PathBuf::from(dir.trim()), Some(ver_name));
+                    }
+                }
+            }
+        }
+
+        // 2. Source/Custom builds: HKCU\SOFTWARE\Epic Games\Unreal Engine\Builds
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        if let Ok(builds_key) = hkcu.open_subkey(r"SOFTWARE\Epic Games\Unreal Engine\Builds") {
+            for (build_id, val) in builds_key.enum_values().filter_map(Result::ok) {
+                let dir = val.to_string();
+                if !dir.trim().is_empty() {
+                    push_unreal(PathBuf::from(dir.trim()), Some(build_id));
+                }
+            }
+        }
+
+        // 3. Epic Games Launcher manifest: C:\ProgramData\Epic\UnrealEngineLauncher\LauncherInstalled.dat
+        let launcher_dat = PathBuf::from(r"C:\ProgramData\Epic\UnrealEngineLauncher\LauncherInstalled.dat");
+        if let Ok(raw) = std::fs::read_to_string(&launcher_dat) {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&raw) {
+                if let Some(list) = json.get("InstallationList").and_then(|v| v.as_array()) {
+                    for item in list {
+                        let app_name = item.get("AppName").and_then(|v| v.as_str()).unwrap_or("");
+                        if let Some(ver) = app_name.strip_prefix("UE_") {
+                            if let Some(loc) = item.get("InstallLocation").and_then(|v| v.as_str()) {
+                                push_unreal(PathBuf::from(loc.trim()), Some(ver.to_string()));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     let search_roots = [
         PathBuf::from(r"C:\Program Files\Epic Games"),
@@ -90,20 +160,7 @@ pub fn scan_unreal() -> Vec<DccApp> {
         }
         if let Ok(entries) = std::fs::read_dir(root) {
             for entry in entries.filter_map(Result::ok) {
-                let candidate = entry
-                    .path()
-                    .join("Engine")
-                    .join("Binaries")
-                    .join("Win64")
-                    .join("UnrealEditor-Cmd.exe");
-                if candidate.is_file() {
-                    let folder_name = entry.file_name().to_string_lossy().to_string();
-                    found.push(DccApp {
-                        name: format!("Unreal Engine ({folder_name})"),
-                        version: folder_name.replace("UE_", ""),
-                        path: candidate,
-                    });
-                }
+                push_unreal(entry.path(), None);
             }
         }
     }
@@ -281,15 +338,94 @@ pub fn probe_python_version(path: &Path) -> String {
     "Unknown".to_string()
 }
 
+/// Reads `EngineAssociation` from a `.uproject` JSON file (e.g. `"5.4"`, `"5.5"`).
+pub fn read_uproject_engine_version(uproject_path: &Path) -> Option<String> {
+    let raw = std::fs::read_to_string(uproject_path).ok()?;
+    let json: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let assoc = json.get("EngineAssociation")?.as_str()?.trim();
+    if assoc.is_empty() {
+        return None;
+    }
+    Some(assoc.to_string())
+}
+
+/// Resolves the executable path for an executor, taking `.uproject` Unreal version into account when applicable.
+pub fn resolve_executor_executable_for_project(
+    executor: &str,
+    project_path: Option<&str>,
+) -> anyhow::Result<PathBuf> {
+    let key = executor.to_lowercase();
+    if key == "unreal" {
+        if let Some(proj) = project_path.map(str::trim).filter(|p| !p.is_empty()) {
+            if let Some(version) = read_uproject_engine_version(Path::new(proj)) {
+                let version_key = format!("unreal:{}", version.to_lowercase());
+                if let Ok((Some(cfg), _)) = crate::config::load_config(None, false) {
+                    if let Some(executors) = cfg.executors {
+                        if let Some(configured) = executors.get(&version_key) {
+                            let trimmed = configured.trim().trim_matches('"');
+                            let p = PathBuf::from(trimmed);
+                            if p.is_file() {
+                                return Ok(p);
+                            }
+                        }
+                        if let Some(default_ue) = executors.get("unreal") {
+                            let trimmed = default_ue.trim().trim_matches('"');
+                            let p = PathBuf::from(trimmed);
+                            if p.is_file() && trimmed.contains(&version) {
+                                return Ok(p);
+                            }
+                        }
+                    }
+                }
+
+                let unreals = scan_unreal();
+                if let Some(matched) = unreals.into_iter().find(|u| u.version == version) {
+                    return Ok(matched.path);
+                }
+
+                return Err(anyhow::anyhow!(
+                    "Unreal Engine {} is required by '{}', but no matching UnrealEditor-Cmd.exe was found. Configure 'unreal:{}' in My Machine.",
+                    version,
+                    proj,
+                    version
+                ));
+            }
+        }
+    }
+
+    resolve_executor_executable(executor)
+}
+
 /// Resolves the executable path based on the executor name ("blender", "unreal", "python").
+/// Checks user-configured `[executors]` in `runner.toml` first before falling back to auto-scan.
 pub fn resolve_executor_executable(executor: &str) -> anyhow::Result<PathBuf> {
-    match executor.to_lowercase().as_str() {
+    let key = executor.to_lowercase();
+    if let Ok((Some(cfg), _)) = crate::config::load_config(None, false) {
+        if let Some(executors) = cfg.executors {
+            if let Some(configured) = executors.get(&key) {
+                let trimmed = configured.trim().trim_matches('"');
+                if !trimmed.is_empty() {
+                    let configured_path = PathBuf::from(trimmed);
+                    if configured_path.is_file() {
+                        return Ok(configured_path);
+                    }
+                    tracing::warn!(
+                        "[DCC] Configured [executors].{} path '{}' does not exist; falling back to auto-scan.",
+                        key,
+                        trimmed
+                    );
+                }
+            }
+        }
+    }
+
+    match key.as_str() {
         "blender" => {
             let blenders = scan_blender();
             if let Some(first) = blenders.first() {
                 Ok(first.path.clone())
             } else {
-                Err(anyhow::anyhow!("Blender executable not found on this machine. Please install Blender or run 'forgity-runner doctor'."))
+                Err(anyhow::anyhow!("Blender executable not found on this machine. Please install Blender or configure it in My Machine -> DCC Config."))
             }
         }
         "unreal" => {
@@ -297,7 +433,7 @@ pub fn resolve_executor_executable(executor: &str) -> anyhow::Result<PathBuf> {
             if let Some(first) = unreals.first() {
                 Ok(first.path.clone())
             } else {
-                Err(anyhow::anyhow!("Unreal Engine executable not found on this machine."))
+                Err(anyhow::anyhow!("Unreal Engine executable not found on this machine. Please install Unreal Engine or configure it in My Machine -> DCC Config."))
             }
         }
         "python" => {

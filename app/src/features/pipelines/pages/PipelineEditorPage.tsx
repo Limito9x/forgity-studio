@@ -1,12 +1,21 @@
-import { useNodePalette } from "../hooks/usePipelines";
+import { useMemo, useCallback } from "react";
+import { useNodePalette, useCancelPipelineExecution } from "../hooks/usePipelines";
+import type { PipelineDiagnostic } from "../hooks/usePipelineGraph";
+import type {
+  PipelineValidationSummary,
+  ResolveToolPinsParams,
+} from "../context/PipelineWorkspaceContext";
+import type { PipelineWorkspaceContract } from "../types/pipelineWorkspaceContract";
 import { ReactFlowProvider } from "@xyflow/react";
 import { usePipelineGraph } from "../hooks/usePipelineGraph";
 import { PipelineCanvas } from "../components/canvas/PipelineCanvas";
+import { PipelineWorkspaceProvider } from "../context/PipelineWorkspaceContext";
+import { CloudPipelineStorageAdapter } from "../adapters/CloudPipelineStorageAdapter";
 import { Loader2, AlertCircle, ArrowLeft } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
-
+import { toast } from "sonner";
 import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 
 interface PipelineEditorPageProps {
@@ -15,9 +24,72 @@ interface PipelineEditorPageProps {
 }
 
 export function PipelineEditorPage({ projectId, pipelineId }: PipelineEditorPageProps) {
-  const { data: graph, isLoading, error } = usePipelineGraph(pipelineId);
-  useNodePalette(projectId);
+  const { data: graph, isLoading } = usePipelineGraph(pipelineId);
+  const { data: paletteItems = [], isLoading: isLoadingPalette } = useNodePalette(projectId);
+  const structCatalogue: any[] = [];
+  const cancelMutation = useCancelPipelineExecution(pipelineId);
   const { studioSlug } = useCurrentStudio();
+
+  const cloudStorage = useMemo(
+    () => new CloudPipelineStorageAdapter({ projectId }),
+    [projectId]
+  );
+
+  const handleResolveToolPins = useCallback(
+    async (_params: ResolveToolPinsParams, _signal?: AbortSignal) => {
+      return null;
+    },
+    []
+  );
+
+  const handleValidateGraph = useCallback(
+    async (_snapshot: Record<string, unknown>): Promise<PipelineValidationSummary> => {
+      return {
+        isValid: true,
+        diagnostics: [] as PipelineDiagnostic[],
+      };
+    },
+    []
+  );
+
+  const handleCancelExecution = async (executionId: string) => {
+    try {
+      await cancelMutation.mutateAsync({ id: executionId });
+      toast.success("Pipeline cancellation requested.");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to cancel execution.");
+    }
+  };
+
+  const workspaceContract = useMemo<PipelineWorkspaceContract>(
+    () => ({
+      source: "cloud",
+      projectId,
+      storage: cloudStorage,
+      paletteItems,
+      structCatalogue,
+      isLoadingPalette,
+      capabilities: {
+        canEditGraph: false,
+        canSaveDraft: false,
+        canSaveSnapshot: false,
+        canRun: false,
+      },
+      resolveToolPins: handleResolveToolPins,
+      validateGraph: handleValidateGraph,
+      cancelExecution: handleCancelExecution,
+    }),
+    [
+      projectId,
+      cloudStorage,
+      paletteItems,
+      structCatalogue,
+      isLoadingPalette,
+      handleResolveToolPins,
+      handleValidateGraph,
+      handleCancelExecution,
+    ]
+  );
 
   if (isLoading) {
     return (
@@ -28,18 +100,18 @@ export function PipelineEditorPage({ projectId, pipelineId }: PipelineEditorPage
     );
   }
 
-  if (error || !graph) {
+  if (!graph) {
     return (
       <div className="flex h-[calc(100vh-3.5rem)] w-full flex-col items-center justify-center bg-background p-6 text-center">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive mb-3">
           <AlertCircle className="h-6 w-6" />
         </div>
-        <h2 className="text-base font-semibold text-foreground">Failed to load pipeline</h2>
+        <h2 className="text-base font-semibold text-foreground">Pipeline not found</h2>
         <p className="mt-1 text-xs text-muted-foreground max-w-sm">
-          {(error as any)?.message || "The requested pipeline could not be found or failed to load."}
+          Direct cloud editing for this pipeline is not available. Please manage pipelines in your local workspace.
         </p>
         <Link
-          to="/s/$studioSlug/projects/$projectId/pipeline"
+          to="/studio/$studioSlug/projects/$projectId/pipeline"
           params={{ studioSlug, projectId }}
           className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-4 gap-1.5 text-xs")}
         >
@@ -51,10 +123,12 @@ export function PipelineEditorPage({ projectId, pipelineId }: PipelineEditorPage
   }
 
   return (
-    <div className="h-[calc(100vh-3.5rem)] w-full overflow-hidden bg-background">
-      <ReactFlowProvider>
-        <PipelineCanvas projectId={projectId} graph={graph} />
-      </ReactFlowProvider>
-    </div>
+    <PipelineWorkspaceProvider workspace={workspaceContract}>
+      <div className="h-[calc(100vh-3.5rem)] w-full overflow-hidden bg-background">
+        <ReactFlowProvider>
+          <PipelineCanvas projectId={projectId} graph={graph} storage={cloudStorage} />
+        </ReactFlowProvider>
+      </div>
+    </PipelineWorkspaceProvider>
   );
 }

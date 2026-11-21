@@ -1,4 +1,4 @@
-export type ParameterTab = "inputs" | "outputs" | "variables";
+export type ParameterTab = "inputs" | "outputs";
 
 export const TYPE_OPTIONS = [
   { value: "String", label: "String", color: "text-sky-500 bg-sky-500/10 border-sky-500/30" },

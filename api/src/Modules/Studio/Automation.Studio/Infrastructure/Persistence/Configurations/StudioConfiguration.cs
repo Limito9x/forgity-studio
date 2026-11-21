@@ -27,9 +27,6 @@ public class StudioConfiguration : IEntityTypeConfiguration<StudioEntity>
         builder.Property(x => x.PlanTier)
             .HasDefaultValue(StudioPlanTier.Community);
 
-        builder.Property(x => x.ExecutionCreditsRemaining)
-            .HasDefaultValue(50);
-
         builder.Property(x => x.StudioManagedStorageQuotaBytes)
             .HasDefaultValue(200L * 1024 * 1024);
 

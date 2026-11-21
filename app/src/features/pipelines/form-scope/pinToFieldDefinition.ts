@@ -1,4 +1,4 @@
-import type { PinDefinition, PipelineParameterDto } from "@/gen/model";
+import type { PinDefinition, PipelineParameterDto } from "@/features/pipelines/types/pipelineGraphTypes";
 import type { FieldDefinition } from "@/lib/field-registry";
 import { buildPinFieldContext, FIELD_ADAPTERS } from "./field-adapters/index.ts";
 
@@ -11,6 +11,7 @@ export interface PipelineInputLike {
   isRequired?: boolean;
   defaultValue?: any;
   structType?: string | null;
+  contextData?: Record<string, any> | string | null;
 }
 
 /**
@@ -45,15 +46,23 @@ export function pipelineInputToFieldDefinition(
   configValues: Record<string, any> = {}
 ): FieldDefinition<any> {
   const structType = input.structType || (input as any).entityTarget || null;
+  const rawMeta = (input as any).contextData ?? (input as any).metadata;
 
   const pinDef: PinDefinition = {
     id: input.key,
+    name: (input as any).name || (input as any).label || input.key,
+    direction: "Input",
     label: (input as any).label || (input as any).name || input.key,
     primitiveType: input.type as any,
     cardinality: (input.cardinality ?? "Single") as any,
     isRequired: input.isRequired,
     defaultValue: input.defaultValue,
     structType,
+    metadata: rawMeta
+      ? typeof rawMeta === "string"
+        ? rawMeta
+        : JSON.stringify(rawMeta)
+      : undefined,
   };
 
   return pinToFieldDefinition(pinDef, configValues);

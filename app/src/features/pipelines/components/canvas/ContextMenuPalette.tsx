@@ -1,13 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import type { NodePaletteItemDto } from "@/gen/model";
-import {
-  generateLocalStructPaletteItems,
-  generateComponentPipePaletteItems,
-} from "../../utils/structPaletteGenerator";
-import { generateConstantPaletteItems } from "../../utils/constantPaletteGenerator";
-import { useNodePalette } from "../../hooks/usePipelines";
-import { useLocalPaletteQuery, useLocalPipelinesQuery, useLocalConstantsQuery } from "../../hooks/workspace";
-import { isTauriRuntime } from "@/lib/platform/filePickerStrategy";
+import type { NodePaletteItemDto } from "@/features/pipelines/types/pipelineGraphTypes";
+import { usePipelineWorkspaceOptional } from "../../context/PipelineWorkspaceContext";
 
 interface ContextMenuPaletteProps {
   position: { x: number; y: number } | null;
@@ -23,8 +16,6 @@ interface ContextMenuPaletteProps {
 export function ContextMenuPalette({
   position,
   onClose,
-  projectId,
-  rootPath = null,
   pipelineKind = "master",
   componentExecutor,
   currentPipelineId,
@@ -34,11 +25,9 @@ export function ContextMenuPalette({
   const isComponentPipe = pipelineKind === "component";
   const executorParam = isComponentPipe ? componentExecutor || "blender" : undefined;
 
-  const { data: paletteItems = [], isLoading } = useNodePalette(projectId, executorParam);
-  const { draftNodes, localStructs } = useLocalPaletteQuery(rootPath);
-  const { pipelines: scannedDraftPipelines } = useLocalPipelinesQuery(rootPath);
-  const { constants, resolvedConstants } = useLocalConstantsQuery(rootPath);
-  const isDesktop = isTauriRuntime();
+  const workspaceCtx = usePipelineWorkspaceOptional();
+  const paletteItems = workspaceCtx?.paletteItems ?? [];
+  const isLoading = workspaceCtx?.isLoadingPalette ?? false;
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -76,65 +65,46 @@ export function ContextMenuPalette({
   }, [position, onClose]);
 
   const filteredItems = useMemo(() => {
-    const items = paletteItems.filter(
-      (item) =>
-        item.key.toLowerCase() !== "start" &&
-        item.key.toLowerCase() !== "beginexecute" &&
-        item.key.toLowerCase() !== "return" &&
-        item.label.toLowerCase() !== "start" &&
-        item.label.toLowerCase() !== "start pipeline" &&
-        item.label.toLowerCase() !== "return" &&
-        (!currentPipelineId || (
-          item.key.toLowerCase() !== currentPipelineId.toLowerCase() &&
-          item.id?.toLowerCase() !== currentPipelineId.toLowerCase()
-        ))
-    );
-
-    // Local-First: Khi ở Desktop Local Workspace, tuyệt đối KHÔNG kéo actions từ server DB
-    const combined: NodePaletteItemDto[] = isDesktop ? [] : [...items];
-    if (isDesktop && draftNodes) {
-      const localItems: NodePaletteItemDto[] = Object.values(draftNodes)
-        .filter((draft) => {
-          if (!executorParam) return true;
-          const draftExec = draft.executor.toLowerCase();
-          const targetExec = executorParam.toLowerCase();
-          return draftExec === targetExec || (draftExec === "python" && ["blender", "unreal"].includes(targetExec));
-        })
-        .map((draft) => ({
-          key: `local:${draft.key}`,
-          label: draft.suggestedLabel || draft.suggestedName || draft.fileName,
-          category: "Local Scripts",
-          source: "LocalDraft" as any,
-          executor: draft.executor,
-          inputs: draft.inputs || [],
-          outputs: draft.outputs || [],
-          description: draft.description || draft.fullPath,
-          id: `local:${draft.key}`,
-          isVisibleInPalette: true,
-        }));
-      combined.push(...localItems);
-    }
-
-    // Merge auto-generated Local Structs Make/Break companion nodes
-    if (isDesktop && localStructs && localStructs.length > 0) {
-      const structNodes = generateLocalStructPaletteItems(localStructs);
-      combined.push(...structNodes);
-    }
-
-    // Merge auto-generated Component Pipes as sub-pipeline tools
-    if (!isComponentPipe && isDesktop && scannedDraftPipelines && scannedDraftPipelines.length > 0) {
-      const componentPipes = scannedDraftPipelines.filter((p) => p.pipelineKind === "component");
-      if (componentPipes.length > 0) {
-        const compNodes = generateComponentPipePaletteItems(componentPipes);
-        combined.push(...compNodes);
+    const combined = paletteItems.filter((item) => {
+      const keyLower = item.key.toLowerCase();
+      const labelLower = item.label.toLowerCase();
+      if (
+        keyLower === "start" ||
+        keyLower === "beginexecute" ||
+        keyLower === "return" ||
+        labelLower === "start" ||
+        labelLower === "start pipeline" ||
+        labelLower === "return"
+      ) {
+        return false;
       }
-    }
-
-    // Merge local machine constants as pure data nodes
-    if (isDesktop && constants && constants.length > 0) {
-      const constNodes = generateConstantPaletteItems(constants, resolvedConstants);
-      combined.push(...constNodes);
-    }
+      if (
+        currentPipelineId &&
+        (keyLower === currentPipelineId.toLowerCase() ||
+          item.id?.toLowerCase() === currentPipelineId.toLowerCase())
+      ) {
+        return false;
+      }
+      // Phân tách Context Menu theo loại pipeline (Component Pipe vs Master Pipeline)
+      if (isComponentPipe) {
+        if (keyLower.startsWith("local:component:")) return false;
+        if (keyLower === "sequence" || keyLower === "local:sequence") return false;
+        if (executorParam && item.executor) {
+          const itemExec = item.executor.toLowerCase();
+          const targetExec = executorParam.toLowerCase();
+          if (itemExec !== targetExec && itemExec !== "pure") {
+            return false;
+          }
+        }
+      } else {
+        const isAllowedInMaster =
+          keyLower.startsWith("local:component:") ||
+          keyLower === "sequence" ||
+          keyLower === "joint";
+        if (!isAllowedInMaster) return false;
+      }
+      return true;
+    });
 
     const q = search.trim().toLowerCase();
     if (!q) return combined;
@@ -144,7 +114,7 @@ export function ContextMenuPalette({
         item.key.toLowerCase().includes(q) ||
         (item.category && item.category.toLowerCase().includes(q))
     );
-  }, [paletteItems, draftNodes, localStructs, scannedDraftPipelines, isDesktop, executorParam, search, currentPipelineId, isComponentPipe]);
+  }, [paletteItems, executorParam, search, currentPipelineId, isComponentPipe]);
 
   if (!position) return null;
 

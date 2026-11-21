@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { usePipelineExecution, usePipelineExecutions, useNodeExecutions } from "../../hooks/usePipelineGraph";
 import type { PipelineExecutionDto, NodeExecutionDto } from "../../hooks/usePipelineGraph";
 import { useCancelPipelineExecution } from "../../hooks/usePipelines";
+import { useOptionalPipelineWorkspace } from "../../context/PipelineWorkspaceContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -29,26 +30,86 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+interface LocalExecutionRunRow {
+  runId: string;
+  pipelineId: string;
+  pipelineKind: string;
+  status: string;
+  startedAtMs: number;
+  completedAtMs?: number | null;
+  durationMs?: number | null;
+  errorMessage?: string | null;
+}
+
+interface LocalExecutionNodeRow {
+  runId: string;
+  nodeId: string;
+  nodeType: string;
+  label?: string | null;
+  status: string;
+  startedAtMs: number;
+  completedAtMs?: number | null;
+  offsetMs: number;
+  durationMs?: number | null;
+  batchCompleted?: number | null;
+  batchTotal?: number | null;
+  errorMessage?: string | null;
+}
+
+interface LocalExecutionDetail {
+  run: LocalExecutionRunRow;
+  nodes: LocalExecutionNodeRow[];
+}
+
+function formatDurationMs(ms?: number | null): string {
+  if (ms == null || ms < 0) return "—";
+  if (ms < 1000) return `${ms}ms`;
+  const secs = ms / 1000;
+  if (secs < 60) return `${secs.toFixed(1)}s`;
+  const mins = Math.floor(secs / 60);
+  const remSecs = Math.round(secs % 60);
+  return `${mins}m ${remSecs}s`;
+}
+
 interface LiveExecutionDrawerProps {
   pipelineId: string;
+  rootPath?: string | null;
   executionId: string | null;
   onSelectExecution?: (id: string) => void;
   onClose: () => void;
   defaultTab?: "history" | "inspect" | "logs";
+  localLogs?: Array<{ runId: string; line: string }>;
+  localRunStatus?: "idle" | "running" | "succeeded" | "failed";
+  localRunError?: string | null;
+  liveNodeStatuses?: Record<string, "idle" | "waiting" | "running" | "succeeded" | "failed">;
+  liveNodeOutputs?: Record<string, Record<string, any>>;
+  liveNodeErrors?: Record<string, string | null>;
+  nodes?: Array<{ id: string; data?: any }>;
 }
 
 export function LiveExecutionDrawer({
   pipelineId,
+  rootPath,
   executionId,
   onSelectExecution,
   onClose,
   defaultTab = "inspect",
+  localLogs = [],
+  localRunStatus = "idle",
+  localRunError = null,
+  liveNodeStatuses = {},
+  liveNodeOutputs = {},
+  liveNodeErrors = {},
+  nodes = [],
 }: LiveExecutionDrawerProps) {
   const [activeTab, setActiveTab] = useState<"history" | "inspect" | "logs">(defaultTab);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
+  const [localRuns, setLocalRuns] = useState<LocalExecutionRunRow[]>([]);
+  const [isLocalHistoryLoading, setIsLocalHistoryLoading] = useState(false);
+  const [selectedLocalDetail, setSelectedLocalDetail] = useState<LocalExecutionDetail | null>(null);
 
   // Synchronize activeTab when defaultTab prop updates (e.g. switching to logs on run)
   useEffect(() => {
@@ -57,10 +118,63 @@ export function LiveExecutionDrawer({
     }
   }, [defaultTab]);
 
+  // Load Local SQLite Execution History when History tab is opened in Local Mode
+  const loadLocalHistory = async () => {
+    if (!rootPath || typeof window === "undefined" || !("__TAURI_INTERNALS__" in window)) return;
+    setIsLocalHistoryLoading(true);
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const localPipelineKey =
+        pipelineId
+          ?.split(/[/\\]/)
+          .pop()
+          ?.replace(/\.(pipeline|component)\.ya?ml$/i, "") || null;
+      const rows = await invoke<LocalExecutionRunRow[]>("list_local_execution_runs", {
+        rootPath,
+        pipelineId: localPipelineKey,
+        limit: 30,
+      });
+      setLocalRuns(rows || []);
+      if (rows && rows.length > 0) {
+        const detail = await invoke<LocalExecutionDetail | null>("get_local_execution_detail", {
+          rootPath,
+          runId: rows[0].runId,
+        });
+        setSelectedLocalDetail(detail);
+      } else {
+        setSelectedLocalDetail(null);
+      }
+    } catch {
+      // Ignore if not in Tauri
+    } finally {
+      setIsLocalHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "history" && rootPath) {
+      loadLocalHistory();
+    }
+  }, [activeTab, rootPath, pipelineId, localRunStatus]);
+
+  const workspaceCtx = useOptionalPipelineWorkspace();
+  const isLocalMode =
+    workspaceCtx?.source === "local" ||
+    Boolean(executionId?.startsWith("local_")) ||
+    !pipelineId ||
+    pipelineId.includes("/") ||
+    pipelineId.includes("\\");
+
   // Queries
-  const { data: executions, isLoading: isHistoryLoading, refetch: refetchHistory } = usePipelineExecutions(pipelineId);
-  const { data: execution, isLoading: isExecLoading } = usePipelineExecution(executionId || undefined);
-  const { data: nodeExecs, isLoading: isNodeExecsLoading } = useNodeExecutions(executionId || undefined);
+  const { data: executions, isLoading: isHistoryLoading, refetch: refetchHistory } = usePipelineExecutions(
+    isLocalMode ? undefined : pipelineId
+  );
+  const { data: execution, isLoading: isExecLoading } = usePipelineExecution(
+    isLocalMode ? undefined : executionId || undefined
+  );
+  const { data: nodeExecs, isLoading: isNodeExecsLoading } = useNodeExecutions(
+    isLocalMode ? undefined : executionId || undefined
+  );
 
   // Selected execution defaults to current executionId or first in history
   const activeExecution: PipelineExecutionDto | undefined = useMemo(() => {
@@ -90,7 +204,11 @@ export function LiveExecutionDrawer({
   const handleCancel = async () => {
     if (!activeExecution?.id) return;
     try {
-      await cancelMutation.mutateAsync({ id: activeExecution.id });
+      if (workspaceCtx?.cancelExecution) {
+        await workspaceCtx.cancelExecution(activeExecution.id);
+      } else if (!isLocalMode) {
+        await cancelMutation.mutateAsync({ id: activeExecution.id });
+      }
       toast.success("Pipeline cancellation requested.");
     } catch (err: any) {
       toast.error(err?.message || "Failed to cancel execution.");
@@ -181,11 +299,16 @@ export function LiveExecutionDrawer({
     }
   };
 
-  const tabs: { key: "history" | "inspect" | "logs"; label: string; icon: typeof Terminal }[] = [
-    { key: "inspect", label: "Inspect", icon: Terminal },
-    { key: "logs", label: "Step Logs", icon: FileText },
-    { key: "history", label: "History", icon: History },
-  ];
+  const tabs: { key: "history" | "inspect" | "logs"; label: string; icon: typeof Terminal }[] = isLocalMode
+    ? [
+        { key: "logs", label: "Runner Logs", icon: FileText },
+        { key: "inspect", label: "Node Status", icon: Terminal },
+      ]
+    : [
+        { key: "inspect", label: "Inspect", icon: Terminal },
+        { key: "logs", label: "Step Logs", icon: FileText },
+        { key: "history", label: "History", icon: History },
+      ];
 
   if (isMinimized) {
     return (
@@ -275,7 +398,16 @@ export function LiveExecutionDrawer({
           </div>
 
           {/* Active Status Badge */}
-          {activeExecution && activeTab !== "history" && getStatusBadge(activeExecution.status)}
+          {isLocalMode
+            ? localRunStatus !== "idle" &&
+              getStatusBadge(
+                localRunStatus === "running"
+                  ? "Running"
+                  : localRunStatus === "succeeded"
+                    ? "Succeeded"
+                    : "Failed"
+              )
+            : activeExecution && activeTab !== "history" && getStatusBadge(activeExecution.status)}
         </div>
 
         {/* Action Controls */}
@@ -364,8 +496,149 @@ export function LiveExecutionDrawer({
 
         {/* ===== TAB: HISTORY ===== */}
         {activeTab === "history" && (
-          <div className="space-y-2">
-            {isHistoryLoading ? (
+          <div className="space-y-3">
+            {isLocalMode && rootPath ? (
+              isLocalHistoryLoading ? (
+                <div className="flex items-center justify-center py-8 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Loading local execution history...
+                </div>
+              ) : localRuns.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground space-y-1">
+                  <History className="h-8 w-8 opacity-30" />
+                  <p>No local execution history recorded yet.</p>
+                  <span className="text-[11px]">Run the pipeline to start recording performance metrics.</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
+                  {/* Left: Run List with Duration & Speedup Delta */}
+                  <div className="lg:col-span-5 space-y-1.5">
+                    {localRuns.map((run, idx) => {
+                      const prevRun = localRuns[idx + 1];
+                      let deltaPct: number | null = null;
+                      if (
+                        run.durationMs != null &&
+                        prevRun?.durationMs != null &&
+                        prevRun.durationMs > 0
+                      ) {
+                        deltaPct = Math.round(((run.durationMs - prevRun.durationMs) / prevRun.durationMs) * 100);
+                      }
+                      const isSelected = selectedLocalDetail?.run.runId === run.runId;
+                      return (
+                        <div
+                          key={run.runId}
+                          onClick={async () => {
+                            const { invoke } = await import("@tauri-apps/api/core");
+                            const detail = await invoke<LocalExecutionDetail | null>("get_local_execution_detail", {
+                              rootPath,
+                              runId: run.runId,
+                            });
+                            setSelectedLocalDetail(detail);
+                          }}
+                          className={cn(
+                            "p-2.5 rounded-lg border cursor-pointer transition-all",
+                            isSelected ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border/60 bg-card/60 hover:bg-muted/50"
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-[11px] font-semibold truncate">
+                              {run.pipelineId}
+                            </span>
+                            {getStatusBadge(
+                              run.status === "succeeded" ? "Succeeded" : run.status === "failed" ? "Failed" : "Running"
+                            )}
+                          </div>
+                          <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground font-mono">
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {new Date(run.startedAtMs).toLocaleTimeString()}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-foreground">
+                                {formatDurationMs(run.durationMs)}
+                              </span>
+                              {deltaPct !== null && deltaPct !== 0 && (
+                                <span
+                                  className={cn(
+                                    "px-1 py-0.5 rounded text-[9px] font-semibold",
+                                    deltaPct < 0
+                                      ? "bg-emerald-500/15 text-emerald-500"
+                                      : "bg-amber-500/15 text-amber-500"
+                                  )}
+                                >
+                                  {deltaPct < 0 ? `${deltaPct}%` : `+${deltaPct}%`}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Right: Waterfall Performance Timeline */}
+                  <div className="lg:col-span-7 rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2.5">
+                    {selectedLocalDetail ? (
+                      <>
+                        <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                          <div>
+                            <div className="font-semibold text-xs text-foreground">
+                              Performance Breakdown ({selectedLocalDetail.nodes.length} nodes)
+                            </div>
+                            <div className="text-[10px] text-muted-foreground font-mono">
+                              Run: {selectedLocalDetail.run.runId} · Total: {formatDurationMs(selectedLocalDetail.run.durationMs)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          {selectedLocalDetail.nodes.map((node) => {
+                            const totalMs = Math.max(selectedLocalDetail.run.durationMs || 1, 1);
+                            const nodeDur = node.durationMs ?? 0;
+                            const leftPct = Math.min(100, Math.max(0, (node.offsetMs / totalMs) * 100));
+                            const widthPct = Math.min(100 - leftPct, Math.max(2, (nodeDur / totalMs) * 100));
+                            const sharePct = Math.round((nodeDur / totalMs) * 100);
+                            return (
+                              <div key={node.nodeId} className="space-y-1">
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className="font-medium truncate max-w-[200px]">
+                                    {node.label || node.nodeId}
+                                    {node.batchTotal != null && node.batchTotal > 1 && (
+                                      <span className="ml-1.5 text-[10px] font-mono text-muted-foreground">
+                                        ({node.batchCompleted ?? 0}/{node.batchTotal})
+                                      </span>
+                                    )}
+                                  </span>
+                                  <span className="font-mono text-[10px] text-muted-foreground">
+                                    {formatDurationMs(node.durationMs)} ({sharePct}%)
+                                  </span>
+                                </div>
+                                <div className="h-2 w-full rounded-full bg-muted/60 relative overflow-hidden">
+                                  <div
+                                    className={cn(
+                                      "absolute top-0 bottom-0 rounded-full",
+                                      node.status === "failed"
+                                        ? "bg-destructive"
+                                        : node.status === "succeeded"
+                                          ? "bg-emerald-500"
+                                          : "bg-amber-500"
+                                    )}
+                                    style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="py-8 text-center text-muted-foreground text-xs">
+                        Select a run to inspect node timings.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            ) : isHistoryLoading ? (
               <div className="flex items-center justify-center py-8 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
                 Loading execution history...
@@ -436,7 +709,96 @@ export function LiveExecutionDrawer({
               </div>
             )}
 
-            {!executionId ? (
+            {isLocalMode ? (
+              <div className="space-y-3">
+                {localRunError && (
+                  <div className="p-3 rounded-lg border border-destructive/40 bg-destructive/10 text-destructive text-xs font-mono whitespace-pre-wrap">
+                    {localRunError}
+                  </div>
+                )}
+
+                {Object.keys(liveNodeStatuses).length > 0 && (
+                  <div className="space-y-1.5">
+                    {Object.entries(liveNodeStatuses).map(([nid, st]) => {
+                      const matchedNode = nodes.find((n) => n.id === nid);
+                      const label = (matchedNode?.data as any)?.label || nid;
+                      const nodeErr = liveNodeErrors[nid];
+                      const nodeOut = liveNodeOutputs[nid];
+                      return (
+                        <div
+                          key={nid}
+                          className={cn(
+                            "rounded-lg border px-3 py-2 text-xs bg-card/60",
+                            st === "failed"
+                              ? "border-destructive/40"
+                              : st === "succeeded"
+                                ? "border-emerald-500/30"
+                                : "border-border/60"
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-foreground truncate">{label}</span>
+                            {getStatusBadge(
+                              st === "running"
+                                ? "Running"
+                                : st === "succeeded"
+                                  ? "Succeeded"
+                                  : st === "failed"
+                                    ? "Failed"
+                                    : "Pending"
+                            )}
+                          </div>
+                          {nodeErr && (
+                            <p className="mt-1.5 text-[11px] font-mono text-destructive whitespace-pre-wrap">
+                              {nodeErr}
+                            </p>
+                          )}
+                          {nodeOut && (
+                            <pre className="mt-1.5 text-[10px] font-mono text-foreground/80 whitespace-pre-wrap max-h-[80px] overflow-auto">
+                              {JSON.stringify(nodeOut, null, 2)}
+                            </pre>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Terminal className="h-3 w-3" />
+                      Runner Output ({localLogs.length} lines)
+                    </span>
+                    {localLogs.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-[10px]"
+                        onPress={() => {
+                          navigator.clipboard.writeText(localLogs.map((l) => l.line).join("\n"));
+                          toast.success("Copied runner logs");
+                        }}
+                      >
+                        <Copy className="h-3 w-3 mr-1" />
+                        Copy
+                      </Button>
+                    )}
+                  </div>
+                  {localLogs.length === 0 ? (
+                    <p className="text-[11px] text-muted-foreground font-mono">
+                      {localRunStatus === "running"
+                        ? "Waiting for runner stderr/stdout logs..."
+                        : "No stderr logs emitted for this run."}
+                    </p>
+                  ) : (
+                    <pre className="font-mono text-[11px] text-foreground/90 whitespace-pre-wrap max-h-[260px] overflow-y-auto leading-relaxed">
+                      {localLogs.map((l) => l.line).join("\n")}
+                    </pre>
+                  )}
+                </div>
+              </div>
+            ) : !executionId ? (
               <div className="flex flex-col items-center justify-center py-8 text-muted-foreground space-y-1">
                 <FileText className="h-8 w-8 opacity-30" />
                 <p>No execution selected.</p>
@@ -544,7 +906,47 @@ export function LiveExecutionDrawer({
         {/* ===== TAB: INSPECT ===== */}
         {activeTab === "inspect" && (
           <div className="space-y-3">
-            {isExecLoading && !activeExecution ? (
+            {isLocalMode ? (
+              <div className="space-y-2">
+                {nodes.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground space-y-1">
+                    <Terminal className="h-8 w-8 opacity-30" />
+                    <p>No nodes in pipeline.</p>
+                  </div>
+                ) : (
+                  nodes.map((n) => {
+                    const st = liveNodeStatuses[n.id] || "idle";
+                    const label = (n.data as any)?.label || n.id;
+                    const err = liveNodeErrors[n.id];
+                    const out = liveNodeOutputs[n.id];
+                    return (
+                      <div key={n.id} className="rounded-lg border border-border/60 bg-card/60 p-2.5 text-xs space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium truncate">{label}</span>
+                          {getStatusBadge(
+                            st === "running"
+                              ? "Running"
+                              : st === "succeeded"
+                                ? "Succeeded"
+                                : st === "failed"
+                                  ? "Failed"
+                                  : "Pending"
+                          )}
+                        </div>
+                        {err && (
+                          <p className="text-[11px] font-mono text-destructive whitespace-pre-wrap">{err}</p>
+                        )}
+                        {out && (
+                          <pre className="text-[10px] font-mono text-foreground/80 whitespace-pre-wrap max-h-[100px] overflow-auto bg-muted/30 p-2 rounded">
+                            {JSON.stringify(out, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            ) : isExecLoading && !activeExecution ? (
               <div className="flex items-center justify-center py-8 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
                 Connecting to execution stream...

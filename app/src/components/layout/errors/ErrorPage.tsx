@@ -15,7 +15,7 @@ export function ErrorPage({ error }: { error?: unknown }) {
         We apologize, but the system encountered an issue while processing your request. Please try again later.
       </p>
       
-      {Boolean(error && import.meta.env.DEV) && (
+      {Boolean(error) && (
         <div className="mb-8 p-4 bg-muted rounded-md text-left text-sm font-mono overflow-auto max-w-3xl w-full text-muted-foreground">
           {error instanceof Error ? error.message : String(error)}
         </div>

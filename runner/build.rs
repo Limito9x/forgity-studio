@@ -29,6 +29,21 @@ fn find_protoc() -> Option<PathBuf> {
         }
     }
 
+    // 4. Look in WinGet Packages for Google.Protobuf
+    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+        let winget_pattern = Path::new(&local_app_data)
+            .join("Microsoft/WinGet/Packages/Google.Protobuf_*/bin/protoc.exe");
+        if let Some(pattern_str) = winget_pattern.to_str() {
+            if let Ok(paths) = glob::glob(pattern_str) {
+                let mut matches: Vec<PathBuf> = paths.filter_map(Result::ok).collect();
+                matches.sort();
+                if let Some(highest) = matches.pop() {
+                    return Some(highest);
+                }
+            }
+        }
+    }
+
     None
 }
 

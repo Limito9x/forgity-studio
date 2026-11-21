@@ -1,0 +1,280 @@
+using System.Text.Json;
+using Automation.Files.Contracts;
+using Automation.Pipeline.Constants;
+using Automation.Pipeline.Domain.Entities;
+using Automation.Pipeline.Infrastructure.Persistence;
+using FastEndpoints;
+using Microsoft.EntityFrameworkCore;
+
+namespace Automation.Pipeline.Features.Templates;
+
+public record TemplateConstantDeclarationDto(
+    string Key,
+    string Label,
+    string DataType,
+    string Scope,
+    bool IsRequired,
+    string? Description,
+    string? DefaultValue = null
+);
+
+public record TemplateAssetDto(
+    string Name,
+    string? RelativePath,
+    string? BelongsToNodeId,
+    string? BelongsToPinId,
+    long? SizeBytes,
+    string? AssetId = null,
+    string? DownloadUrl = null,
+    string? Sha256 = null
+);
+
+public record TemplateMemberQuotaConfigDto(
+    Guid PipelineVersionId,
+    string QuotaMode = "PerItem",
+    int QuotaCost = 1
+);
+
+public record CreateTemplateContainerRequest(
+    Guid? TemplateId,
+    string Title,
+    string? Description,
+    string? Category,
+    int? DefaultQuotaLimit,
+    List<Guid> MasterVersionIds,
+    List<Guid> ComponentVersionIds,
+    List<Guid> ScriptArtifactIds,
+    List<TemplateConstantDeclarationDto> Constants,
+    List<TemplateAssetDto> Assets,
+    JsonDocument? PaletteNodesJson,
+    string? Slug = null,
+    List<TemplateMemberQuotaConfigDto>? MemberQuotas = null
+);
+
+public record CreateTemplateContainerResponse(
+    Guid TemplatePackageId,
+    string Title,
+    string Slug,
+    int MasterCount,
+    int ComponentCount,
+    int ConstantCount,
+    int AssetCount
+);
+
+public class CreateTemplateContainerEndpoint(PipelineDbContext db, IAssetApi assetApi)
+    : Endpoint<CreateTemplateContainerRequest, CreateTemplateContainerResponse>
+{
+    public override void Configure()
+    {
+        Post("containers");
+        Group<TemplatesGroup>();
+        Permissions(Constants.PipelinePermissions.Pipeline.Create, Constants.PipelinePermissions.Pipeline.Update);
+        Description(b => b
+            .Produces<CreateTemplateContainerResponse>(200)
+            .WithSummary("Slice 2: Package ingested Master, Components, Scripts, Constants & Assets into a Template Package Container"));
+    }
+
+    public override async Task HandleAsync(CreateTemplateContainerRequest req, CancellationToken ct)
+    {
+        var allRequestedVersionIds = req.MasterVersionIds
+            .Concat(req.ComponentVersionIds)
+            .Distinct()
+            .ToList();
+
+        var existingVersions = await db.PipelineVersions
+            .Include(v => v.Pipeline)
+            .Where(v => allRequestedVersionIds.Contains(v.Id))
+            .ToDictionaryAsync(v => v.Id, ct);
+
+        var missingIds = allRequestedVersionIds
+            .Where(id => !existingVersions.ContainsKey(id))
+            .ToList();
+
+        if (missingIds.Count > 0)
+        {
+            ThrowError($"Invalid PipelineVersionIds: {string.Join(", ", missingIds)}");
+        }
+
+        Guid? primaryMasterVerId = req.MasterVersionIds.Count > 0 ? req.MasterVersionIds[0] : null;
+        PipelineVersion? primaryMaster = primaryMasterVerId.HasValue
+            ? existingVersions.GetValueOrDefault(primaryMasterVerId.Value)
+            : null;
+
+        var totalAssetBytes = req.Assets.Sum(a => a.SizeBytes ?? 0);
+
+        var manifestObj = new
+        {
+            masterVersionIds = req.MasterVersionIds,
+            componentVersionIds = req.ComponentVersionIds,
+            scriptArtifactIds = req.ScriptArtifactIds,
+            constants = req.Constants,
+            assets = req.Assets,
+            paletteNodes = req.PaletteNodesJson?.RootElement,
+            memberQuotas = req.MemberQuotas
+        };
+        var manifestDoc = JsonDocument.Parse(JsonSerializer.Serialize(manifestObj));
+
+        TemplatePackage? pkg = null;
+        if (req.TemplateId.HasValue)
+        {
+            pkg = await db.TemplatePackages
+                .Include(x => x.Members)
+                .FirstOrDefaultAsync(x => x.Id == req.TemplateId.Value, ct);
+        }
+
+        var resolvedTitle = !string.IsNullOrWhiteSpace(req.Title)
+            ? req.Title.Trim()
+            : (primaryMaster?.Pipeline?.Name ?? "Untitled Template Package");
+
+        static string Slugify(string raw)
+        {
+            var s = System.Text.RegularExpressions.Regex.Replace(
+                raw.Trim().ToLowerInvariant(),
+                @"[^a-z0-9]+",
+                "-"
+            ).Trim('-');
+            return string.IsNullOrEmpty(s) ? "template" : s;
+        }
+
+        if (pkg is null)
+        {
+            var baseSlug = Slugify(!string.IsNullOrWhiteSpace(req.Slug) ? req.Slug : resolvedTitle);
+            var candidateSlug = baseSlug;
+            int suffix = 2;
+            while (await db.TemplatePackages.AnyAsync(t => t.Slug == candidateSlug, ct))
+            {
+                candidateSlug = $"{baseSlug}-{suffix++}";
+            }
+
+            pkg = new TemplatePackage
+            {
+                PrimaryMasterVersionId = primaryMaster?.Id,
+                Title = resolvedTitle,
+                Slug = candidateSlug,
+                Description = req.Description,
+                Category = string.IsNullOrWhiteSpace(req.Category) ? "General" : req.Category.Trim(),
+                IsPublic = true,
+                QuotaStrategy = "PerComponentRun",
+                DefaultQuotaLimit = req.DefaultQuotaLimit,
+                VersionNumber = 1,
+                TotalAssetBytes = totalAssetBytes,
+                ContainerManifestJson = manifestDoc
+            };
+            db.TemplatePackages.Add(pkg);
+        }
+        else
+        {
+            pkg.PrimaryMasterVersionId = primaryMaster?.Id;
+            pkg.Title = resolvedTitle;
+            if (string.IsNullOrWhiteSpace(pkg.Slug))
+            {
+                pkg.Slug = Slugify(!string.IsNullOrWhiteSpace(req.Slug) ? req.Slug : resolvedTitle);
+            }
+            pkg.Description = req.Description;
+            pkg.Category = string.IsNullOrWhiteSpace(req.Category) ? "General" : req.Category.Trim();
+            pkg.DefaultQuotaLimit = req.DefaultQuotaLimit;
+            pkg.VersionNumber += 1;
+            pkg.TotalAssetBytes = totalAssetBytes;
+            pkg.ContainerManifestJson = manifestDoc;
+            db.TemplatePackageMembers.RemoveRange(pkg.Members);
+            pkg.Members.Clear();
+        }
+
+        static (string Mode, int Cost) ResolveQuotaPolicy(
+            Guid versionId,
+            string defaultMode,
+            Dictionary<Guid, TemplateMemberQuotaConfigDto> quotaMap
+        )
+        {
+            if (!quotaMap.TryGetValue(versionId, out var cfg))
+            {
+                return (defaultMode, defaultMode == "None" ? 0 : 1);
+            }
+
+            var mode = cfg.QuotaMode?.Trim() switch
+            {
+                "None" => "None",
+                "PerRun" => "PerRun",
+                _ => "PerItem",
+            };
+            var cost = mode == "None" ? 0 : Math.Max(0, cfg.QuotaCost);
+            return (mode, cost);
+        }
+
+        var quotaByVersionId = (req.MemberQuotas ?? [])
+            .GroupBy(q => q.PipelineVersionId)
+            .ToDictionary(g => g.Key, g => g.Last());
+
+        int sortOrder = 0;
+        var addedVersionIds = new HashSet<Guid>();
+        foreach (var masterId in req.MasterVersionIds)
+        {
+            if (addedVersionIds.Add(masterId))
+            {
+                var (mode, cost) = ResolveQuotaPolicy(masterId, "None", quotaByVersionId);
+                pkg.Members.Add(new TemplatePackageMember
+                {
+                    TemplatePackage = pkg,
+                    PipelineVersionId = masterId,
+                    Role = "master",
+                    SortOrder = sortOrder++,
+                    QuotaMode = mode,
+                    QuotaCost = cost,
+                });
+            }
+        }
+
+        foreach (var compId in req.ComponentVersionIds)
+        {
+            if (addedVersionIds.Add(compId))
+            {
+                var (mode, cost) = ResolveQuotaPolicy(compId, "PerItem", quotaByVersionId);
+                pkg.Members.Add(new TemplatePackageMember
+                {
+                    TemplatePackage = pkg,
+                    PipelineVersionId = compId,
+                    Role = "component",
+                    SortOrder = sortOrder++,
+                    QuotaMode = mode,
+                    QuotaCost = cost,
+                });
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+
+        // Link uploaded File-pin assets to TemplatePackage via Files Module (IAssetApi)
+        var linkItems = new List<AssetLinkRequestItem>();
+        foreach (var asset in req.Assets)
+        {
+            if (!string.IsNullOrWhiteSpace(asset.AssetId) && Guid.TryParse(asset.AssetId, out var assetGuid))
+            {
+                linkItems.Add(new AssetLinkRequestItem(assetGuid, asset.Name));
+            }
+        }
+        if (linkItems.Count > 0)
+        {
+            var linkRes = await assetApi.VerifyAndLinkAsync(
+                linkItems,
+                ownerEntityType: "TemplatePackage",
+                slotKey: PipelineAssetSlots.TemplatePinAsset,
+                ownerEntityId: pkg.Id.ToString(),
+                ct: ct
+            );
+            if (linkRes.IsFailed)
+            {
+                ThrowError($"Failed to link template assets: {string.Join("; ", linkRes.Errors.Select(e => e.Message))}");
+            }
+        }
+
+        await Send.OkAsync(new CreateTemplateContainerResponse(
+            pkg.Id,
+            pkg.Title,
+            pkg.Slug,
+            req.MasterVersionIds.Count,
+            req.ComponentVersionIds.Count,
+            req.Constants.Count,
+            req.Assets.Count
+        ), ct);
+    }
+}

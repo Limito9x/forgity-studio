@@ -12,6 +12,7 @@ scripts/scratch/
 scripts/*.local.*
 *.scratch.*
 runner/dist/
+target/
 runner/target/
 
 # Python & Test Caches
@@ -45,6 +46,9 @@ logs/
 temp/
 
 # Private business scripts & local pipeline templates
-pipeline-scripts/
-pipelines/
-contracts.yaml
+/pipeline-scripts/
+/pipelines/
+/contracts.yaml
+
+# Tauri staged sidecar binaries
+app/src-tauri/binaries/

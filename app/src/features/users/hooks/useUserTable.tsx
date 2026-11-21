@@ -133,12 +133,12 @@ export function useUserTable({ data, totalCount, resource }: UseUserTableOptions
                                 {
                                     label: t("common:viewDetails", { defaultValue: "View Details" }),
                                     icon: EyeIcon,
-                                    onClick: () => navigate({ to: "/users/$id", params: { id: user.id! } }),
+                                    onClick: () => navigate({ to: "/admin/users/$id", params: { id: user.id! } }),
                                 },
                                 {
                                     label: t("common:Edit", { defaultValue: "Edit" }),
                                     icon: EditIcon,
-                                    onClick: () => navigate({ to: "/users/$id/edit", params: { id: user.id! } }),
+                                    onClick: () => navigate({ to: "/admin/users/$id/edit", params: { id: user.id! } }),
                                 },
                                 {
                                     label: t("actions.assignRoles", { defaultValue: "Assign Roles" }),

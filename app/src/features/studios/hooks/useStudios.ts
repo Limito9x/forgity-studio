@@ -10,10 +10,11 @@ export type {
   IReadOnlyListOfStudioDto,
 } from "@/gen/model";
 
-export const useStudios = () => {
+export const useStudios = (options?: { enabled?: boolean }) => {
   return StudiosApi.useGetStudios({
     query: {
       placeholderData: keepPreviousData,
+      enabled: options?.enabled ?? true,
     },
   });
 };

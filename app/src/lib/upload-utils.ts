@@ -183,20 +183,32 @@ export async function uploadMultipleAssetsFlow(
     throw new Error("Failed to get upload request details from server");
   }
 
-  // 3. Upload files directly to S3 in parallel
+  // 3. Upload files directly to S3 in parallel (strictly matched by hashSha256)
+  const reqByHash = new Map(
+    uploadRequests.map((r) => [r.hashSha256?.toLowerCase(), r])
+  );
+  const matchedRequests = itemsPayload.map((item) => {
+    const match = reqByHash.get(item.requestItem.hashSha256.toLowerCase());
+    if (!match) {
+      throw new Error(`Upload request response missing entry for '${item.file.name}' (hash: ${item.requestItem.hashSha256}).`);
+    }
+    return match;
+  });
+
   const confirmedAssetIds: string[] = [];
 
   await Promise.all(
-    uploadRequests.map(async (req, index) => {
+    itemsPayload.map(async (item, index) => {
+      const req = matchedRequests[index];
       const { assetId, isAlreadyExists, presignedUrl } = req;
-      const file = itemsPayload[index].file;
+      const file = item.file;
 
       if (!isAlreadyExists && presignedUrl) {
         const uploadRes = await fetch(presignedUrl, {
           method: "PUT",
           body: file,
           headers: {
-            "Content-Type": itemsPayload[index].requestItem.contentType,
+            "Content-Type": item.requestItem.contentType,
           },
         });
         if (!uploadRes.ok) {
@@ -220,12 +232,13 @@ export async function uploadMultipleAssetsFlow(
     }
   }
 
-  const results: MultipleAssetUploadResult[] = uploadRequests.map((req, index) => {
-    const key = itemsPayload[index].key;
+  const results: MultipleAssetUploadResult[] = itemsPayload.map((item, index) => {
+    const req = matchedRequests[index];
+    const key = item.key;
     const asset = assetMap.get(req.assetId) || {
       id: req.assetId,
-      contentType: itemsPayload[index].file.type,
-      size: itemsPayload[index].file.size,
+      contentType: item.file.type,
+      size: item.file.size,
       publicUrl: req.publicUrl || "",
     };
 

@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { PlayCircle, CheckCircle2, Variable } from "lucide-react";
+import { PlayCircle, CheckCircle2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { PipelineParameterDto } from "../../../hooks/usePipelineGraph";
 import { ParameterRowItem } from "./ParameterRowItem";
@@ -10,8 +10,6 @@ interface ParameterListProps {
   items: PipelineParameterDto[];
   onEdit: (param: PipelineParameterDto) => void;
   onDelete: (key: string) => void;
-  onSpawnCapsule: (key: string, kind: "Variable" | "Runner" | "Repository" | "Workspace" | "Context", type: any) => void;
-  onSpawnAction: (toolKey: "SetVariable", varName: string) => void;
 }
 
 export const ParameterList = memo(function ParameterList({
@@ -19,8 +17,6 @@ export const ParameterList = memo(function ParameterList({
   items,
   onEdit,
   onDelete,
-  onSpawnCapsule,
-  onSpawnAction,
 }: ParameterListProps) {
   if (items.length === 0) {
     return (
@@ -43,15 +39,6 @@ export const ParameterList = memo(function ParameterList({
             </span>
           </>
         )}
-        {activeTab === "variables" && (
-          <>
-            <Variable className="h-7 w-7 mb-2 stroke-1 text-violet-500/50" />
-            <span className="text-xs font-medium">No variables declared</span>
-            <span className="text-[10px] text-muted-foreground mt-0.5">
-              Variables form the shared memory blackboard of this pipeline.
-            </span>
-          </>
-        )}
       </div>
     );
   }
@@ -66,8 +53,6 @@ export const ParameterList = memo(function ParameterList({
             activeTab={activeTab}
             onEdit={onEdit}
             onDelete={onDelete}
-            onSpawnCapsule={onSpawnCapsule}
-            onSpawnAction={onSpawnAction}
           />
         ))}
       </div>

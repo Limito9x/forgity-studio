@@ -18,9 +18,10 @@ export function setCurrentStudio(studio: { id?: string; slug?: string; name?: st
   if (studio.id) localStorage.setItem(STORAGE_KEY_ID, studio.id);
 }
 
-export function useCurrentStudio() {
+export function useCurrentStudio(options?: { enabled?: boolean }) {
   const params = useParams({ strict: false }) as { studioSlug?: string };
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const enabled = options?.enabled ?? true;
 
   // 1. Ưu tiên lấy slug từ route param (:studioSlug)
   // 2. Nếu route không có param, parse từ URL regex /s/:slug
@@ -32,11 +33,12 @@ export function useCurrentStudio() {
   }
   const effectiveSlug = matchedSlug || getCurrentStudioSlug();
 
-  const { data: studios, isLoading } = useStudios();
+  const { data: studios, isLoading } = useStudios({ enabled });
 
+  const safeStudios = Array.isArray(studios) ? studios : [];
   const studio =
-    studios?.find((s) => s.slug === effectiveSlug) ??
-    (studios && studios.length > 0 ? studios[0] : undefined);
+    safeStudios.find((s) => s.slug === effectiveSlug) ??
+    (safeStudios.length > 0 ? safeStudios[0] : undefined);
 
   useEffect(() => {
     if (studio) {

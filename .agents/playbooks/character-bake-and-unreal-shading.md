@@ -59,6 +59,13 @@ AI slot omission: classifier makes at most one supplemental request containing o
 
 Payload cleanup: FBX slots now expose only `texture_bindings`, not a duplicate `textures` list. Inspector materials expose `package_path` + `parameters` once; parameter names are dictionary keys. Schema fields no longer carry verbose `native_type` diagnostics. Classifier projects material semantics/sampler types for AI, keeps compression/sRGB/VT in the local contract for import, and serializes requests as compact JSON. Virtual sampler enum names with underscores retain correct NORMAL/MASKS/GRAYSCALE semantics. Republish inspector, exporter and classifier together; existing bound-texture metadata remains readable.
 
+**Luồng tinh gọn (15/11/2026, bỏ AI `classify_mesh_types`):**
+
+- `pipeline-scripts/blender/inspect_scene.py` nhận thêm `duf_path` tùy chọn (`""` nếu bỏ trống) và thực hiện phân loại rule-based trực tiếp trong Blender stage:
+  - Trả `body_mesh` (1 tên mesh body chính dựa trên `material_slots` da + polygon count + cờ figure từ `.duf`), `anatomical_meshes`, `body_export_meshes`, `wardrobe_items` (gom theo thư mục `url` trong `.duf` hoặc stem/prefix tên, kèm `role` từ `presentation.type`/keyword, lọc đồ ẩn theo `.duf`), `clothes` và `scene_metadata`.
+- `pipeline-scripts/blender/bake_mesh.py`: `target_objects` nhận cả 1 chuỗi text `str` (hoặc `List[str]`), hỗ trợ khớp không phân biệt hoa/thường và tự bỏ qua hậu tố `" Mesh"` (`resolve_target_meshes`). Bỏ fallback bake toàn bộ scene khi thiếu/sai target để tránh bake nhầm đồ lót hoặc props.
+- `pipeline-scripts/blender/export_fbx.py`: tinh gọn manifest qua `_build_manifest_entry`, bỏ các trường dư thừa (`object`, `local_path`, `matched_meshes`, `slot_count`, `mode`), chỉ giữ các trường material/texture contract cho `classify_character_manifest.py` và Unreal importer.
+
 **Luồng hiện tại (06/11/2026, cập nhật scene/convention):**
 
 ```text

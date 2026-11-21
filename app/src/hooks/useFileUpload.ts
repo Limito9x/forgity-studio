@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { uploadMultipleAssetsFlow } from "@/lib/upload-utils";
 
 import type { ConfirmAssetDto } from "@/gen/model";
-import type { AssetDto } from "@/gen/model/assetDto";
+
+export type AssetDto = ConfirmAssetDto & { name?: string };
 
 export interface FileValueItem {
     assetId: string;

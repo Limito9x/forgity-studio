@@ -6,7 +6,6 @@ export interface StudioQuotaDto {
   name: string;
   slug: string;
   planTier: number; // 0: Community, 1: IndiePro, 2: StudioTeam
-  executionCreditsRemaining: number;
   studioManagedStorageQuotaBytes: number;
   studioManagedStorageUsedBytes: number;
 }

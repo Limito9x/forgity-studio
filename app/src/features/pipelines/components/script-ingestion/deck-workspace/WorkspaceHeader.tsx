@@ -1,7 +1,7 @@
 import { FileCode, RotateCcw, CheckCircle2, AlertTriangle, Network, Code2, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { AnalyzedCustomNodeDto } from "@/gen/model";
+import type { AnalyzedCustomNodeDto } from "@/features/pipelines/types/pipelineGraphTypes";
 import { ExecutorIcon } from "@/features/runners/components/ExecutorIcon";
 
 export type IngestionActiveTab = "pins" | "code" | "impact";

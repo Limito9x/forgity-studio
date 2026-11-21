@@ -40,21 +40,19 @@ public class GetRunnersHandler(RunnerDbContext db, IRunnerConnectionRegistry? re
 {
     public async Task<Result<IReadOnlyList<RunnerDto>>> HandleAsync(GetRunnersQuery query, CancellationToken ct)
     {
-        if (!query.StudioId.HasValue)
-        {
-            return Result.Ok<IReadOnlyList<RunnerDto>>([]);
-        }
+        IQueryable<Domain.Entities.Runner> dbQuery = db.Runners.AsNoTracking();
 
-        IQueryable<Domain.Entities.Runner> dbQuery = db.Runners
-            .AsNoTracking()
-            .Where(x => x.Studios.Any(s => s.StudioId == query.StudioId.Value));
+        if (query.StudioId.HasValue)
+        {
+            dbQuery = dbQuery.Where(x => x.Studios.Any(s => s.StudioId == query.StudioId.Value));
+        }
 
         if (query.IsActive.HasValue)
             dbQuery = dbQuery.Where(x => x.IsActive == query.IsActive.Value);
 
         var entities = await dbQuery
             .Include(x => x.ExecutorConfigs)
-            .OrderByDescending(x => x.CreatedAt)
+            .OrderByDescending(x => x.LastSeenAt ?? x.CreatedAt)
             .ToListAsync(ct);
 
         var runners = entities.Select(e =>

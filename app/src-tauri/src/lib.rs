@@ -9,6 +9,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -26,11 +28,15 @@ pub fn run() {
             save_local_palette,
             commands::contracts::save_script_override,
             commands::contracts::clear_script_override,
+            commands::contracts::get_pipeline_contract_spec,
+            commands::contracts::validate_local_pipeline_graph,
             load_local_palette,
             save_local_structs,
             load_local_structs,
             save_local_constants,
             load_local_constants,
+            load_constant_palette,
+            load_workspace_node_contracts,
             save_local_script_override,
             list_unreal_content_items,
             create_local_pipeline_draft,
@@ -45,9 +51,32 @@ pub fn run() {
             analyze_local_scripts_native,
             run_local_pipeline_draft_native,
             run_local_pipeline,
+            run_cloud_bundle,
+            export_execution_bundle,
+            build_publish_bundle_json,
             cancel_local_pipeline,
+            list_local_dcc_sessions,
+            stop_local_dcc_session,
+            list_local_execution_runs,
+            get_local_execution_detail,
+            delete_local_execution_history,
             get_runner_unreal_project,
-            set_runner_unreal_project
+            set_runner_unreal_project,
+            get_workspace_unreal_project,
+            set_workspace_unreal_project,
+            get_local_runner_config,
+            save_local_runner_config,
+            scan_local_dcc_executors,
+            commands::template_manifest::scan_template_dependencies,
+            list_registered_workspaces,
+            get_registered_workspace,
+            register_workspace,
+            touch_workspace_opened,
+            remove_workspace_from_registry,
+            commands::workspace::reveal_workspace_in_explorer,
+            fork_template_workspace,
+            update_forked_workspace,
+            download_url_base64
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,48 +1,31 @@
-import { createContext, useContext, useMemo, type ReactNode } from "react";
-import type { IPipelineStorageAdapter } from "../adapters/pipelineStorageAdapter";
+import { createContext, useContext, type ReactNode } from "react";
+import type { PipelineWorkspaceContract } from "../types/pipelineWorkspaceContract";
 
-interface PipelineWorkspaceContextValue {
-  mode: "local" | "cloud";
-  projectId: string;
-  rootPath?: string | null;
-  storage: IPipelineStorageAdapter;
-}
+export type {
+  PipelineValidationSummary,
+  ResolveToolPinsParams,
+  ResolveToolPinsResult,
+} from "../types/pipelineWorkspaceContract";
 
-const PipelineWorkspaceContext = createContext<PipelineWorkspaceContextValue | null>(null);
+const PipelineWorkspaceContext = createContext<PipelineWorkspaceContract | null>(null);
 
 export interface PipelineWorkspaceProviderProps {
-  mode: "local" | "cloud";
-  projectId: string;
-  rootPath?: string | null;
-  storage: IPipelineStorageAdapter;
+  workspace: PipelineWorkspaceContract;
   children: ReactNode;
 }
 
 export function PipelineWorkspaceProvider({
-  mode,
-  projectId,
-  rootPath,
-  storage,
+  workspace,
   children,
 }: PipelineWorkspaceProviderProps) {
-  const value = useMemo(
-    () => ({
-      mode,
-      projectId,
-      rootPath,
-      storage,
-    }),
-    [mode, projectId, rootPath, storage]
-  );
-
   return (
-    <PipelineWorkspaceContext.Provider value={value}>
+    <PipelineWorkspaceContext.Provider value={workspace}>
       {children}
     </PipelineWorkspaceContext.Provider>
   );
 }
 
-export function usePipelineWorkspace(): PipelineWorkspaceContextValue {
+export function usePipelineWorkspace(): PipelineWorkspaceContract {
   const ctx = useContext(PipelineWorkspaceContext);
   if (!ctx) {
     throw new Error("usePipelineWorkspace must be used within a PipelineWorkspaceProvider");
@@ -50,7 +33,9 @@ export function usePipelineWorkspace(): PipelineWorkspaceContextValue {
   return ctx;
 }
 
-export function usePipelineWorkspaceOptional(): PipelineWorkspaceContextValue | null {
+export function usePipelineWorkspaceOptional(): PipelineWorkspaceContract | null {
   return useContext(PipelineWorkspaceContext);
 }
+
+export const useOptionalPipelineWorkspace = usePipelineWorkspaceOptional;
 

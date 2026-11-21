@@ -9,17 +9,24 @@ import { useNodeDefinition } from "../../NodeDefinitions";
 export function ConstantNodeView({ data, selected }: NodeProps) {
   const nodeData = data as unknown as CustomPipelineNodeData;
   const definition = useNodeDefinition(nodeData.kind, nodeData.refId);
-  const outputs = nodeData.outputs || [];
+  const outputs =
+    definition?.outputs && definition.outputs.length > 0
+      ? definition.outputs
+      : (nodeData.outputs || []);
   const inputs =
-    nodeData.inputs && nodeData.inputs.length > 0
-      ? nodeData.inputs
-      : (definition?.inputs ?? []);
+    definition?.inputs && definition.inputs.length > 0
+      ? definition.inputs
+      : (nodeData.inputs || []);
 
   const caps = definition?.capabilities as Record<string, any> | undefined;
   const scope = caps?.scope || "General";
   const constantKey = caps?.constantKey || nodeData.refId.replace(/^local:constant:/, "");
   const resolvedValue = caps?.resolvedValue ?? "";
   const resolvedUnrealPath = caps?.resolvedUnrealPath ?? "";
+  const formatSummary = (v: unknown): string =>
+    Array.isArray(v) ? v.join(", ") : String(v ?? "");
+  const formattedValue = formatSummary(resolvedValue);
+  const formattedUnrealPath = formatSummary(resolvedUnrealPath);
 
   const themeClass =
     scope === "Unreal"
@@ -55,15 +62,15 @@ export function ConstantNodeView({ data, selected }: NodeProps) {
       />
 
       {/* Value Summary Display */}
-      <div className="px-3 pt-2 text-[10px] font-mono text-muted-foreground truncate" title={String(resolvedValue)}>
+      <div className="px-3 pt-2 text-[10px] font-mono text-muted-foreground truncate" title={formattedValue}>
         <span className="truncate">
-          {String(resolvedValue) || "(empty)"}
+          {formattedValue || "(empty)"}
         </span>
       </div>
 
-      {scope === "Unreal" && resolvedUnrealPath && (
-        <div className="px-3 pt-0.5 text-[9px] font-mono text-indigo-400 truncate" title={resolvedUnrealPath}>
-          🎮 {resolvedUnrealPath}
+      {scope === "Unreal" && formattedUnrealPath && (
+        <div className="px-3 pt-0.5 text-[9px] font-mono text-indigo-400 truncate" title={formattedUnrealPath}>
+          🎮 {formattedUnrealPath}
         </div>
       )}
 

@@ -60,6 +60,25 @@ export async function getLocalMachineInfo(): Promise<LocalMachineInfo> {
   return resolvePromise;
 }
 
+import { useQuery } from "@tanstack/react-query";
+
+/**
+ * Returns the permanent cryptographic hardware fingerprint on Tauri Desktop,
+ * falling back to machineKey or "local-workstation" on Web.
+ */
+export async function getEffectiveMachineKey(): Promise<string> {
+  const info = await getLocalMachineInfo();
+  return info.hardwareFingerprint?.trim() || info.machineKey?.trim() || "local-workstation";
+}
+
+export function useEffectiveMachineKey() {
+  return useQuery({
+    queryKey: ["local-machine-effective-key"],
+    queryFn: getEffectiveMachineKey,
+    staleTime: Infinity,
+  });
+}
+
 /**
  * Pure evaluation function: determines whether a runner represents the local workstation.
  *
@@ -141,6 +160,43 @@ export async function openNativeFileOrFolderDialog(
   // Tauri dialog may return string or string[]
   const rawPath = typeof result === "string" ? result : Array.isArray(result) ? result[0] : null;
   return rawPath ? rawPath.replace(/\\/g, "/") : null;
+}
+
+/**
+ * Opens native Windows File or Folder Picker with multi-select enabled.
+ * Returns normalized forward-slash paths.
+ */
+export async function openNativeMultipleFilesOrFoldersDialog(
+  options: NativePickerOptions = {}
+): Promise<string[]> {
+  if (!isTauriRuntime()) {
+    throw new Error("Native file picker is only available in Tauri Desktop app");
+  }
+
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const isFolder = options.mode === "folder";
+
+  const filters =
+    !isFolder && options.extensions && options.extensions.length > 0
+      ? [
+          {
+            name: "Allowed Files",
+            extensions: options.extensions.map((ext) => ext.replace(/^\./, "")),
+          },
+        ]
+      : undefined;
+
+  const result = await open({
+    title: options.title,
+    directory: isFolder,
+    multiple: true,
+    defaultPath: options.defaultPath || undefined,
+    filters,
+  });
+
+  if (!result) return [];
+  const rawList = typeof result === "string" ? [result] : Array.isArray(result) ? result : [];
+  return rawList.map((p) => String(p).replace(/\\/g, "/")).filter(Boolean);
 }
 
 /**

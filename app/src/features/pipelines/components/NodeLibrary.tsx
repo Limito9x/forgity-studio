@@ -28,7 +28,7 @@ import {
   Code2,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { NodePaletteItemDto } from "@/gen/model";
+import type { NodePaletteItemDto } from "@/features/pipelines/types/pipelineGraphTypes";
 import { cn } from "@/lib/utils";
 import { ScriptGuidelinesDialog } from "../dialogs/ScriptGuidelinesDialog";
 import { useProjectNav } from "@/lib/navigation/useProjectNav";

@@ -26,14 +26,16 @@ public class RunnerModule : IModule, IPermissionModule
             Automation.SharedKernel.Abstractions.Auth.ICurrentAgent,
             Automation.SharedKernel.Infrastructure.Auth.CurrentRunner
         >();
+        services.AddSingleton<Features.Connections.IRunnerConnectionRegistry, Features.Connections.RunnerConnectionRegistry>();
+        services.AddSingleton<Features.Connections.IAgentConnectionRegistry>(sp =>
+            sp.GetRequiredService<Features.Connections.IRunnerConnectionRegistry>() as Features.Connections.RunnerConnectionRegistry
+            ?? new Features.Connections.RunnerConnectionRegistry());
+        services.AddSingleton<Features.Connections.ICommandTracker, Features.Connections.CommandTracker>();
         services.AddScoped<IRunnerApi, RunnerApiService>();
         services.AddScoped<IAgentApi, RunnerApiService>();
-        services.AddRunnerGrpcServices();
     }
 
-    public void ConfigureWolverine(WolverineOptions options)
-    {
-    }
+    public void ConfigureWolverine(WolverineOptions options) { }
 
     public Dictionary<string, IReadOnlyList<string>> GetPermissions() =>
         new Constants.RunnerPermissions().GetPermissions();
@@ -42,6 +44,4 @@ public class RunnerModule : IModule, IPermissionModule
 }
 
 // Backward-compatibility alias
-public sealed class AgentModule : RunnerModule
-{
-}
+public sealed class AgentModule : RunnerModule { }

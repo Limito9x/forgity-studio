@@ -1,4 +1,4 @@
-import type { PinDefinition } from "@/gen/model";
+import type { PinDefinition } from "@/features/pipelines/types/pipelineGraphTypes";
 import type { FieldDefinition } from "@/lib/field-registry";
 import type { NormalizedPinType } from "./normalizePinType.ts";
 
@@ -12,6 +12,9 @@ export interface PinMetadataHint {
   rows?: number;
   allowCustom?: boolean;
   placeholder?: string;
+  pathKind?: "file" | "folder";
+  defaultFolder?: string;
+  accept?: string;
   entity?: string;
   properties?: Record<string, unknown>;
 }

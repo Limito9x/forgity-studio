@@ -1,12 +1,13 @@
 import { useEffect } from "react";
 import { createFileRoute, Outlet, redirect, useNavigate, useRouterState } from "@tanstack/react-router";
+import { toast } from "sonner";
 import { getAuthState, useAuthStore } from "@/stores/authStore";
+import { useAppModeStore } from "@/stores/appModeStore";
 import { useGetProfile } from "@/features/settings/hooks/useProfile";
 import { useGetPermissions } from "@/gen/endpoints/auth/auth";
 import { useStudios } from "@/features/studios/hooks/useStudios";
 import { setCurrentStudio, getCurrentStudioSlug } from "@/features/studios/hooks/useCurrentStudio";
 import { AppSplashScreen } from "@/components/layout/app/AppSplashScreen";
-import { ServerTroubleScreen } from "@/components/layout/app/ServerTroubleScreen";
 
 export const Route = createFileRoute("/_protected")({
   beforeLoad: ({ location }) => {
@@ -14,7 +15,7 @@ export const Route = createFileRoute("/_protected")({
       throw redirect({
         to: "/auth/login",
         search: () => ({ redirect: location.href }),
-      })
+      });
     }
   },
   component: ProtectedLayoutComponent,
@@ -28,14 +29,12 @@ function ProtectedLayoutComponent() {
     data: profile,
     isLoading: isProfileLoading,
     error: profileError,
-    refetch: refetchProfile,
   } = useGetProfile();
 
   const {
     data: permissions,
     isLoading: isPermissionsLoading,
     error: permissionsError,
-    refetch: refetchPermissions,
   } = useGetPermissions();
 
   const {
@@ -43,7 +42,6 @@ function ProtectedLayoutComponent() {
     isLoading: isStudiosLoading,
     error: studiosError,
     isError: isStudiosError,
-    refetch: refetchStudios,
   } = useStudios();
 
   const setProfile = useAuthStore((state) => state.setProfile);
@@ -85,24 +83,23 @@ function ProtectedLayoutComponent() {
 
   const isInitialLoading = isProfileLoading || isPermissionsLoading || isStudiosLoading;
 
+  const hasServerTrouble = Boolean(studiosError || profileError || permissionsError);
+
+  // Fallback tự động sang Local Mode (Guest/Offline) khi không kết nối được tới Cloud server
+  useEffect(() => {
+    if (!isInitialLoading && hasServerTrouble) {
+      useAppModeStore.getState().setMode("local");
+      toast.info("Cloud server unreachable — continuing in Local Mode.");
+      navigate({ to: "/local", replace: true });
+    }
+  }, [isInitialLoading, hasServerTrouble, navigate]);
+
   if (isInitialLoading) {
     return <AppSplashScreen message="Initializing workspace..." />;
   }
 
-  // Fallback sang ServerTroubleScreen khi server gặp trục trặc kết nối
-  const hasServerTrouble = Boolean(studiosError || profileError || permissionsError);
   if (hasServerTrouble) {
-    return (
-      <ServerTroubleScreen
-        onRetry={async () => {
-          await Promise.all([
-            refetchStudios(),
-            refetchProfile(),
-            refetchPermissions(),
-          ]);
-        }}
-      />
-    );
+    return <AppSplashScreen message="Switching to Local Mode..." />;
   }
 
   // Chuyển tiếp êm dịu sang onboarding nếu chưa có studio (chỉ khi API đã trả về thành công 200 mảng rỗng)

@@ -49,7 +49,9 @@ pub fn compute_dependencies_hash(packages: &[String]) -> String {
 impl StorageManager {
     pub fn new(base_dir: Option<PathBuf>) -> Self {
         let raw = base_dir.unwrap_or_else(|| {
-            std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+            let dir = crate::cli::daemon::get_daemon_data_dir();
+            let _ = std::fs::create_dir_all(&dir);
+            dir
         });
         let abs = std::fs::canonicalize(&raw).unwrap_or(raw);
         Self {

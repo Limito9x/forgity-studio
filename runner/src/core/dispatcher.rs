@@ -17,7 +17,7 @@ use crate::process::job_object::JobObject;
 use crate::process::subprocess::SubprocessRunner;
 use crate::storage::cache::StorageManager;
 use crate::storage::downloader::StreamDownloader;
-use crate::system::dcc::resolve_executor_executable;
+use crate::system::dcc::resolve_executor_executable_for_project;
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -201,13 +201,103 @@ impl StageDispatcher {
             }
         }
 
+        // 2d. Auto-inject Unreal .uproject path from runner.toml when running locally without project context
+        if task.executor.eq_ignore_ascii_case("unreal") {
+            let has_project = task
+                .environment_config
+                .get("fullPathProject")
+                .or_else(|| task.environment_config.get("uproject_path"))
+                .and_then(|v| v.as_str())
+                .map(|s| !s.trim().is_empty())
+                .unwrap_or(false);
+
+            if !has_project {
+                let mut resolved_uproject: Option<String> = None;
+
+                // 0. Prefer explicit FORGITY_UPROJECT_PATH env var injected by Tauri desktop
+                if let Ok(env_up) = std::env::var("FORGITY_UPROJECT_PATH") {
+                    let trimmed = env_up.trim();
+                    if !trimmed.is_empty() && std::path::Path::new(trimmed).is_file() {
+                        info!(
+                            "[Dispatcher] Injected Unreal .uproject from FORGITY_UPROJECT_PATH: {}",
+                            trimmed
+                        );
+                        resolved_uproject = Some(trimmed.to_string());
+                    }
+                }
+
+                // 1. Prefer per-workspace unreal_project_path from AppData WorkspaceRegistryDb
+                if resolved_uproject.is_none() {
+                    if let (Some(data_dir), Ok(cwd)) = (dirs::data_dir(), std::env::current_dir()) {
+                        let registry_dir = data_dir.join("studio.forgity.desktop");
+                        if let Ok(registry) = forgity_core::workspace_registry::WorkspaceRegistryDb::open(&registry_dir) {
+                            let cwd_raw = cwd.to_string_lossy().to_string();
+                            let cwd_slash = cwd_raw.replace('\\', "/");
+                            let cwd_backslash = cwd_raw.replace('/', "\\");
+                            let ws_opt = registry.get_workspace_by_root_path(&cwd_raw).ok().flatten()
+                                .or_else(|| registry.get_workspace_by_root_path(&cwd_slash).ok().flatten())
+                                .or_else(|| registry.get_workspace_by_root_path(&cwd_backslash).ok().flatten());
+                            if let Some(ws) = ws_opt {
+                                if let Some(up) = ws.unreal_project_path.filter(|p| std::path::Path::new(p.trim()).is_file()) {
+                                    info!(
+                                        "[Dispatcher] Injected Unreal .uproject from Workspace Registry: {}",
+                                        up
+                                    );
+                                    resolved_uproject = Some(up);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 2. Fallback to runner.toml [unreal_projects]
+                if resolved_uproject.is_none() {
+                    if let Ok((Some(cfg), _)) = crate::config::load_config(None, false) {
+                        if let Some(ref projects) = cfg.unreal_projects {
+                            let resolved = projects
+                                .get("local-default")
+                                .filter(|p| std::path::Path::new(p.trim()).is_file())
+                                .or_else(|| {
+                                    projects
+                                        .values()
+                                        .find(|p| std::path::Path::new(p.trim()).is_file())
+                                });
+                            if let Some(uproject_path) = resolved {
+                                info!(
+                                    "[Dispatcher] Injected Unreal .uproject from runner.toml: {}",
+                                    uproject_path
+                                );
+                                resolved_uproject = Some(uproject_path.clone());
+                            }
+                        }
+                    }
+                }
+
+                if let Some(uproject_path) = resolved_uproject {
+                    task.environment_config.insert(
+                        "fullPathProject".to_string(),
+                        serde_json::Value::String(uproject_path),
+                    );
+                }
+            }
+        }
+
         // 3. Resolve Executor Strategy & Validate fail-fast
         let executor = self.executor_registry.get(&task.executor)?;
         executor.validate(&task)?;
 
-        // 4. Resolve executable for this executor (e.g. blender.exe)
-        let exe_path = resolve_executor_executable(&task.executor)
-            .with_context(|| format!("Could not resolve executable for executor '{}'", task.executor))?;
+        // 4. Resolve executable for this executor (e.g. blender.exe, or version-matched UnrealEditor-Cmd.exe)
+        let uproject_for_resolve = task
+            .environment_config
+            .get("unreal_project_path")
+            .or_else(|| task.environment_config.get("uproject_path"))
+            .and_then(|v| v.as_str())
+            .map(str::to_string);
+        let exe_path = resolve_executor_executable_for_project(
+            &task.executor,
+            uproject_for_resolve.as_deref(),
+        )
+        .with_context(|| format!("Could not resolve executable for executor '{}'", task.executor))?;
         info!("[Dispatcher] Resolved executor binary: {:?}", exe_path);
 
         task.site_packages_path = super::python_packages::prepare(
@@ -219,8 +309,12 @@ impl StageDispatcher {
         create_dir_all(&temp_dir).await.ok();
         let task_json_path = temp_dir.join("task.json");
         let task_bytes = serde_json::to_vec_pretty(&task)?;
-        let mut file = File::create(&task_json_path).await?;
-        file.write_all(&task_bytes).await?;
+        let mut file = File::create(&task_json_path)
+            .await
+            .with_context(|| format!("Failed to create task.json at {:?}", task_json_path))?;
+        file.write_all(&task_bytes)
+            .await
+            .with_context(|| format!("Failed to write task.json at {:?}", task_json_path))?;
         file.flush().await?;
 
         // 6. Check keep-alive configuration for persistent DCC pool

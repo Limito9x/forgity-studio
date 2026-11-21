@@ -1,6 +1,6 @@
 import { lazy } from "react";
 import { registerDialog } from "@/lib/dialog-registry";
-import type { PipelineSummaryDto } from "@/gen/model";
+import type { PipelineSummaryDto } from "../types/pipelineGraphTypes";
 import type { LocalStructDefinition } from "../types/workspaceConfig";
 
 declare module "@/lib/dialog-registry" {
@@ -9,10 +9,8 @@ declare module "@/lib/dialog-registry" {
     "rename-pipeline": { pipeline: PipelineSummaryDto };
     "archive-pipeline": { pipeline: PipelineSummaryDto };
     "purge-pipeline": { pipeline: PipelineSummaryDto };
-    "import-pipeline": { projectId: string };
     "workspace-config": { projectId: string };
     "workspace-pull-studio": { projectId: string };
-    "workspace-unpack-package": undefined;
     "workspace-struct-preview": { struct: LocalStructDefinition };
   }
 }
@@ -41,12 +39,6 @@ const PurgePipelineDialog = lazy(() =>
   }))
 );
 
-const PipelineImportDialogWrapper = lazy(() =>
-  import("./PipelineImportDialogWrapper").then((m) => ({
-    default: m.PipelineImportDialogWrapper,
-  }))
-);
-
 const WorkspaceConfigDialog = lazy(() =>
   import("../components/workspace/WorkspaceConfigDialog").then((m) => ({
     default: m.WorkspaceConfigDialog,
@@ -56,12 +48,6 @@ const WorkspaceConfigDialog = lazy(() =>
 const PullStudioPipelineDialog = lazy(() =>
   import("../components/workspace/PullStudioPipelineDialog").then((m) => ({
     default: m.PullStudioPipelineDialog,
-  }))
-);
-
-const UnpackLocalPackageDialog = lazy(() =>
-  import("../components/workspace/UnpackLocalPackageDialog").then((m) => ({
-    default: m.UnpackLocalPackageDialog,
   }))
 );
 
@@ -79,11 +65,6 @@ registerDialog({
 registerDialog({
   id: "workspace-pull-studio",
   component: PullStudioPipelineDialog,
-});
-
-registerDialog({
-  id: "workspace-unpack-package",
-  component: UnpackLocalPackageDialog,
 });
 
 registerDialog({
@@ -110,11 +91,3 @@ registerDialog({
   id: "purge-pipeline",
   component: PurgePipelineDialog,
 });
-
-registerDialog({
-  id: "import-pipeline",
-  component: PipelineImportDialogWrapper,
-});
-
-export { PipelineSnapshotHistoryDialog } from "./PipelineSnapshotHistoryDialog";
-

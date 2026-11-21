@@ -158,7 +158,30 @@ pub async fn prepare(
                 .await
                 .context("Could not remove incomplete Python package cache")?;
         }
-        tokio::fs::rename(&staging, &directory).await?;
+        let mut renamed = false;
+        let mut last_err = None;
+        for attempt in 0..5 {
+            match tokio::fs::rename(&staging, &directory).await {
+                Ok(()) => {
+                    renamed = true;
+                    break;
+                }
+                Err(e) => {
+                    last_err = Some(e);
+                    if attempt < 4 {
+                        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                    }
+                }
+            }
+        }
+        if !renamed {
+            return Err(last_err.unwrap()).with_context(|| {
+                format!(
+                    "Failed to rename Python package cache {:?} -> {:?}",
+                    staging, directory
+                )
+            });
+        }
         Ok::<_, anyhow::Error>(())
     }
     .await;

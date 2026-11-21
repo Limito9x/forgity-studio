@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { RotateCcw, AlertTriangle, Loader2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { AnalyzedCustomNodeDto } from "@/gen/model";
+import type { AnalyzedCustomNodeDto } from "@/features/pipelines/types/pipelineGraphTypes";
 
 interface IngestionFooterBarProps {
   analyzedNodes: AnalyzedCustomNodeDto[];

@@ -6,6 +6,7 @@ export const metadataHintAdapter: FieldAdapter = {
     if (!ctx.hint) return false;
     const type = ctx.hint.type?.toLowerCase();
     if (type === "tag-tree-select") return true;
+    if (type === "path") return true;
     if (type === "textarea" || ctx.hint.multiline) return true;
     if (type === "tagsinput" || type === "tags") return true;
     if (type === "select" || type === "combobox" || type === "staticcombobox" || Array.isArray(ctx.hint.options))
@@ -30,6 +31,40 @@ export const metadataHintAdapter: FieldAdapter = {
           ? ctx.pin.defaultValue
           : [],
         properties: {},
+      };
+    }
+
+    // 1.5 Local Path Picker (File / Folder - supports Single and Array/Multi)
+    if (rawType === "path") {
+      const acceptStr = typeof ctx.hint?.accept === "string" ? ctx.hint.accept : "";
+      const extensions = acceptStr
+        .split(",")
+        .map((s: string) => s.trim().replace(/^\./, ""))
+        .filter(Boolean);
+
+      const defaultVal = isArray
+        ? Array.isArray(ctx.pin.defaultValue)
+          ? ctx.pin.defaultValue.map(String)
+          : ctx.pin.defaultValue != null && ctx.pin.defaultValue !== ""
+          ? [String(ctx.pin.defaultValue)]
+          : []
+        : ctx.pin.defaultValue != null
+        ? String(ctx.pin.defaultValue)
+        : "";
+
+      return {
+        name: ctx.pinId,
+        label: ctx.label,
+        type: "pin:pathInput",
+        defaultValue: defaultVal,
+        properties: {
+          mode: ctx.hint?.pathKind === "file" ? "file" : "folder",
+          multiple: isArray,
+          defaultFolder: ctx.hint?.defaultFolder || undefined,
+          extensions: extensions.length > 0 ? extensions : undefined,
+          placeholder: ctx.hint?.placeholder,
+          ...ctx.hint?.properties,
+        },
       };
     }
 

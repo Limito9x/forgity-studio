@@ -6,36 +6,6 @@ mod tests {
     use std::collections::HashMap;
 
     #[test]
-    fn test_pure_make_and_break_struct() {
-        let mut make_inputs = HashMap::new();
-        make_inputs.insert("duf_path".to_string(), json!("D:/models/char.duf"));
-        make_inputs.insert("resolution".to_string(), json!(2048));
-
-        // 1. Make Struct
-        let make_res = execute_pure_node("local:struct:make:character_manifest", &make_inputs);
-        let struct_output = match make_res {
-            PureNodeResult::Outputs(outs) => outs.get("struct_out").cloned().expect("struct_out must exist"),
-            _ => panic!("Expected pure node outputs"),
-        };
-
-        assert_eq!(struct_output["duf_path"], "D:/models/char.duf");
-        assert_eq!(struct_output["resolution"], 2048);
-
-        // 2. Break Struct
-        let mut break_inputs = HashMap::new();
-        break_inputs.insert("struct_in".to_string(), struct_output);
-
-        let break_res = execute_pure_node("local:struct:break:character_manifest", &break_inputs);
-        match break_res {
-            PureNodeResult::Outputs(outs) => {
-                assert_eq!(outs.get("duf_path").unwrap(), "D:/models/char.duf");
-                assert_eq!(outs.get("resolution").unwrap(), 2048);
-            }
-            _ => panic!("Expected pure node outputs for break"),
-        }
-    }
-
-    #[test]
     fn test_pure_joint_array() {
         let mut inputs = HashMap::new();
         inputs.insert("branch_a".to_string(), json!(["body.fbx"]));
@@ -204,6 +174,32 @@ edges:
         assert_eq!(baked_files[1], "D:/output/cloth_3.duf_2048p.fbx");
         assert_eq!(baked_files[2], "D:/output/cloth_4.duf_2048p.fbx");
         assert_eq!(baked_files[3], "D:/output/cloth_5.duf_2048p.fbx");
+    }
+
+    #[test]
+    fn test_execute_constant_node_from_spec_and_fail_fast() {
+        use crate::core::pure_nodes::execute_constant_node;
+        use crate::core::traits::ResolvedConstantSpec;
+
+        let mut outputs = HashMap::new();
+        outputs.insert("disk_path".to_string(), json!(["D:/Game/{char}"]));
+        outputs.insert("virtual_path".to_string(), json!(["/Game/{char}"]));
+        let spec = ResolvedConstantSpec {
+            outputs,
+            template_vars: vec!["char".to_string()],
+        };
+
+        // Missing template var -> fail fast
+        let err = execute_constant_node("local:constant:PATHS", &spec, &HashMap::new()).unwrap_err();
+        assert!(err.to_string().contains("missing required template variable 'char'"));
+
+        // Provided template var -> renders exact contract outputs
+        let mut inputs = HashMap::new();
+        inputs.insert("char".to_string(), json!("July"));
+        let res = execute_constant_node("local:constant:PATHS", &spec, &inputs).unwrap();
+        assert_eq!(res.get("disk_path"), Some(&json!(["D:/Game/July"])));
+        assert_eq!(res.get("virtual_path"), Some(&json!(["/Game/July"])));
+        assert!(!res.contains_key("value"));
     }
 }
 

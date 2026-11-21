@@ -1,90 +1,147 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
-import { useMemo, useCallback } from "react";
+import { useCallback } from "react";
 import { toast } from "sonner";
-import type {
-  WorkspaceConstantItem,
-  ConstantDataType,
-  ConstantScope,
-} from "../../types/workspaceConfig";
+import type { WorkspaceConstantItem } from "../../types/workspaceConfig";
+import type { LocalDraftNode } from "../../types/workspaceConfig";
+import {
+  PipelineNodeKind,
+  type NodePaletteItemDto,
+} from "@/features/pipelines/types/pipelineGraphTypes";
 
-export interface ResolvedConstant {
-  key: string;
-  rawValue: any;
-  resolvedValue: any;
-  dataType: ConstantDataType;
-  scope: ConstantScope;
-  unrealPath?: string | null;
-  resolvedUnrealPath?: string | null;
-  description?: string | null;
+type LocalDraftPaletteContract = Pick<
+  LocalDraftNode,
+  "key" | "fileName" | "executor" | "inputs" | "outputs"
+> &
+  Partial<
+    Pick<
+      LocalDraftNode,
+      "fullPath" | "suggestedName" | "suggestedLabel" | "description"
+    >
+  >;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/**
- * Resolves recursive `$VAR_NAME` references with cycle detection and depth guard.
- */
-export function resolveConstantsMap(
-  constants: WorkspaceConstantItem[],
-): Record<string, ResolvedConstant> {
-  const rawMap = new Map<string, WorkspaceConstantItem>();
-  for (const c of constants) {
-    rawMap.set(c.key, c);
+function isLocalDraftNode(value: unknown): value is LocalDraftPaletteContract {
+  return (
+    isRecord(value) &&
+    typeof value.key === "string" &&
+    typeof value.fileName === "string" &&
+    typeof value.executor === "string" &&
+    Array.isArray(value.inputs) &&
+    Array.isArray(value.outputs)
+  );
+}
+
+function normalizeWorkspaceNodeContract(
+  value: unknown,
+  index: number
+): NodePaletteItemDto {
+  if (!isRecord(value)) {
+    throw new Error(`Local Workspace node contract ${index} is invalid.`);
   }
 
-  const resolvedMap: Record<string, ResolvedConstant> = {};
-
-  function resolveString(str: string, visited: Set<string>, depth = 0): string {
-    if (depth > 10 || !str.includes("$")) return str;
-
-    return str.replace(/\$([a-zA-Z0-9_]+)/g, (match, varName) => {
-      if (visited.has(varName)) {
-        console.warn(
-          `[Constants] Cyclic dependency detected for variable: $${varName}`,
-        );
-        return match;
-      }
-      const target = rawMap.get(varName);
-      if (!target) return match;
-
-      visited.add(varName);
-      const targetValStr = String(target.value ?? "");
-      const res = resolveString(targetValStr, new Set(visited), depth + 1);
-      return res;
-    });
+  const refId =
+    (typeof value.refId === "string" && value.refId) ||
+    (typeof value.key === "string" && value.key) ||
+    (typeof value.id === "string" && value.id);
+  if (!refId) {
+    throw new Error(`Local Workspace node contract ${index} has no reference ID.`);
   }
 
-  for (const item of constants) {
-    let resolvedValue = item.value;
-    if (typeof item.value === "string") {
-      resolvedValue = resolveString(item.value, new Set([item.key]));
-    } else if (Array.isArray(item.value)) {
-      resolvedValue = item.value.map((v) =>
-        typeof v === "string" ? resolveString(v, new Set([item.key])) : v,
-      );
+  const source = typeof value.source === "string" ? value.source : "";
+  const contractKind = Object.values(PipelineNodeKind).find(
+    (kind) => kind === value.kind
+  );
+  const kind =
+    contractKind ??
+    (source === "BuiltIn"
+      ? PipelineNodeKind.FlowControl
+      : source === "SubPipeline"
+        ? PipelineNodeKind.SubPipeline
+        : source === "Custom" || source === "LocalDraft"
+          ? PipelineNodeKind.Custom
+          : source === "Tool"
+            ? PipelineNodeKind.Tool
+            : undefined);
+  if (!kind) {
+    throw new Error(`Local Workspace node contract "${refId}" has an invalid kind.`);
+  }
+
+  return {
+    ...value,
+    refId,
+    name:
+      (typeof value.name === "string" && value.name) ||
+      (typeof value.label === "string" && value.label) ||
+      refId,
+    kind,
+  } as NodePaletteItemDto;
+}
+
+export async function loadLocalNodeContracts(
+  rootPath: string
+): Promise<NodePaletteItemDto[]> {
+  if (!rootPath) {
+    throw new Error("A Local Workspace root is required to load node contracts.");
+  }
+
+  const paletteJson = await invoke<string>("load_local_palette", { rootPath });
+  let parsedPalette: unknown;
+  try {
+    parsedPalette = JSON.parse(paletteJson);
+  } catch {
+    throw new Error("Local Workspace returned invalid palette JSON.");
+  }
+  if (!isRecord(parsedPalette)) {
+    throw new Error("Local Workspace returned an invalid palette contract.");
+  }
+  const workspaceItems = await invoke<unknown[]>(
+    "load_workspace_node_contracts",
+    { rootPath }
+  );
+  if (!Array.isArray(workspaceItems)) {
+    throw new Error("Local Workspace returned an invalid node contract collection.");
+  }
+
+  const draftItems = Object.values(parsedPalette).map((value, index) => {
+    if (!isLocalDraftNode(value)) {
+      throw new Error(`Local Workspace palette item ${index} is invalid.`);
     }
 
-    let resolvedUnrealPath = item.unrealPath;
-    if (typeof item.unrealPath === "string") {
-      resolvedUnrealPath = resolveString(item.unrealPath, new Set([item.key]));
-    }
-
-    resolvedMap[item.key] = {
-      key: item.key,
-      rawValue: item.value,
-      resolvedValue,
-      dataType: item.dataType,
-      scope: item.scope,
-      unrealPath: item.unrealPath,
-      resolvedUnrealPath,
-      description: item.description,
+    const isPure = (value.executor || "").toLowerCase() === "pure";
+    return {
+      refId: `local:${value.key}`,
+      name: value.suggestedLabel || value.suggestedName || value.fileName,
+      kind: PipelineNodeKind.Custom,
+      key: `local:${value.key}`,
+      label: value.suggestedLabel || value.suggestedName || value.fileName,
+      category: "Local Scripts",
+      source: "LocalDraft",
+      executor: value.executor,
+      execInputs: isPure ? [] : [{ id: "exec_in", label: "Exec" }],
+      execOutputs: isPure ? [] : [{ id: "exec_out", label: "Exec" }],
+      inputs: value.inputs,
+      outputs: value.outputs,
+      description: value.description || value.fullPath,
+      id: `local:${value.key}`,
+      isVisibleInPalette: true,
     };
-  }
+  });
 
-  return resolvedMap;
+  const items = [
+    ...draftItems,
+    ...workspaceItems.map(normalizeWorkspaceNodeContract),
+  ];
+  return [...new Map(items.map((item) => [item.refId, item])).values()];
 }
 
 export function useLocalConstantsQuery(rootPath: string | null) {
   const queryClient = useQueryClient();
   const queryKey = ["local-constants", rootPath];
+  const paletteQueryKey = ["local-constant-palette", rootPath];
 
   const query = useQuery({
     queryKey,
@@ -119,6 +176,8 @@ export function useLocalConstantsQuery(rootPath: string | null) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: paletteQueryKey });
+      queryClient.invalidateQueries({ queryKey: ["local-node-contracts", rootPath] });
     },
     onError: (err: any) => {
       toast.error("Failed to save local constants", {
@@ -128,10 +187,6 @@ export function useLocalConstantsQuery(rootPath: string | null) {
   });
 
   const constants = query.data ?? [];
-
-  const resolvedConstants = useMemo(() => {
-    return resolveConstantsMap(constants);
-  }, [constants]);
 
   const upsertConstant = useCallback(
     async (item: WorkspaceConstantItem) => {
@@ -163,11 +218,47 @@ export function useLocalConstantsQuery(rootPath: string | null) {
 
   return {
     constants,
-    resolvedConstants,
     isLoading: query.isLoading,
     upsertConstant,
     deleteConstant,
     saveConstants: (items: WorkspaceConstantItem[]) => saveMutation.mutateAsync(items),
     refetch: query.refetch,
   };
+}
+
+export function useLocalConstantPaletteQuery(rootPath: string | null) {
+  return useQuery({
+    queryKey: ["local-constant-palette", rootPath],
+    queryFn: async (): Promise<NodePaletteItemDto[]> => {
+      if (!rootPath) return [];
+      try {
+        const items = await invoke<NodePaletteItemDto[]>("load_constant_palette", {
+          rootPath,
+        });
+        return Array.isArray(items) ? items : [];
+      } catch (err) {
+        console.warn("[useLocalConstantPaletteQuery] Failed to load constant palette:", err);
+        return [];
+      }
+    },
+    enabled: Boolean(rootPath),
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useLocalNodeContractsQuery(rootPath: string | null) {
+  return useQuery({
+    queryKey: ["local-node-contracts", rootPath],
+    queryFn: async (): Promise<NodePaletteItemDto[]> => {
+      if (!rootPath) return [];
+      try {
+        return await loadLocalNodeContracts(rootPath);
+      } catch (err) {
+        console.warn("[useLocalNodeContractsQuery] Failed to load node contracts:", err);
+        return [];
+      }
+    },
+    enabled: Boolean(rootPath),
+    staleTime: 1000 * 60 * 5,
+  });
 }

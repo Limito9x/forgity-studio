@@ -7,9 +7,12 @@ export interface PipelineDslNode {
   label?: string;
   category?: string;
   executor?: string;
-  stage?: string;
   inputs?: Record<string, any>;
   metadata?: Record<string, any>;
+  isBatch?: boolean;
+  maxConcurrency?: number;
+  iterablePin?: string;
+  skipOnError?: boolean;
 }
 
 export interface PipelineDslEdge {
@@ -20,10 +23,26 @@ export interface PipelineDslEdge {
 export interface PipelineDslDocument {
   name: string;
   version?: string;
-  runner?: string;
   description?: string;
   nodes: PipelineDslNode[];
   edges?: PipelineDslEdge[];
+}
+
+export function isLegacyScopeContainerNode(node: {
+  type?: unknown;
+  data?: unknown;
+  refId?: unknown;
+  tool?: unknown;
+}): boolean {
+  const data =
+    node.data && typeof node.data === "object"
+      ? (node.data as Record<string, unknown>)
+      : {};
+  const refId = data.refId ?? node.refId ?? node.tool;
+  return (
+    node.type === "scopeContainer" ||
+    String(refId || "").toLowerCase() === "scopecontainer"
+  );
 }
 
 /**
@@ -31,47 +50,102 @@ export interface PipelineDslDocument {
  */
 export function graphToPipelineYaml(
   pipelineName: string,
-  nodes: Node[],
-  edges: Edge[],
-  description?: string
+  nodes: any[],
+  edges: any[],
+  description?: string,
+  kind?: "master" | "component",
+  executor?: string
 ): string {
   const dslNodes: PipelineDslNode[] = [];
+  const legacyScopeIds = new Set(
+    nodes.filter(isLegacyScopeContainerNode).map((node) => String(node.id))
+  );
 
   for (const n of nodes) {
-    if (n.type === "scopeContainer") continue; // Stage scopes are mapped via node.stage
+    if (isLegacyScopeContainerNode(n)) continue;
 
-    const data = n.data || {};
-    const refId = (data.refId as string) || (data.key as string) || n.id;
-    const refIdLower = refId.toLowerCase();
+    // Hỗ trợ cả ReactFlow Node (n.data) lẫn ExtendedPipelineGraphDto Node (phẳng)
+    const data = n.data && typeof n.data === "object" ? n.data : n;
+    const refId =
+      (data.refId as string) ||
+      (n.refId as string) ||
+      (data.key as string) ||
+      (n.key as string) ||
+      n.id;
+    const refIdLower = String(refId).toLowerCase();
     const isControlNode =
       refIdLower === "start" ||
       refIdLower === "beginexecute" ||
       refIdLower === "return" ||
       refIdLower === "endexecute";
 
-    const inputsConfig: Record<string, any> = (data.configValues as Record<string, any>) || {};
+    const rawInputsConfig: Record<string, any> =
+      (data.configValues as Record<string, any>) ||
+      (n.configValues as Record<string, any>) ||
+      {};
+    const isBatch = Boolean(rawInputsConfig._isBatch);
+    const maxConcurrency = isBatch && rawInputsConfig._maxConcurrency != null
+      ? Number(rawInputsConfig._maxConcurrency)
+      : undefined;
+    const iterablePin = isBatch && rawInputsConfig._iterablePin
+      ? String(rawInputsConfig._iterablePin)
+      : undefined;
+    const skipOnError = isBatch && rawInputsConfig._skipOnError !== undefined
+      ? Boolean(rawInputsConfig._skipOnError)
+      : undefined;
+
+    const inputsConfig: Record<string, any> = {};
+    for (const [k, v] of Object.entries(rawInputsConfig)) {
+      if (k === "_isBatch" || k === "_maxConcurrency" || k === "_iterablePin" || k === "_skipOnError") {
+        continue;
+      }
+      inputsConfig[k] = v;
+    }
+
+    const label = (data.label as string) || (n.label as string) || undefined;
+    const category = (data.category as string) || (n.category as string) || undefined;
+    const executor = (data.executor as string) || (n.executor as string) || undefined;
+    const isLocalDraft = Boolean(data.isLocalDraft ?? n.metadata?.isLocalDraft);
+    const sourcePath = data.sourcePath ?? n.metadata?.sourcePath;
 
     dslNodes.push({
       id: n.id,
       tool: refId,
-      label: (data.label as string) || undefined,
-      category: isControlNode ? undefined : (data.category as string) || undefined,
-      executor: isControlNode ? undefined : (data.executor as string) || undefined,
-      stage: (n.parentId as string) || undefined,
+      label,
+      category: isControlNode ? undefined : category,
+      executor: isControlNode ? undefined : executor,
       inputs: Object.keys(inputsConfig).length > 0 ? inputsConfig : undefined,
-      metadata: data.isLocalDraft ? { isLocalDraft: true, sourcePath: data.sourcePath } : undefined,
+      metadata: isLocalDraft ? { isLocalDraft: true, sourcePath } : undefined,
+      ...(isBatch
+        ? {
+            isBatch: true,
+            maxConcurrency,
+            iterablePin,
+            skipOnError,
+          }
+        : {}),
     });
   }
 
-  const dslEdges: PipelineDslEdge[] = edges.map((e) => ({
-    from: `${e.source}.${e.sourceHandle || "out"}`,
-    to: `${e.target}.${e.targetHandle || "in"}`,
-  }));
+  const dslEdges: PipelineDslEdge[] = (edges || [])
+    .map((e: any) => {
+      const src = e.source || e.sourceNodeId;
+      const srcPin = e.sourceHandle || e.sourcePin || "out";
+      const dst = e.target || e.targetNodeId;
+      const dstPin = e.targetHandle || e.targetPin || "in";
+      if (!src || !dst || legacyScopeIds.has(String(src)) || legacyScopeIds.has(String(dst))) return null;
+      return {
+        from: `${src}.${srcPin}`,
+        to: `${dst}.${dstPin}`,
+      };
+    })
+    .filter((x): x is PipelineDslEdge => x !== null);
 
-  const doc: PipelineDslDocument = {
+  const doc: PipelineDslDocument & { kind?: string; executor?: string } = {
     name: pipelineName || "Draft Pipeline",
     version: "draft",
-    runner: "local",
+    ...(kind ? { kind } : {}),
+    ...(kind === "component" && executor ? { executor } : {}),
     description: description || undefined,
     nodes: dslNodes,
     edges: dslEdges.length > 0 ? dslEdges : undefined,
@@ -100,12 +174,18 @@ export function pipelineYamlToGraph(yamlContent: string): {
 
   const nodes: Node[] = [];
   const edges: Edge[] = [];
+  const legacyScopeIds = new Set(
+    parsed.nodes
+      .filter((item) => String(item.tool || "").toLowerCase() === "scopecontainer")
+      .map((item) => item.id)
+  );
 
   // Auto layout position tracking
   let currentX = 100;
   let currentY = 150;
 
   for (const item of parsed.nodes) {
+    if (legacyScopeIds.has(item.id)) continue;
     const isStart = item.id.toLowerCase() === "start" || item.tool.toLowerCase() === "start";
     const isReturn = item.id.toLowerCase() === "return" || item.tool.toLowerCase() === "return";
 
@@ -120,14 +200,23 @@ export function pipelineYamlToGraph(yamlContent: string): {
       id: item.id,
       type: "pipelineNode",
       position: nodePos,
-      parentId: item.stage,
       data: {
         id: item.id,
         refId: item.tool,
         label: item.label || item.tool,
         category: item.category,
         executor: item.executor,
-        configValues: item.inputs || {},
+        configValues: {
+          ...(item.inputs || {}),
+          ...(item.isBatch
+            ? {
+                _isBatch: true,
+                _maxConcurrency: item.maxConcurrency ?? 2,
+                _iterablePin: item.iterablePin ?? "",
+                _skipOnError: item.skipOnError ?? true,
+              }
+            : {}),
+        },
         isLocalDraft: item.metadata?.isLocalDraft || item.tool.startsWith("local:"),
         sourcePath: item.metadata?.sourcePath,
       },
@@ -145,7 +234,7 @@ export function pipelineYamlToGraph(yamlContent: string): {
       const [sourceId, sourceHandle] = (edge.from || "").split(".");
       const [targetId, targetHandle] = (edge.to || "").split(".");
 
-      if (sourceId && targetId) {
+      if (sourceId && targetId && !legacyScopeIds.has(sourceId) && !legacyScopeIds.has(targetId)) {
         edges.push({
           id: `e-${sourceId}-${targetId}-${idx}`,
           source: sourceId,
