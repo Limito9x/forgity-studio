@@ -8,6 +8,4 @@
 
 export interface AddToLibraryRequest {
   machineKey?: string;
-  /** @nullable */
-  constantProfileId?: string | null;
 }

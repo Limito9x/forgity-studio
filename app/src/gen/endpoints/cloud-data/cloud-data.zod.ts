@@ -90,6 +90,23 @@ export const GetCloudDataPipelineVersionResponse = /*#__PURE__*/ zod.object({
 })
 
 /**
+ * @summary Get content-addressed script source from Cloud Data Pool by ScriptHash
+ */
+export const GetCloudDataScriptByHashParams = /*#__PURE__*/ zod.object({
+  "scriptHash": /*#__PURE__*/ zod.string()
+})
+
+export const GetCloudDataScriptByHashResponse = /*#__PURE__*/ zod.object({
+  "scriptId": /*#__PURE__*/ zod.uuid(),
+  "key": /*#__PURE__*/ zod.string(),
+  "executor": /*#__PURE__*/ zod.string(),
+  "scriptHash": /*#__PURE__*/ zod.string(),
+  "sourceCode": /*#__PURE__*/ zod.string(),
+  "requirementsJson": /*#__PURE__*/ zod.unknown(),
+  "createdAt": /*#__PURE__*/ zod.iso.datetime({"offset":true})
+})
+
+/**
  * @summary Get content-addressed script source from Cloud Data Pool
  */
 export const GetCloudDataScriptParams = /*#__PURE__*/ zod.object({

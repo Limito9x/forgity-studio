@@ -14,7 +14,6 @@ public record DispatchBundleRequest(
     Guid? TemplatePackageId,
     Guid? ProjectViewId,
     Guid? TargetPipelineVersionId,
-    Guid? ConstantProfileId,
     string MachineKey,
     Dictionary<string, JsonElement>? RuntimeInputs
 );
@@ -146,21 +145,6 @@ public class DispatchCloudBundleEndpoint(PipelineDbContext db)
             }
         }
 
-        // Resolve ConstantProfile
-        ConstantProfile? profile = null;
-        var profileId = req.ConstantProfileId ?? libraryItem?.ConstantProfileId;
-        if (profileId.HasValue)
-        {
-            profile = await db
-                .ConstantProfiles.AsNoTracking()
-                .FirstOrDefaultAsync(
-                    c =>
-                        c.Id == profileId.Value
-                        && (ownerUserId == Guid.Empty || c.OwnerUserId == ownerUserId),
-                    ct
-                );
-        }
-
         // Fetch scripts linked to this immutable pipeline version.
         var scripts = await db
             .PipelineVersionScripts.AsNoTracking()
@@ -189,9 +173,7 @@ public class DispatchCloudBundleEndpoint(PipelineDbContext db)
             ["slug"] = version.Slug,
             ["dagBundle"] = JsonNode.Parse(version.DagBundleJson.RootElement.GetRawText()),
             ["contracts"] = JsonNode.Parse(version.ContractsJson.RootElement.GetRawText()),
-            ["environmentConstants"] = profile is not null
-                ? JsonNode.Parse(profile.ValuesJson.RootElement.GetRawText())
-                : new JsonObject(),
+            ["environmentConstants"] = new JsonObject(),
             ["scripts"] = scriptsNode,
         };
 

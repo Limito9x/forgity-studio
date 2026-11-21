@@ -85,7 +85,6 @@ public class ProjectPipelineView : AuditableEntity
     public CloudPipeline Pipeline { get; set; } = null!;
     public Guid PinnedVersionId { get; set; }
     public PipelineVersion PinnedVersion { get; set; } = null!;
-    public Guid? DefaultConstantProfileId { get; set; }
 }
 
 /// <summary>
@@ -135,7 +134,7 @@ public class TemplatePackageMember
 }
 
 /// <summary>
-/// User/Machine-owned library entry for a TemplatePackage, binding ConstantProfile and quota usage.
+/// User/Machine-owned library entry for a TemplatePackage with quota usage.
 /// </summary>
 public class TemplateLibraryItem : AuditableEntity
 {
@@ -143,21 +142,8 @@ public class TemplateLibraryItem : AuditableEntity
     public TemplatePackage TemplatePackage { get; set; } = null!;
     public Guid OwnerUserId { get; set; }
     public string MachineKey { get; set; } = string.Empty;
-    public Guid? ConstantProfileId { get; set; }
-    public ConstantProfile? ConstantProfile { get; set; }
     public int UsedRuns { get; set; }
     public int? MaxRuns { get; set; }
     public string PeriodKey { get; set; } = "lifetime";
     public DateTimeOffset AddedAt { get; set; }
-}
-
-/// <summary>
-/// User/Machine-owned environment constants profile (single JSONB document, no secrets).
-/// </summary>
-public class ConstantProfile : AuditableEntity
-{
-    public Guid OwnerUserId { get; set; }
-    public Guid? RunnerId { get; set; }
-    public string Name { get; set; } = string.Empty;
-    public JsonDocument ValuesJson { get; set; } = JsonDocument.Parse("{}");
 }

@@ -18,10 +18,6 @@ export interface TemplateLibraryItemDto {
   description: string | null;
   category: string;
   quotaStrategy: string;
-  /** @nullable */
-  constantProfileId: string | null;
-  /** @nullable */
-  constantProfileName: string | null;
   usedRuns: number;
   /** @nullable */
   maxRuns: number | null;

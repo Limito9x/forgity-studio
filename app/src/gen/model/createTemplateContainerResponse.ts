@@ -9,6 +9,7 @@
 export interface CreateTemplateContainerResponse {
   templatePackageId: string;
   title: string;
+  slug: string;
   masterCount: number;
   componentCount: number;
   constantCount: number;

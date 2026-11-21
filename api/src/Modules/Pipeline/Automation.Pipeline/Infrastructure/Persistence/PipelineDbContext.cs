@@ -9,7 +9,7 @@ public class PipelineDbContext : DbContext
     public PipelineDbContext(DbContextOptions<PipelineDbContext> options)
         : base(options) { }
 
-    // Unified Cloud Pipeline + Views + Library + ConstantProfile
+    // Unified Cloud Pipeline + Views + Library
     public DbSet<CloudPipeline> Pipelines => Set<CloudPipeline>();
     public DbSet<PipelineVersion> PipelineVersions => Set<PipelineVersion>();
     public DbSet<PipelineScript> PipelineScripts => Set<PipelineScript>();
@@ -18,7 +18,6 @@ public class PipelineDbContext : DbContext
     public DbSet<TemplatePackage> TemplatePackages => Set<TemplatePackage>();
     public DbSet<TemplatePackageMember> TemplatePackageMembers => Set<TemplatePackageMember>();
     public DbSet<TemplateLibraryItem> TemplateLibraryItems => Set<TemplateLibraryItem>();
-    public DbSet<ConstantProfile> ConstantProfiles => Set<ConstantProfile>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -98,13 +97,6 @@ public class PipelineDbContext : DbContext
             .WithMany()
             .HasForeignKey(x => x.TemplatePackageId)
             .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder
-            .Entity<TemplateLibraryItem>()
-            .HasOne(x => x.ConstantProfile)
-            .WithMany()
-            .HasForeignKey(x => x.ConstantProfileId)
-            .OnDelete(DeleteBehavior.SetNull);
 
         base.OnModelCreating(modelBuilder);
     }

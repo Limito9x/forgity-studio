@@ -27,8 +27,6 @@ public record TemplateLibraryItemDto(
     string? Description,
     string Category,
     string QuotaStrategy,
-    Guid? ConstantProfileId,
-    string? ConstantProfileName,
     int UsedRuns,
     int? MaxRuns,
     int? RemainingRuns,

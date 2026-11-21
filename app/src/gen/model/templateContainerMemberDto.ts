@@ -14,4 +14,9 @@ export interface TemplateContainerMemberDto {
   graphHash: string;
   role: string;
   sortOrder: number;
+  /** @nullable */
+  dagYaml?: string | null;
+  dagBundleJson?: unknown;
+  quotaMode?: string;
+  quotaCost?: number;
 }

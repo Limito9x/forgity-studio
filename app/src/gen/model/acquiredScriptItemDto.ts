@@ -7,11 +7,10 @@
  */
 import type { JsonDocument } from "./jsonDocument";
 
-export interface ConstantProfileDto {
-  id: string;
-  ownerUserId: string;
-  /** @nullable */
-  runnerId: string | null;
-  name: string;
-  valuesJson: JsonDocument;
+export interface AcquiredScriptItemDto {
+  scriptHash: string;
+  key: string;
+  executor: string;
+  sourceCode: string;
+  requirementsJson: JsonDocument;
 }

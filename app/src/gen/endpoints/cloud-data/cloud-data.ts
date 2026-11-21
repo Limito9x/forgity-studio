@@ -443,6 +443,170 @@ export function useGetCloudDataPipelineVersion<
 }
 
 /**
+ * @summary Get content-addressed script source from Cloud Data Pool by ScriptHash
+ */
+export const getCloudDataScriptByHash = (
+  scriptHash: string,
+  signal?: AbortSignal,
+) => {
+  return customInstance<CloudDataScriptDetailDto>({
+    url: `/api/cloud-data/scripts/by-hash/${scriptHash}`,
+    method: "GET",
+    signal,
+  });
+};
+
+export const getGetCloudDataScriptByHashQueryKey = (scriptHash: string) => {
+  return [`/api/cloud-data/scripts/by-hash/${scriptHash}`] as const;
+};
+
+export const getGetCloudDataScriptByHashQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCloudDataScriptByHash>>,
+  TError = void,
+>(
+  scriptHash: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCloudDataScriptByHash>>,
+        TError,
+        TData
+      >
+    >;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCloudDataScriptByHashQueryKey(scriptHash);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCloudDataScriptByHash>>
+  > = ({ signal }) => getCloudDataScriptByHash(scriptHash, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: scriptHash !== null && scriptHash !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCloudDataScriptByHash>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetCloudDataScriptByHashQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCloudDataScriptByHash>>
+>;
+export type GetCloudDataScriptByHashQueryError = void;
+
+export function useGetCloudDataScriptByHash<
+  TData = Awaited<ReturnType<typeof getCloudDataScriptByHash>>,
+  TError = void,
+>(
+  scriptHash: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCloudDataScriptByHash>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCloudDataScriptByHash>>,
+          TError,
+          Awaited<ReturnType<typeof getCloudDataScriptByHash>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetCloudDataScriptByHash<
+  TData = Awaited<ReturnType<typeof getCloudDataScriptByHash>>,
+  TError = void,
+>(
+  scriptHash: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCloudDataScriptByHash>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCloudDataScriptByHash>>,
+          TError,
+          Awaited<ReturnType<typeof getCloudDataScriptByHash>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetCloudDataScriptByHash<
+  TData = Awaited<ReturnType<typeof getCloudDataScriptByHash>>,
+  TError = void,
+>(
+  scriptHash: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCloudDataScriptByHash>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary Get content-addressed script source from Cloud Data Pool by ScriptHash
+ */
+
+export function useGetCloudDataScriptByHash<
+  TData = Awaited<ReturnType<typeof getCloudDataScriptByHash>>,
+  TError = void,
+>(
+  scriptHash: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getCloudDataScriptByHash>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetCloudDataScriptByHashQueryOptions(
+    scriptHash,
+    options,
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
  * @summary Get content-addressed script source from Cloud Data Pool
  */
 export const getCloudDataScript = (scriptId: string, signal?: AbortSignal) => {

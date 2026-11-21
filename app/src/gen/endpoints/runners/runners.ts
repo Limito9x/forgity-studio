@@ -23,6 +23,8 @@ import type {
 
 import type {
   AttachRunnerToStudioRequest,
+  CheckInRunnerRequest,
+  CheckInRunnerResponse,
   ConfigureRunnerExecutorRequest,
   DictionaryOfStringAndString,
   DiscoverRunnerFolderResult,
@@ -662,6 +664,86 @@ export function useGetStudioRunners<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+/**
+ * @summary Device-first auto check-in for desktop workstations (quota identity)
+ */
+export const checkInRunner = (
+  checkInRunnerRequest: CheckInRunnerRequest,
+  signal?: AbortSignal,
+) => {
+  return customInstance<CheckInRunnerResponse>({
+    url: `/api/runners/check-in`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: checkInRunnerRequest,
+    signal,
+  });
+};
+
+export const getCheckInRunnerMutationOptions = <
+  TError = unknown,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof checkInRunner>>,
+    TError,
+    { data: CheckInRunnerRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof checkInRunner>>,
+  TError,
+  { data: CheckInRunnerRequest },
+  TContext
+> => {
+  const mutationKey = ["checkInRunner"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof checkInRunner>>,
+    { data: CheckInRunnerRequest }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return checkInRunner(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CheckInRunnerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof checkInRunner>>
+>;
+export type CheckInRunnerMutationBody = CheckInRunnerRequest;
+export type CheckInRunnerMutationError = unknown;
+
+/**
+ * @summary Device-first auto check-in for desktop workstations (quota identity)
+ */
+export const useCheckInRunner = <TError = unknown, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof checkInRunner>>,
+      TError,
+      { data: CheckInRunnerRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof checkInRunner>>,
+  TError,
+  { data: CheckInRunnerRequest },
+  TContext
+> => {
+  return useMutation(getCheckInRunnerMutationOptions(options), queryClient);
+};
 export const generateSetupToken = (
   generateSetupTokenRequest: GenerateSetupTokenRequest,
   signal?: AbortSignal,

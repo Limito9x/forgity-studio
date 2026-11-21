@@ -14,4 +14,6 @@ export interface TemplateConstantDeclarationDto {
   isRequired: boolean;
   /** @nullable */
   description: string | null;
+  /** @nullable */
+  defaultValue?: string | null;
 }

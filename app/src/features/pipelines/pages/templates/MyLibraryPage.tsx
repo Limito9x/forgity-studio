@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Library, KeyRound, Play, ArrowRight, AlertTriangle } from "lucide-react";
+import { Library, Play, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,7 @@ export function MyLibraryPage() {
             My Library
           </h1>
           <p className="text-sm text-muted-foreground">
-            Templates added to your library with assigned execution quotas and Constant Profiles.
+            Templates added to your library with assigned execution quotas.
           </p>
         </div>
 
@@ -70,23 +70,6 @@ export function MyLibraryPage() {
                         ? `${item.remainingRuns ?? 0} / ${item.maxRuns} runs left`
                         : "Unlimited"}
                     </span>
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-md bg-muted/40 px-2.5 py-1.5">
-                    <span className="text-muted-foreground flex items-center gap-1">
-                      <KeyRound className="h-3.5 w-3.5" />
-                      Constant Profile
-                    </span>
-                    {item.constantProfileName ? (
-                      <span className="font-medium truncate max-w-[140px]">
-                        {item.constantProfileName}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-amber-500 font-medium">
-                        <AlertTriangle className="h-3 w-3" />
-                        Not bound
-                      </span>
-                    )}
                   </div>
                 </CardContent>
 

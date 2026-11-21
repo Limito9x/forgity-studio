@@ -21,7 +21,6 @@ public class GetMyLibraryItemEndpoint(PipelineDbContext db)
 
         var x = await db
             .TemplateLibraryItems.AsNoTracking()
-            .Include(i => i.ConstantProfile)
             .Include(i => i.TemplatePackage)
                 .ThenInclude(t => t.PrimaryMasterVersion)
             .Include(i => i.TemplatePackage)
@@ -79,8 +78,6 @@ public class GetMyLibraryItemEndpoint(PipelineDbContext db)
                 x.TemplatePackage.Description,
                 x.TemplatePackage.Category,
                 x.TemplatePackage.QuotaStrategy,
-                x.ConstantProfileId,
-                x.ConstantProfile?.Name,
                 x.UsedRuns,
                 effectiveMaxRuns,
                 remaining,

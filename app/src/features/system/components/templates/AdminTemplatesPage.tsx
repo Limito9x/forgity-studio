@@ -11,8 +11,7 @@ import {
   Loader2,
   Trash2,
 } from "lucide-react";
-import { toast } from "sonner";
-import { apiClient } from "@/lib/api-client";
+import { useDialogStore } from "@/stores/dialogStore";
 import {
   Card,
   CardContent,
@@ -37,26 +36,16 @@ export function AdminTemplatesPage() {
   const [search, setSearch] = useState("");
   const [isBuilderMode, setIsBuilderMode] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<EditableTemplateInfo | null>(null);
-  const [removingId, setRemovingId] = useState<string | null>(null);
+  const openDialog = useDialogStore((state) => state.openDialog);
 
-  const handleRemoveTemplate = async (templateId: string, title: string) => {
-    const confirmed = window.confirm(
-      `Remove template "${title}"?\n\nIf no users have forked it, it will be permanently deleted. Otherwise, it will be unpublished and archived from the catalog.`
-    );
-    if (!confirmed) return;
-
-    setRemovingId(templateId);
-    try {
-      const res = await apiClient.delete<{ deleted: boolean; archived: boolean; message: string }>(
-        `/api/templates/containers/${templateId}`
-      );
-      toast.success(res.data?.message || "Template removed.");
-      await refetch();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.title || err?.message || "Failed to remove template.");
-    } finally {
-      setRemovingId(null);
-    }
+  const handleRemoveTemplate = (templateId: string, title: string) => {
+    openDialog("remove-template", {
+      templateId,
+      title,
+      onSuccess: async () => {
+        await refetch();
+      },
+    });
   };
 
   const filtered = useMemo(() => {
@@ -213,15 +202,10 @@ export function AdminTemplatesPage() {
                     size="sm"
                     variant="ghost"
                     className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                    isDisabled={removingId === t.templatePackageId}
                     onPress={() => handleRemoveTemplate(t.templatePackageId, t.title)}
                     aria-label={`Remove ${t.title}`}
                   >
-                    {removingId === t.templatePackageId ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-3.5 w-3.5" />
-                    )}
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </CardFooter>

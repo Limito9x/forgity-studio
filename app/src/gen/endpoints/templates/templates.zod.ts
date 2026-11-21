@@ -28,6 +28,33 @@ export const GetCloudTemplatesResponseItem = /*#__PURE__*/ zod.object({
 export const GetCloudTemplatesResponse = /*#__PURE__*/ zod.array(GetCloudTemplatesResponseItem)
 
 /**
+ * @summary Pre-flight quota verification and secure script download for a template component
+ */
+export const acquireComponentScriptsBodyUnitCountDefault = 1;
+
+export const AcquireComponentScriptsBody = /*#__PURE__*/ zod.object({
+  "templatePackageId": /*#__PURE__*/ zod.uuid(),
+  "pipelineVersionId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "machineKey": /*#__PURE__*/ zod.string(),
+  "scriptHashes": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string()),
+  "unitCount": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.int(), acquireComponentScriptsBodyUnitCountDefault),
+  "alreadyCachedHashes": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.string())),
+  "componentSlug": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+})
+
+export const AcquireComponentScriptsResponse = /*#__PURE__*/ zod.object({
+  "allowed": /*#__PURE__*/ zod.boolean(),
+  "remainingQuota": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
+  "scripts": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "scriptHash": /*#__PURE__*/ zod.string(),
+  "key": /*#__PURE__*/ zod.string(),
+  "executor": /*#__PURE__*/ zod.string(),
+  "sourceCode": /*#__PURE__*/ zod.string(),
+  "requirementsJson": /*#__PURE__*/ zod.unknown()
+}))
+})
+
+/**
  * @summary Consume run quota for an execution on a workstation
  */
 export const consumeTemplateQuotaBodyCountDefault = 1;
@@ -44,6 +71,9 @@ export const ConsumeTemplateQuotaResponse = /*#__PURE__*/ zod.void()
 /**
  * @summary Slice 2: Package ingested Master, Components, Scripts, Constants & Assets into a Template Package Container
  */
+export const createTemplateContainerBodyMemberQuotasOneItemQuotaModeDefault = `PerItem`;
+export const createTemplateContainerBodyMemberQuotasOneItemQuotaCostDefault = 1;
+
 export const CreateTemplateContainerBody = /*#__PURE__*/ zod.object({
   "templateId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
   "title": /*#__PURE__*/ zod.string(),
@@ -59,25 +89,49 @@ export const CreateTemplateContainerBody = /*#__PURE__*/ zod.object({
   "dataType": /*#__PURE__*/ zod.string(),
   "scope": /*#__PURE__*/ zod.string(),
   "isRequired": /*#__PURE__*/ zod.boolean(),
-  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "defaultValue": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })),
   "assets": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "name": /*#__PURE__*/ zod.string(),
   "relativePath": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "belongsToNodeId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "belongsToPinId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
-  "sizeBytes": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int())
+  "sizeBytes": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
+  "assetId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "downloadUrl": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "sha256": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })),
-  "paletteNodesJson": /*#__PURE__*/ zod.unknown()
+  "paletteNodesJson": /*#__PURE__*/ zod.unknown(),
+  "slug": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "memberQuotas": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
+  "pipelineVersionId": /*#__PURE__*/ zod.uuid(),
+  "quotaMode": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.string(), createTemplateContainerBodyMemberQuotasOneItemQuotaModeDefault),
+  "quotaCost": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.int(), createTemplateContainerBodyMemberQuotasOneItemQuotaCostDefault)
+})))
 })
 
 export const CreateTemplateContainerResponse = /*#__PURE__*/ zod.object({
   "templatePackageId": /*#__PURE__*/ zod.uuid(),
   "title": /*#__PURE__*/ zod.string(),
+  "slug": /*#__PURE__*/ zod.string(),
   "masterCount": /*#__PURE__*/ zod.int(),
   "componentCount": /*#__PURE__*/ zod.int(),
   "constantCount": /*#__PURE__*/ zod.int(),
   "assetCount": /*#__PURE__*/ zod.int()
+})
+
+/**
+ * @summary Smart remove a template container (hard delete if unused, or archive if users forked it)
+ */
+export const DeleteTemplateContainerParams = /*#__PURE__*/ zod.object({
+  "id": /*#__PURE__*/ zod.uuid()
+})
+
+export const DeleteTemplateContainerResponse = /*#__PURE__*/ zod.object({
+  "deleted": /*#__PURE__*/ zod.boolean(),
+  "archived": /*#__PURE__*/ zod.boolean(),
+  "message": /*#__PURE__*/ zod.string()
 })
 
 /**
@@ -87,9 +141,13 @@ export const GetTemplateContainerByIdParams = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid()
 })
 
+export const getTemplateContainerByIdResponseMembersItemQuotaModeDefault = `PerItem`;
+export const getTemplateContainerByIdResponseMembersItemQuotaCostDefault = 1;
+
 export const GetTemplateContainerByIdResponse = /*#__PURE__*/ zod.object({
   "templatePackageId": /*#__PURE__*/ zod.uuid(),
   "title": /*#__PURE__*/ zod.string(),
+  "slug": /*#__PURE__*/ zod.string(),
   "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "category": /*#__PURE__*/ zod.string(),
   "versionNumber": /*#__PURE__*/ zod.int(),
@@ -105,7 +163,11 @@ export const GetTemplateContainerByIdResponse = /*#__PURE__*/ zod.object({
   "versionNumber": /*#__PURE__*/ zod.int(),
   "graphHash": /*#__PURE__*/ zod.string(),
   "role": /*#__PURE__*/ zod.string(),
-  "sortOrder": /*#__PURE__*/ zod.int()
+  "sortOrder": /*#__PURE__*/ zod.int(),
+  "dagYaml": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "dagBundleJson": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "quotaMode": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.string(), getTemplateContainerByIdResponseMembersItemQuotaModeDefault),
+  "quotaCost": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.int(), getTemplateContainerByIdResponseMembersItemQuotaCostDefault)
 })),
   "constants": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "key": /*#__PURE__*/ zod.string(),
@@ -113,7 +175,8 @@ export const GetTemplateContainerByIdResponse = /*#__PURE__*/ zod.object({
   "dataType": /*#__PURE__*/ zod.string(),
   "scope": /*#__PURE__*/ zod.string(),
   "isRequired": /*#__PURE__*/ zod.boolean(),
-  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "defaultValue": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })),
   "paletteNodesJson": /*#__PURE__*/ zod.unknown(),
   "containerManifestJson": /*#__PURE__*/ zod.unknown(),
@@ -137,6 +200,9 @@ export const PublishTemplateContainerResponse = /*#__PURE__*/ zod.object({
 /**
  * @summary List all subscribed templates in user's library
  */
+export const getMyLibraryResponseMembersItemQuotaModeDefault = `PerItem`;
+export const getMyLibraryResponseMembersItemQuotaCostDefault = 1;
+
 export const GetMyLibraryResponseItem = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "templatePackageId": /*#__PURE__*/ zod.uuid(),
@@ -145,8 +211,6 @@ export const GetMyLibraryResponseItem = /*#__PURE__*/ zod.object({
   "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "category": /*#__PURE__*/ zod.string(),
   "quotaStrategy": /*#__PURE__*/ zod.string(),
-  "constantProfileId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
-  "constantProfileName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "usedRuns": /*#__PURE__*/ zod.int(),
   "maxRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
   "remainingRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
@@ -158,7 +222,11 @@ export const GetMyLibraryResponseItem = /*#__PURE__*/ zod.object({
   "versionNumber": /*#__PURE__*/ zod.int(),
   "graphHash": /*#__PURE__*/ zod.string(),
   "role": /*#__PURE__*/ zod.string(),
-  "sortOrder": /*#__PURE__*/ zod.int()
+  "sortOrder": /*#__PURE__*/ zod.int(),
+  "dagYaml": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "dagBundleJson": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "quotaMode": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.string(), getMyLibraryResponseMembersItemQuotaModeDefault),
+  "quotaCost": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.int(), getMyLibraryResponseMembersItemQuotaCostDefault)
 })),
   "constants": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "key": /*#__PURE__*/ zod.string(),
@@ -166,7 +234,8 @@ export const GetMyLibraryResponseItem = /*#__PURE__*/ zod.object({
   "dataType": /*#__PURE__*/ zod.string(),
   "scope": /*#__PURE__*/ zod.string(),
   "isRequired": /*#__PURE__*/ zod.boolean(),
-  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "defaultValue": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })),
   "paletteNodesJson": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
 })
@@ -179,6 +248,9 @@ export const GetMyLibraryItemParams = /*#__PURE__*/ zod.object({
   "libraryItemId": /*#__PURE__*/ zod.uuid()
 })
 
+export const getMyLibraryItemResponseMembersItemQuotaModeDefault = `PerItem`;
+export const getMyLibraryItemResponseMembersItemQuotaCostDefault = 1;
+
 export const GetMyLibraryItemResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
   "templatePackageId": /*#__PURE__*/ zod.uuid(),
@@ -187,8 +259,6 @@ export const GetMyLibraryItemResponse = /*#__PURE__*/ zod.object({
   "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "category": /*#__PURE__*/ zod.string(),
   "quotaStrategy": /*#__PURE__*/ zod.string(),
-  "constantProfileId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
-  "constantProfileName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "usedRuns": /*#__PURE__*/ zod.int(),
   "maxRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
   "remainingRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
@@ -200,7 +270,11 @@ export const GetMyLibraryItemResponse = /*#__PURE__*/ zod.object({
   "versionNumber": /*#__PURE__*/ zod.int(),
   "graphHash": /*#__PURE__*/ zod.string(),
   "role": /*#__PURE__*/ zod.string(),
-  "sortOrder": /*#__PURE__*/ zod.int()
+  "sortOrder": /*#__PURE__*/ zod.int(),
+  "dagYaml": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "dagBundleJson": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "quotaMode": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.string(), getMyLibraryItemResponseMembersItemQuotaModeDefault),
+  "quotaCost": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.int(), getMyLibraryItemResponseMembersItemQuotaCostDefault)
 })),
   "constants": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "key": /*#__PURE__*/ zod.string(),
@@ -208,52 +282,8 @@ export const GetMyLibraryItemResponse = /*#__PURE__*/ zod.object({
   "dataType": /*#__PURE__*/ zod.string(),
   "scope": /*#__PURE__*/ zod.string(),
   "isRequired": /*#__PURE__*/ zod.boolean(),
-  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
-})),
-  "paletteNodesJson": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
-})
-
-/**
- * @summary Bind or unbind a ConstantProfile to a Library template item
- */
-export const UpdateLibraryConstantProfileParams = /*#__PURE__*/ zod.object({
-  "libraryItemId": /*#__PURE__*/ zod.uuid()
-})
-
-export const UpdateLibraryConstantProfileBody = /*#__PURE__*/ zod.object({
-  "constantProfileId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid())
-})
-
-export const UpdateLibraryConstantProfileResponse = /*#__PURE__*/ zod.object({
-  "id": /*#__PURE__*/ zod.uuid(),
-  "templatePackageId": /*#__PURE__*/ zod.uuid(),
-  "primaryMasterVersionId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
-  "title": /*#__PURE__*/ zod.string(),
   "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
-  "category": /*#__PURE__*/ zod.string(),
-  "quotaStrategy": /*#__PURE__*/ zod.string(),
-  "constantProfileId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
-  "constantProfileName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
-  "usedRuns": /*#__PURE__*/ zod.int(),
-  "maxRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
-  "remainingRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
-  "addedAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
-  "members": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
-  "pipelineVersionId": /*#__PURE__*/ zod.uuid(),
-  "slug": /*#__PURE__*/ zod.string(),
-  "pipelineKind": /*#__PURE__*/ zod.string(),
-  "versionNumber": /*#__PURE__*/ zod.int(),
-  "graphHash": /*#__PURE__*/ zod.string(),
-  "role": /*#__PURE__*/ zod.string(),
-  "sortOrder": /*#__PURE__*/ zod.int()
-})),
-  "constants": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
-  "key": /*#__PURE__*/ zod.string(),
-  "label": /*#__PURE__*/ zod.string(),
-  "dataType": /*#__PURE__*/ zod.string(),
-  "scope": /*#__PURE__*/ zod.string(),
-  "isRequired": /*#__PURE__*/ zod.boolean(),
-  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+  "defaultValue": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })),
   "paletteNodesJson": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
 })
@@ -268,9 +298,11 @@ export const AddTemplateToLibraryParams = /*#__PURE__*/ zod.object({
 export const addTemplateToLibraryBodyMachineKeyDefault = `local-workstation`;
 
 export const AddTemplateToLibraryBody = /*#__PURE__*/ zod.object({
-  "machineKey": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.string(), addTemplateToLibraryBodyMachineKeyDefault),
-  "constantProfileId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid())
+  "machineKey": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.string(), addTemplateToLibraryBodyMachineKeyDefault)
 })
+
+export const addTemplateToLibraryResponseMembersItemQuotaModeDefault = `PerItem`;
+export const addTemplateToLibraryResponseMembersItemQuotaCostDefault = 1;
 
 export const AddTemplateToLibraryResponse = /*#__PURE__*/ zod.object({
   "id": /*#__PURE__*/ zod.uuid(),
@@ -280,8 +312,6 @@ export const AddTemplateToLibraryResponse = /*#__PURE__*/ zod.object({
   "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "category": /*#__PURE__*/ zod.string(),
   "quotaStrategy": /*#__PURE__*/ zod.string(),
-  "constantProfileId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
-  "constantProfileName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
   "usedRuns": /*#__PURE__*/ zod.int(),
   "maxRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
   "remainingRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
@@ -293,7 +323,11 @@ export const AddTemplateToLibraryResponse = /*#__PURE__*/ zod.object({
   "versionNumber": /*#__PURE__*/ zod.int(),
   "graphHash": /*#__PURE__*/ zod.string(),
   "role": /*#__PURE__*/ zod.string(),
-  "sortOrder": /*#__PURE__*/ zod.int()
+  "sortOrder": /*#__PURE__*/ zod.int(),
+  "dagYaml": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "dagBundleJson": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown()),
+  "quotaMode": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.string(), addTemplateToLibraryResponseMembersItemQuotaModeDefault),
+  "quotaCost": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.int(), addTemplateToLibraryResponseMembersItemQuotaCostDefault)
 })),
   "constants": /*#__PURE__*/ zod.array(/*#__PURE__*/ zod.object({
   "key": /*#__PURE__*/ zod.string(),
@@ -301,7 +335,8 @@ export const AddTemplateToLibraryResponse = /*#__PURE__*/ zod.object({
   "dataType": /*#__PURE__*/ zod.string(),
   "scope": /*#__PURE__*/ zod.string(),
   "isRequired": /*#__PURE__*/ zod.boolean(),
-  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string())
+  "description": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "defaultValue": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
 })),
   "paletteNodesJson": /*#__PURE__*/ zod.optional(/*#__PURE__*/ zod.unknown())
 })

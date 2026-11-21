@@ -6,8 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Automation.Pipeline.Features.Templates;
 
 public record AddToLibraryRequest(
-    string MachineKey = "local-workstation",
-    Guid? ConstantProfileId = null
+    string MachineKey = "local-workstation"
 );
 
 public class AddTemplateToLibraryEndpoint(PipelineDbContext db)
@@ -40,7 +39,7 @@ public class AddTemplateToLibraryEndpoint(PipelineDbContext db)
         }
 
         var existing = await db
-            .TemplateLibraryItems.Include(x => x.ConstantProfile)
+            .TemplateLibraryItems
             .FirstOrDefaultAsync(
                 x =>
                     x.OwnerUserId == ownerUserId
@@ -52,45 +51,11 @@ public class AddTemplateToLibraryEndpoint(PipelineDbContext db)
 
         if (existing is null)
         {
-            Guid? profileId = req.ConstantProfileId;
-            ConstantProfile? createdProfile = null;
-
-            if (!profileId.HasValue)
-            {
-                var envValues = new Dictionary<string, object?>();
-                if (pkg.ContainerManifestJson.RootElement.TryGetProperty("constants", out var constArr)
-                    && constArr.ValueKind == System.Text.Json.JsonValueKind.Array)
-                {
-                    foreach (var item in constArr.EnumerateArray())
-                    {
-                        if (item.TryGetProperty("key", out var keyProp) || item.TryGetProperty("Key", out keyProp))
-                        {
-                            var key = keyProp.GetString();
-                            if (!string.IsNullOrWhiteSpace(key))
-                            {
-                                envValues[key] = "";
-                            }
-                        }
-                    }
-                }
-
-                createdProfile = new ConstantProfile
-                {
-                    OwnerUserId = ownerUserId,
-                    Name = $"{pkg.Title} (.env)",
-                    ValuesJson = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(envValues)),
-                };
-                db.ConstantProfiles.Add(createdProfile);
-                profileId = createdProfile.Id;
-            }
-
             existing = new TemplateLibraryItem
             {
                 TemplatePackageId = templatePackageId,
                 OwnerUserId = ownerUserId,
                 MachineKey = machineKey,
-                ConstantProfileId = profileId,
-                ConstantProfile = createdProfile,
                 UsedRuns = 0,
                 MaxRuns = pkg.DefaultQuotaLimit,
                 PeriodKey = "lifetime",
@@ -118,8 +83,6 @@ public class AddTemplateToLibraryEndpoint(PipelineDbContext db)
                 pkg.Description,
                 pkg.Category,
                 pkg.QuotaStrategy,
-                existing.ConstantProfileId,
-                existing.ConstantProfile?.Name,
                 existing.UsedRuns,
                 existing.MaxRuns,
                 remaining,

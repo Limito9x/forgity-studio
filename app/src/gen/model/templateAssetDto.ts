@@ -16,4 +16,10 @@ export interface TemplateAssetDto {
   belongsToPinId: string | null;
   /** @nullable */
   sizeBytes: number | null;
+  /** @nullable */
+  assetId?: string | null;
+  /** @nullable */
+  downloadUrl?: string | null;
+  /** @nullable */
+  sha256?: string | null;
 }

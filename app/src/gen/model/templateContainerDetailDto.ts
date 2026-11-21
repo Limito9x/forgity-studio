@@ -12,6 +12,7 @@ import type { ListOfTemplateContainerMemberDto } from "./listOfTemplateContainer
 export interface TemplateContainerDetailDto {
   templatePackageId: string;
   title: string;
+  slug: string;
   /** @nullable */
   description: string | null;
   category: string;

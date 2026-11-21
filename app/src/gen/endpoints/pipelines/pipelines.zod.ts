@@ -16,7 +16,6 @@ export const DispatchCloudBundleBody = /*#__PURE__*/ zod.object({
   "templatePackageId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
   "projectViewId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
   "targetPipelineVersionId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
-  "constantProfileId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
   "machineKey": /*#__PURE__*/ zod.string(),
   "runtimeInputs": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.looseObject({
 

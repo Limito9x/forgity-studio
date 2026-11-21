@@ -5,6 +5,10 @@
  * Digital Content Creation Automation Studio Engine & API
  * OpenAPI spec version: 1.0.0
  */
-import type { ConstantProfileDto } from "./constantProfileDto";
 
-export type ListOfConstantProfileDto = ConstantProfileDto[];
+export interface CheckInRunnerResponse {
+  runnerId: string;
+  machineKey: string;
+  hardwareFingerprint: string;
+  isActive: boolean;
+}

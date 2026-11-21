@@ -22,16 +22,18 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AcquireComponentScriptsRequest,
+  AcquireComponentScriptsResponse,
   AddToLibraryRequest,
   ConsumeTemplateQuotaRequest,
   CreateTemplateContainerRequest,
   CreateTemplateContainerResponse,
+  DeleteTemplateContainerResponse,
   ListOfCloudTemplateSummaryDto,
   ListOfTemplateLibraryItemDto,
   PublishTemplateContainerResponse,
   TemplateContainerDetailDto,
   TemplateLibraryItemDto,
-  UpdateLibraryConstantProfileRequest,
 } from "../../model";
 
 import { customInstance } from "../../../lib/api-client";
@@ -200,6 +202,93 @@ export function useGetCloudTemplates<
 }
 
 /**
+ * @summary Pre-flight quota verification and secure script download for a template component
+ */
+export const acquireComponentScripts = (
+  acquireComponentScriptsRequest: AcquireComponentScriptsRequest,
+  signal?: AbortSignal,
+) => {
+  return customInstance<AcquireComponentScriptsResponse>({
+    url: `/api/templates/acquire-component-scripts`,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    data: acquireComponentScriptsRequest,
+    signal,
+  });
+};
+
+export const getAcquireComponentScriptsMutationOptions = <
+  TError = unknown,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof acquireComponentScripts>>,
+    TError,
+    { data: AcquireComponentScriptsRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof acquireComponentScripts>>,
+  TError,
+  { data: AcquireComponentScriptsRequest },
+  TContext
+> => {
+  const mutationKey = ["acquireComponentScripts"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof acquireComponentScripts>>,
+    { data: AcquireComponentScriptsRequest }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return acquireComponentScripts(data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AcquireComponentScriptsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof acquireComponentScripts>>
+>;
+export type AcquireComponentScriptsMutationBody =
+  AcquireComponentScriptsRequest;
+export type AcquireComponentScriptsMutationError = unknown;
+
+/**
+ * @summary Pre-flight quota verification and secure script download for a template component
+ */
+export const useAcquireComponentScripts = <
+  TError = unknown,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof acquireComponentScripts>>,
+      TError,
+      { data: AcquireComponentScriptsRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof acquireComponentScripts>>,
+  TError,
+  { data: AcquireComponentScriptsRequest },
+  TContext
+> => {
+  return useMutation(
+    getAcquireComponentScriptsMutationOptions(options),
+    queryClient,
+  );
+};
+/**
  * @summary Consume run quota for an execution on a workstation
  */
 export const consumeTemplateQuota = (
@@ -363,6 +452,84 @@ export const useCreateTemplateContainer = <TError = void, TContext = unknown>(
 > => {
   return useMutation(
     getCreateTemplateContainerMutationOptions(options),
+    queryClient,
+  );
+};
+/**
+ * @summary Smart remove a template container (hard delete if unused, or archive if users forked it)
+ */
+export const deleteTemplateContainer = (id: string, signal?: AbortSignal) => {
+  return customInstance<DeleteTemplateContainerResponse>({
+    url: `/api/templates/containers/${id}`,
+    method: "DELETE",
+    signal,
+  });
+};
+
+export const getDeleteTemplateContainerMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteTemplateContainer>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteTemplateContainer>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deleteTemplateContainer"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteTemplateContainer>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteTemplateContainer(id);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteTemplateContainerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteTemplateContainer>>
+>;
+
+export type DeleteTemplateContainerMutationError = void;
+
+/**
+ * @summary Smart remove a template container (hard delete if unused, or archive if users forked it)
+ */
+export const useDeleteTemplateContainer = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteTemplateContainer>>,
+      TError,
+      { id: string },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteTemplateContainer>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(
+    getDeleteTemplateContainerMutationOptions(options),
     queryClient,
   );
 };
@@ -888,94 +1055,6 @@ export function useGetMyLibraryItem<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-/**
- * @summary Bind or unbind a ConstantProfile to a Library template item
- */
-export const updateLibraryConstantProfile = (
-  libraryItemId: string,
-  updateLibraryConstantProfileRequest: UpdateLibraryConstantProfileRequest,
-  signal?: AbortSignal,
-) => {
-  return customInstance<TemplateLibraryItemDto>({
-    url: `/api/templates/my-library/${libraryItemId}/constant-profile`,
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    data: updateLibraryConstantProfileRequest,
-    signal,
-  });
-};
-
-export const getUpdateLibraryConstantProfileMutationOptions = <
-  TError = void,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateLibraryConstantProfile>>,
-    TError,
-    { libraryItemId: string; data: UpdateLibraryConstantProfileRequest },
-    TContext
-  >;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof updateLibraryConstantProfile>>,
-  TError,
-  { libraryItemId: string; data: UpdateLibraryConstantProfileRequest },
-  TContext
-> => {
-  const mutationKey = ["updateLibraryConstantProfile"];
-  const { mutation: mutationOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey } };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateLibraryConstantProfile>>,
-    { libraryItemId: string; data: UpdateLibraryConstantProfileRequest }
-  > = (props) => {
-    const { libraryItemId, data } = props ?? {};
-
-    return updateLibraryConstantProfile(libraryItemId, data);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UpdateLibraryConstantProfileMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateLibraryConstantProfile>>
->;
-export type UpdateLibraryConstantProfileMutationBody =
-  UpdateLibraryConstantProfileRequest;
-export type UpdateLibraryConstantProfileMutationError = void;
-
-/**
- * @summary Bind or unbind a ConstantProfile to a Library template item
- */
-export const useUpdateLibraryConstantProfile = <
-  TError = void,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateLibraryConstantProfile>>,
-      TError,
-      { libraryItemId: string; data: UpdateLibraryConstantProfileRequest },
-      TContext
-    >;
-  },
-  queryClient?: QueryClient,
-): UseMutationResult<
-  Awaited<ReturnType<typeof updateLibraryConstantProfile>>,
-  TError,
-  { libraryItemId: string; data: UpdateLibraryConstantProfileRequest },
-  TContext
-> => {
-  return useMutation(
-    getUpdateLibraryConstantProfileMutationOptions(options),
-    queryClient,
-  );
-};
 /**
  * @summary Add a template package to personal workstation library
  */

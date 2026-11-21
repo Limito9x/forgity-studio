@@ -6,7 +6,12 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface UpdateLibraryConstantProfileRequest {
+export interface CheckInRunnerRequest {
+  hardwareFingerprint: string;
+  machineKey: string;
+  name: string;
   /** @nullable */
-  constantProfileId: string | null;
+  osPlatform?: string | null;
+  /** @nullable */
+  appVersion?: string | null;
 }

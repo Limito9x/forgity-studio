@@ -26,4 +26,8 @@ export interface CreateTemplateContainerRequest {
   constants: ListOfTemplateConstantDeclarationDto;
   assets: ListOfTemplateAssetDto;
   paletteNodesJson: JsonDocument;
+  /** @nullable */
+  slug?: string | null;
+  /** @nullable */
+  memberQuotas?: unknown[] | null;
 }

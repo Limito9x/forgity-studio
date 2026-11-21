@@ -233,7 +233,7 @@ export function TemplatePreviewPage({
             <span>Constants (.env) ({constantDeclarations.length})</span>
           </div>
           <p className="text-[11px] text-muted-foreground leading-relaxed">
-            When you add this template to My Library, a personal <code className="font-mono">.env</code> Constant Profile will be created for you.
+            When you fork this template into a local workspace, these constants will be automatically scaffolded into your local <code className="font-mono">.env</code> configuration.
           </p>
 
           {constantDeclarations.length === 0 ? (

@@ -16,8 +16,6 @@ export interface DispatchBundleRequest {
   projectViewId: string | null;
   /** @nullable */
   targetPipelineVersionId: string | null;
-  /** @nullable */
-  constantProfileId: string | null;
   machineKey: string;
   /** @nullable */
   runtimeInputs: DictionaryOfStringAndJsonElement | null;

@@ -21,7 +21,6 @@ public class GetMyLibraryEndpoint(PipelineDbContext db)
 
         var query = db
             .TemplateLibraryItems.AsNoTracking()
-            .Include(x => x.ConstantProfile)
             .Include(x => x.TemplatePackage)
                 .ThenInclude(t => t.PrimaryMasterVersion)
             .Where(x => x.OwnerUserId == ownerUserId && x.PeriodKey == "lifetime");
@@ -48,8 +47,6 @@ public class GetMyLibraryEndpoint(PipelineDbContext db)
                     x.TemplatePackage.Description,
                     x.TemplatePackage.Category,
                     x.TemplatePackage.QuotaStrategy,
-                    x.ConstantProfileId,
-                    x.ConstantProfile?.Name,
                     x.UsedRuns,
                     effectiveMaxRuns,
                     remaining,
