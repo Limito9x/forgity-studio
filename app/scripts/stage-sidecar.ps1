@@ -13,9 +13,11 @@ if (-not $SkipBuild) {
     cargo build --release --manifest-path $RunnerManifest
 }
 
-$SourceBin = Join-Path $RepoRoot "runner\target\release\forgity-runner.exe"
-if (-not (Test-Path $SourceBin)) {
-    throw "forgity-runner.exe not found at $SourceBin"
+$WorkspaceBin = Join-Path $RepoRoot "target\release\forgity-runner.exe"
+$RunnerLocalBin = Join-Path $RepoRoot "runner\target\release\forgity-runner.exe"
+$SourceBin = if (Test-Path $WorkspaceBin) { $WorkspaceBin } elseif (Test-Path $RunnerLocalBin) { $RunnerLocalBin } else { $null }
+if (-not $SourceBin) {
+    throw "forgity-runner.exe not found at $WorkspaceBin or $RunnerLocalBin"
 }
 
 New-Item -ItemType Directory -Path $TargetBinDir -Force | Out-Null
