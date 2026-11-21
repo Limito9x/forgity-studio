@@ -22,6 +22,7 @@ import type { TemplateContainerDetailDto } from "@/gen/model/templateContainerDe
 import { graphToPipelineYaml } from "../utils/pipelineDslConverter";
 import { getCloudDataPipelineVersion } from "@/gen/endpoints/cloud-data/cloud-data";
 import { addTemplateToLibrary, getGetMyLibraryQueryKey } from "@/gen/endpoints/templates/templates";
+import { invoke } from "@tauri-apps/api/core";
 
 interface ForkTemplateDialogProps {
   isOpen: boolean;
@@ -225,21 +226,28 @@ export async function prepareTemplateForkPayload(
 
   const stagedAssetPayloads = await Promise.all(
     Array.from(assetsToDownload.values()).map(async (asset) => {
-      const resp = await fetch(resolveDownloadUrl(asset.downloadUrl));
-      if (!resp.ok) {
-        throw new Error(`Failed to download template asset "${asset.fileName}" (${resp.status}).`);
-      }
-      const buf = new Uint8Array(await resp.arrayBuffer());
-      let binary = "";
-      const chunkSize = 0x8000;
-      for (let i = 0; i < buf.length; i += chunkSize) {
-        binary += String.fromCharCode(...buf.subarray(i, i + chunkSize));
+      const targetUrl = resolveDownloadUrl(asset.downloadUrl);
+      let dataBase64: string;
+      if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+        dataBase64 = await invoke<string>("download_url_base64", { url: targetUrl });
+      } else {
+        const resp = await fetch(targetUrl);
+        if (!resp.ok) {
+          throw new Error(`Failed to download template asset "${asset.fileName}" (${resp.status}).`);
+        }
+        const buf = new Uint8Array(await resp.arrayBuffer());
+        let binary = "";
+        const chunkSize = 0x8000;
+        for (let i = 0; i < buf.length; i += chunkSize) {
+          binary += String.fromCharCode(...buf.subarray(i, i + chunkSize));
+        }
+        dataBase64 = btoa(binary);
       }
       return {
         fileName: asset.fileName,
         relativePath: `assets/${asset.fileName}`,
         sha256: asset.sha256 ?? null,
-        dataBase64: btoa(binary),
+        dataBase64,
       };
     })
   );

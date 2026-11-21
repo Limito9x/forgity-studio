@@ -190,6 +190,22 @@ pub fn fork_template_into_local_workspace(
 }
 
 #[tauri::command]
+pub async fn download_url_base64(url: String) -> Result<String, String> {
+    use base64::Engine as _;
+    let resp = reqwest::get(&url)
+        .await
+        .map_err(|e| format!("Failed to fetch {}: {}", url, e))?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {} when fetching {}", resp.status(), url));
+    }
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| format!("Failed to read response bytes from {}: {}", url, e))?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(&bytes))
+}
+
+#[tauri::command]
 pub fn fork_template_workspace(
     app: tauri::AppHandle,
     params: ForkTemplateParams,

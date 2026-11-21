@@ -35,9 +35,10 @@ export function useCurrentStudio(options?: { enabled?: boolean }) {
 
   const { data: studios, isLoading } = useStudios({ enabled });
 
+  const safeStudios = Array.isArray(studios) ? studios : [];
   const studio =
-    studios?.find((s) => s.slug === effectiveSlug) ??
-    (studios && studios.length > 0 ? studios[0] : undefined);
+    safeStudios.find((s) => s.slug === effectiveSlug) ??
+    (safeStudios.length > 0 ? safeStudios[0] : undefined);
 
   useEffect(() => {
     if (studio) {

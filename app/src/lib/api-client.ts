@@ -13,8 +13,13 @@ import qs from 'qs';
 // Cấu hình base client
 // -----------------------------------------------------------------------------
 
+const defaultTauriApiUrl =
+  typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+    ? 'http://localhost:5189'
+    : '';
+
 export const AXIOS_INSTANCE = axios.create({
-  baseURL: (import.meta.env.VITE_API_URL as string) || '',
+  baseURL: (import.meta.env.VITE_API_URL as string) || defaultTauriApiUrl,
   withCredentials: true, // để cookie refreshToken được gửi tự động
   paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'indices', allowDots: true }),
 });

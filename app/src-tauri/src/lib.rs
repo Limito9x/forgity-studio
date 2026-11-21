@@ -75,7 +75,8 @@ pub fn run() {
             remove_workspace_from_registry,
             commands::workspace::reveal_workspace_in_explorer,
             fork_template_workspace,
-            update_forked_workspace
+            update_forked_workspace,
+            download_url_base64
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
