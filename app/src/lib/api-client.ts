@@ -6,6 +6,7 @@ import axios, {
 } from 'axios';
 import { toast } from 'sonner';
 import { getAuthState } from '@/stores/authStore';
+import { useAppModeStore } from '@/stores/appModeStore';
 import { getCurrentStudioId } from '@/features/studios/hooks/useCurrentStudio';
 import qs from 'qs';
 
@@ -157,7 +158,12 @@ AXIOS_INSTANCE.interceptors.request.use((config: InternalAxiosRequestConfig) => 
 // -----------------------------------------------------------------------------
 
 AXIOS_INSTANCE.interceptors.response.use(
-  (response: AxiosResponse) => response,
+  (response: AxiosResponse) => {
+    if (useAppModeStore.getState().isServerUnreachable) {
+      useAppModeStore.getState().setServerUnreachable(false);
+    }
+    return response;
+  },
 
   async (error: AxiosError<{ extensions?: { errorCode?: string }; title?: string; message?: string }>) => {
     // Bỏ qua nếu request bị cancel
@@ -167,7 +173,13 @@ AXIOS_INSTANCE.interceptors.response.use(
 
     // Không có response → lỗi mạng
     if (!error.response) {
-      toast.error('Cannot connect to the server. Please check your network.');
+      const appMode = useAppModeStore.getState();
+      if (!appMode.isServerUnreachable) {
+        appMode.setServerUnreachable(true);
+        toast.error('Cannot connect to the server. Please check your network.', {
+          id: 'network-error',
+        });
+      }
       return Promise.reject(error);
     }
 

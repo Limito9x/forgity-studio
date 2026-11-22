@@ -84,21 +84,22 @@ function ProtectedLayoutComponent() {
   const isInitialLoading = isProfileLoading || isPermissionsLoading || isStudiosLoading;
 
   const hasServerTrouble = Boolean(studiosError || profileError || permissionsError);
+  const isLocalWorkspaceRoute = pathname.startsWith("/workspaces");
 
   // Fallback tự động sang Local Mode (Guest/Offline) khi không kết nối được tới Cloud server
   useEffect(() => {
-    if (!isInitialLoading && hasServerTrouble) {
+    if (!isInitialLoading && hasServerTrouble && !isLocalWorkspaceRoute) {
       useAppModeStore.getState().setMode("local");
       toast.info("Cloud server unreachable — continuing in Local Mode.");
       navigate({ to: "/local", replace: true });
     }
-  }, [isInitialLoading, hasServerTrouble, navigate]);
+  }, [isInitialLoading, hasServerTrouble, isLocalWorkspaceRoute, navigate]);
 
-  if (isInitialLoading) {
+  if (isInitialLoading && !isLocalWorkspaceRoute) {
     return <AppSplashScreen message="Initializing workspace..." />;
   }
 
-  if (hasServerTrouble) {
+  if (hasServerTrouble && !isLocalWorkspaceRoute) {
     return <AppSplashScreen message="Switching to Local Mode..." />;
   }
 
