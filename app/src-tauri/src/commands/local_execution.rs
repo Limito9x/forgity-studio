@@ -57,9 +57,20 @@ pub fn resolve_runner_executable() -> Result<PathBuf, String> {
         }
     }
 
-    // 2. Dev mode / Monorepo workspace priority
+    // 2. Dev mode / Monorepo workspace priority (only in debug builds so release/installed builds use their bundled sidecar)
+    #[cfg(debug_assertions)]
     if let Ok(cwd) = std::env::current_dir() {
         for ancestor in cwd.ancestors() {
+            let root_debug_bin = ancestor.join("target").join("debug").join(exe_name);
+            if root_debug_bin.is_file() {
+                log::info!("Using dev debug runner from workspace root: {:?}", root_debug_bin);
+                return Ok(root_debug_bin);
+            }
+            let root_release_bin = ancestor.join("target").join("release").join(exe_name);
+            if root_release_bin.is_file() {
+                log::info!("Using dev release runner from workspace root: {:?}", root_release_bin);
+                return Ok(root_release_bin);
+            }
             let debug_bin = ancestor.join("runner").join("target").join("debug").join(exe_name);
             if debug_bin.is_file() {
                 log::info!("Using dev debug runner from monorepo: {:?}", debug_bin);
@@ -232,13 +243,23 @@ fn send_worker_command(
             .ok_or_else(|| "Failed to capture worker stdout".to_string())?;
         let stderr = child.stderr.take();
 
+        let stderr_tail: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+
         if let Some(err_pipe) = stderr {
             let app_err = app.clone();
             let current_run_ref = state.current_run_id.clone();
+            let stderr_tail_err = stderr_tail.clone();
             std::thread::spawn(move || {
                 let reader = BufReader::new(err_pipe);
                 for line in reader.lines().map_while(Result::ok) {
                     if !line.trim().is_empty() {
+                        if let Ok(mut tail) = stderr_tail_err.lock() {
+                            tail.push(line.clone());
+                            if tail.len() > 20 {
+                                let excess = tail.len() - 20;
+                                tail.drain(0..excess);
+                            }
+                        }
                         let rid = current_run_ref
                             .lock()
                             .ok()
@@ -255,6 +276,8 @@ fn send_worker_command(
 
         let app_out = app.clone();
         let run_ctx_ref = state.current_run_context.clone();
+        let current_run_out = state.current_run_id.clone();
+        let stderr_tail_out = stderr_tail.clone();
         std::thread::spawn(move || {
             let reader = BufReader::new(stdout);
             for line in reader.lines().map_while(Result::ok) {
@@ -266,6 +289,13 @@ fn send_worker_command(
                     if parsed.get("type").and_then(|t| t.as_str()) == Some("dcc_sessions") {
                         let _ = app_out.emit("local-pipeline://dcc-sessions", parsed);
                     } else {
+                        if parsed.get("type").and_then(|t| t.as_str()) == Some("run_completed") {
+                            if let Ok(mut cur) = current_run_out.lock() {
+                                if cur.as_deref() == parsed.get("run_id").and_then(|v| v.as_str()) {
+                                    *cur = None;
+                                }
+                            }
+                        }
                         // Persist execution timing & node metrics into .forgity/workspace.db
                         if let Ok(ctx_guard) = run_ctx_ref.lock() {
                             if let Some((ref tracked_run_id, ref root_path, run_started_ms)) = *ctx_guard {
@@ -323,6 +353,29 @@ fn send_worker_command(
                         }
                         let _ = app_out.emit("local-pipeline://event", parsed);
                     }
+                }
+            }
+
+            // Worker stdout closed (process exited/crashed): if a run was active without run_completed, notify UI
+            if let Ok(mut cur) = current_run_out.lock() {
+                if let Some(pending_rid) = cur.take() {
+                    let err_summary = stderr_tail_out
+                        .lock()
+                        .ok()
+                        .map(|t| t.join("\n"))
+                        .filter(|s| !s.trim().is_empty())
+                        .unwrap_or_else(|| "Local runner worker exited unexpectedly.".to_string());
+                    let _ = app_out.emit(
+                        "local-pipeline://event",
+                        serde_json::json!({
+                            "type": "run_completed",
+                            "run_id": pending_rid,
+                            "pipeline_id": "",
+                            "succeeded": false,
+                            "error_message": err_summary,
+                            "duration_ms": 0
+                        }),
+                    );
                 }
             }
         });

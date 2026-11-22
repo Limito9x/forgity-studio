@@ -43,7 +43,9 @@ import {
   FolderOpen,
   Trash2,
   Copy,
+  MessageCircle,
 } from "lucide-react";
+import { appConfig } from "@/config/appConfig";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -539,6 +541,30 @@ export function UnifiedSidebar() {
         </SidebarContent>
 
         <SidebarFooter>
+          {appConfig.links.discord && (
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  tooltip="Join Discord Community"
+                  onPress={async () => {
+                    if (isTauriRuntime()) {
+                      try {
+                        const { open } = await import("@tauri-apps/plugin-shell");
+                        await open(appConfig.links.discord);
+                        return;
+                      } catch {
+                        // fallback
+                      }
+                    }
+                    window.open(appConfig.links.discord, "_blank", "noopener,noreferrer");
+                  }}
+                >
+                  <MessageCircle className="size-4 text-indigo-400" />
+                  <span>Discord Community</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          )}
           <NavUser />
         </SidebarFooter>
       </Sidebar>

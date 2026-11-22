@@ -5,7 +5,10 @@ import type { WorkspaceInitResult } from "../../types/workspaceConfig";
 
 export const ROOT_PATH_KEY = (projectId: string) => `forgity:workspace_root:${projectId}`;
 
-export const WORKSPACE_CONFIG_QUERY_KEY = (projectId: string) => ["local-workspace", "config", projectId] as const;
+export const WORKSPACE_CONFIG_QUERY_KEY = (
+  projectId: string,
+  explicitRootPath?: string | null,
+) => ["local-workspace", "config", projectId, explicitRootPath ?? null] as const;
 
 /**
  * Hook hạ tầng quản lý Root Path & Config (.forgity/config.json) của Local Workspace
@@ -15,7 +18,7 @@ export function useLocalWorkspaceConfig(targetId: string, initialExplicitRootPat
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: WORKSPACE_CONFIG_QUERY_KEY(targetId),
+    queryKey: WORKSPACE_CONFIG_QUERY_KEY(targetId, initialExplicitRootPath),
     queryFn: async (): Promise<WorkspaceInitResult | null> => {
       if (!isTauriRuntime() || !targetId) return null;
 
@@ -116,7 +119,10 @@ export function useLocalWorkspaceConfig(targetId: string, initialExplicitRootPat
       return initResult;
     },
     onSuccess: (newInitResult) => {
-      queryClient.setQueryData(WORKSPACE_CONFIG_QUERY_KEY(targetId), newInitResult);
+      queryClient.setQueryData(
+        WORKSPACE_CONFIG_QUERY_KEY(targetId, initialExplicitRootPath),
+        newInitResult,
+      );
       // Khi đổi root folder, toàn bộ pipeline và palette query của workspace cũ đều bị invalidate
       queryClient.invalidateQueries({ queryKey: ["local-workspace"] });
       queryClient.invalidateQueries({ queryKey: ["workspace-registry"] });
@@ -148,7 +154,9 @@ export function useLocalWorkspaceConfig(targetId: string, initialExplicitRootPat
     },
     onSuccess: (updated) => {
       if (!updated) return;
-      queryClient.setQueryData(WORKSPACE_CONFIG_QUERY_KEY(targetId), (old: WorkspaceInitResult | null) => {
+      queryClient.setQueryData(
+        WORKSPACE_CONFIG_QUERY_KEY(targetId, initialExplicitRootPath),
+        (old: WorkspaceInitResult | null) => {
         if (!old) return old;
         return {
           ...old,

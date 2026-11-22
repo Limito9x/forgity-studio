@@ -843,7 +843,6 @@ export function LocalWorkspacePage({ projectId, explicitRootPath }: LocalWorkspa
               <LocalWorkspaceWelcomeState
                 rootPath={rootPath}
                 onCreatePipeline={() => setIsCreatingPipeline(true)}
-                onPullFromStudio={() => useDialogStore.getState().openDialog("workspace-pull-studio", { projectId })}
               />
             )}
           </div>

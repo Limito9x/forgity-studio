@@ -1175,7 +1175,7 @@ impl WorkspaceDb {
                 .prepare(
                     "SELECT run_id, pipeline_id, pipeline_kind, status, started_at_ms, completed_at_ms, duration_ms, error_message, outputs_json
                      FROM local_execution_runs
-                     WHERE pipeline_id = ?1
+                     WHERE LOWER(REPLACE(REPLACE(pipeline_id, '-', '_'), ' ', '_')) = LOWER(REPLACE(REPLACE(?1, '-', '_'), ' ', '_'))
                      ORDER BY started_at_ms DESC
                      LIMIT ?2",
                 )

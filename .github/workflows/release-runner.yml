@@ -81,6 +81,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           VITE_API_URL: ${{ vars.VITE_API_URL }}
           FORGITY_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_DISCORD_URL: ${{ vars.VITE_DISCORD_URL }}
         with:
           projectPath: app
           tagName: v${{ steps.get_version.outputs.VERSION }}

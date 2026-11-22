@@ -84,10 +84,10 @@ export function useAuthBootstrap(options?: { enabled?: boolean }) {
       setStatus("authenticated");
       return;
     }
-    if (!isAuthBootstrapped) {
+    if (status === "idle" || !isAuthBootstrapped) {
       void runCheck();
     }
-  }, [enabled, accessToken, profile, isAuthBootstrapped, runCheck]);
+  }, [enabled, accessToken, profile, isAuthBootstrapped, status, runCheck]);
 
   return {
     status,

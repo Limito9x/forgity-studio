@@ -1,16 +1,14 @@
-import { Plus, Workflow, CloudDownload, Package } from "lucide-react";
+import { Plus, Workflow, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface LocalWorkspaceWelcomeStateProps {
   onCreatePipeline: () => void;
-  onPullFromStudio?: () => void;
   onUnpackPackage?: () => void;
   rootPath?: string | null;
 }
 
 export function LocalWorkspaceWelcomeState({
   onCreatePipeline,
-  onPullFromStudio,
   onUnpackPackage,
 }: LocalWorkspaceWelcomeStateProps) {
   return (
@@ -39,18 +37,6 @@ export function LocalWorkspaceWelcomeState({
             New Pipeline (.pipeline.yaml)
           </Button>
 
-          {onPullFromStudio && (
-            <Button
-              size="sm"
-              variant="outline"
-              onPress={onPullFromStudio}
-              className="w-full sm:w-auto h-9 px-4 gap-2 text-xs border-primary/40 text-primary hover:bg-primary/10 font-medium"
-            >
-              <CloudDownload className="h-4 w-4" />
-              Pull from Studio
-            </Button>
-          )}
-
           {onUnpackPackage && (
             <Button
               size="sm"
@@ -70,13 +56,13 @@ export function LocalWorkspaceWelcomeState({
           </span>
           <ul className="text-xs text-muted-foreground/80 space-y-1.5 list-disc list-inside">
             <li>
-              Drag & Drop nodes directly from <strong className="text-foreground">Local Palette</strong> onto the canvas.
+              Select or create a pipeline from the left <strong className="text-foreground">Outliner</strong> to open it on the canvas.
             </li>
             <li>
-              Click any script to inspect its <strong className="text-foreground">Pins, Contracts & Source Code</strong>.
+              Drag nodes from <strong className="text-foreground">Scripts / Palette</strong> onto the canvas, or switch to <strong className="text-foreground">YAML</strong> to edit directly.
             </li>
             <li>
-              Test pipelines instantly using <strong className="text-foreground">Run Draft</strong> with your local Runner.
+              Click <strong className="text-foreground">Run</strong> to execute locally using the built-in <strong className="text-foreground">Local Runner</strong>.
             </li>
           </ul>
         </div>

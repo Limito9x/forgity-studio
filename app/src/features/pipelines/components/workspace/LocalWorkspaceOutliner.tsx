@@ -11,7 +11,6 @@ import {
   Copy,
   Pencil,
   Settings2,
-  CloudDownload,
   Package,
   Boxes,
   Zap,
@@ -35,6 +34,21 @@ import { customInstance } from "@/lib/api-client";
 import type { TemplateLibraryItemDto } from "@/gen/model";
 import { prepareTemplateForkPayload } from "../../dialogs/ForkTemplateDialog";
 import { featureFlags } from "@/config/featureFlags";
+import { appConfig } from "@/config/appConfig";
+
+async function openExternalLink(url: string) {
+  if (!url) return;
+  if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+    try {
+      const { open } = await import("@tauri-apps/plugin-shell");
+      await open(url);
+      return;
+    } catch {
+      // fallback to window.open
+    }
+  }
+  window.open(url, "_blank", "noopener,noreferrer");
+}
 import { SUPPORTED_EXECUTOR_KEYS, getSoftwareMetadata } from "@/features/runners/constants/dccEngines";
 import { ExecutorIcon } from "@/features/runners/components/ExecutorIcon";
 import {
@@ -81,7 +95,6 @@ export function LocalWorkspaceOutliner({
   onSyncPalette,
   onOpenConfig,
   onOpenConstants,
-  onOpenPullDialog,
   onOpenUnpackDialog,
   isCreatingPipelineExternal,
   onCreatingPipelineChange,
@@ -160,10 +173,10 @@ export function LocalWorkspaceOutliner({
   const localTemplateVersion = originTemplateVersion ?? 1;
   const hasTemplateUpdate = Boolean(
     cloudTemplate &&
-      (cloudTemplate.versionNumber > localTemplateVersion ||
-        (cloudTemplate.primaryMasterVersionId &&
-          originVersionId &&
-          cloudTemplate.primaryMasterVersionId !== originVersionId))
+    (cloudTemplate.versionNumber > localTemplateVersion ||
+      (cloudTemplate.primaryMasterVersionId &&
+        originVersionId &&
+        cloudTemplate.primaryMasterVersionId !== originVersionId))
   );
   const maxRuns = matchedLibraryItem?.maxRuns ?? cloudTemplate?.defaultQuotaLimit ?? null;
   const remainingRuns =
@@ -322,11 +335,10 @@ export function LocalWorkspaceOutliner({
           type="button"
           onClick={onOpenConstants}
           title="Constants"
-          className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
-            activeTabId === "singleton:constants"
+          className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors cursor-pointer ${activeTabId === "singleton:constants"
               ? "bg-amber-500/15 text-amber-400"
               : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-          }`}
+            }`}
         >
           <KeyRound className="h-4 w-4" />
         </button>
@@ -334,11 +346,10 @@ export function LocalWorkspaceOutliner({
           type="button"
           onClick={onOpenPalette}
           title={`Scripts (${paletteCount})`}
-          className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
-            activeTabId === "singleton:palette"
+          className={`h-8 w-8 flex items-center justify-center rounded-md transition-colors cursor-pointer ${activeTabId === "singleton:palette"
               ? "bg-emerald-500/15 text-emerald-400"
               : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-          }`}
+            }`}
         >
           <Cpu className="h-4 w-4" />
         </button>
@@ -438,6 +449,16 @@ export function LocalWorkspaceOutliner({
             </span>
           </div>
           <div className="flex items-center gap-2">
+            {remainingRuns !== null && remainingRuns <= 0 && appConfig.links.discord && (
+              <button
+                type="button"
+                onClick={() => void openExternalLink(appConfig.links.discord)}
+                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500/25 transition-colors cursor-pointer"
+                title="Join Discord to request more template quota"
+              >
+                Join Discord
+              </button>
+            )}
             {hasTemplateUpdate && cloudTemplate && (
               <button
                 type="button"
@@ -470,11 +491,10 @@ export function LocalWorkspaceOutliner({
           <button
             type="button"
             onClick={onOpenConstants}
-            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-              activeTabId === "singleton:constants"
+            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${activeTabId === "singleton:constants"
                 ? "bg-amber-500/15 text-amber-400"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-            }`}
+              }`}
           >
             <KeyRound className="h-3.5 w-3.5 text-amber-400 shrink-0" />
             <span className="truncate">Constants</span>
@@ -482,11 +502,10 @@ export function LocalWorkspaceOutliner({
 
           <div
             onClick={onOpenPalette}
-            className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-              activeTabId === "singleton:palette"
+            className={`w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${activeTabId === "singleton:palette"
                 ? "bg-emerald-500/15 text-emerald-400"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-            }`}
+              }`}
           >
             <div className="flex items-center gap-2 min-w-0">
               <Cpu className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
@@ -632,21 +651,22 @@ export function LocalWorkspaceOutliner({
                     <div
                       key={draft.fullPath}
                       onClick={() => onSelectDraft?.(draft)}
-                      className={`flex items-center justify-between px-2 py-1.5 rounded-md cursor-pointer text-xs group transition-colors ${isActive ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted/50 text-foreground"
+                      className={`relative flex items-center justify-between px-2 py-1.5 rounded-md cursor-pointer text-xs group transition-colors ${isActive ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted/50 text-foreground"
                         }`}
                     >
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <Boxes className="h-3.5 w-3.5 shrink-0 text-amber-500 group-hover:text-primary" />
-                        <span className="truncate text-[11px] font-mono">{draft.fileName}</span>
+                        <span className="truncate text-[11px] font-mono" title={draft.fileName}>{draft.fileName}</span>
                       </div>
 
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 shrink-0">
                         {draft.executor && (
-                          <Badge variant="outline" className={`text-[8px] px-1 py-0 h-3.5 ${getExecutorColor(draft.executor)}`}>
+                          <Badge variant="outline" className={`text-[8px] px-1 py-0 h-3.5 group-hover:opacity-0 transition-opacity ${getExecutorColor(draft.executor)}`}>
                             {draft.executor}
                           </Badge>
                         )}
-                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      </div>
+                      <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity bg-muted/95 backdrop-blur-xs rounded px-0.5 shadow-xs">
                           <button
                             type="button"
                             onClick={(e) => handleStartRename(e, draft)}
@@ -663,15 +683,14 @@ export function LocalWorkspaceOutliner({
                           >
                             <Copy className="h-3 w-3" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={(e) => handleDelete(e, draft)}
-                            className="p-1 rounded text-muted-foreground hover:text-destructive"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDelete(e, draft)}
+                          className="p-1 rounded text-muted-foreground hover:text-destructive"
+                          title="Delete"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
                       </div>
                     </div>
                   );
@@ -692,19 +711,6 @@ export function LocalWorkspaceOutliner({
               <span>Master Pipelines ({masterPipelines.length})</span>
             </button>
             <div className="flex items-center gap-1">
-              {featureFlags.enableStudioCatalog && onOpenPullDialog && (
-                <span title="Pull Pipeline from Studio">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onPress={onOpenPullDialog}
-                    className="h-5 w-5 p-0 text-muted-foreground hover:text-primary transition-colors"
-                    aria-label="Pull from Studio"
-                  >
-                    <CloudDownload className="h-3.5 w-3.5" />
-                  </Button>
-                </span>
-              )}
               {featureFlags.enableStudioCatalog && onOpenUnpackDialog && (
                 <span title="Import Package (.json)">
                   <Button
@@ -800,15 +806,15 @@ export function LocalWorkspaceOutliner({
                     <div
                       key={draft.fullPath}
                       onClick={() => onSelectDraft?.(draft)}
-                      className={`flex items-center justify-between px-2 py-1.5 rounded-md cursor-pointer text-xs group transition-colors ${isActive ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted/50 text-foreground"
+                      className={`relative flex items-center justify-between px-2 py-1.5 rounded-md cursor-pointer text-xs group transition-colors ${isActive ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted/50 text-foreground"
                         }`}
                     >
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <Workflow className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-primary" />
-                        <span className="truncate text-[11px] font-mono">{draft.fileName}</span>
+                        <span className="truncate text-[11px] font-mono" title={draft.fileName}>{draft.fileName}</span>
                       </div>
 
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity bg-muted/95 backdrop-blur-xs rounded px-0.5 shadow-xs">
                         <button
                           type="button"
                           onClick={(e) => handleStartRename(e, draft)}
