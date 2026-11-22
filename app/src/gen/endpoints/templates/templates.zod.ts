@@ -11,6 +11,9 @@ import * as zod from 'zod/mini';
 /**
  * @summary List all public template packages with user library & quota status
  */
+export const getCloudTemplatesResponseForkCountDefault = 0;
+export const getCloudTemplatesResponseTotalGlobalRunsDefault = 0;
+
 export const GetCloudTemplatesResponseItem = /*#__PURE__*/ zod.object({
   "templatePackageId": /*#__PURE__*/ zod.uuid(),
   "primaryMasterVersionId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
@@ -23,7 +26,9 @@ export const GetCloudTemplatesResponseItem = /*#__PURE__*/ zod.object({
   "usedRuns": /*#__PURE__*/ zod.int(),
   "isAddedToLibrary": /*#__PURE__*/ zod.boolean(),
   "libraryItemId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
-  "versionNumber": /*#__PURE__*/ zod.int()
+  "versionNumber": /*#__PURE__*/ zod.int(),
+  "forkCount": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.int(), getCloudTemplatesResponseForkCountDefault),
+  "totalGlobalRuns": /*#__PURE__*/ zod._default(/*#__PURE__*/ zod.int(), getCloudTemplatesResponseTotalGlobalRunsDefault)
 })
 export const GetCloudTemplatesResponse = /*#__PURE__*/ zod.array(GetCloudTemplatesResponseItem)
 
@@ -195,6 +200,71 @@ export const PublishTemplateContainerResponse = /*#__PURE__*/ zod.object({
   "previousTemplatePackageId": /*#__PURE__*/ zod.uuid(),
   "versionNumber": /*#__PURE__*/ zod.int(),
   "title": /*#__PURE__*/ zod.string()
+})
+
+/**
+ * @summary Admin: list workstation template installations and quota usage
+ */
+export const GetTemplateInstallationsQueryParams = /*#__PURE__*/ zod.object({
+  "templatePackageId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "machineKey": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string()),
+  "ownerUserId": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.uuid()),
+  "status": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.string())
+})
+
+export const GetTemplateInstallationsResponseItem = /*#__PURE__*/ zod.object({
+  "libraryItemId": /*#__PURE__*/ zod.uuid(),
+  "templatePackageId": /*#__PURE__*/ zod.uuid(),
+  "templateTitle": /*#__PURE__*/ zod.string(),
+  "ownerUserId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "ownerEmail": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "machineKey": /*#__PURE__*/ zod.string(),
+  "machineName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "osPlatform": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "appVersion": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "runnerLastSeenAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
+  "usedRuns": /*#__PURE__*/ zod.int(),
+  "maxRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
+  "remainingRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
+  "quotaStrategy": /*#__PURE__*/ zod.string(),
+  "isRevoked": /*#__PURE__*/ zod.boolean(),
+  "addedAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "lastRunAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
+  "status": /*#__PURE__*/ zod.string()
+})
+export const GetTemplateInstallationsResponse = /*#__PURE__*/ zod.array(GetTemplateInstallationsResponseItem)
+
+/**
+ * @summary Admin/Billing: adjust quota limit, add credits, reset usage, or revoke access
+ */
+export const AdjustTemplateInstallationQuotaParams = /*#__PURE__*/ zod.object({
+  "libraryItemId": /*#__PURE__*/ zod.uuid()
+})
+
+export const AdjustTemplateInstallationQuotaBody = /*#__PURE__*/ zod.object({
+  "action": /*#__PURE__*/ zod.union([/*#__PURE__*/ zod.literal(0),/*#__PURE__*/ zod.literal(1),/*#__PURE__*/ zod.literal(2),/*#__PURE__*/ zod.literal(3),/*#__PURE__*/ zod.literal(4),/*#__PURE__*/ zod.literal(5)]),
+  "amount": /*#__PURE__*/ zod.nullish(/*#__PURE__*/ zod.int())
+})
+
+export const AdjustTemplateInstallationQuotaResponse = /*#__PURE__*/ zod.object({
+  "libraryItemId": /*#__PURE__*/ zod.uuid(),
+  "templatePackageId": /*#__PURE__*/ zod.uuid(),
+  "templateTitle": /*#__PURE__*/ zod.string(),
+  "ownerUserId": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.uuid()),
+  "ownerEmail": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "machineKey": /*#__PURE__*/ zod.string(),
+  "machineName": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "osPlatform": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "appVersion": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.string()),
+  "runnerLastSeenAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
+  "usedRuns": /*#__PURE__*/ zod.int(),
+  "maxRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
+  "remainingRuns": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.int()),
+  "quotaStrategy": /*#__PURE__*/ zod.string(),
+  "isRevoked": /*#__PURE__*/ zod.boolean(),
+  "addedAt": /*#__PURE__*/ zod.iso.datetime({"offset":true}),
+  "lastRunAt": /*#__PURE__*/ zod.nullable(/*#__PURE__*/ zod.iso.datetime({"offset":true})),
+  "status": /*#__PURE__*/ zod.string()
 })
 
 /**

@@ -164,8 +164,9 @@ export function LocalNodePaletteWorkbench({
         );
       }
     } catch (err: any) {
+      const msg = typeof err === "string" ? err : err?.message || "Error running native script analyzer";
       toast.error("Failed to analyze local scripts", {
-        description: err?.message || "Error running native script analyzer",
+        description: msg,
       });
       setMode("library");
     } finally {

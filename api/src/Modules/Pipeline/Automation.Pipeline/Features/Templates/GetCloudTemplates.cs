@@ -27,16 +27,26 @@ public class GetCloudTemplatesEndpoint(PipelineDbContext db)
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync(ct);
 
-        var rawLibraryItems = await db
+        var allLibraryItems = await db
             .TemplateLibraryItems.AsNoTracking()
-            .Where(q =>
-                q.PeriodKey == "lifetime"
-                && (string.IsNullOrWhiteSpace(requestedMachineKey) || q.MachineKey == requestedMachineKey.Trim())
-            )
+            .Where(q => q.PeriodKey == "lifetime")
             .OrderByDescending(q => q.AddedAt)
             .ToListAsync(ct);
 
-        var libraryItems = rawLibraryItems
+        var statsByTemplate = allLibraryItems
+            .GroupBy(q => q.TemplatePackageId)
+            .ToDictionary(
+                g => g.Key,
+                g => (ForkCount: g.Count(), TotalGlobalRuns: g.Sum(x => x.UsedRuns))
+            );
+
+        var filteredItems = string.IsNullOrWhiteSpace(requestedMachineKey)
+            ? allLibraryItems
+            : allLibraryItems
+                .Where(q => q.MachineKey == requestedMachineKey.Trim())
+                .ToList();
+
+        var libraryItems = filteredItems
             .GroupBy(q => q.TemplatePackageId)
             .ToDictionary(g => g.Key, g => g.First());
 
@@ -44,6 +54,7 @@ public class GetCloudTemplatesEndpoint(PipelineDbContext db)
             .Select(t =>
             {
                 libraryItems.TryGetValue(t.Id, out var libItem);
+                statsByTemplate.TryGetValue(t.Id, out var stats);
                 var used = libItem?.UsedRuns ?? 0;
                 int? max = libItem is not null ? libItem.MaxRuns : t.DefaultQuotaLimit;
                 int? remaining = max.HasValue ? Math.Max(0, max.Value - used) : null;
@@ -60,7 +71,9 @@ public class GetCloudTemplatesEndpoint(PipelineDbContext db)
                     used,
                     libItem is not null,
                     libItem?.Id,
-                    t.VersionNumber
+                    t.VersionNumber,
+                    stats.ForkCount,
+                    stats.TotalGlobalRuns
                 );
             })
             .ToList();

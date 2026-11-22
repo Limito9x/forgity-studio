@@ -13,6 +13,10 @@ public interface IRunnerApi
         IEnumerable<Guid> runnerIds,
         CancellationToken ct = default
     );
+    Task<Result<IReadOnlyDictionary<string, RunnerDto>>> GetRunnersMapByMachineKeysAsync(
+        IEnumerable<string> machineKeys,
+        CancellationToken ct = default
+    );
     Task<Result<RunnerScanResultDto>> SendScanCommandAsync(
         Guid runnerId,
         string directoryPath,

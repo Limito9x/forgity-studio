@@ -44,6 +44,7 @@ public class AcquireComponentScriptsEndpoint(PipelineDbContext db)
     public override async Task HandleAsync(AcquireComponentScriptsRequest req, CancellationToken ct)
     {
         var ownerUserId = CloudTemplateClaimHelper.GetOwnerUserId(User);
+        var ownerEmail = CloudTemplateClaimHelper.GetOwnerEmail(User);
 
         // 1. Verify TemplatePackage existence
         var template = await db.TemplatePackages
@@ -161,6 +162,7 @@ public class AcquireComponentScriptsEndpoint(PipelineDbContext db)
             {
                 TemplatePackageId = req.TemplatePackageId,
                 OwnerUserId = ownerUserId != Guid.Empty ? ownerUserId : null,
+                OwnerEmail = ownerEmail,
                 MachineKey = effectiveMachineKey,
                 UsedRuns = 0,
                 MaxRuns = template.DefaultQuotaLimit,
@@ -170,10 +172,39 @@ public class AcquireComponentScriptsEndpoint(PipelineDbContext db)
             db.TemplateLibraryItems.Add(libraryItem);
             await db.SaveChangesAsync(ct);
         }
-        else if (!libraryItem.MaxRuns.HasValue && template.DefaultQuotaLimit.HasValue)
+        else
         {
-            libraryItem.MaxRuns = template.DefaultQuotaLimit;
-            await db.SaveChangesAsync(ct);
+            var dirty = false;
+            if (!libraryItem.MaxRuns.HasValue && template.DefaultQuotaLimit.HasValue)
+            {
+                libraryItem.MaxRuns = template.DefaultQuotaLimit;
+                dirty = true;
+            }
+            if (ownerUserId != Guid.Empty && libraryItem.OwnerUserId != ownerUserId)
+            {
+                libraryItem.OwnerUserId = ownerUserId;
+                dirty = true;
+            }
+            if (!string.IsNullOrWhiteSpace(ownerEmail) && libraryItem.OwnerEmail != ownerEmail)
+            {
+                libraryItem.OwnerEmail = ownerEmail;
+                dirty = true;
+            }
+            if (dirty)
+            {
+                await db.SaveChangesAsync(ct);
+            }
+        }
+
+        if (libraryItem.IsRevoked)
+        {
+            HttpContext.Response.StatusCode = 403;
+            await HttpResponseJsonExtensions.WriteAsJsonAsync(
+                HttpContext.Response,
+                new { error = "TEMPLATE_ACCESS_REVOKED", message = "Template access has been revoked for this workstation." },
+                ct
+            );
+            return;
         }
 
         // 4. Resolve per-member quota policy (match ComponentSlug FIRST, then ScriptHash, then PipelineVersionId)
@@ -214,8 +245,8 @@ public class AcquireComponentScriptsEndpoint(PipelineDbContext db)
                 var rows = await db.Database.ExecuteSqlInterpolatedAsync(
                     $@"
                     UPDATE pipeline.""TemplateLibraryItems""
-                    SET ""UsedRuns"" = ""UsedRuns"" + {effectiveUnits}
-                    WHERE ""Id"" = {libraryItem.Id} AND ""UsedRuns"" + {effectiveUnits} <= ""MaxRuns""
+                    SET ""UsedRuns"" = ""UsedRuns"" + {effectiveUnits}, ""LastRunAt"" = NOW()
+                    WHERE ""Id"" = {libraryItem.Id} AND ""IsRevoked"" = FALSE AND ""UsedRuns"" + {effectiveUnits} <= ""MaxRuns""
                     ",
                     ct
                 );

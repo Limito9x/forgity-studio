@@ -16,7 +16,9 @@ public record CloudTemplateSummaryDto(
     int UsedRuns,
     bool IsAddedToLibrary,
     Guid? LibraryItemId,
-    int VersionNumber
+    int VersionNumber,
+    int ForkCount = 0,
+    int TotalGlobalRuns = 0
 );
 
 public record TemplateLibraryItemDto(
@@ -43,6 +45,12 @@ public static class CloudTemplateClaimHelper
         var userIdStr =
             user.FindFirstValue(ClaimTypes.NameIdentifier) ?? user.FindFirstValue("sub");
         return Guid.TryParse(userIdStr, out var parsed) ? parsed : Guid.Empty;
+    }
+
+    public static string? GetOwnerEmail(ClaimsPrincipal user)
+    {
+        var email = user.FindFirstValue(ClaimTypes.Email) ?? user.FindFirstValue("email");
+        return string.IsNullOrWhiteSpace(email) ? null : email.Trim();
     }
 
     public static List<TemplateConstantDeclarationDto> ExtractConstants(JsonDocument manifest)

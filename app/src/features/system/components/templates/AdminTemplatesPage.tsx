@@ -2,14 +2,14 @@ import { useState, useMemo } from "react";
 import {
   PackagePlus,
   Sparkles,
-  Layers,
   Search,
-  Workflow,
   Plus,
   KeyRound,
   Shield,
   Loader2,
   Trash2,
+  Laptop,
+  Activity,
 } from "lucide-react";
 import { useDialogStore } from "@/stores/dialogStore";
 import {
@@ -30,12 +30,18 @@ import {
   TemplateContainerBuilder,
   type EditableTemplateInfo,
 } from "./TemplateContainerBuilder";
+import { TemplateQuotaManagementView } from "./TemplateQuotaManagementView";
 
 export function AdminTemplatesPage() {
   const { data: templates = [], isLoading, refetch } = useGetCloudTemplates();
   const [search, setSearch] = useState("");
   const [isBuilderMode, setIsBuilderMode] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<EditableTemplateInfo | null>(null);
+  const [quotaScope, setQuotaScope] = useState<{
+    open: boolean;
+    templatePackageId?: string;
+    templateTitle?: string;
+  }>({ open: false });
   const openDialog = useDialogStore((state) => state.openDialog);
 
   const handleRemoveTemplate = (templateId: string, title: string) => {
@@ -57,6 +63,21 @@ export function AdminTemplatesPage() {
         (t.description || "").toLowerCase().includes(q)
     );
   }, [templates, search]);
+
+  if (quotaScope.open) {
+    return (
+      <div className="page-container">
+        <TemplateQuotaManagementView
+          templatePackageId={quotaScope.templatePackageId}
+          templateTitle={quotaScope.templateTitle}
+          onBack={() => {
+            setQuotaScope({ open: false });
+            refetch();
+          }}
+        />
+      </div>
+    );
+  }
 
   if (isBuilderMode) {
     return (
@@ -92,6 +113,15 @@ export function AdminTemplatesPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onPress={() => setQuotaScope({ open: true })}
+            className="gap-1.5 text-xs cursor-pointer"
+          >
+            <Laptop className="h-3.5 w-3.5" />
+            <span>All Machine Quotas</span>
+          </Button>
           <Button
             size="sm"
             onPress={() => setIsBuilderMode(true)}
@@ -158,12 +188,12 @@ export function AdminTemplatesPage() {
               <CardContent className="flex-1 pb-3 text-xs space-y-2">
                 <div className="grid grid-cols-2 gap-2 text-muted-foreground bg-muted/30 p-2.5 rounded-lg border border-border/50">
                   <div className="flex items-center gap-1.5">
-                    <Workflow className="size-3.5 text-primary" />
-                    <span>Template DAG</span>
+                    <Laptop className="size-3.5 text-primary" />
+                    <span>Forks: {t.forkCount ?? 0}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <Layers className="size-3.5 text-sky-500" />
-                    <span>Runs: {t.usedRuns}</span>
+                    <Activity className="size-3.5 text-sky-500" />
+                    <span>Global Runs: {t.totalGlobalRuns ?? 0}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <KeyRound className="size-3.5 text-amber-500" />
@@ -181,6 +211,20 @@ export function AdminTemplatesPage() {
                   ID: {t.templatePackageId.slice(0, 8)}...
                 </span>
                 <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2.5 text-xs"
+                    onPress={() =>
+                      setQuotaScope({
+                        open: true,
+                        templatePackageId: t.templatePackageId,
+                        templateTitle: t.title,
+                      })
+                    }
+                  >
+                    Quotas ({t.forkCount ?? 0})
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"

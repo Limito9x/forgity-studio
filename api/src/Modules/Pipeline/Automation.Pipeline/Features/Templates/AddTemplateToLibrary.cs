@@ -23,6 +23,7 @@ public class AddTemplateToLibraryEndpoint(PipelineDbContext db)
     {
         var templatePackageId = Route<Guid>("templatePackageId");
         var ownerUserId = CloudTemplateClaimHelper.GetOwnerUserId(User);
+        var ownerEmail = CloudTemplateClaimHelper.GetOwnerEmail(User);
         var machineKey = string.IsNullOrWhiteSpace(req.MachineKey)
             ? "local-workstation"
             : req.MachineKey.Trim();
@@ -54,6 +55,7 @@ public class AddTemplateToLibraryEndpoint(PipelineDbContext db)
             {
                 TemplatePackageId = templatePackageId,
                 OwnerUserId = ownerUserId != Guid.Empty ? ownerUserId : null,
+                OwnerEmail = ownerEmail,
                 MachineKey = machineKey,
                 UsedRuns = 0,
                 MaxRuns = pkg.DefaultQuotaLimit,
@@ -63,10 +65,28 @@ public class AddTemplateToLibraryEndpoint(PipelineDbContext db)
             db.TemplateLibraryItems.Add(existing);
             await db.SaveChangesAsync(ct);
         }
-        else if (!existing.MaxRuns.HasValue && pkg.DefaultQuotaLimit.HasValue)
+        else
         {
-            existing.MaxRuns = pkg.DefaultQuotaLimit;
-            await db.SaveChangesAsync(ct);
+            var dirty = false;
+            if (!existing.MaxRuns.HasValue && pkg.DefaultQuotaLimit.HasValue)
+            {
+                existing.MaxRuns = pkg.DefaultQuotaLimit;
+                dirty = true;
+            }
+            if (ownerUserId != Guid.Empty && existing.OwnerUserId != ownerUserId)
+            {
+                existing.OwnerUserId = ownerUserId;
+                dirty = true;
+            }
+            if (!string.IsNullOrWhiteSpace(ownerEmail) && existing.OwnerEmail != ownerEmail)
+            {
+                existing.OwnerEmail = ownerEmail;
+                dirty = true;
+            }
+            if (dirty)
+            {
+                await db.SaveChangesAsync(ct);
+            }
         }
 
         var remaining = existing.MaxRuns.HasValue

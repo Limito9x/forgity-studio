@@ -60,6 +60,40 @@ public class RunnerApiService(
         return Result.Ok<IReadOnlyDictionary<Guid, RunnerDto>>(map);
     }
 
+    public async Task<Result<IReadOnlyDictionary<string, RunnerDto>>> GetRunnersMapByMachineKeysAsync(
+        IEnumerable<string> machineKeys,
+        CancellationToken ct = default
+    )
+    {
+        var keys = machineKeys
+            .Where(k => !string.IsNullOrWhiteSpace(k))
+            .Select(k => k.Trim())
+            .Distinct()
+            .ToList();
+
+        if (keys.Count == 0)
+            return Result.Ok<IReadOnlyDictionary<string, RunnerDto>>(
+                new Dictionary<string, RunnerDto>(StringComparer.OrdinalIgnoreCase)
+            );
+
+        var entities = await db
+            .Runners.AsNoTracking()
+            .Where(r => keys.Contains(r.MachineKey))
+            .OrderByDescending(r => r.LastSeenAt ?? r.CreatedAt)
+            .ToListAsync(ct);
+
+        var map = new Dictionary<string, RunnerDto>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entity in entities)
+        {
+            if (!map.ContainsKey(entity.MachineKey))
+            {
+                map[entity.MachineKey] = entity.Adapt<RunnerDto>();
+            }
+        }
+
+        return Result.Ok<IReadOnlyDictionary<string, RunnerDto>>(map);
+    }
+
     public async Task<Result<RunnerScanResultDto>> SendScanCommandAsync(
         Guid runnerId,
         string directoryPath,
