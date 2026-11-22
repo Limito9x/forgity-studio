@@ -23,6 +23,7 @@ import { graphToPipelineYaml } from "../utils/pipelineDslConverter";
 import { getCloudDataPipelineVersion } from "@/gen/endpoints/cloud-data/cloud-data";
 import { addTemplateToLibrary, getGetMyLibraryQueryKey } from "@/gen/endpoints/templates/templates";
 import { invoke } from "@tauri-apps/api/core";
+import { WORKSPACE_REGISTRY_QUERY_KEY } from "@/features/pipelines/hooks/workspace/useWorkspaceRegistry";
 
 interface ForkTemplateDialogProps {
   isOpen: boolean;
@@ -355,6 +356,8 @@ export function ForkTemplateDialog({
           assets: payload.assets,
         },
       });
+
+      await queryClient.invalidateQueries({ queryKey: WORKSPACE_REGISTRY_QUERY_KEY });
 
       // Auto add template to user library if not already added
       try {

@@ -5,12 +5,12 @@ import { cn } from '@/lib/utils'
 const settingsNavItems = [
   {
     title: 'Profile',
-    href: '/settings/profile',
+    href: '/account/settings/profile',
     icon: User,
   },
   {
     title: 'Security',
-    href: '/settings/security',
+    href: '/account/settings/security',
     icon: Shield,
   },
 ]

@@ -13,6 +13,7 @@ export const appConfig = {
     docs: "/docs",
     support: "forgity.studio@gmail.com",
     github: "https://github.com/Limito9x/automation-studio",
+    discord: (import.meta.env.VITE_DISCORD_URL as string | undefined)?.trim() || "",
   },
 } as const;
 

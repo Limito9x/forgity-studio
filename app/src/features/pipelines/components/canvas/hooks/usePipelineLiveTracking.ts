@@ -9,6 +9,21 @@ import {
 import { ExecutionStatus, mapExecutionStatus, usePipelineSignalR } from "../../../hooks/usePipelineSignalR";
 import { toast } from "sonner";
 import type { CustomPipelineNodeData } from "../nodes/types";
+import { appConfig } from "@/config/appConfig";
+
+async function openDiscordUrl(url: string) {
+  if (!url) return;
+  if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+    try {
+      const { open } = await import("@tauri-apps/plugin-shell");
+      await open(url);
+      return;
+    } catch {
+      // fallback
+    }
+  }
+  window.open(url, "_blank", "noopener,noreferrer");
+}
 
 interface UsePipelineLiveTrackingArgs {
   pipelineId: string;
@@ -237,7 +252,18 @@ export function usePipelineLiveTracking({
                 ...prev,
                 __run__: errMsg,
               }));
-              toast.error("Local Pipeline Failed", { description: errMsg });
+              const isQuotaErr = /quota|limit/i.test(errMsg);
+              toast.error("Local Pipeline Failed", {
+                description: errMsg,
+                ...(isQuotaErr && appConfig.links.discord
+                  ? {
+                      action: {
+                        label: "Join Discord",
+                        onClick: () => void openDiscordUrl(appConfig.links.discord),
+                      },
+                    }
+                  : {}),
+              });
               setDrawerDefaultTab("logs");
               setIsDrawerOpen(true);
             }
