@@ -18,7 +18,6 @@ import {
   Pencil,
   LocateFixed,
   GitCommit,
-  Laptop,
   Power,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
@@ -160,7 +159,7 @@ export function CanvasToolbar({
     <div className="flex h-14 w-full items-center justify-between border-b border-border/80 bg-background px-4 shadow-sm z-30">
       {/* Left: Back & Title */}
       <div className="flex items-center gap-3 min-w-0">
-        {!isLocalMode && (
+        {!isLocalMode && !readOnly && (
           <Link
             to="/studio/$studioSlug/projects/$projectId/pipeline"
             params={{ studioSlug, projectId }}
@@ -168,13 +167,6 @@ export function CanvasToolbar({
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
-        )}
-
-        {isLocalMode && (
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-muted/50 border border-border/50 text-emerald-500 font-medium text-xs shrink-0">
-            <Laptop className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Local Runner</span>
-          </div>
         )}
 
         <div className="flex items-center gap-2 min-w-0">
@@ -485,8 +477,8 @@ export function CanvasToolbar({
         ) : (
           <div
             title={`This pipeline is configured for automated trigger (${triggerType === 1 || triggerType === "OnResourceCreated"
-                ? "On Resource Created"
-                : "On Version Updated"
+              ? "On Resource Created"
+              : "On Version Updated"
               }) and cannot be triggered manually.`}
             className="inline-block"
           >
