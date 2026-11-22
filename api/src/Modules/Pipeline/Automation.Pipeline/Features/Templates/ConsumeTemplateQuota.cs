@@ -52,13 +52,36 @@ public class ConsumeTemplateQuotaEndpoint(PipelineDbContext db)
             return;
         }
 
+        if (existing.IsRevoked)
+        {
+            HttpContext.Response.StatusCode = 403;
+            await HttpResponseJsonExtensions.WriteAsJsonAsync(
+                HttpContext.Response,
+                new
+                {
+                    error = "TEMPLATE_ACCESS_REVOKED",
+                    message = "Template access has been revoked for this workstation.",
+                },
+                ct
+            );
+            return;
+        }
+
+        var ownerUserId = CloudTemplateClaimHelper.GetOwnerUserId(User);
+        var ownerEmail = CloudTemplateClaimHelper.GetOwnerEmail(User);
+        var resolvedUserId = ownerUserId != Guid.Empty ? (Guid?)ownerUserId : existing.OwnerUserId;
+        var resolvedEmail = !string.IsNullOrWhiteSpace(ownerEmail) ? ownerEmail : existing.OwnerEmail;
+
         if (!existing.MaxRuns.HasValue)
         {
             await db.Database.ExecuteSqlInterpolatedAsync(
                 $@"
                 UPDATE pipeline.""TemplateLibraryItems""
-                SET ""UsedRuns"" = ""UsedRuns"" + {req.Count}
-                WHERE ""Id"" = {existing.Id}
+                SET ""UsedRuns"" = ""UsedRuns"" + {req.Count},
+                    ""LastRunAt"" = NOW(),
+                    ""OwnerUserId"" = {resolvedUserId},
+                    ""OwnerEmail"" = {resolvedEmail}
+                WHERE ""Id"" = {existing.Id} AND ""IsRevoked"" = FALSE
             ",
                 ct
             );
@@ -69,8 +92,11 @@ public class ConsumeTemplateQuotaEndpoint(PipelineDbContext db)
         var rows = await db.Database.ExecuteSqlInterpolatedAsync(
             $@"
             UPDATE pipeline.""TemplateLibraryItems""
-            SET ""UsedRuns"" = ""UsedRuns"" + {req.Count}
-            WHERE ""Id"" = {existing.Id} AND ""UsedRuns"" + {req.Count} <= ""MaxRuns""
+            SET ""UsedRuns"" = ""UsedRuns"" + {req.Count},
+                ""LastRunAt"" = NOW(),
+                ""OwnerUserId"" = {resolvedUserId},
+                ""OwnerEmail"" = {resolvedEmail}
+            WHERE ""Id"" = {existing.Id} AND ""IsRevoked"" = FALSE AND ""UsedRuns"" + {req.Count} <= ""MaxRuns""
         ",
             ct
         );

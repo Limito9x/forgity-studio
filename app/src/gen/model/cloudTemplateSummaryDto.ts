@@ -24,4 +24,6 @@ export interface CloudTemplateSummaryDto {
   /** @nullable */
   libraryItemId: string | null;
   versionNumber: number;
+  forkCount?: number;
+  totalGlobalRuns?: number;
 }

@@ -25,14 +25,18 @@ import type {
   AcquireComponentScriptsRequest,
   AcquireComponentScriptsResponse,
   AddToLibraryRequest,
+  AdjustTemplateInstallationQuotaRequest,
   ConsumeTemplateQuotaRequest,
   CreateTemplateContainerRequest,
   CreateTemplateContainerResponse,
   DeleteTemplateContainerResponse,
+  GetTemplateInstallationsParams,
   ListOfCloudTemplateSummaryDto,
+  ListOfTemplateInstallationQuotaDto,
   ListOfTemplateLibraryItemDto,
   PublishTemplateContainerResponse,
   TemplateContainerDetailDto,
+  TemplateInstallationQuotaDto,
   TemplateLibraryItemDto,
 } from "../../model";
 
@@ -766,6 +770,253 @@ export const usePublishTemplateContainer = <TError = void, TContext = unknown>(
 > => {
   return useMutation(
     getPublishTemplateContainerMutationOptions(options),
+    queryClient,
+  );
+};
+/**
+ * @summary Admin: list workstation template installations and quota usage
+ */
+export const getTemplateInstallations = (
+  params?: GetTemplateInstallationsParams,
+  signal?: AbortSignal,
+) => {
+  return customInstance<ListOfTemplateInstallationQuotaDto>({
+    url: `/api/templates/installations`,
+    method: "GET",
+    params,
+    signal,
+  });
+};
+
+export const getGetTemplateInstallationsQueryKey = (
+  params?: GetTemplateInstallationsParams,
+) => {
+  return [`/api/templates/installations`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetTemplateInstallationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTemplateInstallations>>,
+  TError = void,
+>(
+  params?: GetTemplateInstallationsParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTemplateInstallations>>,
+        TError,
+        TData
+      >
+    >;
+  },
+) => {
+  const { query: queryOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetTemplateInstallationsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getTemplateInstallations>>
+  > = ({ signal }) => getTemplateInstallations(params, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTemplateInstallations>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetTemplateInstallationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTemplateInstallations>>
+>;
+export type GetTemplateInstallationsQueryError = void;
+
+export function useGetTemplateInstallations<
+  TData = Awaited<ReturnType<typeof getTemplateInstallations>>,
+  TError = void,
+>(
+  params: undefined | GetTemplateInstallationsParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTemplateInstallations>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTemplateInstallations>>,
+          TError,
+          Awaited<ReturnType<typeof getTemplateInstallations>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetTemplateInstallations<
+  TData = Awaited<ReturnType<typeof getTemplateInstallations>>,
+  TError = void,
+>(
+  params?: GetTemplateInstallationsParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTemplateInstallations>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTemplateInstallations>>,
+          TError,
+          Awaited<ReturnType<typeof getTemplateInstallations>>
+        >,
+        "initialData"
+      >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetTemplateInstallations<
+  TData = Awaited<ReturnType<typeof getTemplateInstallations>>,
+  TError = void,
+>(
+  params?: GetTemplateInstallationsParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTemplateInstallations>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary Admin: list workstation template installations and quota usage
+ */
+
+export function useGetTemplateInstallations<
+  TData = Awaited<ReturnType<typeof getTemplateInstallations>>,
+  TError = void,
+>(
+  params?: GetTemplateInstallationsParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getTemplateInstallations>>,
+        TError,
+        TData
+      >
+    >;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+  queryKey: DataTag<QueryKey, TData, TError>;
+} {
+  const queryOptions = getGetTemplateInstallationsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+    TData,
+    TError
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+/**
+ * @summary Admin/Billing: adjust quota limit, add credits, reset usage, or revoke access
+ */
+export const adjustTemplateInstallationQuota = (
+  libraryItemId: string,
+  adjustTemplateInstallationQuotaRequest: AdjustTemplateInstallationQuotaRequest,
+  signal?: AbortSignal,
+) => {
+  return customInstance<TemplateInstallationQuotaDto>({
+    url: `/api/templates/installations/${libraryItemId}/quota`,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    data: adjustTemplateInstallationQuotaRequest,
+    signal,
+  });
+};
+
+export const getAdjustTemplateInstallationQuotaMutationOptions = <
+  TError = void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adjustTemplateInstallationQuota>>,
+    TError,
+    { libraryItemId: string; data: AdjustTemplateInstallationQuotaRequest },
+    TContext
+  >;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adjustTemplateInstallationQuota>>,
+  TError,
+  { libraryItemId: string; data: AdjustTemplateInstallationQuotaRequest },
+  TContext
+> => {
+  const mutationKey = ["adjustTemplateInstallationQuota"];
+  const { mutation: mutationOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey } };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adjustTemplateInstallationQuota>>,
+    { libraryItemId: string; data: AdjustTemplateInstallationQuotaRequest }
+  > = (props) => {
+    const { libraryItemId, data } = props ?? {};
+
+    return adjustTemplateInstallationQuota(libraryItemId, data);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdjustTemplateInstallationQuotaMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adjustTemplateInstallationQuota>>
+>;
+export type AdjustTemplateInstallationQuotaMutationBody =
+  AdjustTemplateInstallationQuotaRequest;
+export type AdjustTemplateInstallationQuotaMutationError = void;
+
+/**
+ * @summary Admin/Billing: adjust quota limit, add credits, reset usage, or revoke access
+ */
+export const useAdjustTemplateInstallationQuota = <
+  TError = void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adjustTemplateInstallationQuota>>,
+      TError,
+      { libraryItemId: string; data: AdjustTemplateInstallationQuotaRequest },
+      TContext
+    >;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof adjustTemplateInstallationQuota>>,
+  TError,
+  { libraryItemId: string; data: AdjustTemplateInstallationQuotaRequest },
+  TContext
+> => {
+  return useMutation(
+    getAdjustTemplateInstallationQuotaMutationOptions(options),
     queryClient,
   );
 };

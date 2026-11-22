@@ -92,6 +92,10 @@ public class PipelineDbContext : DbContext
 
         modelBuilder
             .Entity<TemplateLibraryItem>()
+            .HasIndex(x => x.OwnerUserId);
+
+        modelBuilder
+            .Entity<TemplateLibraryItem>()
             .HasOne(x => x.TemplatePackage)
             .WithMany()
             .HasForeignKey(x => x.TemplatePackageId)

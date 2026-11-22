@@ -141,9 +141,12 @@ public class TemplateLibraryItem : AuditableEntity
     public Guid TemplatePackageId { get; set; }
     public TemplatePackage TemplatePackage { get; set; } = null!;
     public Guid? OwnerUserId { get; set; }
+    public string? OwnerEmail { get; set; }
     public string MachineKey { get; set; } = string.Empty;
     public int UsedRuns { get; set; }
     public int? MaxRuns { get; set; }
     public string PeriodKey { get; set; } = "lifetime";
     public DateTimeOffset AddedAt { get; set; }
+    public DateTimeOffset? LastRunAt { get; set; }
+    public bool IsRevoked { get; set; }
 }

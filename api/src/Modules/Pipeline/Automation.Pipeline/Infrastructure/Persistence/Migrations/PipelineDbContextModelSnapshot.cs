@@ -239,12 +239,21 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                     b.Property<string>("CreatedBy")
                         .HasColumnType("text");
 
+                    b.Property<bool>("IsRevoked")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("LastRunAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("MachineKey")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int?>("MaxRuns")
                         .HasColumnType("integer");
+
+                    b.Property<string>("OwnerEmail")
+                        .HasColumnType("text");
 
                     b.Property<Guid?>("OwnerUserId")
                         .HasColumnType("uuid");
@@ -266,6 +275,8 @@ namespace Automation.Pipeline.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("OwnerUserId");
 
                     b.HasIndex("TemplatePackageId");
 
