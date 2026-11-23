@@ -29,7 +29,7 @@
   "bundle": {
     "active": true,
     "createUpdaterArtifacts": true,
-    "targets": "all",
+    "targets": ["nsis"],
     "externalBin": [
       "binaries/forgity-runner"
     ],

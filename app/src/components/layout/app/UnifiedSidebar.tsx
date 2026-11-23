@@ -20,15 +20,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Laptop,
-  Building2,
   Shield,
   Sparkles,
-  ArrowLeftRight,
   Workflow,
   Cpu,
-  LayoutDashboard,
   FolderKanban,
-  HardDrive,
   Users,
   ShieldCheck,
   ScrollText,
@@ -50,14 +46,12 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { useAppModeStore } from "@/stores/appModeStore";
-import { useCurrentStudio } from "@/features/studios/hooks/useCurrentStudio";
 import {
   resolveZoneFromPathname,
   useHasAnyAdminPermission,
   type AppZone,
 } from "@/lib/navigation/zones";
 import { NavUser } from "./NavUser";
-import { StudioSwitcherDialog } from "./StudioSwitcherDialog";
 import { useWorkspaceRegistry } from "@/features/pipelines/hooks/workspace/useWorkspaceRegistry";
 import { openNativeFileOrFolderDialog, isTauriRuntime } from "@/lib/platform/filePickerStrategy";
 import { toast } from "sonner";
@@ -72,11 +66,6 @@ export function UnifiedSidebar() {
   const hasAdmin = useHasAnyAdminPermission();
   const setMode = useAppModeStore((s) => s.setMode);
 
-  const { studioSlug, studioName } = useCurrentStudio({
-    enabled: Boolean(accessToken),
-  });
-
-  const [isStudioDialogOpen, setIsStudioDialogOpen] = useState(false);
   const [isZoneOpen, setIsZoneOpen] = useState(true);
 
   const goToZone = (zone: AppZone) => {
@@ -93,7 +82,7 @@ export function UnifiedSidebar() {
           ? "/templates"
           : zone === "admin"
             ? "/admin"
-            : "/studio";
+            : "/local";
       navigate({
         to: "/auth/login" as any,
         search: { redirect: target } as any,
@@ -106,18 +95,9 @@ export function UnifiedSidebar() {
     } else if (zone === "admin") {
       navigate({ to: "/admin" as any });
     } else {
-      if (studioSlug) {
-        navigate({
-          to: "/studio/$studioSlug" as any,
-          params: { studioSlug } as any,
-        });
-      } else {
-        navigate({ to: "/" as any });
-      }
+      navigate({ to: "/local" as any });
     }
   };
-
-  const studioBase = studioSlug ? `/studio/${studioSlug}` : "/studio";
 
   const localItems = [
     {
@@ -134,41 +114,7 @@ export function UnifiedSidebar() {
     },
   ];
 
-  const studioItems = [
-    {
-      title: "Dashboard",
-      url: studioBase,
-      icon: LayoutDashboard,
-      isActive: pathname === studioBase || pathname === `${studioBase}/`,
-    },
-    {
-      title: "Projects",
-      url: `${studioBase}/projects`,
-      icon: FolderKanban,
-      isActive: pathname.startsWith(`${studioBase}/projects`),
-    },
-    {
-      title: "Runners",
-      url: `${studioBase}/runners`,
-      icon: Cpu,
-      isActive: pathname.startsWith(`${studioBase}/runners`),
-    },
-    {
-      title: "Storage",
-      url: `${studioBase}/storage`,
-      icon: HardDrive,
-      isActive: pathname.startsWith(`${studioBase}/storage`),
-    },
-  ];
-
   const adminItems = [
-    {
-      title: "Studios",
-      url: "/admin/studios",
-      icon: Building2,
-      visible: hasAnyPermission("studios:"),
-      isActive: pathname.startsWith("/admin/studios"),
-    },
     {
       title: "Users",
       url: "/admin/users",
@@ -266,22 +212,18 @@ export function UnifiedSidebar() {
   };
 
   const currentItems =
-    activeZone === "local"
-      ? localItems
-      : activeZone === "templates"
-        ? templateItems
-        : activeZone === "admin"
-          ? adminItems
-          : studioItems;
+    activeZone === "templates"
+      ? templateItems
+      : activeZone === "admin"
+        ? adminItems
+        : localItems;
 
   const zoneLabel =
-    activeZone === "local"
-      ? "Workspace"
-      : activeZone === "templates"
-        ? "Templates & Library"
-        : activeZone === "admin"
-          ? "Administration"
-          : studioName || "Studio";
+    activeZone === "templates"
+      ? "Templates & Library"
+      : activeZone === "admin"
+        ? "Administration"
+        : "Workspace";
 
   return (
     <>
@@ -320,38 +262,6 @@ export function UnifiedSidebar() {
                     <span>Workspace</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-
-                {/* Solo-First: Studio zone temporarily hidden to focus on Local + Templates */}
-                {false && (
-                  <SidebarMenuItem className="relative flex items-center">
-                    <SidebarMenuButton
-                      tooltip="Studio"
-                      isActive={activeZone === "studio"}
-                      onPress={() => goToZone("studio")}
-                      className={cn(
-                        "h-8 text-xs font-medium pr-8",
-                        activeZone === "studio" &&
-                        "bg-background text-foreground shadow-xs"
-                      )}
-                    >
-                      <Building2 className="size-4" />
-                      <span className="truncate">Studio</span>
-                    </SidebarMenuButton>
-                    {accessToken && (
-                      <button
-                        type="button"
-                        title="Switch Studio"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsStudioDialogOpen(true);
-                        }}
-                        className="absolute right-1.5 flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors group-data-[collapsible=icon]:hidden"
-                      >
-                        <ArrowLeftRight className="size-3.5" />
-                      </button>
-                    )}
-                  </SidebarMenuItem>
-                )}
 
                 {accessToken && hasAdmin && (
                   <SidebarMenuItem>
@@ -568,11 +478,6 @@ export function UnifiedSidebar() {
           <NavUser />
         </SidebarFooter>
       </Sidebar>
-
-      <StudioSwitcherDialog
-        open={isStudioDialogOpen}
-        onOpenChange={setIsStudioDialogOpen}
-      />
     </>
   );
 }
