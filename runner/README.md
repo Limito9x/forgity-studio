@@ -1,26 +1,24 @@
-# Forgity Studio — Native Runner Daemon
+# Forgity Studio — Native Execution Engine (`forgity-runner`)
 
 [![Rust](https://img.shields.io/badge/Rust-1.85%2B-orange.svg)](https://www.rust-lang.org)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20x64-blue.svg)]()
-[![Binary Size](https://img.shields.io/badge/Binary%20Size-6.1%20MB-brightgreen.svg)]()
 [![Memory Idle](https://img.shields.io/badge/Idle%20RAM-%3C15%20MB-success.svg)]()
 
-**Forgity Studio Native Runner Daemon (`forgity-runner`)** is a single-binary, high-performance background daemon designed to execute headless 3D pipelines directly on workstation GPUs using Blender 3D and Unreal Engine.
+**Forgity Native Runner (`forgity-runner`)** is a standalone Rust execution engine bundled as a Tauri sidecar to execute local-first, two-tier DCC pipelines (Blender, Unreal Engine, Python) directly on the user's workstation.
 
-It replaces the legacy Python host daemon (`workers/`), offering zero runtime dependencies, instant sub-millisecond cold starts, zero-RAM S3 streaming, Windows Kernel Job Object process containment, and local Named Pipe IPC.
+Per **ADR-011**, legacy remote RabbitMQ/gRPC daemon commands (`register`, `start`, `daemon`) have been retired in favor of direct local execution (`run-bundle`, `worker`, `workspace run`).
 
 ---
 
 ## Key Architectural Advantages
 
-| Metric / Feature | Legacy Python Worker (`workers/`) | Forgity Native Runner (`runner/`) |
+| Feature | Legacy Python Worker (`workers/`) | Forgity Native Runner (`runner/`) |
 | :--- | :--- | :--- |
-| **Packaging** | Requires Python 3.12, venv, pip wheels (~300MB) | **Single standalone executable (`forgity-runner.exe`, 6.1 MB)** |
-| **Idle RAM Footprint** | ~100MB – 150MB | **~8MB – 12MB** |
+| **Packaging** | Requires Python 3.12, venv, pip wheels (~300MB) | **Single standalone executable (`forgity-runner.exe`)** |
 | **Subprocess Containment** | OS kill signals (prone to orphaned zombie processes) | **Windows Kernel Job Object (`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`)** |
 | **IPC Communication** | Grepping `PIPELINE_EVENT:` text on `stdout` | **Local 2-way Named Pipe IPC (`\\.\pipe\forgity-ipc-{stage_id}`)** |
-| **S3 Asset Streaming** | Buffered network I/O into RAM | **Chunked zero-RAM piped streaming (64KB chunks) with single-pass SHA-256** |
-| **DCC Discovery** | Hardcoded standard paths | **Automatic system hardware & registry DCC scanner (`doctor`)** |
+| **DCC Pool & Stage Batching** | Fresh DCC spawn per node | **Persistent DCC stage execution via `stage_runner_guest.py`** |
+| **DCC Discovery** | Hardcoded standard paths | **Automatic system hardware & registry DCC scanner (`doctor`, `dcc scan`)** |
 
 ---
 
@@ -32,16 +30,17 @@ Scans hardware (CPU cores, RAM, GPU, VRAM) and automatically detects installed B
 forgity-runner doctor
 ```
 
-### 2. Workstation Registration
-Registers the workstation with Forgity Studio Backend API using a setup token:
+### 2. Local Bundle Execution (Used by Tauri Sidecar)
+Executes an `ExecutionBundle` JSON file locally and emits structured JSON-lines telemetry:
 ```powershell
-forgity-runner register --token <REGISTRATION_TOKEN> --api-url http://localhost:5189
+forgity-runner run-bundle --bundle path/to/bundle.json --json-events
 ```
 
-### 3. Background Daemon Execution
-Starts consuming pipeline stage tasks from RabbitMQ (`stage_tasks.{runner_id}`):
+### 3. Workspace CLI & MCP Server
+Run, validate, or expose a local workspace to AI coding agents over MCP:
 ```powershell
-forgity-runner start
+forgity-runner workspace run --file path/to/pipeline.yaml
+forgity-runner mcp --workspace path/to/workspace
 ```
 
 ### 4. Cache & Storage Maintenance
@@ -60,5 +59,5 @@ cd runner
 cargo build --release
 ```
 
-The optimized standalone binary will be located at:
-`runner/target/release/forgity-runner.exe` (Size: ~6.1 MB)
+The standalone binary will be located at:
+`runner/target/release/forgity-runner.exe`
