@@ -363,16 +363,16 @@ export function LocalWorkspacePage({ projectId, explicitRootPath }: LocalWorkspa
                   isStart || isReturn
                     ? "Flow Control"
                     : matchedContract?.category ||
-                      matchedScript?.executor ||
-                      (n.data?.category as string) ||
-                      "Tool",
+                    matchedScript?.executor ||
+                    (n.data?.category as string) ||
+                    "Tool",
                 executor:
                   isStart || isReturn
                     ? "server"
                     : matchedContract?.executor ||
-                      matchedScript?.executor ||
-                      (n.data?.executor as string) ||
-                      "python",
+                    matchedScript?.executor ||
+                    (n.data?.executor as string) ||
+                    "python",
                 position: n.position,
                 configValues: (n.data?.configValues as any) || {},
                 inputs: isReturn
@@ -608,15 +608,16 @@ export function LocalWorkspacePage({ projectId, explicitRootPath }: LocalWorkspa
   );
 
   const localPaletteItems = useMemo<NodePaletteItemDto[]>(() => {
-    const items: NodePaletteItemDto[] = [];
+    const byKey = new Map<string, NodePaletteItemDto>();
 
     if (draftNodes) {
       for (const draft of Object.values(draftNodes)) {
-        items.push({
-          refId: `local:${draft.key}`,
+        const key = `local:${draft.key}`;
+        byKey.set(key, {
+          refId: key,
           name: draft.suggestedLabel || draft.suggestedName || draft.fileName,
           kind: PipelineNodeKind.Custom,
-          key: `local:${draft.key}`,
+          key,
           label: draft.suggestedLabel || draft.suggestedName || draft.fileName,
           category: "Local Scripts",
           source: "LocalDraft" as any,
@@ -624,17 +625,22 @@ export function LocalWorkspacePage({ projectId, explicitRootPath }: LocalWorkspa
           inputs: (draft.inputs || []) as any,
           outputs: (draft.outputs || []) as any,
           description: draft.description || draft.fullPath,
-          id: `local:${draft.key}`,
+          id: key,
           isVisibleInPalette: true,
         });
       }
     }
 
     if (nodeContractItems && nodeContractItems.length > 0) {
-      items.push(...nodeContractItems);
+      for (const item of nodeContractItems) {
+        const k = item.key || item.id;
+        if (k && !byKey.has(k)) {
+          byKey.set(k, item);
+        }
+      }
     }
 
-    return items;
+    return Array.from(byKey.values());
   }, [draftNodes, nodeContractItems]);
 
   const handleCancelLocalExecution = useCallback(async (executionId: string) => {
