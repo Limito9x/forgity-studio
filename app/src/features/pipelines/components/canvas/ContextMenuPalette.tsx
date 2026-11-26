@@ -147,9 +147,9 @@ export function ContextMenuPalette({
           <div className="text-center py-4 text-muted-foreground">No matching actions found</div>
         )}
 
-        {filteredItems.map((item) => (
+        {filteredItems.map((item, idx) => (
           <button
-            key={item.id || item.key}
+            key={`${item.id || item.key}::${idx}`}
             type="button"
             onClick={() => {
               onSelect(item);
